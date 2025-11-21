@@ -1,112 +1,101 @@
-# MyGarage Web Application
+# MyGarage - Automotive Parts E-commerce Platform
 
-A modern web application built with Vite, React, and TypeScript for managing garage services.
+MyGarage is a modern automotive parts e-commerce platform built with React, TypeScript, and Supabase. It allows customers to browse and purchase auto parts, find repair shops, and administrators to manage inventory and orders.
 
 ## Features
 
-- Browse repair shops with integrated map functionality
-- View product/service details
-- Responsive design with Tailwind CSS
-- Supabase integration for backend services
-- Admin dashboard for managing products, categories, and orders
+### Customer Features
+- Browse automotive parts with detailed information
+- Search and filter parts by category, brand, and compatibility
+- Add parts to cart and checkout
+- Locate nearby repair shops with integrated map
+- **NEW: AI-powered part identification using image analysis**
+
+### Admin Features
+- Dashboard with sales analytics
+- Manage products, categories, and inventory
+- Process and manage orders
+- View reports and revenue statistics
 
 ## Tech Stack
 
-- [Vite](https://vitejs.dev/) - Next Generation Frontend Tooling
-- [React](https://reactjs.org/) - A JavaScript library for building user interfaces
-- [TypeScript](https://www.typescriptlang.org/) - Typed JavaScript at Any Scale
-- [Tailwind CSS](https://tailwindcss.com/) - A utility-first CSS framework
-- [Supabase](https://supabase.io/) - Open source Firebase alternative
-- [Leaflet](https://leafletjs.com/) - JavaScript library for mobile-friendly interactive maps
-- [React Router](https://reactrouter.com/) - Declarative routing for React
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS
+- **Routing**: React Router v7
+- **Backend**: Supabase (Database, Authentication, Storage)
+- **Maps**: Leaflet
+- **Icons**: Lucide React
+- **AI Integration**: Google Gemini API for image analysis
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm, yarn, or pnpm
+- Node.js 16+
+- npm/yarn/pnpm
+- Supabase account
+- **Google Gemini API key**
 
 ### Installation
 
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd mygarage
+```
+
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-### Development
+3. Create a `.env.local` file in the root directory with your configuration:
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
+```
 
+4. Start the development server:
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+### Environment Variables
 
-### Accessing Admin Dashboard
+- `VITE_SUPABASE_URL`: Your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
+- `VITE_GEMINI_API_KEY`: Your Google Gemini API key for image analysis
 
-```bash
-npm run admin
-```
+### Available Scripts
 
-This will start the development server and open the admin dashboard at [http://localhost:5173/admin](http://localhost:5173/admin).
-
-Alternatively, you can manually navigate to the admin dashboard by visiting `/admin` in your browser.
-
-### Building for Production
-
-```bash
-npm run build
-```
-
-### Preview Production Build
-
-```bash
-npm run preview
-```
-
-## Admin Dashboard
-
-The admin dashboard provides a comprehensive management interface for the application. It includes:
-
-- Overview statistics showing products, orders, categories, and revenue
-- Product management (view all products, stock levels, featured status)
-- Category management
-- Order management with status tracking
-- Low stock alerts
-- Recent orders display
-
-The dashboard is accessible at `/admin` and requires no authentication.
+- `npm run dev`: Start development server
+- `npm run build`: Build for production
+- `npm run preview`: Preview production build
+- `npm run admin`: Open admin dashboard
 
 ## Deployment
 
-### Deploy to Vercel
+The project is configured for deployment on Vercel. Make sure to set the environment variables in your Vercel project settings.
 
-This project is configured for easy deployment to Vercel:
+## New Feature: AI-Powered Part Identification
 
-1. Push your code to a GitHub repository
-2. Go to [Vercel](https://vercel.com/) and create a new project
-3. Import your repository
-4. Vercel will automatically detect the Vite project and configure the build settings
-5. Click "Deploy"
+With the integration of Google's Gemini API, MyGarage now offers an innovative way to identify car parts through image analysis:
 
-That's it! Your site will be live shortly.
+1. Navigate to the "Part Identifier" section
+2. Upload a clear image of a car part
+3. Our AI analyzes the image and provides:
+   - Part name and brand
+   - Detailed description of the part's function
+   - Compatible vehicle models
+   - Confidence level of the identification
 
-Alternatively, you can use the Vercel CLI:
+This feature makes it easier for customers to find the exact parts they need, even if they don't know the technical names or part numbers.
 
-1. Install Vercel CLI globally:
-   ```bash
-   npm install -g vercel
-   ```
+## Contributing
 
-2. Deploy:
-   ```bash
-   vercel
-   ```
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Environment Variables
+## License
 
-For Supabase integration to work, you'll need to set the following environment variables in your Vercel project:
-
-- `VITE_SUPABASE_URL` - Your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Your Supabase anon key
-
-These can be added in your Vercel project dashboard under Settings > Environment Variables.
+This project is licensed under the MIT License.

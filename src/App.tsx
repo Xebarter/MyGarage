@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Search, Filter, CheckCircle2, Star, Package } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown } from 'lucide-react';
 import { supabase, Category, Part, CartItem } from './lib/supabase';
 import { Header } from './components/Header';
 import { CategoryCard } from './components/CategoryCard';
@@ -17,12 +17,18 @@ function App() {
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<Part[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLUListElement>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sortOption, setSortOption] = useState<string>('default');
 
   useEffect(() => {
     fetchCategories();
@@ -84,8 +90,132 @@ function App() {
       filtered = filtered.filter((part) => part.featured);
     }
 
+    // Apply sorting based on sort option
+    switch (sortOption) {
+      case 'name-asc':
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-desc':
+        filtered.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'price-asc':
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-desc':
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case 'featured':
+        filtered.sort((a, b) => (b.featured === a.featured) ? 0 : b.featured ? 1 : -1);
+        break;
+      default:
+        // Default sorting (featured first, then by name)
+        filtered.sort((a, b) => {
+          if (a.featured && !b.featured) return -1;
+          if (!a.featured && b.featured) return 1;
+          return a.name.localeCompare(b.name);
+        });
+    }
+
     setFilteredParts(filtered);
   }
+
+  function getSuggestions(query: string) {
+    if (!query.trim()) {
+      setSuggestions([]);
+      return;
+    }
+
+    const queryText = query.toLowerCase();
+    const matchedParts = parts.filter(
+      (part) =>
+        part.name.toLowerCase().includes(queryText) ||
+        part.brand.toLowerCase().includes(queryText)
+    );
+
+    // Sort by relevance - prioritize name matches over brand matches
+    const sortedParts = matchedParts.sort((a, b) => {
+      const aHasNameMatch = a.name.toLowerCase().includes(queryText);
+      const bHasNameMatch = b.name.toLowerCase().includes(queryText);
+
+      if (aHasNameMatch && !bHasNameMatch) return -1;
+      if (!aHasNameMatch && bHasNameMatch) return 1;
+
+      return a.name.localeCompare(b.name);
+    });
+
+    // Limit to 5 suggestions
+    setSuggestions(sortedParts.slice(0, 5));
+  }
+
+  function handleSearchChange(value: string) {
+    setSearchQuery(value);
+    getSuggestions(value);
+    setShowSuggestions(true);
+  }
+
+  function handleSearchFocus() {
+    if (searchQuery) {
+      getSuggestions(searchQuery);
+      setShowSuggestions(true);
+    }
+  }
+
+  function handleSearchBlur() {
+    // Delay hiding suggestions to allow clicking on them
+    setTimeout(() => setShowSuggestions(false), 150);
+  }
+
+  function selectSuggestion(part: Part) {
+    setSearchQuery(part.name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    searchInputRef.current?.focus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!showSuggestions) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveSuggestionIndex(prev =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+
+      case 'Enter':
+        e.preventDefault();
+        if (activeSuggestionIndex >= 0 && activeSuggestionIndex < suggestions.length) {
+          selectSuggestion(suggestions[activeSuggestionIndex]);
+        }
+        break;
+
+      case 'Escape':
+        setShowSuggestions(false);
+        setActiveSuggestionIndex(-1);
+        break;
+    }
+  }
+
+  // Reset active suggestion index when suggestions change
+  useEffect(() => {
+    setActiveSuggestionIndex(-1);
+  }, [suggestions]);
+
+  // Scroll active suggestion into view
+  useEffect(() => {
+    if (activeSuggestionIndex >= 0 && suggestionsRef.current) {
+      const activeElement = suggestionsRef.current.children[activeSuggestionIndex] as HTMLElement;
+      if (activeElement) {
+        activeElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [activeSuggestionIndex]);
 
   function handleCategorySelect(categoryId: string) {
     setSelectedCategory(selectedCategory === categoryId ? null : categoryId);
@@ -209,7 +339,6 @@ function App() {
         setSelectedCategory={setSelectedCategory}
         showFeaturedOnly={showFeaturedOnly}
         setShowFeaturedOnly={setShowFeaturedOnly}
-        categories={categories}
       />
 
       {/* Main Content */}
@@ -219,6 +348,7 @@ function App() {
           onCartClick={() => setIsCartOpen(true)}
           currentView={currentView}
           onViewChange={setCurrentView}
+          onToggleSidebar={toggleSidebar}
         />
 
         {showOrderSuccess && (
@@ -246,19 +376,67 @@ function App() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                       <input
+                        ref={searchInputRef}
                         type="text"
                         placeholder="Search parts..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        onFocus={handleSearchFocus}
+                        onBlur={handleSearchBlur}
+                        onKeyDown={handleKeyDown}
                         className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent w-full md:w-64"
                       />
+
+                      {showSuggestions && suggestions.length > 0 && (
+                        <ul
+                          ref={suggestionsRef}
+                          className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                        >
+                          {suggestions.map((part, index) => (
+                            <li
+                              key={part.id}
+                              onMouseDown={() => selectSuggestion(part)}
+                              className={`px-4 py-3 cursor-pointer flex items-center ${index === activeSuggestionIndex
+                                ? 'bg-orange-50 text-orange-700'
+                                : 'hover:bg-slate-50'
+                                }`}
+                            >
+                              <img
+                                src={part.image_url || 'https://placehold.co/40x40/e2e8f0/64748b?text=IMG'}
+                                alt={part.name}
+                                className="w-10 h-10 object-cover rounded mr-3"
+                              />
+                              <div>
+                                <div className="font-medium">{part.name}</div>
+                                <div className="text-sm text-slate-500">{part.brand}</div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <select
+                        value={sortOption}
+                        onChange={(e) => setSortOption(e.target.value)}
+                        className="appearance-none pl-4 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent w-full bg-white"
+                      >
+                        <option value="default">Sort by: Default</option>
+                        <option value="name-asc">Name: A-Z</option>
+                        <option value="name-desc">Name: Z-A</option>
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="featured">Featured First</option>
+                      </select>
+                      <ArrowUpDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                     </div>
 
                     <button
                       onClick={() => setShowFeaturedOnly(!showFeaturedOnly)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${showFeaturedOnly
-                          ? 'bg-orange-50 border-orange-200 text-orange-700'
-                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-orange-50 border-orange-200 text-orange-700'
+                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
                     >
                       <Star className="w-4 h-4" />
@@ -271,8 +449,8 @@ function App() {
                   <button
                     onClick={() => setSelectedCategory(null)}
                     className={`p-4 rounded-xl border transition-all ${!selectedCategory
-                        ? 'bg-orange-50 border-orange-200 text-orange-700'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-orange-300'
+                      ? 'bg-orange-50 border-orange-200 text-orange-700'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-orange-300'
                       }`}
                   >
                     <Package className="w-6 h-6 mx-auto mb-2" />

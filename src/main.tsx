@@ -8,6 +8,7 @@ import { AdminOrders } from './components/AdminOrders.tsx';
 import { AdminOrderDetail } from './components/AdminOrderDetail.tsx';
 import { AdminCategories } from './components/AdminCategories.tsx';
 import { AdminProducts } from './components/AdminProducts.tsx';
+import { ImageAnalysis } from './components/ImageAnalysis.tsx';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
+        <Route path="/part-identifier" element={<ImageAnalysis />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/products" element={<AdminProducts />} />
         <Route path="/admin/orders" element={<AdminOrders />} />

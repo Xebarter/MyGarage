@@ -140,7 +140,8 @@ export function AdminProducts() {
     <div className="flex min-h-screen">
       <AdminSidebar />
       
-      <div className="flex-1 ml-64 bg-gray-50 min-h-screen">
+      {/* Update the margin to work with the collapsible sidebar */}
+      <div className="flex-1 ml-64 bg-gray-50 min-h-screen transition-all duration-300">
         <div className="p-6">
           <div className="mb-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

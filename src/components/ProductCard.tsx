@@ -1,4 +1,4 @@
-import { ShoppingCart, Package, CarFront } from 'lucide-react'
+import { ShoppingCart, CarFront } from 'lucide-react'
 import type { Part } from '../lib/supabase'
 
 interface ProductCardProps {
@@ -51,54 +51,24 @@ export function ProductCard({ part, onAddToCart, onViewDetails }: ProductCardPro
           {part.name}
         </h3>
 
-        {part.compatible_models && (
-          <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
-            <CarFront className="w-3 h-3 flex-shrink-0" />
-            <span className="line-clamp-1">{part.compatible_models}</span>
-          </p>
-        )}
-
-        <p className="text-sm text-slate-600 mb-3 line-clamp-2 min-h-[2rem]">
-          {part.description || 'High-quality replacement part for reliable performance.'}
-        </p>
-
-        <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
-          <span className="flex items-center gap-1">
-            <Package className="w-3 h-3" />
-            {inStock ? `${part.stock_quantity} in stock` : 'Out of stock'}
-          </span>
-        </div>
-
         <div className="flex items-center justify-between pt-3 border-t border-slate-200">
           <div className="text-xl font-bold text-slate-900">
             UGX {part.price.toLocaleString()}
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewDetails(part);
-              }}
-              className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors duration-200"
-              aria-label="View product details"
-            >
-              View
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToCart(part);
-              }}
-              disabled={!inStock}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed rounded-md transition-colors duration-200 min-w-[60px] justify-center"
-              aria-label={`Add ${part.name} to cart`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              {inStock ? 'Add' : 'Sold Out'}
-            </button>
-          </div>
         </div>
+        
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToCart(part);
+          }}
+          disabled={!inStock}
+          className="w-full mt-3 px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed rounded-md transition-colors duration-200 flex items-center justify-center gap-2"
+          aria-label={`Add ${part.name} to cart`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          {inStock ? 'Add to Cart' : 'Sold Out'}
+        </button>
       </div>
     </article>
   );
