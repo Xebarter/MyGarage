@@ -2,7 +2,38 @@ import { useState, useRef, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Upload, Sparkles, Loader2, AlertCircle, Copy, Camera as CameraIcon, Image as ImageIcon, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Part } from '../lib/supabase';
+import { Part } from '../lib/supabase'; // Assuming this interface is correct
+
+// --- START: JSON Schema Definition for structured output ---
+// This schema enforces the exact fields, types, and required fields.
+const analysisSchema = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      description: "The commonly recognized name of the car part identified."
+    },
+    brand: {
+      type: "string",
+      description: "The brand or manufacturer name found on the part."
+    },
+    description: {
+      type: "string",
+      description: "A detailed description of the part and its function."
+    },
+    compatibleModels: {
+      type: "array",
+      items: { type: "string" },
+      description: "A list of compatible car models (Make, Model, Year Range)."
+    },
+    confidence: {
+      type: "number",
+      description: "Confidence level of the analysis as a percentage (0-100)."
+    }
+  },
+  required: ["name", "brand", "description", "compatibleModels", "confidence"]
+};
+// --- END: JSON Schema Definition ---
 
 interface AnalysisResult {
   name: string;
@@ -33,7 +64,7 @@ export function ImageAnalysis() {
         navigate('/');
       }
     };
-    
+
     window.addEventListener('keydown', handleEsc);
     return () => {
       window.removeEventListener('keydown', handleEsc);
@@ -45,7 +76,7 @@ export function ImageAnalysis() {
     if (showCamera) {
       initializeCamera();
     }
-    
+
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -55,11 +86,11 @@ export function ImageAnalysis() {
 
   const initializeCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
       });
       setStream(mediaStream);
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
@@ -74,10 +105,10 @@ export function ImageAnalysis() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -85,7 +116,7 @@ export function ImageAnalysis() {
         setSelectedImage(imageData);
         setAnalysisResult(null);
         setError(null);
-        
+
         // Stop the camera stream
         if (stream) {
           stream.getTracks().forEach(track => track.stop());
@@ -117,7 +148,7 @@ export function ImageAnalysis() {
       setAnalysisResult(null);
       setError(null);
       setShowCamera(false);
-      
+
       // Stop the camera stream if it's active
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -129,10 +160,10 @@ export function ImageAnalysis() {
 
   const analyzeImage = async () => {
     if (!selectedImage) return;
-    
+
     setIsAnalyzing(true);
     setError(null);
-    
+
     try {
       // Get the Gemini API key from environment variables
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -142,38 +173,49 @@ export function ImageAnalysis() {
 
       // Initialize Google Generative AI client with the correct API version
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Using gemini-1.5-flash-latest model which is more stable
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash-latest',
-        generationConfig: {
-          maxOutputTokens: 1000,
+
+      // Try different models in order of preference
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro'];
+      let model;
+      let lastError;
+
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`Attempting to load model: ${modelName}`);
+          model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              // *** CRITICAL FIX 1: Increase max tokens to prevent truncation ***
+              maxOutputTokens: 2048,
+              responseMimeType: "application/json", // Request JSON response
+              // *** CRITICAL FIX 2: Add response schema for strict enforcement ***
+              responseSchema: analysisSchema
+            }
+          });
+          // If we get here, the model is available
+          console.log(`Successfully loaded model: ${modelName}`);
+          break;
+        } catch (error) {
+          console.log(`Failed to load model ${modelName}:`, error);
+          lastError = error;
         }
-      });
+      }
+
+      if (!model) {
+        throw new Error(`Failed to load any Gemini model. Last error: ${lastError?.message || 'Unknown error'}`);
+      }
 
       // Convert base64 image to the format expected by Gemini
       const base64Data = selectedImage.split(',')[1];
-      
+
+      // Validate that we have base64 data
+      if (!base64Data) {
+        throw new Error('Invalid image data. Please try selecting a different image.');
+      }
+
       // Create the prompt for the AI
-      const prompt = `Analyze this image of a car part and provide the following information:
-        1. Part name
-        2. Brand/manufacturer
-        3. Detailed description of the part and its function
-        4. List of compatible car models (make and model year ranges)
-        5. Confidence level of your analysis as a percentage
-        
-        Format your response as JSON with these fields:
-        {
-          "name": "...",
-          "brand": "...",
-          "description": "...",
-          "compatibleModels": ["...", "..."],
-          "confidence": 0-100
-        }
-        
-        If you cannot identify the part, respond with:
-        {
-          "error": "Unable to identify the part in the image"
-        }`;
+      // Prompt is simplified since responseSchema handles the strict format
+      const prompt = `Analyze this image of a car part. Identify the part's name, brand, a detailed description of its function, and a list of compatible car models (Make, Model, Year Range). Provide a confidence score from 0-100. If the part cannot be identified, return the JSON structure with all fields set to "Unknown" and confidence to 0.`;
 
       // Call the Gemini API
       const result = await model.generateContent([
@@ -188,29 +230,50 @@ export function ImageAnalysis() {
 
       const response = await result.response;
       const text = response.text();
-      
+      console.log('Raw AI response:', text); // Log raw response for debugging
+
       // Parse the JSON response
       try {
-        // Extract JSON from the response (sometimes there's extra text)
-        const jsonStart = text.indexOf('{');
-        const jsonEnd = text.lastIndexOf('}') + 1;
-        const jsonString = text.substring(jsonStart, jsonEnd);
-        const parsedResult = JSON.parse(jsonString);
-        
+        // The model should return strict JSON now, so we can try to parse it directly.
+        // We keep the fallback extraction just in case, but it's less necessary.
+        let parsedResult: any;
+        try {
+          parsedResult = JSON.parse(text);
+        } catch (firstError) {
+          // Fallback: Try to extract JSON from the response text
+          const jsonStart = text.indexOf('{');
+          const jsonEnd = text.lastIndexOf('}') + 1;
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            const jsonString = text.substring(jsonStart, jsonEnd);
+            parsedResult = JSON.parse(jsonString);
+          } else {
+            // This error should be far less frequent now with the increased token limit and schema
+            throw new Error('No valid JSON found in response');
+          }
+        }
+
+        // Check if the response contains an error (only if the model deviates from the schema)
         if (parsedResult.error) {
           throw new Error(parsedResult.error);
         }
-        
-        // Create a complete analysis result
+
+        // Validate and complete the analysis result
         const completeResult: AnalysisResult = {
-          ...parsedResult,
-          recommendedParts: [] // We'll populate this with actual parts from the database in a real implementation
+          name: parsedResult.name || 'Unknown',
+          brand: parsedResult.brand || 'Unknown',
+          description: parsedResult.description || 'No description available',
+          compatibleModels: Array.isArray(parsedResult.compatibleModels) ? parsedResult.compatibleModels : [],
+          confidence: typeof parsedResult.confidence === 'number' ? parsedResult.confidence : 0,
+          recommendedParts: [] // Retaining original structure
         };
-        
+
         setAnalysisResult(completeResult);
       } catch (parseError) {
         console.error('Parse error:', parseError);
-        throw new Error('Failed to parse AI response');
+        // This is a generic fallback error for when the AI output is fundamentally broken/unparsable.
+        setError(`Analysis failed: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}. Raw response logged to console.`);
+        throw new Error(`Failed to parse AI response. Raw response logged to console.`);
       }
     } catch (err) {
       console.error('Analysis error:', err);
@@ -231,11 +294,11 @@ export function ImageAnalysis() {
     setAnalysisResult(null);
     setError(null);
     setShowCamera(true);
-    
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    
+
     // Restart camera if needed
     if (showCamera && !stream) {
       initializeCamera();
@@ -244,13 +307,13 @@ export function ImageAnalysis() {
 
   const switchToUpload = () => {
     setShowCamera(false);
-    
+
     // Stop the camera stream if it's active
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
-    
+
     // Trigger file input
     setTimeout(() => {
       fileInputRef.current?.click();
@@ -304,7 +367,7 @@ export function ImageAnalysis() {
                     <div className="text-white">Loading camera...</div>
                   )}
                 </div>
-                
+
                 <div className="flex justify-center gap-4">
                   <button
                     onClick={captureImage}
@@ -313,7 +376,7 @@ export function ImageAnalysis() {
                   >
                     <div className="w-12 h-12 bg-red-500 rounded-full"></div>
                   </button>
-                  
+
                   <button
                     onClick={() => setShowCamera(false)}
                     className="p-4 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
@@ -324,7 +387,7 @@ export function ImageAnalysis() {
                 </div>
               </div>
             ) : (
-              <div 
+              <div
                 className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-orange-400 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -343,7 +406,7 @@ export function ImageAnalysis() {
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -357,14 +420,14 @@ export function ImageAnalysis() {
                 </button>
               </div>
             )}
-            
+
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center text-red-800">
                   <AlertCircle className="w-5 h-5 mr-2" />
                   <span>{error}</span>
                 </div>
-                
+
                 <button
                   onClick={() => {
                     setError(null);
@@ -394,14 +457,14 @@ export function ImageAnalysis() {
                   </button>
                 </div>
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <img 
-                    src={selectedImage} 
-                    alt="Captured part" 
+                  <img
+                    src={selectedImage}
+                    alt="Captured part"
                     className="w-full h-auto max-h-96 object-contain"
                   />
                 </div>
               </div>
-              
+
               {analysisResult ? (
                 <div className="md:w-1/2">
                   <h3 className="text-lg font-medium text-slate-900 mb-2">Analysis Results</h3>
@@ -422,12 +485,12 @@ export function ImageAnalysis() {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div>
                       <h4 className="font-medium text-slate-900">Description</h4>
                       <p className="text-slate-700">{analysisResult.description}</p>
                     </div>
-                    
+
                     <div>
                       <h4 className="font-medium text-slate-900">Compatible Models</h4>
                       <ul className="list-disc list-inside text-slate-700 space-y-1">
@@ -436,21 +499,21 @@ export function ImageAnalysis() {
                         ))}
                       </ul>
                     </div>
-                    
+
                     <div className="pt-2">
                       <div className="flex items-center">
                         <span className="text-sm font-medium text-slate-700 mr-2">
                           Confidence: {analysisResult.confidence}%
                         </span>
                         <div className="flex-1 bg-slate-200 rounded-full h-2">
-                          <div 
-                            className="bg-green-500 h-2 rounded-full" 
+                          <div
+                            className="bg-green-500 h-2 rounded-full"
                             style={{ width: `${analysisResult.confidence}%` }}
                           ></div>
                         </div>
                       </div>
                     </div>
-                    
+
                     {analysisResult.recommendedParts.length > 0 && (
                       <div>
                         <h4 className="font-medium text-slate-900 mb-2">Recommended Replacement Parts</h4>
@@ -460,7 +523,7 @@ export function ImageAnalysis() {
                       </div>
                     )}
                   </div>
-                  
+
                   {copied && (
                     <div className="mt-2 text-sm text-green-600 flex items-center">
                       <Copy className="w-4 h-4 mr-1" />
@@ -508,7 +571,7 @@ export function ImageAnalysis() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={resetAnalysis}
@@ -516,7 +579,7 @@ export function ImageAnalysis() {
               >
                 Start Over
               </button>
-              
+
               {analysisResult && (
                 <button
                   onClick={analyzeImage}
@@ -527,7 +590,7 @@ export function ImageAnalysis() {
                   Re-analyze
                 </button>
               )}
-              
+
               <button
                 onClick={() => navigate('/')}
                 className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors ml-auto"
@@ -538,7 +601,7 @@ export function ImageAnalysis() {
           </div>
         )}
       </div>
-      
+
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="text-lg font-medium text-blue-900 mb-2">How It Works</h3>
         <ul className="list-disc list-inside text-blue-800 space-y-2">
@@ -553,4 +616,28 @@ export function ImageAnalysis() {
       </div>
     </div>
   );
+}
+
+// Helper function to extract information from non-standard responses
+// This is kept as a robust fallback, although the schema should make it unnecessary.
+function extractInfoFromResponse(responseText: string): Partial<AnalysisResult> | null {
+  try {
+    // Look for patterns in the response that might contain our information
+    const nameMatch = responseText.match(/["']?name["']?\s*[:：]?\s*["']?([^"'\n{}]+)["']?/i);
+    const brandMatch = responseText.match(/["']?brand["']?\s*[:：]?\s*["']?([^"'\n{}]+)["']?/i);
+    const descriptionMatch = responseText.match(/["']?description["']?\s*[:：]?\s*["']?([^"'\n{}]+)["']?/i);
+    const confidenceMatch = responseText.match(/["']?confidence["']?\s*[:：]?\s*(\d+)/i);
+
+    const result: Partial<AnalysisResult> = {};
+
+    if (nameMatch && nameMatch[1]) result.name = nameMatch[1].trim();
+    if (brandMatch && brandMatch[1]) result.brand = brandMatch[1].trim();
+    if (descriptionMatch && descriptionMatch[1]) result.description = descriptionMatch[1].trim();
+    if (confidenceMatch && confidenceMatch[1]) result.confidence = parseInt(confidenceMatch[1]);
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (error) {
+    console.error('Error extracting info from response:', error);
+    return null;
+  }
 }

@@ -10,7 +10,7 @@ import { RepairShopLocator } from './components/RepairShopLocator';
 import { Sidebar } from './components/Sidebar';
 
 function App() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'shop' | 'mechanics'>('shop');
   const [categories, setCategories] = useState<Category[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -342,7 +342,7 @@ function App() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'md:ml-0' : ''}`}>
         <Header
           cartItems={cartItems}
           onCartClick={() => setIsCartOpen(true)}

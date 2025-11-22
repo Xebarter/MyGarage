@@ -210,9 +210,17 @@ export function Sidebar({
 
   return (
     <>
+      {/* Mobile overlay/backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={toggleSidebar}
+        />
+      )}
+      
       <aside
         className={`h-screen bg-white shadow-xl z-10 flex flex-col transition-all duration-300 ${isOpen ? 'w-80' : 'w-20'
-          } ${isOpen ? 'flex' : 'hidden md:flex'}`}
+          } ${isOpen ? 'flex absolute md:relative inset-y-0 z-50 md:z-10' : 'hidden md:flex'}`}
       >
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-200">
