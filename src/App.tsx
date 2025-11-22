@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock } from 'lucide-react';
 import { supabase, Category, Part, CartItem } from './lib/supabase';
 import { Header } from './components/Header';
 import { CategoryCard } from './components/CategoryCard';
@@ -7,11 +7,10 @@ import { ProductCard } from './components/ProductCard';
 import { Cart } from './components/Cart';
 import { ProductDetail } from './components/ProductDetail';
 import { RepairShopLocator } from './components/RepairShopLocator';
-import { Sidebar } from './components/Sidebar';
 
 function App() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'shop' | 'mechanics'>('shop');
+  const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
@@ -324,31 +323,96 @@ function App() {
     }, 3000);
   }
 
+  // Appointment form state
+  const [appointmentForm, setAppointmentForm] = useState({
+    customer_name: '',
+    customer_email: '',
+    customer_phone: '',
+    appointment_date: '',
+    appointment_time: '',
+    service_type: '',
+    vehicle_make: '',
+    vehicle_model: '',
+    vehicle_year: '',
+    notes: ''
+  });
+
+  const [appointmentSubmitted, setAppointmentSubmitted] = useState(false);
+  const [appointmentError, setAppointmentError] = useState('');
+
+  const handleAppointmentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setAppointmentForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAppointmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppointmentError('');
+    
+    try {
+      // Combine date and time
+      const appointmentDateTime = new Date(`${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`);
+      
+      const { error } = await supabase
+        .from('appointments')
+        .insert([
+          {
+            customer_name: appointmentForm.customer_name,
+            customer_email: appointmentForm.customer_email,
+            customer_phone: appointmentForm.customer_phone,
+            appointment_date: appointmentDateTime.toISOString(),
+            service_type: appointmentForm.service_type,
+            vehicle_make: appointmentForm.vehicle_make,
+            vehicle_model: appointmentForm.vehicle_model,
+            vehicle_year: parseInt(appointmentForm.vehicle_year),
+            notes: appointmentForm.notes
+          }
+        ]);
+      
+      if (error) throw error;
+      
+      setAppointmentSubmitted(true);
+      setAppointmentForm({
+        customer_name: '',
+        customer_email: '',
+        customer_phone: '',
+        appointment_date: '',
+        appointment_time: '',
+        service_type: '',
+        vehicle_make: '',
+        vehicle_model: '',
+        vehicle_year: '',
+        notes: ''
+      });
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setAppointmentSubmitted(false);
+        setShowAppointmentForm(false);
+      }, 5000);
+    } catch (error: any) {
+      console.error('Error scheduling appointment:', error);
+      setAppointmentError(error.message || 'Failed to schedule appointment. Please try again.');
+    }
+  };
+
   const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    // This function is no longer needed since we moved to a hamburger menu
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        toggleSidebar={toggleSidebar}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-        showFeaturedOnly={showFeaturedOnly}
-        setShowFeaturedOnly={setShowFeaturedOnly}
-      />
-
+    <div className="flex min-h-screen bg-gray-50">
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'md:ml-0' : ''}`}>
+      <div className="flex-1 flex flex-col h-screen overflow-hidden ml-0">
         <Header
           cartItems={cartItems}
           onCartClick={() => setIsCartOpen(true)}
           currentView={currentView}
           onViewChange={setCurrentView}
-          onToggleSidebar={toggleSidebar}
+          onShowAppointmentForm={() => setShowAppointmentForm(true)}
         />
 
         {showOrderSuccess && (
@@ -360,7 +424,7 @@ function App() {
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {currentView === 'mechanics' ? (
             <RepairShopLocator />
           ) : (
@@ -535,6 +599,205 @@ function App() {
           />
         )}
       </div>
+
+      {showAppointmentForm && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            // Close the form when clicking on the backdrop (outside the form)
+            if (e.target === e.currentTarget) {
+              setShowAppointmentForm(false);
+            }
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md my-8">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Schedule Appointment</h2>
+                <button 
+                  onClick={() => setShowAppointmentForm(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+              
+              {appointmentSubmitted ? (
+                <div className="text-center py-6 sm:py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Appointment Scheduled!</h3>
+                  <p className="text-gray-600 text-sm sm:text-base">
+                    Thank you for scheduling your appointment. We'll contact you shortly to confirm.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleAppointmentSubmit} className="space-y-4">
+                  {appointmentError && (
+                    <div className="bg-red-50 text-red-800 p-3 rounded-lg text-sm">
+                      {appointmentError}
+                    </div>
+                  )}
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      name="customer_name"
+                      value={appointmentForm.customer_name}
+                      onChange={handleAppointmentChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        name="customer_email"
+                        value={appointmentForm.customer_email}
+                        onChange={handleAppointmentChange}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                      <input
+                        type="tel"
+                        name="customer_phone"
+                        value={appointmentForm.customer_phone}
+                        onChange={handleAppointmentChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                    <select
+                      name="service_type"
+                      value={appointmentForm.service_type}
+                      onChange={handleAppointmentChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                    >
+                      <option value="">Select a service</option>
+                      <option value="Oil Change">Oil Change</option>
+                      <option value="Brake Service">Brake Service</option>
+                      <option value="Engine Diagnostic">Engine Diagnostic</option>
+                      <option value="Tire Rotation">Tire Rotation</option>
+                      <option value="Battery Replacement">Battery Replacement</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Make</label>
+                      <input
+                        type="text"
+                        name="vehicle_make"
+                        value={appointmentForm.vehicle_make}
+                        onChange={handleAppointmentChange}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="e.g., Toyota"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Model</label>
+                      <input
+                        type="text"
+                        name="vehicle_model"
+                        value={appointmentForm.vehicle_model}
+                        onChange={handleAppointmentChange}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="e.g., Camry"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Year</label>
+                    <input
+                      type="number"
+                      name="vehicle_year"
+                      value={appointmentForm.vehicle_year}
+                      onChange={handleAppointmentChange}
+                      required
+                      min="1900"
+                      max={new Date().getFullYear() + 1}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      placeholder="e.g., 2020"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                      <input
+                        type="date"
+                        name="appointment_date"
+                        value={appointmentForm.appointment_date}
+                        onChange={handleAppointmentChange}
+                        required
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                      <input
+                        type="time"
+                        name="appointment_time"
+                        value={appointmentForm.appointment_time}
+                        onChange={handleAppointmentChange}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                    <textarea
+                      name="notes"
+                      value={appointmentForm.notes}
+                      onChange={handleAppointmentChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      placeholder="Any additional information..."
+                    ></textarea>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAppointmentForm(false)}
+                      className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                    >
+                      Schedule Appointment
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  Menu
+  Menu,
+  Calendar
 } from 'lucide-react';
 
 export function AdminSidebar() {
@@ -100,6 +101,20 @@ export function AdminSidebar() {
               >
                 <ListOrdered className="w-5 h-5" />
                 {!isCollapsed && <span>Orders</span>}
+              </Link>
+            </li>
+            
+            <li>
+              <Link 
+                to="/admin/appointments" 
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive('/admin/appointments') 
+                    ? 'bg-orange-600 text-white' 
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Calendar className="w-5 h-5" />
+                {!isCollapsed && <span>Appointments</span>}
               </Link>
             </li>
             
