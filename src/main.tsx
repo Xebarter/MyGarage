@@ -15,6 +15,7 @@ import { ProfileAndSecurity } from './components/general-public/ProfileAndSecuri
 import { ServiceHistory } from './components/general-public/ServiceHistory.tsx';
 import { DocumentsAndInsurance } from './components/general-public/DocumentsAndInsurance';
 import { VehicleManagement } from './components/general-public/VehicleManagement.tsx';
+import { RepairShopLocator } from './components/general-public/RepairShopLocator.tsx';
 import './index.css';
 import { Header } from './components/general-public/Header.tsx';
 
@@ -56,6 +57,11 @@ root.render(
         <Route path="/vehicles" element={
           <WithHeader>
             <VehicleManagement />
+          </WithHeader>
+        } />
+        <Route path="/mechanics" element={
+          <WithHeader>
+            <RepairShopLocator />
           </WithHeader>
         } />
         <Route path="/part-identifier" element={
