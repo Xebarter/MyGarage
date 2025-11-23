@@ -32,7 +32,6 @@ interface HeaderProps {
   onCategorySelect: (categoryId: string | null) => void;
 }
 
-// Full categories with real subcategories
 const CATEGORIES = [
   {
     id: 'engine',
@@ -129,7 +128,6 @@ export function Header({
 
   const itemCount = cartItems.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
 
-  // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
@@ -177,22 +175,24 @@ export function Header({
     <>
       <header className="bg-white shadow-sm sticky top-0 z-40 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-3">
-              <div className="bg-orange-600 text-white p-2 rounded-lg">
-                <Wrench className="h-6 w-6" />
-              </div>
-              <span className="text-2xl font-bold text-gray-900">MyGarage</span>
-            </Link>
+            <div className="flex items-center">
+              <Link to="/" className="flex items-center space-x-3">
+                <div className="bg-orange-600 text-white p-2 rounded-lg">
+                  <Wrench className="h-6 w-6" />
+                </div>
+                <span className="text-xl sm:text-2xl font-bold text-gray-900">MyGarage</span>
+              </Link>
+            </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center space-x-2">
+            {/* Desktop Navigation - Hidden on small screens */}
+            <nav className="hidden lg:flex items-center space-x-1">
               {NAV_ITEMS.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleMainNav(item.id, item.path)}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                     currentView === item.id
                       ? 'bg-orange-50 text-orange-600 shadow-sm'
                       : 'text-gray-700 hover:bg-gray-100 hover:text-orange-600'
@@ -204,10 +204,10 @@ export function Header({
               ))}
             </nav>
 
-            {/* Right Side */}
-            <div className="flex items-center gap-4">
+            {/* Right Side Icons */}
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Profile Dropdown */}
-              <div className="relative" ref={profileRef}>
+              <div className="relative hidden sm:block" ref={profileRef}>
                 <button
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
                   className="p-2.5 rounded-xl hover:bg-orange-50 transition"
@@ -260,10 +260,18 @@ export function Header({
                 )}
               </button>
 
-              {/* Hamburger - Always visible */}
+              {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMenuOpen(true)}
-                className="p-2.5 rounded-xl hover:bg-gray-100 transition"
+                className="p-2.5 rounded-xl hover:bg-gray-100 transition lg:hidden"
+              >
+                <MenuIcon className="h-6 w-6" />
+              </button>
+
+              {/* Desktop Menu Button (only shows when nav is hidden) */}
+              <button
+                onClick={() => setIsMenuOpen(true)}
+                className="hidden lg:block p-2.5 rounded-xl hover:bg-gray-100 transition"
               >
                 <MenuIcon className="h-6 w-6" />
               </button>
@@ -272,12 +280,12 @@ export function Header({
         </div>
       </header>
 
-      {/* Full Drawer with Real Subcategories */}
+      {/* Mobile & Desktop Drawer */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setIsMenuOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="relative bg-white w-full max-w-md h-full shadow-2xl overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
               <h2 className="text-2xl font-bold text-gray-900">Menu</h2>
               <button onClick={() => setIsMenuOpen(false)} className="p-3 rounded-xl hover:bg-gray-100">
                 <X className="h-6 w-6" />
@@ -306,7 +314,7 @@ export function Header({
                 ))}
               </div>
 
-              {/* Shop by Category - FULL SUBCATEGORIES */}
+              {/* Shop by Category */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
                   Shop by Category
