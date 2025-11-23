@@ -57,7 +57,65 @@ export function ImageAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Handle Escape key to close the component
+  // Helper to stop the current stream
+  const stopCameraStream = (currentStream: MediaStream | null) => {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  // *** CAMERA FIX 1: Corrected initialization logic to handle async and refs ***
+  const initializeCamera = async () => {
+    // Stop any existing stream before starting a new one
+    stopCameraStream(stream);
+    
+    // Clear previous errors
+    setError(null);
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      setStream(mediaStream);
+
+      // Check for current ref state and assign the stream
+      if (videoRef.current) {
+        // Must set srcObject to the stream
+        videoRef.current.srcObject = mediaStream;
+        // The play() method may return a Promise which must be handled.
+        await videoRef.current.play().catch(e => console.warn("Video play failed (often harmless):", e));
+      } else {
+        // If ref is null, log and stop stream to prevent resource leak
+        console.warn('Video ref is null during camera initialization. Stopping stream.');
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      // *** IMPORTANT: Only set showCamera to false AND stop the stream if it failed. ***
+      setError('Could not access camera. Please check permissions or upload an image instead.');
+      setShowCamera(false); 
+      setStream(null); // Ensure stream state is null on failure
+    }
+  };
+
+  // *** CAMERA FIX 2: Simplified useEffect to only manage stream on showCamera change or unmount ***
+  useEffect(() => {
+    if (showCamera) {
+      initializeCamera();
+    } else {
+      // If we switch away from camera, stop the stream
+      stopCameraStream(stream);
+    }
+
+    return () => {
+      // Clean up on component unmount
+      stopCameraStream(stream);
+    };
+    // Dependency array is updated to use stopCameraStream and stream, but stopCameraStream is stable
+    // The main trigger should be showCamera
+  }, [showCamera]);
+  // The original useEffect for the Escape key is left untouched
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -70,36 +128,7 @@ export function ImageAnalysis() {
       window.removeEventListener('keydown', handleEsc);
     };
   }, [navigate]);
-
-  // Initialize camera on component mount
-  useEffect(() => {
-    if (showCamera) {
-      initializeCamera();
-    }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [showCamera]);
-
-  const initializeCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      setStream(mediaStream);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      setError('Could not access camera. Please check permissions or upload an image instead.');
-      setShowCamera(false);
-    }
-  };
+  // --- END OF CAMERA FIXES ---
 
   const captureImage = () => {
     if (videoRef.current && canvasRef.current) {
@@ -117,11 +146,8 @@ export function ImageAnalysis() {
         setAnalysisResult(null);
         setError(null);
 
-        // Stop the camera stream
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-          setStream(null);
-        }
+        // Stop the camera stream after capture
+        stopCameraStream(stream);
       }
     }
   };
@@ -150,10 +176,7 @@ export function ImageAnalysis() {
       setShowCamera(false);
 
       // Stop the camera stream if it's active
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
-      }
+      stopCameraStream(stream);
     };
     reader.readAsDataURL(file);
   };
@@ -300,20 +323,20 @@ export function ImageAnalysis() {
     }
 
     // Restart camera if needed
-    if (showCamera && !stream) {
+    if (!stream) {
       initializeCamera();
     }
   };
 
   const switchToUpload = () => {
-    setShowCamera(false);
-
     // Stop the camera stream if it's active
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
+    stopCameraStream(stream);
 
+    setSelectedImage(null);
+    setAnalysisResult(null);
+    setError(null);
+    setShowCamera(false);
+    
     // Trigger file input
     setTimeout(() => {
       fileInputRef.current?.click();
@@ -325,7 +348,7 @@ export function ImageAnalysis() {
     setAnalysisResult(null);
     setError(null);
     setShowCamera(true);
-    initializeCamera();
+    // initializeCamera is called automatically by the useEffect
   };
 
   return (
@@ -371,14 +394,16 @@ export function ImageAnalysis() {
                 <div className="flex justify-center gap-4">
                   <button
                     onClick={captureImage}
-                    className="p-4 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
+                    // Disable capture button if the stream isn't active
+                    disabled={!stream}
+                    className="p-4 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
                     aria-label="Capture image"
                   >
                     <div className="w-12 h-12 bg-red-500 rounded-full"></div>
                   </button>
 
                   <button
-                    onClick={() => setShowCamera(false)}
+                    onClick={switchToUpload}
                     className="p-4 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
                     aria-label="Switch to upload"
                   >
@@ -387,6 +412,7 @@ export function ImageAnalysis() {
                 </div>
               </div>
             ) : (
+              // Upload state or Camera Error state
               <div
                 className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-orange-400 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
@@ -410,8 +436,7 @@ export function ImageAnalysis() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowCamera(true);
-                    initializeCamera();
+                    switchToCamera();
                   }}
                   className="mt-4 flex items-center gap-2 text-orange-600 hover:text-orange-700 mx-auto"
                 >
@@ -431,8 +456,7 @@ export function ImageAnalysis() {
                 <button
                   onClick={() => {
                     setError(null);
-                    setShowCamera(true);
-                    initializeCamera();
+                    switchToCamera(); // Use corrected function
                   }}
                   className="mt-3 flex items-center gap-2 text-orange-600 hover:text-orange-700"
                 >
