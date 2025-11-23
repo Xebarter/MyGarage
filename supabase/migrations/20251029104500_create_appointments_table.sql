@@ -13,7 +13,8 @@
       - `vehicle_model` (text) - Vehicle model
       - `vehicle_year` (integer) - Vehicle year
       - `notes` (text) - Additional notes from customer
-      - `status` (text) - Appointment status (scheduled, completed, cancelled)
+      - `status` (text) - Appointment status (pending, scheduled, in_progress, completed, cancelled, declined)
+      - `reminder_sent` (boolean) - Whether a reminder was sent to the customer
       - `created_at` (timestamptz)
       - `updated_at` (timestamptz)
 
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   vehicle_model text NOT NULL,
   vehicle_year integer NOT NULL,
   notes text,
-  status text DEFAULT 'scheduled',
+  status text DEFAULT 'pending',
+  reminder_sent boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

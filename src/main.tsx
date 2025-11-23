@@ -10,6 +10,7 @@ import { AdminCategories } from './components/AdminCategories.tsx';
 import { AdminProducts } from './components/AdminProducts.tsx';
 import { AdminAppointments } from './components/AdminAppointments.tsx';
 import { ImageAnalysis } from './components/ImageAnalysis.tsx';
+import { RepairShopDashboard } from './components/repair-shop/RepairShopDashboard.tsx';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/admin/categories" element={<AdminCategories />} />
         <Route path="/admin/appointments" element={<AdminAppointments />} />
         <Route path="/admin/reports" element={<AdminReports />} />
+        <Route path="/repairshop" element={<RepairShopDashboard />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

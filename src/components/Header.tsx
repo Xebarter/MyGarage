@@ -94,6 +94,9 @@ export function Header({
               <Link to="/part-identifier" className="font-medium text-slate-700 hover:text-orange-600 flex items-center gap-2">
                 <ScanLine className="w-4 h-4" /> Part Identifier
               </Link>
+              <Link to="/repairshop" className="font-medium text-slate-700 hover:text-orange-600 flex items-center gap-2">
+                <Wrench className="w-4 h-4" /> Mechanic Dashboard
+              </Link>
               <button onClick={onShowAppointmentForm} className="font-medium text-slate-700 hover:text-orange-600 flex items-center gap-2">
                 <Calendar className="w-4 h-4" /> Book Service
               </button>
@@ -127,7 +130,7 @@ export function Header({
         </div>
       </header>
 
-      {/* Full-Screen Mega Menu — appears on all devices when hamburger is clicked */}
+      {/* Side Drawer Menu — no longer full-screen */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-50">
           {/* Backdrop */}
@@ -136,8 +139,8 @@ export function Header({
             onClick={() => setIsMenuOpen(false)} 
           />
 
-          {/* Menu Panel */}
-          <div className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl overflow-y-auto">
+          {/* Menu Panel - Right-aligned drawer with max width */}
+          <div className="absolute right-0 top-0 h-full w-[90vw] sm:w-[80vw] md:w-[600px] max-w-md bg-white shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <h2 className="text-2xl font-bold text-slate-900">Menu</h2>
               <button 
@@ -149,76 +152,77 @@ export function Header({
             </div>
 
             <div className="p-6 space-y-8">
-
               {/* Quick Links */}
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => { onViewChange('shop'); setIsMenuOpen(false); }}
-                  className={`p-5 rounded-xl text-left transition ${currentView === 'shop' ? 'bg-orange-50 border-2 border-orange-300' : 'bg-slate-50 hover:bg-slate-100'}`}
-                >
-                  <ShoppingCart className="w-8 h-8 mb-2 text-orange-600" />
-                  <div className="font-semibold">Shop Parts</div>
-                </button>
-
-                <button onClick={() => { onViewChange('mechanics'); setIsMenuOpen(false); }}
-                  className={`p-5 rounded-xl text-left transition ${currentView === 'mechanics' ? 'bg-orange-50 border-2 border-orange-300' : 'bg-slate-50 hover:bg-slate-100'}`}
-                >
-                  <MapPin className="w-8 h-8 mb-2 text-orange-600" />
-                  <div className="font-semibold">Find Mechanics</div>
-                </button>
-
-                <Link to="/part-identifier" onClick={() => setIsMenuOpen(false)} className="p-5 rounded-xl bg-slate-50 hover:bg-slate-100 text-left">
-                  <ScanLine className="w-8 h-8 mb-2 text-orange-600" />
-                  <div className="font-semibold">Part Identifier</div>
-                </Link>
-
-                <button onClick={() => { onShowAppointmentForm(); setIsMenuOpen(false); }} className="p-5 rounded-xl bg-slate-50 hover:bg-slate-100 text-left">
-                  <Calendar className="w-8 h-8 mb-2 text-orange-600" />
-                  <div className="font-semibold">Book Service</div>
-                </button>
+              <div>
+                <h3 className="font-bold text-slate-900 mb-4">Quick Links</h3>
+                <div className="space-y-2">
+                  {[
+                    { icon: Package, label: 'Shop Parts', onClick: () => onViewChange('shop') },
+                    { icon: MapPin, label: 'Find Mechanics', onClick: () => onViewChange('mechanics') },
+                    { icon: ScanLine, label: 'Part Identifier', to: '/part-identifier' },
+                    { icon: Wrench, label: 'Mechanic Dashboard', to: '/repairshop' },
+                    { icon: Calendar, label: 'Book Service', onClick: onShowAppointmentForm },
+                  ].map((item, i) => (
+                    <Link 
+                      key={i} 
+                      to={item.to || '#'}
+                      onClick={() => {
+                        if (item.onClick) item.onClick();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition"
+                    >
+                      <item.icon className="w-5 h-5 text-slate-600" />
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
 
               {/* Categories */}
               <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Shop by Category</h3>
+                <h3 className="font-bold text-slate-900 mb-4">Categories</h3>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => handleCatClick(null)}
+                    className={`w-full text-left p-4 rounded-xl transition ${
+                      selectedCategory === null 
+                        ? 'bg-orange-50 text-orange-600' 
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-medium">All Categories</div>
+                  </button>
 
-                <button
-                  onClick={() => handleCatClick(null)}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl mb-2 transition ${!selectedCategory ? 'bg-orange-100 font-semibold' : 'hover:bg-slate-50'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <Package className="w-6 h-6" />
-                    <span>All Parts</span>
-                  </div>
-                </button>
+                  {CATEGORIES.map(cat => (
+                    <div key={cat.id} className="border-b border-slate-100 last:border-0">
+                      <button
+                        onClick={() => toggleCat(cat.id)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition rounded-xl"
+                      >
+                        <div className="flex items-center gap-4">
+                          {cat.icon}
+                          <span className="font-medium">{cat.name}</span>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 transition-transform ${expandedCats.includes(cat.id) ? 'rotate-180' : ''}`} />
+                      </button>
 
-                {CATEGORIES.map(cat => (
-                  <div key={cat.id} className="border-b border-slate-100 last:border-0">
-                    <button
-                      onClick={() => toggleCat(cat.id)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition rounded-xl"
-                    >
-                      <div className="flex items-center gap-4">
-                        {cat.icon}
-                        <span className="font-medium">{cat.name}</span>
-                      </div>
-                      <ChevronDown className={`w-5 h-5 transition-transform ${expandedCats.includes(cat.id) ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {expandedCats.includes(cat.id) && (
-                      <div className="pb-3 px-4">
-                        {cat.subs.map((sub, i) => (
-                          <button
-                            key={i}
-                            onClick={() => handleCatClick(cat.id)}
-                            className="block w-full text-left py-2.5 px-6 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition text-sm"
-                          >
-                            {sub}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      {expandedCats.includes(cat.id) && (
+                        <div className="pb-3 px-4">
+                          {cat.subs.map((sub, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleCatClick(cat.id)}
+                              className="block w-full text-left py-2.5 px-6 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition text-sm"
+                            >
+                              {sub}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Account */}
@@ -231,7 +235,10 @@ export function Header({
                     { icon: Settings, label: 'Settings' },
                     { icon: LogOut, label: 'Logout', color: 'text-red-600' },
                   ].map((item, i) => (
-                    <button key={i} className={`w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition ${item.color || ''}`}>
+                    <button 
+                      key={i} 
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition ${item.color || ''}`}
+                    >
                       <item.icon className="w-5 h-5" />
                       <span className="font-medium">{item.label}</span>
                     </button>
