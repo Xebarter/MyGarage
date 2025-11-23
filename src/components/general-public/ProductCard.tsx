@@ -1,5 +1,5 @@
 import { ShoppingCart, CarFront } from 'lucide-react'
-import type { Part } from '../lib/supabase'
+import type { Part } from '../../lib/supabase'
 
 interface ProductCardProps {
   part: Part

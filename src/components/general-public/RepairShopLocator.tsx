@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Navigation, Search, Loader2, AlertCircle } from 'lucide-react';
-import { supabase, RepairShop } from '../lib/supabase';
+import { supabase, RepairShop } from '../../lib/supabase';
 import { RepairShopCard } from './RepairShopCard';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';

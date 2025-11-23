@@ -1,5 +1,5 @@
 import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
-import { CartItem } from '../lib/supabase';
+import { CartItem } from '../../lib/supabase';
 import { useState } from 'react';
 
 type CartProps = {

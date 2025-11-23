@@ -1,15 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
-import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock, Car, ArrowLeft } from 'lucide-react';
 import { supabase, Category, Part, CartItem } from './lib/supabase';
-import { Header } from './components/Header';
-import { CategoryCard } from './components/CategoryCard';
-import { ProductCard } from './components/ProductCard';
-import { Cart } from './components/Cart';
-import { ProductDetail } from './components/ProductDetail';
-import { RepairShopLocator } from './components/RepairShopLocator';
+import { Header } from './components/general-public/Header';
+import { CategoryCard } from './components/general-public/CategoryCard';
+import { ProductCard } from './components/general-public/ProductCard';
+import { Cart } from './components/general-public/Cart';
+import { ProductDetail } from './components/general-public/ProductDetail';
+import { RepairShopLocator } from './components/general-public/RepairShopLocator';
+import { VehicleManagement } from './components/general-public/VehicleManagement';
+import { DocumentsAndInsurance } from './components/general-public/DocumentsAndInsurance';
+import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity';
+import { ServiceHistory } from './components/general-public/ServiceHistory';
+import { ProfileOptions } from './components/general-public/ProfileOptions';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'shop' | 'mechanics'>('shop');
+  const [currentView, setCurrentView] = useState<'shop' | 'mechanics' | 'vehicles' | 'profile'>('shop');
+  const [selectedProfileView, setSelectedProfileView] = useState<string | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -413,6 +419,9 @@ function App() {
           currentView={currentView}
           onViewChange={setCurrentView}
           onShowAppointmentForm={() => setShowAppointmentForm(true)}
+          selectedCategory={selectedCategory}
+          onCategorySelect={setSelectedCategory}
+          onProfileOptionSelect={setSelectedProfileView}
         />
 
         {showOrderSuccess && (
@@ -427,6 +436,25 @@ function App() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {currentView === 'mechanics' ? (
             <RepairShopLocator />
+          ) : currentView === 'vehicles' ? (
+            <VehicleManagement />
+          ) : currentView === 'profile' && selectedProfileView === 'profile-and-security' ? (
+            <div>
+              <button 
+                onClick={() => setSelectedProfileView(null)}
+                className="inline-flex items-center text-orange-600 hover:text-orange-800 mb-4"
+              >
+                <ArrowLeft className="mr-2 h-5 w-5" />
+                Back to Profile
+              </button>
+              <ProfileAndSecurity />
+            </div>
+          ) : currentView === 'profile' && selectedProfileView === 'service_history' ? (
+            <ServiceHistory onBack={() => setSelectedProfileView(null)} />
+          ) : currentView === 'profile' && selectedProfileView === 'documents_storage' ? (
+            <DocumentsAndInsurance onBack={() => setSelectedProfileView(null)} />
+          ) : currentView === 'profile' && !selectedProfileView ? (
+            <ProfileOptions onClose={() => setCurrentView('shop')} onSelectView={setSelectedProfileView} />
           ) : (
             <>
               <div className="mb-8">
@@ -600,6 +628,7 @@ function App() {
         )}
       </div>
 
+      {/* Profile Views */}
       {showAppointmentForm && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"

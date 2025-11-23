@@ -1,4 +1,4 @@
-import { Category } from '../lib/supabase';
+import { Category } from '../../lib/supabase';
 
 type CategoryCardProps = {
   category: Category;
