@@ -275,50 +275,160 @@ export function DocumentsAndInsurance({ onBack }: DocumentsAndInsuranceProps) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Toaster position="top-right" />
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <div className="flex items-center mb-6">
+        {onBack && (
+          <button 
+            onClick={onBack}
+            className="mr-4 p-2 rounded-full hover:bg-gray-100"
+            aria-label="Back to profile"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          </button>
+        )}
+        <h1 className="text-2xl font-bold text-gray-900">Documents & Insurance</h1>
+      </div>
       
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Documents & Insurance</h1>
-          <p className="text-gray-600">
-            Manage all your vehicle documents in one place. Get notified when insurance or inspection is about to expire.
-          </p>
-        </div>
-
-        {/* Controls */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div className="flex-1 max-w-md">
-              <label htmlFor="vehicle-filter" className="block text-sm font-semibold text-gray-700 mb-2">
-                Filter by Vehicle
-              </label>
-              <select
-                id="vehicle-filter"
-                value={selectedVehicle}
-                onChange={(e) => setSelectedVehicle(e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-              >
-                <option value="all">All Vehicles ({documents.length})</option>
-                {vehicles.map(vehicle => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.make} {vehicle.model} ({vehicle.year}) - {vehicle.license_plate}
-                  </option>
-                ))}
-              </select>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-200">
+          <div className="flex items-center">
+            <div className="bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center">
+              <FileText className="text-orange-600 w-6 h-6" />
             </div>
-
-            <button
-              onClick={() => setShowUploadForm(true)}
-              className="inline-flex items-center px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Upload New Document
-            </button>
+            <div className="ml-4">
+              <p className="text-gray-600">
+                Manage all your vehicle documents in one place. Get notified when insurance or inspection is about to expire.
+              </p>
+            </div>
           </div>
         </div>
 
+        <div className="p-6">
+          {/* Controls */}
+          <div className="bg-gray-50 rounded-lg p-6 mb-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="flex-1 max-w-md">
+                <label htmlFor="vehicle-filter" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Filter by Vehicle
+                </label>
+                <select
+                  id="vehicle-filter"
+                  value={selectedVehicle}
+                  onChange={(e) => setSelectedVehicle(e.target.value)}
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >
+                  <option value="all">All Vehicles ({documents.length})</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.make} {vehicle.model} ({vehicle.year}) - {vehicle.license_plate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => setShowUploadForm(true)}
+                className="inline-flex items-center px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Upload New Document
+              </button>
+            </div>
+          </div>
+
+          {/* Documents Grid */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredDocuments.length === 0 ? (
+              <div className="col-span-full text-center py-16">
+                <div className="bg-gray-100 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+                  <FileText className="h-12 w-12 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents yet</h3>
+                <p className="text-gray-600">Upload your first document to get started</p>
+              </div>
+            ) : (
+              filteredDocuments.map((doc) => {
+                const expiringSoon = isExpiringSoon(doc.expiry_date);
+                const expired = isExpired(doc.expiry_date);
+
+                return (
+                  <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-3 rounded-lg bg-${DOCUMENT_TYPES.find(t => t.value === doc.type)?.color || 'gray'}-100`}>
+                            <FileText className={`h-6 w-6 text-${DOCUMENT_TYPES.find(t => t.value === doc.type)?.color || 'gray'}-600`} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{doc.name}</h3>
+                            <p className="text-sm text-gray-500">{getVehicleLabel(doc.vehicle_id)}</p>
+                          </div>
+                        </div>
+                        {expired && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <AlertTriangle className="mr-1 h-3 w-3" />
+                            Expired
+                          </span>
+                        )}
+                        {expiringSoon && !expired && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <AlertCircle className="mr-1 h-3 w-3" />
+                            Expiring Soon
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p className="font-medium text-gray-900">
+                          {DOCUMENT_TYPES.find(t => t.value === doc.type)?.label || 'Document'}
+                        </p>
+                        <p>Uploaded {formatDate(doc.uploaded_at)}</p>
+                        {doc.expiry_date && (
+                          <p className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            Expires {formatDate(doc.expiry_date)}
+                          </p>
+                        )}
+                        {doc.notes && (
+                          <p className="text-gray-500 italic text-xs mt-3">"{doc.notes}"</p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
+                        <a
+                          href={doc.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </a>
+                        <a
+                          href={doc.file_url}
+                          download
+                          className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </a>
+                        <button
+                          onClick={() => deleteDocument(doc)}
+                          className="p-2 border border-red-300 rounded-lg text-red-700 hover:bg-red-50 transition-colors"
+                          title="Delete document"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        
         {/* Upload Modal */}
         {showUploadForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -478,100 +588,8 @@ export function DocumentsAndInsurance({ onBack }: DocumentsAndInsuranceProps) {
             </div>
           </div>
         )}
-
-        {/* Documents Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredDocuments.length === 0 ? (
-            <div className="col-span-full text-center py-16">
-              <div className="bg-gray-100 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-                <FileText className="h-12 w-12 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents yet</h3>
-              <p className="text-gray-600">Upload your first document to get started</p>
-            </div>
-          ) : (
-            filteredDocuments.map((doc) => {
-              const expiringSoon = isExpiringSoon(doc.expiry_date);
-              const expired = isExpired(doc.expiry_date);
-
-              return (
-                <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-3 rounded-lg bg-${DOCUMENT_TYPES.find(t => t.value === doc.type)?.color || 'gray'}-100`}>
-                          <FileText className={`h-6 w-6 text-${DOCUMENT_TYPES.find(t => t.value === doc.type)?.color || 'gray'}-600`} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{doc.name}</h3>
-                          <p className="text-sm text-gray-500">{getVehicleLabel(doc.vehicle_id)}</p>
-                        </div>
-                      </div>
-                      {expired && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          <AlertTriangle className="mr-1 h-3 w-3" />
-                          Expired
-                        </span>
-                      )}
-                      {expiringSoon && !expired && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          <AlertCircle className="mr-1 h-3 w-3" />
-                          Expiring Soon
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <p className="font-medium text-gray-900">
-                        {DOCUMENT_TYPES.find(t => t.value === doc.type)?.label || 'Document'}
-                      </p>
-                      <p>Uploaded {formatDate(doc.uploaded_at)}</p>
-                      {doc.expiry_date && (
-                        <p className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          Expires {formatDate(doc.expiry_date)}
-                        </p>
-                      )}
-                      {doc.notes && (
-                        <p className="text-gray-500 italic text-xs mt-3">"{doc.notes}"</p>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View
-                      </a>
-                      <a
-                        href={doc.file_url}
-                        download
-                        className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Download className="h-4 w-4" />
-                        Download
-                      </a>
-                      <button
-                        onClick={() => deleteDocument(doc)}
-                        className="p-2 border border-red-300 rounded-lg text-red-700 hover:bg-red-50 transition-colors"
-                        title="Delete document"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
       </div>
+      <Toaster position="top-right" />
     </div>
   );
 }
-
-export default DocumentsAndInsurance;

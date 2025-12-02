@@ -27,9 +27,10 @@ interface HeaderProps {
   cartItems: any[];
   onCartClick: () => void;
   currentView: 'shop' | 'mechanics' | 'vehicles' | 'profile';
-  onViewChange: (view: 'shop' | 'mechanics' | 'vehicles') => void;
+  onViewChange: (view: 'shop' | 'mechanics' | 'vehicles' | 'profile') => void;
   selectedCategory: string | null;
   onCategorySelect: (categoryId: string | null) => void;
+  onProfileOptionSelect?: (option: string | null) => void;
 }
 
 const CATEGORIES = [
@@ -105,8 +106,8 @@ const PROFILE_LINKS = [
   { label: 'Profile Overview', icon: <User className="w-5 h-5" />, path: '/profile' },
   { label: 'My Vehicles', icon: <Car className="w-5 h-5" />, path: '/vehicles' },
   { label: 'Documents & Insurance', icon: <FileText className="w-5 h-5" />, path: '/profile/documents' },
-  { label: 'Appointments', icon: <Calendar className="w-5 h-5" />, path: '/profile/appointments' },
-  { label: 'Payment Methods', icon: <CreditCard className="w-5 h-5" />, path: '/profile/payments' },
+  { label: 'Appointments', icon: <Calendar className="w-5 h-5" />, action: 'appointments' },
+  { label: 'Payment Methods', icon: <CreditCard className="w-5 h-5" />, action: 'payments' },
   { label: 'Delivery Addresses', icon: <Truck className="w-5 h-5" />, path: '/profile/addresses' },
   { label: 'Settings', icon: <Settings className="w-5 h-5" />, path: '/profile/settings' },
 ];
@@ -118,6 +119,7 @@ export function Header({
   onViewChange,
   selectedCategory,
   onCategorySelect,
+  onProfileOptionSelect,
 }: HeaderProps) {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -158,8 +160,14 @@ export function Header({
     setIsMenuOpen(false);
   };
 
-  const handleProfileNav = (path: string) => {
-    navigate(path);
+  const handleProfileNav = (path: string | undefined, action?: string) => {
+    if (action === 'appointments') {
+      // Use the state-based navigation approach for appointments
+      onViewChange('profile');
+      onProfileOptionSelect && onProfileOptionSelect('appointments');
+    } else if (path) {
+      navigate(path);
+    }
     setIsProfileOpen(false);
     setIsMenuOpen(false);
   };
@@ -225,8 +233,8 @@ export function Header({
                     <div className="py-2">
                       {PROFILE_LINKS.map((link) => (
                         <button
-                          key={link.path}
-                          onClick={() => handleProfileNav(link.path)}
+                          key={link.path || link.action}
+                          onClick={() => handleProfileNav(link.path, link.action)}
                           className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                         >
                           {link.icon}
@@ -374,8 +382,8 @@ export function Header({
                 </h3>
                 {PROFILE_LINKS.map((link) => (
                   <button
-                    key={link.path}
-                    onClick={() => handleProfileNav(link.path)}
+                    key={link.path || link.action}
+                    onClick={() => handleProfileNav(link.path, link.action)}
                     className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition"
                   >
                     {link.icon}

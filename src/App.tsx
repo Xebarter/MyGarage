@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock, Car, ArrowLeft } from 'lucide-react';
+import { useEffect, useState, useRef, Suspense, lazy } from 'react';
+import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock, Car, ArrowLeft, CreditCard } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { supabase, Category, Part, CartItem } from './lib/supabase';
 import { Header } from './components/general-public/Header';
 import { CategoryCard } from './components/general-public/CategoryCard';
@@ -11,9 +12,13 @@ import { VehicleManagement } from './components/general-public/VehicleManagement
 import { DocumentsAndInsurance } from './components/general-public/DocumentsAndInsurance';
 import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity';
 import { ServiceHistory } from './components/general-public/ServiceHistory';
-import { ProfileOptions } from './components/general-public/ProfileOptions';
+import { ProfileDashboard } from './components/general-public/ProfileDashboard';
+import { Appointments } from './components/Appointments';
+
+const Payments = lazy(() => import('./app/profile/payments/page'));
 
 function App() {
+  const location = useLocation();
   const [currentView, setCurrentView] = useState<'shop' | 'mechanics' | 'vehicles' | 'profile'>('shop');
   const [selectedProfileView, setSelectedProfileView] = useState<string | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
@@ -34,6 +39,18 @@ function App() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortOption, setSortOption] = useState<string>('default');
+
+  useEffect(() => {
+    // Set the current view based on the route
+    if (location.pathname === '/profile') {
+      setCurrentView('profile');
+      setSelectedProfileView(null);
+    } else if (location.pathname === '/vehicles') {
+      setCurrentView('vehicles');
+    } else if (location.pathname === '/mechanics') {
+      setCurrentView('mechanics');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchCategories();
@@ -409,6 +426,50 @@ function App() {
     // This function is no longer needed since we moved to a hamburger menu
   };
 
+  const renderProfileContent = () => {
+    if (selectedProfileView === null) {
+      return (
+        <ProfileDashboard 
+          onSelectView={(optionId) => {
+            if (optionId === 'service_history') {
+              window.location.hash = '#/service-history';
+            } else if (optionId === 'documents_storage') {
+              window.location.hash = '#/documents-insurance';
+            } else {
+              setSelectedProfileView(optionId);
+            }
+          }}
+        />
+      );
+    }
+
+    switch (selectedProfileView) {
+      case 'profile-and-security':
+        return <ProfileAndSecurity onBack={() => setSelectedProfileView(null)} />;
+      case 'service_history':
+        return <ServiceHistory onBack={() => setSelectedProfileView(null)} />;
+      case 'documents_storage':
+        return <DocumentsAndInsurance onBack={() => setSelectedProfileView(null)} />;
+      case 'appointments':
+        return <Appointments />;
+      case 'payments':
+        return <Payments />;
+      default:
+        return (
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Section Not Available</h2>
+            <p className="text-gray-600">This section is currently under development.</p>
+            <button
+              onClick={() => setSelectedProfileView(null)}
+              className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Back to Profile
+            </button>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Main Content */}
@@ -438,23 +499,8 @@ function App() {
             <RepairShopLocator />
           ) : currentView === 'vehicles' ? (
             <VehicleManagement />
-          ) : currentView === 'profile' && selectedProfileView === 'profile-and-security' ? (
-            <div>
-              <button 
-                onClick={() => setSelectedProfileView(null)}
-                className="inline-flex items-center text-orange-600 hover:text-orange-800 mb-4"
-              >
-                <ArrowLeft className="mr-2 h-5 w-5" />
-                Back to Profile
-              </button>
-              <ProfileAndSecurity />
-            </div>
-          ) : currentView === 'profile' && selectedProfileView === 'service_history' ? (
-            <ServiceHistory onBack={() => setSelectedProfileView(null)} />
-          ) : currentView === 'profile' && selectedProfileView === 'documents_storage' ? (
-            <DocumentsAndInsurance onBack={() => setSelectedProfileView(null)} />
-          ) : currentView === 'profile' && !selectedProfileView ? (
-            <ProfileOptions onClose={() => setCurrentView('shop')} onSelectView={setSelectedProfileView} />
+          ) : currentView === 'profile' ? (
+            renderProfileContent()
           ) : (
             <>
               <div className="mb-8">

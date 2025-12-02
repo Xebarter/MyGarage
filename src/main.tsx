@@ -17,33 +17,6 @@ import { DocumentsAndInsurance } from './components/general-public/DocumentsAndI
 import { VehicleManagement } from './components/general-public/VehicleManagement.tsx';
 import { RepairShopLocator } from './components/general-public/RepairShopLocator.tsx';
 import './index.css';
-import { Header } from './components/general-public/Header.tsx';
-
-// Wrapper component to ensure all pages have the Header
-function WithHeader({ children }: { children: React.ReactNode }) {
-  // Mock cart items and functions for the Header component
-  const mockCartItems: any[] = [];
-  
-  const handleCartClick = () => {
-    // Mock function - in a real implementation this would open the cart
-  };
-
-  return (
-    <div className="flex min-h-screen bg-gray-50 flex-col">
-      <Header 
-        cartItems={mockCartItems}
-        onCartClick={handleCartClick}
-        currentView="shop"
-        onViewChange={() => {}}
-        selectedCategory={null}
-        onCategorySelect={() => {}}
-      />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6">
-        {children}
-      </main>
-    </div>
-  );
-}
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Failed to find the root element');
@@ -54,41 +27,13 @@ root.render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
-        <Route path="/vehicles" element={
-          <WithHeader>
-            <VehicleManagement />
-          </WithHeader>
-        } />
-        <Route path="/mechanics" element={
-          <WithHeader>
-            <RepairShopLocator />
-          </WithHeader>
-        } />
-        <Route path="/part-identifier" element={
-          <WithHeader>
-            <ImageAnalysis />
-          </WithHeader>
-        } />
-        <Route path="/profile" element={
-          <WithHeader>
-            <ProfileAndSecurity />
-          </WithHeader>
-        } />
-        <Route path="/service-history" element={
-          <WithHeader>
-            <ServiceHistory />
-          </WithHeader>
-        } />
-        <Route path="/profile/documents" element={
-          <WithHeader>
-            <DocumentsAndInsurance />
-          </WithHeader>
-        } />
-        <Route path="/documents-insurance" element={
-          <WithHeader>
-            <DocumentsAndInsurance />
-          </WithHeader>
-        } />
+        <Route path="/vehicles" element={<App />} />
+        <Route path="/mechanics" element={<App />} />
+        <Route path="/part-identifier" element={<ImageAnalysis />} />
+        <Route path="/profile" element={<App />} />
+        <Route path="/service-history" element={<ServiceHistory />} />
+        <Route path="/profile/documents" element={<DocumentsAndInsurance />} />
+        <Route path="/documents-insurance" element={<DocumentsAndInsurance />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/products" element={<AdminProducts />} />
         <Route path="/admin/orders" element={<AdminOrders />} />

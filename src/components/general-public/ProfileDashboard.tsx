@@ -12,7 +12,8 @@ import {
   Activity, 
   Car,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -33,7 +34,8 @@ const profileOptions = [
     type: "finance",
     priority: "core",
     actions: ["add_payment_method", "view_balance", "view_transactions", "redeem_rewards"],
-    icon: Wallet
+    icon: Wallet,
+    link: "/profile/payments"
   },
   {
     id: "service_history",
@@ -54,6 +56,15 @@ const profileOptions = [
     actions: ["upload_document", "view_document", "set_expiry_alert"],
     icon: FileText,
     link: "/documents-insurance"
+  },
+  {
+    id: "appointments",
+    title: "Appointments",
+    description: "Manage your vehicle service appointments, schedule new appointments and track upcoming services.",
+    type: "scheduling",
+    priority: "core",
+    actions: ["view_appointments", "schedule_appointment", "cancel_appointment"],
+    icon: Calendar
   },
   {
     id: "saved_mechanics",
@@ -129,12 +140,11 @@ const profileOptions = [
   }
 ];
 
-interface ProfileOptionsProps {
-  onClose: () => void;
-  onSelectView?: (view: string) => void;
+interface ProfileDashboardProps {
+  onSelectView: (view: string) => void;
 }
 
-export function ProfileOptions({ onClose, onSelectView }: ProfileOptionsProps) {
+export function ProfileDashboard({ onSelectView }: ProfileDashboardProps) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -144,109 +154,75 @@ export function ProfileOptions({ onClose, onSelectView }: ProfileOptionsProps) {
   );
 
   const handleOptionClick = (optionId: string, link?: string) => {
-    if (onSelectView) {
-      onSelectView(optionId);
-    }
-    
     if (link) {
       navigate(link);
+    } else {
+      onSelectView(optionId);
     }
-    
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
-        onClick={onClose}
-      />
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">My Profile</h1>
+        <p className="text-gray-600">Manage your account settings and preferences</p>
+      </div>
 
-      {/* Profile Options Panel */}
-      <div className="absolute right-0 top-0 h-full w-[90vw] sm:w-[80vw] md:w-[600px] max-w-md bg-white shadow-2xl overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
-          <h2 className="text-2xl font-bold text-slate-900">Profile Options</h2>
-          <button 
-            onClick={onClose}
-            className="p-3 rounded-xl hover:bg-slate-100 transition"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      {/* Search Bar */}
+      <div className="mb-8">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Search profile options..."
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+      </div>
 
-        <div className="p-6">
-          {/* Search Bar */}
-          <div className="mb-6">
-            <input
-              type="text"
-              placeholder="Search profile options..."
-              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          {/* Options List */}
-          <div className="space-y-4">
-            {filteredOptions.map((option) => {
-              const IconComponent = option.icon;
-              
-              const content = (
-                <div 
-                  key={option.id} 
-                  className="p-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer group"
-                  onClick={() => handleOptionClick(option.id, option.link)}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="bg-orange-100 p-3 rounded-lg">
-                      <IconComponent className="w-6 h-6 text-orange-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-slate-900 mb-1">{option.title}</h3>
-                        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-600 transition" />
-                      </div>
-                      <p className="text-slate-600 text-sm mb-3">{option.description}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {option.actions.map((action, index) => (
-                          <span 
-                            key={index} 
-                            className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded capitalize"
-                          >
-                            {action.replace('_', ' ')}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+      {/* Options Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredOptions.map((option) => {
+          const IconComponent = option.icon;
+          
+          return (
+            <div 
+              key={option.id} 
+              className="border border-gray-200 rounded-xl hover:border-orange-300 transition cursor-pointer group bg-white shadow-sm hover:shadow-md"
+              onClick={() => handleOptionClick(option.id, option.link)}
+            >
+              <div className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="bg-orange-100 p-3 rounded-lg">
+                    <IconComponent className="w-6 h-6 text-orange-600" />
                   </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-orange-600 transition" />
                 </div>
-              );
-              
-              // If the option has a link, wrap it in a Link component
-              if (option.link) {
-                return (
-                  <div 
-                    key={option.id} 
-                    onClick={() => {
-                      // If there's an onSelectView callback, use it instead of navigating
-                      if (onSelectView) {
-                        handleOptionClick(option.id);
-                      }
-                    }}
-                  >
-                    {content}
-                  </div>
-                );
-              }
-              
-              // Otherwise, return the plain content
-              return content;
-            })}
-          </div>
-        </div>
+                
+                <h3 className="font-bold text-gray-900 text-lg mt-4 mb-2">{option.title}</h3>
+                <p className="text-gray-600 text-sm mb-4">{option.description}</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {option.actions.slice(0, 3).map((action, index) => (
+                    <span 
+                      key={index} 
+                      className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded capitalize"
+                    >
+                      {action.replace('_', ' ')}
+                    </span>
+                  ))}
+                  {option.actions.length > 3 && (
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                      +{option.actions.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
