@@ -16,6 +16,7 @@ import { ProfileDashboard } from './components/general-public/ProfileDashboard';
 import { Appointments } from './components/Appointments';
 
 const Payments = lazy(() => import('./app/profile/payments/page'));
+const SuperAdminPage = lazy(() => import('./app/superadmin/page'));
 
 function App() {
   const location = useLocation();
@@ -51,6 +52,18 @@ function App() {
       setCurrentView('mechanics');
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    // Handle hash-based routing
+    const handleHashChange = () => {
+      if (window.location.hash === '#/superadmin') {
+        // We'll handle this in the render logic
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     fetchCategories();
@@ -501,6 +514,14 @@ function App() {
             <VehicleManagement />
           ) : currentView === 'profile' ? (
             renderProfileContent()
+          ) : location.hash === '#/superadmin' ? (
+            <Suspense fallback={
+              <div className="flex justify-center items-center h-full">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+              </div>
+            }>
+              <SuperAdminPage />
+            </Suspense>
           ) : (
             <>
               <div className="mb-8">

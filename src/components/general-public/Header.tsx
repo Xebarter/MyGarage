@@ -21,16 +21,23 @@ import {
   Truck,
   ChevronDown,
   Scan,
+  ArrowLeft,
 } from 'lucide-react';
 
+interface CartItem {
+  id: string;
+  quantity?: number;
+}
+
 interface HeaderProps {
-  cartItems: any[];
+  cartItems?: CartItem[];
   onCartClick: () => void;
   currentView: 'shop' | 'mechanics' | 'vehicles' | 'profile';
   onViewChange: (view: 'shop' | 'mechanics' | 'vehicles' | 'profile') => void;
+  onShowAppointmentForm: () => void;
   selectedCategory: string | null;
   onCategorySelect: (categoryId: string | null) => void;
-  onProfileOptionSelect?: (option: string | null) => void;
+  onProfileOptionSelect: (option: string | null) => void;
 }
 
 const CATEGORIES = [
@@ -100,6 +107,7 @@ const NAV_ITEMS = [
   { id: 'shop', label: 'Shop Parts', icon: <Package className="w-5 h-5" />, path: '/' },
   { id: 'mechanics', label: 'Find Mechanics', icon: <Wrench className="w-5 h-5" />, path: '/mechanics' },
   { id: 'part-identifier', label: 'Part Identifier', icon: <Scan className="w-5 h-5" />, path: '/part-identifier' },
+  { id: 'superadmin', label: 'SuperAdmin', icon: <Shield className="w-5 h-5" />, path: '/superadmin' },
 ];
 
 const PROFILE_LINKS = [
@@ -117,6 +125,7 @@ export function Header({
   onCartClick,
   currentView,
   onViewChange,
+  onShowAppointmentForm,
   selectedCategory,
   onCategorySelect,
   onProfileOptionSelect,
@@ -149,8 +158,13 @@ export function Header({
   };
 
   const handleMainNav = (view: any, path: string) => {
-    if (view !== 'part-identifier') onViewChange(view);
-    navigate(path);
+    if (view === 'superadmin') {
+      // Use hash-based routing for SuperAdmin
+      window.location.hash = '#/superadmin';
+    } else {
+      if (view !== 'part-identifier') onViewChange(view);
+      navigate(path);
+    }
     setIsMenuOpen(false);
   };
 
@@ -184,14 +198,27 @@ export function Header({
       <header className="bg-white shadow-sm sticky top-0 z-40 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
+            {/* Logo or Back Button */}
             <div className="flex items-center">
-              <Link to="/" className="flex items-center space-x-3">
-                <div className="bg-orange-600 text-white p-2 rounded-lg">
-                  <Wrench className="h-6 w-6" />
-                </div>
-                <span className="text-xl sm:text-2xl font-bold text-gray-900">MyGarage</span>
-              </Link>
+              {window.location.hash === '#/superadmin' ? (
+                <button 
+                  onClick={() => {
+                    window.location.hash = '';
+                    navigate('/');
+                  }}
+                  className="flex items-center space-x-3"
+                >
+                  <ArrowLeft className="h-6 w-6 text-orange-600" />
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">Back to Shop</span>
+                </button>
+              ) : (
+                <Link to="/" className="flex items-center space-x-3">
+                  <div className="bg-orange-600 text-white p-2 rounded-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">MyGarage</span>
+                </Link>
+              )}
             </div>
 
             {/* Desktop Navigation - Hidden on small screens */}

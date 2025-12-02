@@ -16,6 +16,7 @@ import { ServiceHistory } from './components/general-public/ServiceHistory.tsx';
 import { DocumentsAndInsurance } from './components/general-public/DocumentsAndInsurance';
 import { VehicleManagement } from './components/general-public/VehicleManagement.tsx';
 import { RepairShopLocator } from './components/general-public/RepairShopLocator.tsx';
+import SuperAdminPage from './app/superadmin/page.tsx';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -42,6 +43,7 @@ root.render(
         <Route path="/admin/appointments" element={<AdminAppointments />} />
         <Route path="/admin/reports" element={<AdminReports />} />
         <Route path="/repairshop" element={<RepairShopDashboard />} />
+        <Route path="/superadmin/*" element={<SuperAdminPage />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>
