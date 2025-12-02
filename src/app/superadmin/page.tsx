@@ -10,9 +10,16 @@ import {
   Trash2, 
   Eye,
   Shield,
-  UserCheck
+  UserCheck,
+  LayoutDashboard,
+  ListOrdered,
+  BarChart3,
+  Settings,
+  LogOut,
+  Calendar
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface User {
   id: string;
@@ -43,6 +50,7 @@ export default function SuperAdminPage() {
   const [repairShops, setRepairShops] = useState<RepairShop[]>([]);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -98,7 +106,74 @@ export default function SuperAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 flex items-center">
+                <Shield className="h-8 w-8 text-orange-600" />
+                <h1 className="ml-3 text-xl font-bold text-gray-900">Super Admin Dashboard</h1>
+              </div>
+              <nav className="ml-6 flex space-x-4">
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium bg-orange-600 text-white"
+                >
+                  <LayoutDashboard className="h-4 w-4 mr-1" />
+                  Dashboard
+                </a>
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <Package className="h-4 w-4 mr-1" />
+                  Products
+                </a>
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <ListOrdered className="h-4 w-4 mr-1" />
+                  Orders
+                </a>
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Appointments
+                </a>
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Reports
+                </a>
+                <a
+                  href="#"
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <Settings className="h-4 w-4 mr-1" />
+                  Settings
+                </a>
+              </nav>
+            </div>
+            <div className="flex items-center">
+              <button
+                onClick={() => window.location.href = '/'}
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-orange-700 bg-orange-100 hover:bg-orange-200 focus:outline-none"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Back to Store
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Original Header moved to content area */}
+      <div className="bg-white shadow mt-6">
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center">
             <Shield className="h-8 w-8 text-orange-600" />

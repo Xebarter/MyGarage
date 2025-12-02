@@ -6,9 +6,9 @@ import { AdminDashboard } from './components/AdminDashboard.tsx';
 import { AdminReports } from './components/AdminReports.tsx';
 import { AdminOrders } from './components/AdminOrders.tsx';
 import { AdminOrderDetail } from './components/AdminOrderDetail.tsx';
-import { AdminCategories } from './components/AdminCategories.tsx';
 import { AdminProducts } from './components/AdminProducts.tsx';
 import { AdminAppointments } from './components/AdminAppointments.tsx';
+import { AdminSettings } from './components/AdminSettings.tsx';
 import { ImageAnalysis } from './components/general-public/ImageAnalysis.tsx';
 import { RepairShopDashboard } from './components/repair-shop/RepairShopDashboard.tsx';
 import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity.tsx';
@@ -39,9 +39,9 @@ root.render(
         <Route path="/admin/products" element={<AdminProducts />} />
         <Route path="/admin/orders" element={<AdminOrders />} />
         <Route path="/admin/orders/:orderId" element={<AdminOrderDetail />} />
-        <Route path="/admin/categories" element={<AdminCategories />} />
         <Route path="/admin/appointments" element={<AdminAppointments />} />
         <Route path="/admin/reports" element={<AdminReports />} />
+        <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/repairshop" element={<RepairShopDashboard />} />
         <Route path="/superadmin/*" element={<SuperAdminPage />} />
       </Routes>

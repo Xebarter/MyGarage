@@ -14,6 +14,7 @@ import { ProfileAndSecurity } from './components/general-public/ProfileAndSecuri
 import { ServiceHistory } from './components/general-public/ServiceHistory';
 import { ProfileDashboard } from './components/general-public/ProfileDashboard';
 import { Appointments } from './components/Appointments';
+import { AdminSettings } from './components/AdminSettings';
 
 const Payments = lazy(() => import('./app/profile/payments/page'));
 const SuperAdminPage = lazy(() => import('./app/superadmin/page'));
@@ -387,11 +388,11 @@ function App() {
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAppointmentError('');
-    
+
     try {
       // Combine date and time
       const appointmentDateTime = new Date(`${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`);
-      
+
       const { error } = await supabase
         .from('appointments')
         .insert([
@@ -407,9 +408,9 @@ function App() {
             notes: appointmentForm.notes
           }
         ]);
-      
+
       if (error) throw error;
-      
+
       setAppointmentSubmitted(true);
       setAppointmentForm({
         customer_name: '',
@@ -423,7 +424,7 @@ function App() {
         vehicle_year: '',
         notes: ''
       });
-      
+
       // Hide success message after 5 seconds
       setTimeout(() => {
         setAppointmentSubmitted(false);
@@ -442,7 +443,7 @@ function App() {
   const renderProfileContent = () => {
     if (selectedProfileView === null) {
       return (
-        <ProfileDashboard 
+        <ProfileDashboard
           onSelectView={(optionId) => {
             if (optionId === 'service_history') {
               window.location.hash = '#/service-history';
@@ -522,6 +523,8 @@ function App() {
             }>
               <SuperAdminPage />
             </Suspense>
+          ) : location.pathname.startsWith('/admin') ? (
+            <AdminSettings />
           ) : (
             <>
               <div className="mb-8">
@@ -697,7 +700,7 @@ function App() {
 
       {/* Profile Views */}
       {showAppointmentForm && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
           onClick={(e) => {
             // Close the form when clicking on the backdrop (outside the form)
@@ -710,7 +713,7 @@ function App() {
             <div className="p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Schedule Appointment</h2>
-                <button 
+                <button
                   onClick={() => setShowAppointmentForm(false)}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -719,7 +722,7 @@ function App() {
                   </svg>
                 </button>
               </div>
-              
+
               {appointmentSubmitted ? (
                 <div className="text-center py-6 sm:py-8">
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -737,7 +740,7 @@ function App() {
                       {appointmentError}
                     </div>
                   )}
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                     <input
@@ -749,7 +752,7 @@ function App() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -773,7 +776,7 @@ function App() {
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
                     <select
@@ -792,7 +795,7 @@ function App() {
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Make</label>
@@ -819,7 +822,7 @@ function App() {
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Year</label>
                     <input
@@ -834,7 +837,7 @@ function App() {
                       placeholder="e.g., 2020"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -860,7 +863,7 @@ function App() {
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
                     <textarea
@@ -872,7 +875,7 @@ function App() {
                       placeholder="Any additional information..."
                     ></textarea>
                   </div>
-                  
+
                   <div className="flex flex-col gap-3 pt-4">
                     <button
                       type="button"

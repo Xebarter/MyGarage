@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Clock, User, Mail, Phone, Car, Wrench, CheckCircle, XCircle, AlertCircle, Search, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { AdminSidebar } from './AdminSidebar';
+import { AdminHeader } from './AdminHeader';
 
 interface Appointment {
   id: string;
@@ -30,44 +30,40 @@ export function AdminAppointments() {
   const [appointmentsPerPage] = useState(10);
 
   useEffect(() => {
-    fetchAppointments();
+    fetchData();
   }, []);
 
-  useEffect(() => {
-    filterAppointments();
-  }, [appointments, searchTerm, statusFilter]);
-
-  async function fetchAppointments() {
+  async function fetchData() {
     setLoading(true);
     
-    try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('appointment_date', { ascending: true });
-        
-      if (error) throw error;
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .order('appointment_date', { ascending: true });
       
-      setAppointments(data || []);
-    } catch (error) {
+    if (error) {
       console.error('Error fetching appointments:', error);
-    } finally {
-      setLoading(false);
+    } else {
+      setAppointments(data || []);
+      setFilteredAppointments(data || []);
     }
+    
+    setLoading(false);
   }
 
-  function filterAppointments() {
-    let result = [...appointments];
+  // Filter appointments based on search and status
+  useEffect(() => {
+    let result = appointments;
     
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(appointment => 
-        appointment.customer_name.toLowerCase().includes(term) ||
-        appointment.customer_email.toLowerCase().includes(term) ||
-        appointment.service_type.toLowerCase().includes(term) ||
-        appointment.vehicle_make.toLowerCase().includes(term) ||
-        appointment.vehicle_model.toLowerCase().includes(term)
+        (appointment.customer_name && appointment.customer_name.toLowerCase().includes(term)) ||
+        (appointment.customer_email && appointment.customer_email.toLowerCase().includes(term)) ||
+        (appointment.service_type && appointment.service_type.toLowerCase().includes(term)) ||
+        (appointment.vehicle_make && appointment.vehicle_make.toLowerCase().includes(term)) ||
+        (appointment.vehicle_model && appointment.vehicle_model.toLowerCase().includes(term))
       );
     }
     
@@ -78,402 +74,223 @@ export function AdminAppointments() {
     
     setFilteredAppointments(result);
     setCurrentPage(1); // Reset to first page when filters change
-  }
+  }, [searchTerm, statusFilter, appointments]);
 
-  // Pagination
+  // Get current appointments
   const indexOfLastAppointment = currentPage * appointmentsPerPage;
   const indexOfFirstAppointment = indexOfLastAppointment - appointmentsPerPage;
   const currentAppointments = filteredAppointments.slice(indexOfFirstAppointment, indexOfLastAppointment);
   const totalPages = Math.ceil(filteredAppointments.length / appointmentsPerPage);
 
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'scheduled':
-        return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'cancelled':
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />;
-    }
-  }
-
-  function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
+  // Format date
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
       month: 'short',
-      day: 'numeric'
-    });
-  }
-
-  function formatTime(dateString: string) {
-    return new Date(dateString).toLocaleTimeString('en-US', {
+      day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
-  }
-
-  async function updateAppointmentStatus(appointmentId: string, newStatus: 'scheduled' | 'completed' | 'cancelled') {
-    try {
-      const { error } = await supabase
-        .from('appointments')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
-        
-      if (error) throw error;
-      
-      // Update local state
-      setAppointments(prev => 
-        prev.map(appointment => 
-          appointment.id === appointmentId 
-            ? { ...appointment, status: newStatus, updated_at: new Date().toISOString() } 
-            : appointment
-        )
-      );
-    } catch (error) {
-      console.error('Error updating appointment status:', error);
-      alert('Failed to update appointment status');
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-slate-50">
-        <AdminSidebar />
-        <main className="flex-1 p-8 ml-64">
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <AdminSidebar />
+    <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       
       {/* Main Content */}
-      <main className="flex-1 p-8 ml-64 overflow-auto">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <Calendar className="w-8 h-8 text-orange-500" />
-              <h1 className="text-3xl font-bold text-slate-900">Appointment Management</h1>
-            </div>
-            <p className="text-slate-600">Manage and track all customer appointments</p>
-          </div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
+          <p className="text-gray-600">Manage customer appointments</p>
+        </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Total Appointments</p>
-                  <p className="text-2xl font-bold text-slate-900">{appointments.length}</p>
-                </div>
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <Calendar className="w-6 h-6 text-orange-600" />
-                </div>
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+            <div className="relative flex-grow max-w-md">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
               </div>
+              <input
+                type="text"
+                placeholder="Search appointments..."
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
             
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Scheduled</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {appointments.filter(a => a.status === 'scheduled').length}
-                  </p>
-                </div>
-                <div className="p-3 bg-yellow-100 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-600" />
-                </div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Filter className="h-4 w-4 text-gray-400" />
               </div>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Completed</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {appointments.filter(a => a.status === 'completed').length}
-                  </p>
-                </div>
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Cancelled</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {appointments.filter(a => a.status === 'cancelled').length}
-                  </p>
-                </div>
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <XCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
+              <select
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+              >
+                <option value="all">All Statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
           </div>
+        </div>
 
-          {/* Filters and Search */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder="Search by customer name, email, vehicle, or service..."
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-              
-              <div className="w-full md:w-48">
-                <div className="relative">
-                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <select
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as any)}
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+        {/* Appointments Table */}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
           </div>
-
-          {/* Appointments Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Appointment
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Vehicle
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Service
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+        ) : (
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Service
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vehicle
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date & Time
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentAppointments.map((appointment) => (
+                  <tr key={appointment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <User className="h-6 w-6 text-gray-600" />
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{appointment.customer_name}</div>
+                          <div className="text-sm text-gray-500 flex items-center">
+                            <Mail className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                            {appointment.customer_email}
+                          </div>
+                          {appointment.customer_phone && (
+                            <div className="text-sm text-gray-500 flex items-center">
+                              <Phone className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                              {appointment.customer_phone}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900 flex items-center">
+                        <Wrench className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                        {appointment.service_type}
+                      </div>
+                      {appointment.notes && (
+                        <div className="text-sm text-gray-500 mt-1 line-clamp-2">
+                          {appointment.notes}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 flex items-center">
+                        <Car className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                        {appointment.vehicle_year} {appointment.vehicle_make} {appointment.vehicle_model}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <Calendar className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                        {formatDateTime(appointment.appointment_date)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        appointment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        appointment.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                        appointment.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {appointment.status}
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {currentAppointments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-slate-500">
-                        No appointments found
-                      </td>
-                    </tr>
-                  ) : (
-                    currentAppointments.map((appointment) => (
-                      <tr key={appointment.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 text-slate-500 mr-2" />
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">{formatDate(appointment.appointment_date)}</div>
-                              <div className="text-sm text-slate-500 flex items-center">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {formatTime(appointment.appointment_date)}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center">
-                              <User className="h-5 w-5 text-orange-600" />
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-slate-900">{appointment.customer_name}</div>
-                              <div className="text-sm text-slate-500 flex items-center">
-                                <Mail className="w-4 h-4 mr-1" />
-                                {appointment.customer_email}
-                              </div>
-                              {appointment.customer_phone && (
-                                <div className="text-sm text-slate-500 flex items-center">
-                                  <Phone className="w-4 h-4 mr-1" />
-                                  {appointment.customer_phone}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Car className="w-4 h-4 text-slate-500 mr-2" />
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">
-                                {appointment.vehicle_year} {appointment.vehicle_make} {appointment.vehicle_model}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Wrench className="w-4 h-4 text-slate-500 mr-2" />
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">{appointment.service_type}</div>
-                              {appointment.notes && (
-                                <div className="text-sm text-slate-500 truncate max-w-xs" title={appointment.notes}>
-                                  {appointment.notes}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            {getStatusIcon(appointment.status)}
-                            <span className="ml-2 text-sm capitalize text-slate-900">{appointment.status}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {appointment.status === 'scheduled' && (
-                            <>
-                              <button
-                                onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
-                                className="text-green-600 hover:text-green-900 mr-3"
-                              >
-                                Mark Complete
-                              </button>
-                              <button
-                                onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          )}
-                          {appointment.status === 'completed' && (
-                            <button
-                              onClick={() => updateAppointmentStatus(appointment.id, 'scheduled')}
-                              className="text-yellow-600 hover:text-yellow-900"
-                            >
-                              Re-schedule
-                            </button>
-                          )}
-                          {appointment.status === 'cancelled' && (
-                            <button
-                              onClick={() => updateAppointmentStatus(appointment.id, 'scheduled')}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              Re-schedule
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
+                ))}
+              </tbody>
+            </table>
+            
+            {filteredAppointments.length === 0 && (
+              <div className="text-center py-12">
+                <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No appointments found</h3>
+                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
+              </div>
+            )}
+            
             {/* Pagination */}
-            {filteredAppointments.length > 0 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-slate-200 sm:px-6">
+            {filteredAppointments.length > appointmentsPerPage && (
+              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={() => setCurrentPage(currentPage > 1 ? currentPage - 1 : 1)}
                     disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    onClick={() => setCurrentPage(currentPage < totalPages ? currentPage + 1 : totalPages)}
                     disabled={currentPage === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                   >
                     Next
                   </button>
                 </div>
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm text-slate-700">
+                    <p className="text-sm text-gray-700">
                       Showing <span className="font-medium">{indexOfFirstAppointment + 1}</span> to{' '}
                       <span className="font-medium">{Math.min(indexOfLastAppointment, filteredAppointments.length)}</span> of{' '}
-                      <span className="font-medium">{filteredAppointments.length}</span> appointments
+                      <span className="font-medium">{filteredAppointments.length}</span> results
                     </p>
                   </div>
                   <div>
                     <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                       <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        onClick={() => setCurrentPage(currentPage > 1 ? currentPage - 1 : 1)}
                         disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
                       >
-                        <span className="sr-only">Previous</span>
-                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <ChevronLeft className="h-5 w-5" />
                       </button>
-                      
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                              currentPage === pageNum
-                                ? 'z-10 bg-orange-50 border-orange-500 text-orange-600'
-                                : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                      
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button
+                          key={i + 1}
+                          onClick={() => setCurrentPage(i + 1)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            currentPage === i + 1
+                              ? 'z-10 bg-orange-50 border-orange-500 text-orange-600'
+                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
                       <button
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        onClick={() => setCurrentPage(currentPage < totalPages ? currentPage + 1 : totalPages)}
                         disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
                       >
-                        <span className="sr-only">Next</span>
-                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <ChevronRight className="h-5 w-5" />
                       </button>
                     </nav>
                   </div>
@@ -481,8 +298,8 @@ export function AdminAppointments() {
               </div>
             )}
           </div>
-        </div>
-      </main>
+        )}
+      </div>
     </div>
   );
 }
