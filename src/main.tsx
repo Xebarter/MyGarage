@@ -17,6 +17,18 @@ import { DocumentsAndInsurance } from './components/general-public/DocumentsAndI
 import { VehicleManagement } from './components/general-public/VehicleManagement.tsx';
 import { RepairShopLocator } from './components/general-public/RepairShopLocator.tsx';
 import { SuperAdminDashboard } from './components/superadmin/SuperAdminDashboard.tsx';
+import { ProfileOverview } from './components/general-public/profile/ProfileOverview';
+import { MyVehicles } from './components/general-public/profile/MyVehicles';
+import { Appointments as ProfileAppointments } from './components/general-public/profile/Appointments';
+import { WalletAndPayments } from './components/general-public/profile/WalletAndPayments';
+import { SavedMechanics } from './components/general-public/profile/SavedMechanics';
+import { MaintenanceReminders } from './components/general-public/profile/MaintenanceReminders';
+import { MessagesAndSupport } from './components/general-public/profile/MessagesAndSupport';
+import { Notifications } from './components/general-public/profile/Notifications';
+import { RatingsReviews } from './components/general-public/profile/RatingsReviews';
+import { ReferralsAndRewards } from './components/general-public/profile/ReferralsAndRewards';
+import { AccountActivity } from './components/general-public/profile/AccountActivity';
+import { ProfilesAndSecurity } from './components/general-public/profile/ProfilesAndSecurity';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -31,9 +43,8 @@ root.render(
         <Route path="/vehicles" element={<App />} />
         <Route path="/mechanics" element={<App />} />
         <Route path="/part-identifier" element={<ImageAnalysis />} />
-        <Route path="/profile" element={<App />} />
         <Route path="/service-history" element={<ServiceHistory />} />
-        <Route path="/profile/documents" element={<DocumentsAndInsurance />} />
+        <Route path="/profile/*" element={<App />} />
         <Route path="/documents-insurance" element={<DocumentsAndInsurance />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/products" element={<AdminProducts />} />

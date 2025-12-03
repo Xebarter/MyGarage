@@ -22,6 +22,8 @@ import {
   ChevronDown,
   Scan,
   ArrowLeft,
+  Bell,
+  MessageCircle,
 } from 'lucide-react';
 
 interface CartItem {
@@ -112,11 +114,14 @@ const NAV_ITEMS = [
 
 const PROFILE_LINKS = [
   { label: 'Profile Overview', icon: <User className="w-5 h-5" />, path: '/profile' },
-  { label: 'My Vehicles', icon: <Car className="w-5 h-5" />, path: '/vehicles' },
+  { label: 'My Vehicles', icon: <Car className="w-5 h-5" />, path: '/profile/vehicles' },
+  { label: 'Appointments', icon: <Calendar className="w-5 h-5" />, path: '/profile/appointments' },
+  { label: 'Service History', icon: <Wrench className="w-5 h-5" />, path: '/profile/service-history' },
   { label: 'Documents & Insurance', icon: <FileText className="w-5 h-5" />, path: '/profile/documents' },
-  { label: 'Appointments', icon: <Calendar className="w-5 h-5" />, action: 'appointments' },
-  { label: 'Payment Methods', icon: <CreditCard className="w-5 h-5" />, action: 'payments' },
-  { label: 'Delivery Addresses', icon: <Truck className="w-5 h-5" />, path: '/profile/addresses' },
+  { label: 'Wallet & Payments', icon: <CreditCard className="w-5 h-5" />, path: '/profile/wallet' },
+  { label: 'Saved Mechanics', icon: <User className="w-5 h-5" />, path: '/profile/mechanics' },
+  { label: 'Maintenance Reminders', icon: <Bell className="w-5 h-5" />, path: '/profile/reminders' },
+  { label: 'Messages & Support', icon: <MessageCircle className="w-5 h-5" />, path: '/profile/messages' },
   { label: 'Settings', icon: <Settings className="w-5 h-5" />, path: '/profile/settings' },
 ];
 
@@ -174,16 +179,15 @@ export function Header({
     setIsMenuOpen(false);
   };
 
-  const handleProfileNav = (path: string | undefined, action?: string) => {
-    if (action === 'appointments') {
-      // Use the state-based navigation approach for appointments
-      onViewChange('profile');
-      onProfileOptionSelect && onProfileOptionSelect('appointments');
-    } else if (path) {
-      navigate(path);
-    }
+  const handleProfileNav = (path?: string) => {
     setIsProfileOpen(false);
     setIsMenuOpen(false);
+
+    if (path) {
+      onViewChange('profile');
+      onProfileOptionSelect && onProfileOptionSelect(path);
+      navigate(path);
+    }
   };
 
   const handleLogout = () => {
@@ -201,7 +205,7 @@ export function Header({
             {/* Logo or Back Button */}
             <div className="flex items-center">
               {window.location.hash === '#/superadmin' ? (
-                <button 
+                <button
                   onClick={() => {
                     window.location.hash = '';
                     navigate('/');
@@ -227,11 +231,10 @@ export function Header({
                 <button
                   key={item.id}
                   onClick={() => handleMainNav(item.id, item.path)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                    currentView === item.id
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${currentView === item.id
                       ? 'bg-orange-50 text-orange-600 shadow-sm'
                       : 'text-gray-700 hover:bg-gray-100 hover:text-orange-600'
-                  }`}
+                    }`}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -337,9 +340,8 @@ export function Header({
                   <button
                     key={item.id}
                     onClick={() => handleMainNav(item.id, item.path)}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl mb-2 transition ${
-                      currentView === item.id ? 'bg-orange-50 text-orange-600 font-medium' : 'hover:bg-gray-50'
-                    }`}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl mb-2 transition ${currentView === item.id ? 'bg-orange-50 text-orange-600 font-medium' : 'hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-center gap-4">
                       {item.icon}
@@ -357,9 +359,8 @@ export function Header({
 
                 <button
                   onClick={() => handleCategoryClick(null)}
-                  className={`w-full text-left p-4 rounded-xl transition mb-3 ${
-                    !selectedCategory ? 'bg-orange-50 text-orange-600 font-medium' : 'hover:bg-gray-50'
-                  }`}
+                  className={`w-full text-left p-4 rounded-xl transition mb-3 ${!selectedCategory ? 'bg-orange-50 text-orange-600 font-medium' : 'hover:bg-gray-50'
+                    }`}
                 >
                   All Parts
                 </button>

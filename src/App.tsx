@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, Suspense, lazy } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock, Car, ArrowLeft, CreditCard } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { supabase, Category, Part, CartItem } from './lib/supabase';
@@ -14,6 +15,18 @@ import { ProfileAndSecurity } from './components/general-public/ProfileAndSecuri
 import { ServiceHistory } from './components/general-public/ServiceHistory';
 import { ProfileDashboard } from './components/general-public/ProfileDashboard';
 import { Appointments } from './components/general-public/Appointments';
+import {
+  MyVehicles,
+  WalletAndPayments,
+  DocumentsAndInsurance as ProfileDocuments,
+  Appointments as ProfileAppointments,
+  ServiceHistory as ProfileServiceHistory,
+  SavedMechanics,
+  MaintenanceReminders,
+  MessagesAndSupport,
+  Settings as ProfileSettings,
+  ProfileOverview,
+} from './components/general-public/profile';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { SuperAdminDashboard } from './components/superadmin/SuperAdminDashboard';
 
@@ -56,7 +69,7 @@ function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    // Handle hash-based routing
+    // Handle hash-based routing for backward compatibility (superadmin)
     const handleHashChange = () => {
       if (window.location.hash === '#/superadmin') {
         // We'll handle this in the render logic
@@ -437,25 +450,52 @@ function App() {
     }
   };
 
+  const navigate = useNavigate();
+
   const toggleSidebar = () => {
     // This function is no longer needed since we moved to a hamburger menu
   };
 
   const renderProfileContent = () => {
+    // Handle direct routing to profile sections via pathname
+    if (location.pathname === '/profile/vehicles') {
+      return <MyVehicles onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/wallet') {
+      return <WalletAndPayments onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/documents') {
+      return <ProfileDocuments onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/appointments') {
+      return <ProfileAppointments onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/service-history') {
+      return <ProfileServiceHistory onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/mechanics') {
+      return <SavedMechanics onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/reminders') {
+      return <MaintenanceReminders onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/messages') {
+      return <MessagesAndSupport onBack={() => navigate('/profile')} />;
+    }
+
+    if (location.pathname === '/profile/settings') {
+      return <ProfileSettings onBack={() => navigate('/profile')} />;
+    }
+
     if (selectedProfileView === null) {
-      return (
-        <ProfileDashboard
-          onSelectView={(optionId) => {
-            if (optionId === 'service_history') {
-              window.location.hash = '#/service-history';
-            } else if (optionId === 'documents_storage') {
-              window.location.hash = '#/documents-insurance';
-            } else {
-              setSelectedProfileView(optionId);
-            }
-          }}
-        />
-      );
+      return <ProfileOverview onBack={() => navigate('/')} />;
     }
 
     switch (selectedProfileView) {
