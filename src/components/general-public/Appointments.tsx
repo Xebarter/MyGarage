@@ -203,6 +203,26 @@ export function Appointments() {
     setCurrentPage(pageNumber)
   }
   
+  // Get upcoming appointments count
+  const getUpcomingAppointmentsCount = () => {
+    const today = new Date();
+    return filteredAppointments.filter(appointment => {
+      const apptDate = new Date(appointment.date);
+      return apptDate >= today && appointment.status !== 'cancelled';
+    }).length;
+  };
+  
+  // Get recent appointments (last 30 days)
+  const getRecentAppointmentsCount = () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return filteredAppointments.filter(appointment => {
+      const apptDate = new Date(appointment.date);
+      return apptDate >= thirtyDaysAgo;
+    }).length;
+  };
+
   return (
     <div className="container mx-auto py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -906,27 +926,3 @@ export function Appointments() {
     </div>
   )
 }
-
-// Add default export for Next.js App Router
-  // Get upcoming appointments count
-  const getUpcomingAppointmentsCount = () => {
-    const today = new Date();
-    return filteredAppointments.filter(appointment => {
-      const apptDate = new Date(appointment.date);
-      return apptDate >= today && appointment.status !== 'cancelled';
-    }).length;
-  };
-  
-  // Get recent appointments (last 30 days)
-  const getRecentAppointmentsCount = () => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    return filteredAppointments.filter(appointment => {
-      const apptDate = new Date(appointment.date);
-      return apptDate >= thirtyDaysAgo;
-    }).length;
-  };
-
-// Add default export for Next.js App Router
-export default Appointments

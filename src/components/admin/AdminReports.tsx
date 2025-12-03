@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart, PieChart, TrendingUp, DollarSign, Package, Users, Calendar, ListOrdered } from 'lucide-react';
-import { supabase, Category, Part, Order } from '../lib/supabase';
+import { supabase, Category, Part, Order } from '../../lib/supabase';
 import { AdminHeader } from './AdminHeader';
 
 export function AdminReports() {

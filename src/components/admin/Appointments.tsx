@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { useState, useEffect } from 'react'
-import { AppointmentCard } from '@/components/AppointmentCard'
+import { AppointmentCard } from '@/components/admin/AppointmentCard'
 import { appointmentsApi } from '@/lib/api/appointments'
 
 interface Appointment {

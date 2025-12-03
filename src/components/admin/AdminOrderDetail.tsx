@@ -15,8 +15,8 @@ import {
   Clock,
   BadgeCheck
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { AdminSidebar } from './AdminSidebar';
+import { supabase } from '../../lib/supabase';
+import { AdminHeader } from './AdminHeader';
 
 type OrderDetail = {
   id: string;

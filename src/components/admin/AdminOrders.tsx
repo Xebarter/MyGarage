@@ -1,33 +1,50 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, User, Mail, Phone, Car, Wrench, CheckCircle, XCircle, AlertCircle, Search, Filter } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { 
+  ListOrdered, 
+  Eye, 
+  Search, 
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  User,
+  Mail,
+  Phone,
+  DollarSign,
+  Package,
+  Truck,
+  CheckCircle,
+  XCircle,
+  Clock
+} from 'lucide-react';
+import { supabase, Order } from '../../lib/supabase';
 import { AdminHeader } from './AdminHeader';
 
-interface Appointment {
-  id: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string | null;
-  appointment_date: string;
-  service_type: string;
-  vehicle_make: string;
-  vehicle_model: string;
-  vehicle_year: number;
-  notes: string | null;
-  status: 'scheduled' | 'completed' | 'cancelled';
-  created_at: string;
-  updated_at: string;
-}
+type OrderWithItems = Order & {
+  order_items: {
+    id: string;
+    quantity: number;
+    price_at_time: number;
+    part: {
+      id: string;
+      name: string;
+      sku: string;
+      image_url: string;
+    };
+  }[];
+};
 
-export function AdminAppointments() {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+export function AdminOrders() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [appointmentsPerPage] = useState(10);
+  const [ordersPerPage] = useState(10);
 
   useEffect(() => {
     fetchData();
@@ -37,60 +54,58 @@ export function AdminAppointments() {
     setLoading(true);
     
     const { data, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .order('appointment_date', { ascending: true });
+      .from('orders')
+      .select(`
+        *,
+        order_items(*, part(name))
+      `)
+      .order('created_at', { ascending: false });
       
     if (error) {
-      console.error('Error fetching appointments:', error);
+      console.error('Error fetching orders:', error);
     } else {
-      setAppointments(data || []);
-      setFilteredAppointments(data || []);
+      setOrders(data || []);
+      setFilteredOrders(data || []);
     }
     
     setLoading(false);
   }
 
-  // Filter appointments based on search and status
+  // Filter orders based on search and status
   useEffect(() => {
-    let result = appointments;
+    let result = orders;
     
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(appointment => 
-        (appointment.customer_name && appointment.customer_name.toLowerCase().includes(term)) ||
-        (appointment.customer_email && appointment.customer_email.toLowerCase().includes(term)) ||
-        (appointment.service_type && appointment.service_type.toLowerCase().includes(term)) ||
-        (appointment.vehicle_make && appointment.vehicle_make.toLowerCase().includes(term)) ||
-        (appointment.vehicle_model && appointment.vehicle_model.toLowerCase().includes(term))
+      result = result.filter(order => 
+        order.id.toLowerCase().includes(term) ||
+        (order.customer_name && order.customer_name.toLowerCase().includes(term)) ||
+        (order.customer_email && order.customer_email.toLowerCase().includes(term))
       );
     }
     
     // Apply status filter
     if (statusFilter !== 'all') {
-      result = result.filter(appointment => appointment.status === statusFilter);
+      result = result.filter(order => order.status === statusFilter);
     }
     
-    setFilteredAppointments(result);
+    setFilteredOrders(result);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [searchTerm, statusFilter, appointments]);
+  }, [searchTerm, statusFilter, orders]);
 
-  // Get current appointments
-  const indexOfLastAppointment = currentPage * appointmentsPerPage;
-  const indexOfFirstAppointment = indexOfLastAppointment - appointmentsPerPage;
-  const currentAppointments = filteredAppointments.slice(indexOfFirstAppointment, indexOfLastAppointment);
-  const totalPages = Math.ceil(filteredAppointments.length / appointmentsPerPage);
+  // Get current orders
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
 
-  // Format date
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
 
   return (
@@ -100,8 +115,8 @@ export function AdminAppointments() {
       {/* Main Content */}
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
-          <p className="text-gray-600">Manage customer appointments</p>
+          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <p className="text-gray-600">Manage customer orders</p>
         </div>
 
         {/* Filters */}
@@ -113,7 +128,7 @@ export function AdminAppointments() {
               </div>
               <input
                 type="text"
-                placeholder="Search appointments..."
+                placeholder="Search orders..."
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -130,15 +145,17 @@ export function AdminAppointments() {
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
                 <option value="all">All Statuses</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="completed">Completed</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Appointments Table */}
+        {/* Orders Table */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
@@ -149,25 +166,34 @@ export function AdminAppointments() {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Customer
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Service
+                    Date
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Vehicle
+                    Items
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date & Time
+                    Total
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
+                  <th scope="col" className="relative px-6 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {currentAppointments.map((appointment) => (
-                  <tr key={appointment.id} className="hover:bg-gray-50">
+                {currentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">#{order.id.substring(0, 8)}</div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -176,68 +202,61 @@ export function AdminAppointments() {
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{appointment.customer_name}</div>
-                          <div className="text-sm text-gray-500 flex items-center">
-                            <Mail className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
-                            {appointment.customer_email}
-                          </div>
-                          {appointment.customer_phone && (
-                            <div className="text-sm text-gray-500 flex items-center">
-                              <Phone className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
-                              {appointment.customer_phone}
-                            </div>
-                          )}
+                          <div className="text-sm font-medium text-gray-900">{order.customer_name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">{order.customer_email || 'N/A'}</div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 flex items-center">
-                        <Wrench className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
-                        {appointment.service_type}
-                      </div>
-                      {appointment.notes && (
-                        <div className="text-sm text-gray-500 mt-1 line-clamp-2">
-                          {appointment.notes}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 flex items-center">
-                        <Car className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
-                        {appointment.vehicle_year} {appointment.vehicle_make} {appointment.vehicle_model}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex items-center">
                         <Calendar className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
-                        {formatDateTime(appointment.appointment_date)}
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <Package className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                        {order.order_items?.length || 0} items
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <DollarSign className="flex-shrink-0 h-4 w-4 text-gray-400 mr-1" />
+                        {formatCurrency(order.total_amount || 0)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        appointment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        appointment.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                        appointment.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                        order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'pending' ? 'bg-purple-100 text-purple-800' :
+                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {appointment.status}
+                        {order.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <Link to={`/admin/orders/${order.id}`} className="text-orange-600 hover:text-orange-900 mr-3">
+                        <Eye className="h-4 w-4" />
+                      </Link>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             
-            {filteredAppointments.length === 0 && (
+            {filteredOrders.length === 0 && (
               <div className="text-center py-12">
-                <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No appointments found</h3>
+                <ListOrdered className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No orders found</h3>
                 <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
               </div>
             )}
             
             {/* Pagination */}
-            {filteredAppointments.length > appointmentsPerPage && (
+            {filteredOrders.length > ordersPerPage && (
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
@@ -258,9 +277,9 @@ export function AdminAppointments() {
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{indexOfFirstAppointment + 1}</span> to{' '}
-                      <span className="font-medium">{Math.min(indexOfLastAppointment, filteredAppointments.length)}</span> of{' '}
-                      <span className="font-medium">{filteredAppointments.length}</span> results
+                      Showing <span className="font-medium">{indexOfFirstOrder + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(indexOfLastOrder, filteredOrders.length)}</span> of{' '}
+                      <span className="font-medium">{filteredOrders.length}</span> results
                     </p>
                   </div>
                   <div>

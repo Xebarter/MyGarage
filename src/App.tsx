@@ -13,11 +13,12 @@ import { DocumentsAndInsurance } from './components/general-public/DocumentsAndI
 import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity';
 import { ServiceHistory } from './components/general-public/ServiceHistory';
 import { ProfileDashboard } from './components/general-public/ProfileDashboard';
-import { Appointments } from './components/Appointments';
-import { AdminSettings } from './components/AdminSettings';
+import { Appointments } from './components/general-public/Appointments';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { SuperAdminDashboard } from './components/superadmin/SuperAdminDashboard';
 
 const Payments = lazy(() => import('./app/profile/payments/page'));
-const SuperAdminPage = lazy(() => import('./app/superadmin/page'));
+const SuperAdminPage = SuperAdminDashboard;
 
 function App() {
   const location = useLocation();
@@ -524,7 +525,7 @@ function App() {
               <SuperAdminPage />
             </Suspense>
           ) : location.pathname.startsWith('/admin') ? (
-            <AdminSettings />
+            <AdminDashboard />
           ) : (
             <>
               <div className="mb-8">

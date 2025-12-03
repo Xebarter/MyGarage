@@ -2,13 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App.tsx';
-import { AdminDashboard } from './components/AdminDashboard.tsx';
-import { AdminReports } from './components/AdminReports.tsx';
-import { AdminOrders } from './components/AdminOrders.tsx';
-import { AdminOrderDetail } from './components/AdminOrderDetail.tsx';
-import { AdminProducts } from './components/AdminProducts.tsx';
-import { AdminAppointments } from './components/AdminAppointments.tsx';
-import { AdminSettings } from './components/AdminSettings.tsx';
+import { AdminDashboard } from './components/admin/AdminDashboard.tsx';
+import { AdminReports } from './components/admin/AdminReports.tsx';
+import { AdminOrders } from './components/admin/AdminOrders.tsx';
+import { AdminOrderDetail } from './components/admin/AdminOrderDetail.tsx';
+import { AdminProducts } from './components/admin/AdminProducts.tsx';
+import { AdminAppointments } from './components/admin/AdminAppointments.tsx';
+import { AdminSettings } from './components/admin/AdminSettings.tsx';
 import { ImageAnalysis } from './components/general-public/ImageAnalysis.tsx';
 import { RepairShopDashboard } from './components/repair-shop/RepairShopDashboard.tsx';
 import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity.tsx';
@@ -16,7 +16,7 @@ import { ServiceHistory } from './components/general-public/ServiceHistory.tsx';
 import { DocumentsAndInsurance } from './components/general-public/DocumentsAndInsurance';
 import { VehicleManagement } from './components/general-public/VehicleManagement.tsx';
 import { RepairShopLocator } from './components/general-public/RepairShopLocator.tsx';
-import SuperAdminPage from './app/superadmin/page.tsx';
+import { SuperAdminDashboard } from './components/superadmin/SuperAdminDashboard.tsx';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -43,7 +43,7 @@ root.render(
         <Route path="/admin/reports" element={<AdminReports />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/repairshop" element={<RepairShopDashboard />} />
-        <Route path="/superadmin/*" element={<SuperAdminPage />} />
+        <Route path="/superadmin/*" element={<SuperAdminDashboard />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

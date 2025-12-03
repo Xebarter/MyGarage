@@ -9,7 +9,7 @@ import {
   Search,
   Filter
 } from 'lucide-react';
-import { supabase, Category, Part } from '../lib/supabase';
+import { supabase, Category, Part } from '../../lib/supabase';
 import { AdminHeader } from './AdminHeader';
 
 export function AdminProducts() {
