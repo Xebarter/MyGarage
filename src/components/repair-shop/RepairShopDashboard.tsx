@@ -29,6 +29,7 @@ import { supabase, RepairShop, Service, ServiceCategory } from '../../lib/supaba
 import { MechanicProfileAndVerification } from './MechanicProfileAndVerification';
 import { MechanicStatusManager } from './MechanicStatusManager';
 import { MessagingSystem } from './MessagingSystem';
+import { MechanicManagement } from './MechanicManagement';
 
 interface Appointment {
   id: string;
@@ -56,7 +57,7 @@ interface Customer {
 }
 
 export function RepairShopDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'appointments' | 'customers' | 'profile' | 'mechanic' | 'services' | 'messaging'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'appointments' | 'customers' | 'profile' | 'mechanic' | 'services' | 'messaging' | 'mechanics'>('dashboard');
   const [repairShop, setRepairShop] = useState<RepairShop | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -521,12 +522,18 @@ export function RepairShopDashboard() {
               }`}
             >
               <MessageCircle className="w-4 h-4 inline mr-2" />
-              Messages
-              {unreadMessagesCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-                  {unreadMessagesCount}
-                </span>
-              )}
+              Messaging
+            </button>
+            <button
+              onClick={() => setActiveTab('mechanics')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                activeTab === 'mechanics'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <User className="w-4 h-4 inline mr-2" />
+              Mechanics
             </button>
           </div>
         </nav>
@@ -1491,6 +1498,10 @@ export function RepairShopDashboard() {
           </div>
         )}
 
+        {/* Mechanics Tab */}
+        {activeTab === 'mechanics' && repairShop && (
+          <MechanicManagement repairShopId={repairShop.id} />
+        )}
       </main>
     </div>
   );

@@ -1,8 +1,13 @@
 import { useEffect, useState, useRef, Suspense, lazy } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Search, Filter, CheckCircle2, Star, Package, ArrowUpDown, Calendar, Clock, Car, ArrowLeft, CreditCard } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
-import { supabase, Category, Part, CartItem } from './lib/supabase';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { supabase, Category, Part, CartItem as SupabaseCartItem } from './lib/supabase';
+
+interface CartItem {
+  id: string;
+  part: Part;
+  quantity: number;
+}
 import { Header } from './components/general-public/Header';
 import { CategoryCard } from './components/general-public/CategoryCard';
 import { ProductCard } from './components/general-public/ProductCard';
@@ -14,27 +19,32 @@ import { DocumentsAndInsurance } from './components/general-public/DocumentsAndI
 import { ProfileAndSecurity } from './components/general-public/ProfileAndSecurity';
 import { ServiceHistory } from './components/general-public/ServiceHistory';
 import { ProfileDashboard } from './components/general-public/ProfileDashboard';
-import { Appointments } from './components/general-public/Appointments';
-import {
-  MyVehicles,
-  WalletAndPayments,
-  DocumentsAndInsurance as ProfileDocuments,
-  Appointments as ProfileAppointments,
-  ServiceHistory as ProfileServiceHistory,
-  SavedMechanics,
-  MaintenanceReminders,
-  MessagesAndSupport,
-  Settings as ProfileSettings,
-  ProfileOverview,
-} from './components/general-public/profile';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { SuperAdminDashboard } from './components/superadmin/SuperAdminDashboard';
+import { Appointments } from "./components/admin/Appointments";
+import { AdminSettings } from "./components/admin/AdminSettings";
 
-const Payments = lazy(() => import('./app/profile/payments/page'));
-const SuperAdminPage = SuperAdminDashboard;
+// Lazy load components
+const Payments = lazy(() => import('./components/general-public/profile/WalletAndPayments'));
+const SuperAdminPage = lazy(() => import('./components/superadmin/SuperAdminDashboard'));
+
+// Import profile components
+import { MyVehicles } from './components/general-public/profile/MyVehicles';
+import { ProfilesAndSecurity } from './components/general-public/profile/ProfilesAndSecurity';
+import { ServiceHistory as ProfileServiceHistory } from './components/general-public/profile/ServiceHistory';
+import { DocumentsAndInsurance as ProfileDocumentsAndInsurance } from './components/general-public/profile/DocumentsAndInsurance';
+import { Appointments as ProfileAppointments } from './components/general-public/profile/Appointments';
+import { SavedMechanics } from './components/general-public/profile/SavedMechanics';
+import { MaintenanceReminders } from './components/general-public/profile/MaintenanceReminders';
+import { MessagesAndSupport } from './components/general-public/profile/MessagesAndSupport';
+import { Notifications } from './components/general-public/profile/Notifications';
+import { RatingsReviews } from './components/general-public/profile/RatingsReviews';
+import { ReferralsAndRewards } from './components/general-public/profile/ReferralsAndRewards';
+import { AccountActivity } from './components/general-public/profile/AccountActivity';
+import { WalletAndPayments } from './components/general-public/profile/WalletAndPayments';
+import { Settings } from './components/general-public/profile/Settings';
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<'shop' | 'mechanics' | 'vehicles' | 'profile'>('shop');
   const [selectedProfileView, setSelectedProfileView] = useState<string | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
@@ -55,21 +65,70 @@ function App() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortOption, setSortOption] = useState<string>('default');
+  const [appointmentForm, setAppointmentForm] = useState({
+    customer_name: '',
+    customer_email: '',
+    customer_phone: '',
+    appointment_date: '',
+    appointment_time: '',
+    service_type: '',
+    vehicle_make: '',
+    vehicle_model: '',
+    vehicle_year: '',
+    notes: ''
+  });
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [appointmentSubmitted, setAppointmentSubmitted] = useState(false);
 
   useEffect(() => {
     // Set the current view based on the route
-    if (location.pathname === '/profile') {
+    if (location.pathname.startsWith('/profile')) {
       setCurrentView('profile');
-      setSelectedProfileView(null);
+      // Map specific profile routes to selectedProfileView
+      const path = location.pathname;
+      if (path === '/profile/vehicles') {
+        setSelectedProfileView('vehicles');
+      } else if (path === '/profile/service-history') {
+        setSelectedProfileView('service_history');
+      } else if (path === '/profile/documents') {
+        setSelectedProfileView('documents_storage');
+      } else if (path === '/profile/appointments') {
+        setSelectedProfileView('appointments');
+      } else if (path === '/profile/payments') {
+        setSelectedProfileView('payments');
+      } else if (path === '/profile/security') {
+        setSelectedProfileView('profile-and-security');
+      } else if (path === '/profile/mechanics') {
+        setSelectedProfileView('saved-mechanics');
+      } else if (path === '/profile/reminders') {
+        setSelectedProfileView('maintenance-reminders');
+      } else if (path === '/profile/messages') {
+        setSelectedProfileView('messages-support');
+      } else if (path === '/profile/notifications') {
+        setSelectedProfileView('notifications');
+      } else if (path === '/profile/ratings') {
+        setSelectedProfileView('ratings-reviews');
+      } else if (path === '/profile/referrals') {
+        setSelectedProfileView('referrals-rewards');
+      } else if (path === '/profile/account') {
+        setSelectedProfileView('account-activity');
+      } else if (path === '/profile/settings') {
+        setSelectedProfileView('settings');
+      } else {
+        setSelectedProfileView(null);
+      }
     } else if (location.pathname === '/vehicles') {
       setCurrentView('vehicles');
     } else if (location.pathname === '/mechanics') {
       setCurrentView('mechanics');
+    } else {
+      setCurrentView('shop');
+      setSelectedProfileView(null);
     }
   }, [location.pathname]);
 
   useEffect(() => {
-    // Handle hash-based routing for backward compatibility (superadmin)
+    // Handle hash-based routing
     const handleHashChange = () => {
       if (window.location.hash === '#/superadmin') {
         // We'll handle this in the render logic
@@ -216,10 +275,10 @@ function App() {
   }
 
   function selectSuggestion(part: Part) {
-    setSearchQuery(part.name);
-    setSuggestions([]);
+    setSelectedPart(part);
+    setSearchQuery('');
     setShowSuggestions(false);
-    searchInputRef.current?.focus();
+    setActiveSuggestionIndex(-1);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -271,125 +330,57 @@ function App() {
     setSelectedCategory(selectedCategory === categoryId ? null : categoryId);
   }
 
-  function handleAddToCart(part: Part) {
-    setCartItems((items) => {
-      const existingItem = items.find((item) => item.part.id === part.id);
+  function handleAddToCart(part: Part, quantity: number = 1) {
+    setCartItems(prevItems => {
+      const existingItem = prevItems.find(item => item.part.id === part.id);
       if (existingItem) {
-        if (existingItem.quantity < part.stock_quantity) {
-          return items.map((item) =>
-            item.part.id === part.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          );
-        }
-        return items;
+        return prevItems.map(item =>
+          item.part.id === part.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      } else {
+        return [...prevItems, { id: part.id, part, quantity }];
       }
-      return [...items, { part, quantity: 1 }];
     });
+    setIsCartOpen(true);
   }
 
   function handleUpdateQuantity(partId: string, quantity: number) {
-    if (quantity < 1) return;
+    if (quantity <= 0) {
+      handleRemoveItem(partId);
+      return;
+    }
 
-    setCartItems((items) => {
-      return items.map((item) => {
-        if (item.part.id === partId) {
-          const part = parts.find((p) => p.id === partId);
-          if (part && quantity <= part.stock_quantity) {
-            return { ...item, quantity };
-          }
-        }
-        return item;
-      });
-    });
+    setCartItems(prevItems =>
+      prevItems.map(item =>
+        item.part.id === partId ? { ...item, quantity } : item
+      )
+    );
   }
 
   function handleRemoveItem(partId: string) {
-    setCartItems((items) => items.filter((item) => item.part.id !== partId));
+    setCartItems(prevItems => prevItems.filter(item => item.part.id !== partId));
   }
 
-  async function handleCheckout(customerInfo: {
-    name: string;
-    email: string;
-    phone: string
-  }) {
-    const total = cartItems.reduce((sum, item) => sum + item.part.price * item.quantity, 0);
-
-    const { data, error } = await supabase
-      .from('orders')
-      .insert([
-        {
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email,
-          customer_phone: customerInfo.phone,
-          total_amount: total,
-          status: 'pending'
-        }
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating order:', error);
-      return;
+  async function handleCheckout() {
+    try {
+      // In a real app, you would integrate with a payment processor here
+      console.log('Processing checkout for items:', cartItems);
+      
+      // Clear cart and show success message
+      setCartItems([]);
+      setIsCartOpen(false);
+      setShowOrderSuccess(true);
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => setShowOrderSuccess(false), 5000);
+    } catch (error) {
+      console.error('Checkout error:', error);
     }
-
-    const orderId = data.id;
-
-    // Create order items
-    const orderItems = cartItems.map((item) => ({
-      order_id: orderId,
-      part_id: item.part.id,
-      quantity: item.quantity,
-      price: item.part.price
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      console.error('Error creating order items:', itemsError);
-      return;
-    }
-
-    // Update stock quantities
-    for (const item of cartItems) {
-      await supabase
-        .from('parts')
-        .update({
-          stock_quantity: item.part.stock_quantity - item.quantity,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', item.part.id);
-    }
-
-    // Clear cart
-    setCartItems([]);
-    setIsCartOpen(false);
-    setShowOrderSuccess(true);
-
-    setTimeout(() => {
-      setShowOrderSuccess(false);
-    }, 3000);
   }
 
   // Appointment form state
-  const [appointmentForm, setAppointmentForm] = useState({
-    customer_name: '',
-    customer_email: '',
-    customer_phone: '',
-    appointment_date: '',
-    appointment_time: '',
-    service_type: '',
-    vehicle_make: '',
-    vehicle_model: '',
-    vehicle_year: '',
-    notes: ''
-  });
-
-  const [appointmentSubmitted, setAppointmentSubmitted] = useState(false);
-  const [appointmentError, setAppointmentError] = useState('');
 
   const handleAppointmentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -401,11 +392,13 @@ function App() {
 
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAppointmentError('');
-
     try {
+      setAppointmentError(null);
+      
       // Combine date and time
-      const appointmentDateTime = new Date(`${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`);
+      const appointmentDateTime = new Date(
+        `${appointmentForm.appointment_date}T${appointmentForm.appointment_time}`
+      );
 
       const { error } = await supabase
         .from('appointments')
@@ -450,52 +443,49 @@ function App() {
     }
   };
 
-  const navigate = useNavigate();
-
   const toggleSidebar = () => {
     // This function is no longer needed since we moved to a hamburger menu
   };
 
   const renderProfileContent = () => {
-    // Handle direct routing to profile sections via pathname
-    if (location.pathname === '/profile/vehicles') {
-      return <MyVehicles onBack={() => navigate('/profile')} />;
+    // If we're on a dedicated route, render that component directly
+    if (location.pathname.startsWith('/profile/')) {
+      // For direct routes, we let react-router handle the rendering
+      // This is for backward compatibility with the old hash-based navigation
+      switch (selectedProfileView) {
+        case 'appointments':
+          return <ProfileAppointments />;
+        default:
+          // For the main /profile route, show dashboard
+          if (location.pathname === '/profile') {
+            return (
+              <ProfileDashboard
+                onSelectView={(optionId) => {
+                  navigate(`/profile/${optionId}`);
+                }}
+              />
+            );
+          }
+          // For other profile routes, let react-router handle it
+          return null;
+      }
     }
 
-    if (location.pathname === '/profile/wallet') {
-      return <WalletAndPayments onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/documents') {
-      return <ProfileDocuments onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/appointments') {
-      return <ProfileAppointments onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/service-history') {
-      return <ProfileServiceHistory onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/mechanics') {
-      return <SavedMechanics onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/reminders') {
-      return <MaintenanceReminders onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/messages') {
-      return <MessagesAndSupport onBack={() => navigate('/profile')} />;
-    }
-
-    if (location.pathname === '/profile/settings') {
-      return <ProfileSettings onBack={() => navigate('/profile')} />;
-    }
-
+    // Fallback to the original logic for hash-based navigation
     if (selectedProfileView === null) {
-      return <ProfileOverview onBack={() => navigate('/')} />;
+      return (
+        <ProfileDashboard
+          onSelectView={(optionId) => {
+            if (optionId === 'service_history') {
+              window.location.hash = '#/service-history';
+            } else if (optionId === 'documents_storage') {
+              window.location.hash = '#/documents-insurance';
+            } else {
+              setSelectedProfileView(optionId);
+            }
+          }}
+        />
+      );
     }
 
     switch (selectedProfileView) {
@@ -565,7 +555,7 @@ function App() {
               <SuperAdminPage />
             </Suspense>
           ) : location.pathname.startsWith('/admin') ? (
-            <AdminDashboard />
+            <AdminSettings />
           ) : (
             <>
               <div className="mb-8">

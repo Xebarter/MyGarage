@@ -25,6 +25,7 @@ import {
   Bell,
   MessageCircle,
 } from 'lucide-react';
+import { CATEGORIES } from '../categories/categoriesData';
 
 interface CartItem {
   id: string;
@@ -42,74 +43,17 @@ interface HeaderProps {
   onProfileOptionSelect: (option: string | null) => void;
 }
 
-const CATEGORIES = [
-  {
-    id: 'engine',
-    name: 'Engine System',
-    icon: <Car className="w-5 h-5" />,
-    subs: ['Engine Blocks', 'Gaskets & Seals', 'Belts & Hoses', 'Fuel System', 'Ignition', 'Intake & Exhaust', 'Cooling', 'Oil System']
-  },
-  {
-    id: 'transmission',
-    name: 'Transmission & Drivetrain',
-    icon: <Gauge className="w-5 h-5" />,
-    subs: ['Clutch Kits', 'Automatic Transmission', 'CVT/DCT', 'Driveshafts & Axles']
-  },
-  {
-    id: 'suspension',
-    name: 'Suspension & Steering',
-    icon: <Wrench className="w-5 h-5" />,
-    subs: ['Shocks & Struts', 'Control Arms', 'Steering Racks', 'Bushings']
-  },
-  {
-    id: 'brakes',
-    name: 'Braking System',
-    icon: <div className="w-5 h-5 rounded-full border-2 border-red-600" />,
-    subs: ['Brake Pads', 'Rotors', 'Calipers', 'Brake Lines']
-  },
-  {
-    id: 'wheels',
-    name: 'Wheels & Tyres',
-    icon: <div className="w-5 h-5 rounded-full bg-black" />,
-    subs: ['Alloy Wheels', 'Tyres', 'TPMS Sensors', 'Lug Nuts']
-  },
-  {
-    id: 'electrical',
-    name: 'Electrical Systems',
-    icon: <Battery className="w-5 h-5" />,
-    subs: ['Alternators', 'Starters', 'Sensors', 'ECUs', 'Lighting']
-  },
-  {
-    id: 'hvac',
-    name: 'Climate & HVAC',
-    icon: <Snowflake className="w-5 h-5" />,
-    subs: ['A/C Compressors', 'Heater Cores', 'Blower Motors', 'Cabin Filters']
-  },
-  {
-    id: 'safety',
-    name: 'Safety & ADAS',
-    icon: <Shield className="w-5 h-5" />,
-    subs: ['Airbags', 'ABS Modules', 'Cameras & Radar', 'Seatbelts']
-  },
-  {
-    id: 'service',
-    name: 'Service & Maintenance',
-    icon: <Zap className="w-5 h-5" />,
-    subs: ['Oils & Fluids', 'Filters', 'Spark Plugs', 'Wipers', 'Batteries']
-  },
-  {
-    id: 'performance',
-    name: 'Performance Upgrades',
-    icon: <Zap className="w-5 h-5 text-orange-600" />,
-    subs: ['ECU Tuning', 'Intakes', 'Exhausts', 'Suspension Kits', 'Big Brakes']
-  },
+const LOGIN_AS_OPTIONS = [
+  { label: 'Mechanic', path: '/repairshop', icon: <Wrench className="w-5 h-5" /> },
+  { label: 'Garage', path: '/repairshop', icon: <Wrench className="w-5 h-5" /> },
+  { label: 'Agent', path: '/agent', icon: <User className="w-5 h-5" /> },
+  { label: 'Admin', path: '/admin', icon: <Shield className="w-5 h-5" /> },
 ];
 
 const NAV_ITEMS = [
   { id: 'shop', label: 'Shop Parts', icon: <Package className="w-5 h-5" />, path: '/' },
   { id: 'mechanics', label: 'Find Mechanics', icon: <Wrench className="w-5 h-5" />, path: '/mechanics' },
   { id: 'part-identifier', label: 'Part Identifier', icon: <Scan className="w-5 h-5" />, path: '/part-identifier' },
-  { id: 'superadmin', label: 'SuperAdmin', icon: <Shield className="w-5 h-5" />, path: '/superadmin' },
 ];
 
 const PROFILE_LINKS = [
@@ -126,7 +70,7 @@ const PROFILE_LINKS = [
 ];
 
 export function Header({
-  cartItems,
+  cartItems = [],
   onCartClick,
   currentView,
   onViewChange,
@@ -138,6 +82,7 @@ export function Header({
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isLoginAsOpen, setIsLoginAsOpen] = useState(false);
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
 
   const profileRef = useRef<HTMLDivElement>(null);
@@ -240,6 +185,37 @@ export function Header({
                   <span>{item.label}</span>
                 </button>
               ))}
+              
+              {/* Login As Dropdown */}
+              <div className="relative" onMouseLeave={() => setIsLoginAsOpen(false)}>
+                <button
+                  onMouseEnter={() => setIsLoginAsOpen(true)}
+                  onClick={() => setIsLoginAsOpen(!isLoginAsOpen)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${isLoginAsOpen
+                      ? 'bg-orange-50 text-orange-600 shadow-sm'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-orange-600'
+                    }`}
+                >
+                  <Shield className="w-5 h-5" />
+                  <span>Login As</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isLoginAsOpen ? 'transform rotate-180' : ''}`} />
+                </button>
+                
+                {isLoginAsOpen && (
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                    {LOGIN_AS_OPTIONS.map((option) => (
+                      <a
+                        key={option.label}
+                        href={option.path}
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                      >
+                        {option.icon}
+                        <span>{option.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             </nav>
 
             {/* Right Side Icons */}
@@ -263,8 +239,9 @@ export function Header({
                     <div className="py-2">
                       {PROFILE_LINKS.map((link) => (
                         <button
-                          key={link.path || link.action}
-                          onClick={() => handleProfileNav(link.path, link.action)}
+                          key={link.path}
+                          onClick={() => handleProfileNav(link.path)}
+
                           className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition"
                         >
                           {link.icon}
@@ -349,6 +326,35 @@ export function Header({
                     </div>
                   </button>
                 ))}
+                
+                {/* Mobile Login As Dropdown */}
+                <div className="mb-2">
+                  <button
+                    onClick={() => setIsLoginAsOpen(!isLoginAsOpen)}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl transition ${isLoginAsOpen ? 'bg-orange-50 text-orange-600' : 'hover:bg-gray-50'}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <Shield className="w-5 h-5" />
+                      <span className="text-lg font-medium">Login As</span>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 transition-transform ${isLoginAsOpen ? 'transform rotate-180' : ''}`} />
+                  </button>
+                  
+                  {isLoginAsOpen && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {LOGIN_AS_OPTIONS.map((option) => (
+                        <a
+                          key={option.label}
+                          href={option.path}
+                          className="block w-full text-left py-3 px-4 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          {option.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Shop by Category */}
@@ -372,7 +378,7 @@ export function Header({
                       className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition"
                     >
                       <div className="flex items-center gap-4">
-                        {cat.icon}
+                        {cat.icon({ className: "w-5 h-5" })}
                         <span className="font-medium">{cat.name}</span>
                       </div>
                       <ChevronDown
@@ -410,8 +416,9 @@ export function Header({
                 </h3>
                 {PROFILE_LINKS.map((link) => (
                   <button
-                    key={link.path || link.action}
-                    onClick={() => handleProfileNav(link.path, link.action)}
+                    key={link.path}
+                    onClick={() => handleProfileNav(link.path)}
+
                     className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition"
                   >
                     {link.icon}

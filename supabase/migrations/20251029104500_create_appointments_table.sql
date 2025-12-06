@@ -24,7 +24,7 @@
 */
 
 -- Create appointments table
-CREATE TABLE IF NOT EXISTS appointments (
+CREATE TABLE IF NOT EXISTS public.appointments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_name text NOT NULL,
   customer_email text NOT NULL,
@@ -42,17 +42,17 @@ CREATE TABLE IF NOT EXISTS appointments (
 );
 
 -- Enable Row Level Security
-ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for appointments
 CREATE POLICY "Anyone can create appointments"
-  ON appointments FOR INSERT
+  ON public.appointments FOR INSERT
   WITH CHECK (true);
 
 CREATE POLICY "Authenticated can view appointments"
-  ON appointments FOR SELECT
+  ON public.appointments FOR SELECT
   USING (true);
 
 -- Create indexes for better query performance
-CREATE INDEX idx_appointments_date ON appointments(appointment_date);
-CREATE INDEX idx_appointments_status ON appointments(status);
+CREATE INDEX idx_appointments_date ON public.appointments(appointment_date);
+CREATE INDEX idx_appointments_status ON public.appointments(status);

@@ -340,3 +340,5 @@ export function WalletAndPayments({ onBack }: WalletAndPaymentsProps) {
     </div>
   );
 }
+
+export default WalletAndPayments;

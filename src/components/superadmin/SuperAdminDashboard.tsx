@@ -91,3 +91,5 @@ function OverviewTab() {
     </div>
   );
 }
+
+export default SuperAdminDashboard;

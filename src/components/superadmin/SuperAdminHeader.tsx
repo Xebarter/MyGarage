@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useAuth } from '../../contexts/AuthProvider'
 
 interface NavItem {
   path: string
@@ -63,8 +64,18 @@ export function SuperAdminHeader() {
 
   const handleLogout = () => {
     // Handle logout logic
-    navigate('/')
+    ; (async () => {
+      try {
+        await signOut()
+      } catch (err) {
+        console.error('Error signing out', err)
+      } finally {
+        navigate('/')
+      }
+    })()
   }
+
+  const { user, signOut } = useAuth()
 
   return (
     <>
@@ -85,18 +96,17 @@ export function SuperAdminHeader() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive(item.path)
+                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive(item.path)
                         ? 'bg-blue-50 text-blue-600'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {item.label}
                   </Link>
                 )
               })}
-              
+
               {/* Logout button */}
               <button
                 onClick={handleLogout}
@@ -129,11 +139,10 @@ export function SuperAdminHeader() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center px-3 py-2 rounded-md text-base font-medium ${
-                      isActive(item.path)
+                    className={`flex items-center px-3 py-2 rounded-md text-base font-medium ${isActive(item.path)
                         ? 'bg-blue-50 text-blue-600'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <Icon className="h-5 w-5 mr-3" />

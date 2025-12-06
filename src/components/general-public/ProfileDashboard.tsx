@@ -25,7 +25,8 @@ const profileOptions = [
     type: "settings",
     priority: "core",
     actions: ["view", "edit", "update_password", "manage_privacy"],
-    icon: User
+    icon: User,
+    link: "/profile/security"
   },
   {
     id: "wallet_payments",
@@ -45,7 +46,7 @@ const profileOptions = [
     priority: "core",
     actions: ["view_records", "download_invoice", "filter_by_vehicle"],
     icon: Wrench,
-    link: "/service-history"
+    link: "/profile/service-history"
   },
   {
     id: "documents_storage",
@@ -55,7 +56,7 @@ const profileOptions = [
     priority: "core",
     actions: ["upload_document", "view_document", "set_expiry_alert"],
     icon: FileText,
-    link: "/documents-insurance"
+    link: "/profile/documents"
   },
   {
     id: "appointments",
@@ -64,7 +65,8 @@ const profileOptions = [
     type: "scheduling",
     priority: "core",
     actions: ["view_appointments", "schedule_appointment", "cancel_appointment"],
-    icon: Calendar
+    icon: Calendar,
+    link: "/profile/appointments"
   },
   {
     id: "saved_mechanics",
@@ -73,7 +75,8 @@ const profileOptions = [
     type: "favorites",
     priority: "core",
     actions: ["view_saved", "remove", "book_again"],
-    icon: Heart
+    icon: Heart,
+    link: "/profile/mechanics"
   },
   {
     id: "reviews_feedback",
@@ -82,7 +85,8 @@ const profileOptions = [
     type: "feedback",
     priority: "optional",
     actions: ["view_reviews", "edit_review", "delete_review"],
-    icon: Star
+    icon: Star,
+    link: "/profile/ratings"
   },
   {
     id: "notifications",
@@ -91,7 +95,8 @@ const profileOptions = [
     type: "alerts",
     priority: "core",
     actions: ["enable", "disable", "set_preferences"],
-    icon: Bell
+    icon: Bell,
+    link: "/profile/notifications"
   },
   {
     id: "referrals_rewards",
@@ -100,7 +105,8 @@ const profileOptions = [
     type: "loyalty",
     priority: "optional",
     actions: ["copy_referral_link", "view_points", "redeem_rewards"],
-    icon: Gift
+    icon: Gift,
+    link: "/profile/referrals"
   },
   {
     id: "messages_support",
@@ -109,7 +115,8 @@ const profileOptions = [
     type: "communication",
     priority: "core",
     actions: ["view_messages", "send_message", "open_support_ticket"],
-    icon: MessageCircle
+    icon: MessageCircle,
+    link: "/profile/messages"
   },
   {
     id: "account_activity",
@@ -118,7 +125,8 @@ const profileOptions = [
     type: "security",
     priority: "optional",
     actions: ["view_activity_log"],
-    icon: Activity
+    icon: Activity,
+    link: "/profile/account"
   },
   {
     id: "my_vehicles",
@@ -127,7 +135,8 @@ const profileOptions = [
     type: "vehicle_management",
     priority: "core",
     actions: ["add_vehicle", "edit_vehicle", "delete_vehicle", "view_vehicle_details"],
-    icon: Car
+    icon: Car,
+    link: "/profile/vehicles"
   },
   {
     id: "maintenance_reminders",
@@ -136,7 +145,8 @@ const profileOptions = [
     type: "reminders",
     priority: "optional",
     actions: ["view_schedule", "set_reminder", "edit_reminder"],
-    icon: Calendar
+    icon: Calendar,
+    link: "/profile/reminders"
   }
 ];
 
