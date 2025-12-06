@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthProvider';
@@ -43,71 +43,165 @@ import { ProfilesAndSecurity } from './components/general-public/profile/Profile
 import { AccountActivity } from './components/general-public/profile/AccountActivity';
 import { ReferralsAndRewards } from './components/general-public/profile/ReferralsAndRewards';
 import { RatingsReviews } from './components/general-public/profile/RatingsReviews';
+import { Header } from './components/general-public/Header';
+
+// Wrapper component to provide header and onBack prop to profile components
+function ProfileLayout({ children }: { children: React.ReactNode }) {
+  const [cartItems] = useState<any[]>([]);
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <Header
+        cartItems={cartItems}
+        onCartClick={() => { }}
+        currentView="profile"
+        onViewChange={() => { }}
+        onShowAppointmentForm={() => { }}
+        selectedCategory={null}
+        onCategorySelect={() => { }}
+        onProfileOptionSelect={() => { }}
+      />
+      <div className="mt-0">
+        {children}
+      </div>
+    </>
+  );
+}
 
 // Wrapper components to provide onBack prop to profile components
 function MyVehiclesWithBack() {
   const navigate = useNavigate();
-  return <MyVehicles onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <MyVehicles onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function WalletWithBack() {
   const navigate = useNavigate();
-  return <WalletAndPayments onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <WalletAndPayments onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function ServiceHistoryWithBack() {
   const navigate = useNavigate();
-  return <ProfileServiceHistory onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <ProfileServiceHistory onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function DocumentsWithBack() {
   const navigate = useNavigate();
-  return <ProfileDocumentsAndInsurance onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <ProfileDocumentsAndInsurance onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function SavedMechanicsWithBack() {
   const navigate = useNavigate();
-  return <SavedMechanics onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <SavedMechanics onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function MaintenanceRemindersWithBack() {
   const navigate = useNavigate();
-  return <MaintenanceReminders onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <MaintenanceReminders onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function MessagesWithBack() {
   const navigate = useNavigate();
-  return <MessagesAndSupport onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <MessagesAndSupport onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function NotificationsWithBack() {
   const navigate = useNavigate();
-  return <Notifications onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <Notifications onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function SettingsWithBack() {
   const navigate = useNavigate();
-  return <Settings onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <Settings onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function ProfilesAndSecurityWithBack() {
   const navigate = useNavigate();
-  return <ProfilesAndSecurity onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <ProfilesAndSecurity onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function AccountActivityWithBack() {
   const navigate = useNavigate();
-  return <AccountActivity onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <AccountActivity onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function ReferralsWithBack() {
   const navigate = useNavigate();
-  return <ReferralsAndRewards onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <ReferralsAndRewards onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function RatingsWithBack() {
   const navigate = useNavigate();
-  return <RatingsReviews onBack={() => navigate('/profile')} />;
+  return (
+    <ProfileLayout>
+      <RatingsReviews onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
+}
+
+function ProfileOverviewWithHeader() {
+  return (
+    <ProfileLayout>
+      <ProfileOverview />
+    </ProfileLayout>
+  );
+}
+
+function ProfileAppointmentsWithBack() {
+  const navigate = useNavigate();
+  return (
+    <ProfileLayout>
+      <ProfileAppointments onBack={() => navigate('/profile')} />
+    </ProfileLayout>
+  );
 }
 
 function ProfileDefaultRedirect() {
@@ -135,9 +229,9 @@ root.render(
 
           {/* Profile routes */}
           <Route path="/profile" element={<ProtectedRoute allowedRoles={["user"]}><ProfileDefaultRedirect /></ProtectedRoute>} />
-          <Route path="/profile/overview" element={<ProtectedRoute allowedRoles={["user"]}><ProfileOverview /></ProtectedRoute>} />
+          <Route path="/profile/overview" element={<ProtectedRoute allowedRoles={["user"]}><ProfileOverviewWithHeader /></ProtectedRoute>} />
           <Route path="/profile/vehicles" element={<ProtectedRoute allowedRoles={["user"]}><MyVehiclesWithBack /></ProtectedRoute>} />
-          <Route path="/profile/appointments" element={<ProtectedRoute allowedRoles={["user"]}><ProfileAppointments /></ProtectedRoute>} />
+          <Route path="/profile/appointments" element={<ProtectedRoute allowedRoles={["user"]}><ProfileAppointmentsWithBack /></ProtectedRoute>} />
           <Route path="/profile/payments" element={<ProtectedRoute allowedRoles={["user"]}><WalletWithBack /></ProtectedRoute>} />
           <Route path="/profile/service-history" element={<ProtectedRoute allowedRoles={["user"]}><ServiceHistoryWithBack /></ProtectedRoute>} />
           <Route path="/profile/documents" element={<ProtectedRoute allowedRoles={["user"]}><DocumentsWithBack /></ProtectedRoute>} />
