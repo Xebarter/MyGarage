@@ -48,6 +48,44 @@ export function getPaytotaSkipCapture(): boolean {
   return false;
 }
 
+/**
+ * Minimum purchase total in UGX before calling Paytota (mobile money often rejects very low totals).
+ * Set `PAYTOTA_MIN_PURCHASE_UGX=0` to skip this check. Default 500 when unset.
+ */
+export function getPaytotaMinPurchaseUgx(): number | null {
+  const raw = String(process.env.PAYTOTA_MIN_PURCHASE_UGX ?? "").trim().toLowerCase();
+  if (raw === "0" || raw === "off" || raw === "false") return null;
+  if (raw === "") return 500;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return 500;
+  return n;
+}
+
+/** Hint appended when Paytota returns purchase_no_available_payment_method (brand/currency/rules/amount). */
+export function paytotaNoPaymentMethodHint(context: {
+  brandId: string;
+  currency: string;
+  skipCapture: boolean;
+  amountUgx: number;
+  minUgx: number | null;
+}): string {
+  const parts = [
+    `Paytota saw brand_id=${context.brandId}, currency=${context.currency}, skip_capture=${context.skipCapture}, amount=${context.amountUgx} UGX.`,
+    "Confirm the Paytota brand enables UGX collections and check dashboard rules.",
+  ];
+  if (context.skipCapture) {
+    parts.push("Try PAYTOTA_SKIP_CAPTURE=false unless Paytota enabled holds for this brand.");
+  }
+  if (context.minUgx != null && context.amountUgx < context.minUgx) {
+    parts.push(
+      `Your amount is below PAYTOTA_MIN_PURCHASE_UGX (${context.minUgx}); use whole-number UGX prices or lower the minimum.`,
+    );
+  } else if (context.amountUgx < 500) {
+    parts.push("Very low UGX totals are often blocked; ensure catalog prices are real UGX (not e.g. 12.99 meaning 13 UGX).");
+  }
+  return parts.join(" ");
+}
+
 function buildAuthHeaders(secretKey: string, contentType = "application/json"): HeadersInit {
   return {
     Authorization: `Bearer ${secretKey}`,

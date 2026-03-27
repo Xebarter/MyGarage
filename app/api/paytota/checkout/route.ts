@@ -11,8 +11,10 @@ import {
 import {
   createPurchase,
   getPaytotaConfig,
+  getPaytotaMinPurchaseUgx,
   getPaytotaPaymentMethodWhitelist,
   getPaytotaSkipCapture,
+  paytotaNoPaymentMethodHint,
 } from "@/lib/paytota";
 
 type CheckoutItem = {
@@ -123,6 +125,16 @@ export async function POST(req: NextRequest) {
     const tax = Math.round(subtotal * 0.08);
     const total = subtotal + tax;
 
+    const minUgx = getPaytotaMinPurchaseUgx();
+    if (minUgx != null && total < minUgx) {
+      return NextResponse.json(
+        {
+          error: `Order total (${total} UGX) is below the minimum Paytota collection amount (${minUgx} UGX). Use prices in whole UGX or set PAYTOTA_MIN_PURCHASE_UGX=0 to skip this check.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const reference = `MYG-${checkoutId}`;
 
     const { error: createCheckoutError } = await supabase.from("checkout_sessions").insert({
@@ -166,6 +178,12 @@ export async function POST(req: NextRequest) {
     });
     if (markReadyError) throw new Error(markReadyError.message);
 
+    const paytotaProducts: { name: string; price: string }[] = parsedItems.map((item, idx) => ({
+      name: item.name,
+      price: String(lineTotals[idx]!),
+    }));
+    if (tax > 0) paytotaProducts.push({ name: "Tax", price: String(tax) });
+
     const purchasePayload: Record<string, unknown> = {
       client: {
         email: customerEmail,
@@ -176,10 +194,7 @@ export async function POST(req: NextRequest) {
       },
       purchase: {
         currency: "UGX",
-        products: parsedItems.map((item) => ({
-          name: item.name,
-          price: String(Number((item.price * item.quantity).toFixed(0))),
-        })),
+        products: paytotaProducts,
       },
       reference,
       skip_capture: getPaytotaSkipCapture(),
@@ -195,7 +210,24 @@ export async function POST(req: NextRequest) {
       failureRedirect || getPaytotaFailureRedirectUrl({ checkoutId });
     purchasePayload.cancel_redirect = getPaytotaCancelRedirectUrl({ checkoutId });
 
-    const purchase = await createPurchase(purchasePayload);
+    let purchase: Awaited<ReturnType<typeof createPurchase>>;
+    try {
+      purchase = await createPurchase(purchasePayload);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("purchase_no_available_payment_method")) {
+        throw new Error(
+          `${msg} ${paytotaNoPaymentMethodHint({
+            brandId,
+            currency: "UGX",
+            skipCapture: getPaytotaSkipCapture(),
+            amountUgx: total,
+            minUgx,
+          })}`,
+        );
+      }
+      throw e;
+    }
     const providerReference = String(purchase.id ?? "");
     const checkoutUrl = String(purchase.checkout_url ?? "");
 

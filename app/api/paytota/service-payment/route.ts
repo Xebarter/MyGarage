@@ -10,8 +10,10 @@ import {
 import {
   createPurchase,
   getPaytotaConfig,
+  getPaytotaMinPurchaseUgx,
   getPaytotaPaymentMethodWhitelist,
   getPaytotaSkipCapture,
+  paytotaNoPaymentMethodHint,
 } from "@/lib/paytota";
 
 function normalizeUgPhone(input: string): string {
@@ -97,6 +99,19 @@ export async function POST(req: NextRequest) {
     if (!payment) return NextResponse.json({ error: "Service payment not found" }, { status: 404 });
 
     const { brandId } = getPaytotaConfig();
+    const amountUgx = Math.round(Number(payment.amount));
+    if (payment.currency === "UGX") {
+      const minUgx = getPaytotaMinPurchaseUgx();
+      if (minUgx != null && amountUgx < minUgx) {
+        return NextResponse.json(
+          {
+            error: `Payment amount (${amountUgx} UGX) is below the minimum Paytota collection amount (${minUgx} UGX).`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     const purchasePayload: Record<string, unknown> = {
       client: {
         email: customerEmail,
@@ -109,7 +124,7 @@ export async function POST(req: NextRequest) {
         products: [
           {
             name: `Service payment ${payment.request_id}`,
-            price: String(Number(payment.amount)),
+            price: String(amountUgx),
           },
         ],
       },
@@ -133,7 +148,24 @@ export async function POST(req: NextRequest) {
     const methodWhitelist = getPaytotaPaymentMethodWhitelist();
     if (methodWhitelist) purchasePayload.payment_method_whitelist = methodWhitelist;
 
-    const purchase = await createPurchase(purchasePayload);
+    let purchase: Awaited<ReturnType<typeof createPurchase>>;
+    try {
+      purchase = await createPurchase(purchasePayload);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("purchase_no_available_payment_method") && payment.currency === "UGX") {
+        throw new Error(
+          `${msg} ${paytotaNoPaymentMethodHint({
+            brandId,
+            currency: payment.currency,
+            skipCapture: getPaytotaSkipCapture(),
+            amountUgx,
+            minUgx: getPaytotaMinPurchaseUgx(),
+          })}`,
+        );
+      }
+      throw e;
+    }
     const providerReference = String(purchase.id ?? "");
     const checkoutUrl = String(purchase.checkout_url ?? "");
     if (!providerReference || !checkoutUrl) {
