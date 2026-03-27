@@ -71,12 +71,50 @@ export async function POST(req: NextRequest) {
         name: String(item.name),
         price: Number(item.price),
         quantity: Number(item.quantity),
-        vendorId: item.vendorId ? String(item.vendorId) : null,
       }))
       .filter((item) => item.productId && item.name && item.price > 0 && item.quantity > 0);
 
     if (parsedItems.length === 0) {
       return NextResponse.json({ error: "No valid checkout items provided" }, { status: 400 });
+    }
+
+    const checkoutId = `chk-${randomUUID()}`;
+    const { brandId } = getPaytotaConfig();
+    const supabase = createAdminClient();
+
+    const productIds = [...new Set(parsedItems.map((i) => i.productId))];
+    const { data: productRows, error: productsLookupError } = await supabase
+      .from("products")
+      .select("id, vendor_id")
+      .in("id", productIds);
+    if (productsLookupError) throw new Error(productsLookupError.message);
+
+    const vendorIdByProductId = new Map((productRows ?? []).map((r) => [r.id, r.vendor_id]));
+    for (const id of productIds) {
+      if (!vendorIdByProductId.has(id)) {
+        return NextResponse.json(
+          { error: "One or more products are unavailable or could not be found" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const vendorIdsFromProducts = [...new Set(productIds.map((id) => vendorIdByProductId.get(id)!))];
+    const { data: vendorRows, error: vendorsLookupError } = await supabase
+      .from("vendors")
+      .select("id")
+      .in("id", vendorIdsFromProducts);
+    if (vendorsLookupError) throw new Error(vendorsLookupError.message);
+    const existingVendorIds = new Set((vendorRows ?? []).map((v) => v.id));
+    const missingVendor = vendorIdsFromProducts.find((vid) => !existingVendorIds.has(vid));
+    if (missingVendor !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "A product in your cart is linked to a seller record that no longer exists. Remove the item or contact support.",
+        },
+        { status: 400 },
+      );
     }
 
     let customer = await getCustomerByEmail(customerEmail);
@@ -97,10 +135,7 @@ export async function POST(req: NextRequest) {
     const tax = Math.round(subtotal * 0.08);
     const total = subtotal + tax;
 
-    const checkoutId = `chk-${randomUUID()}`;
     const reference = `MYG-${checkoutId}`;
-    const { brandId } = getPaytotaConfig();
-    const supabase = createAdminClient();
 
     const { error: createCheckoutError } = await supabase.from("checkout_sessions").insert({
       id: checkoutId,
@@ -122,6 +157,7 @@ export async function POST(req: NextRequest) {
     if (createCheckoutError) throw new Error(createCheckoutError.message);
 
     for (const item of parsedItems) {
+      const vendorId = vendorIdByProductId.get(item.productId) ?? null;
       const { error } = await supabase.rpc("upsert_checkout_line_item", {
         p_line_item_id: `cli-${randomUUID()}`,
         p_checkout_id: checkoutId,
@@ -130,7 +166,7 @@ export async function POST(req: NextRequest) {
         p_quantity: item.quantity,
         p_unit_amount: item.price,
         p_product_id: item.productId,
-        p_vendor_id: item.vendorId,
+        p_vendor_id: vendorId,
         p_metadata: {},
       });
       if (error) throw new Error(error.message);
