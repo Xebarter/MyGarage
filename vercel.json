@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/feed/refresh?limit=120",
-      "schedule": "0 */2 * * *"
-    }
-  ]
-}

@@ -7,9 +7,16 @@ function isAuthorized(req: NextRequest): boolean {
   if (cronSecret && bearer === `Bearer ${cronSecret}`) return true;
 
   const configuredToken = process.env.FEED_REFRESH_TOKEN;
-  if (!configuredToken) return true;
-  const providedToken = req.headers.get("x-feed-refresh-token") || "";
-  return providedToken === configuredToken;
+  if (configuredToken) {
+    const providedToken = req.headers.get("x-feed-refresh-token") || "";
+    if (providedToken === configuredToken) return true;
+  }
+
+  // In production, require at least one configured secret header.
+  if (process.env.NODE_ENV === "production") return false;
+
+  // In local/dev, allow requests when no secret is configured.
+  return !cronSecret && !configuredToken;
 }
 
 function resolveLimitFromRequest(req: NextRequest, bodyLimit?: number): number {

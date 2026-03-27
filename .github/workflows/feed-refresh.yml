@@ -1,0 +1,16 @@
+name: Refresh Home Feed
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger refresh endpoint
+        run: |
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.FEED_REFRESH_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
