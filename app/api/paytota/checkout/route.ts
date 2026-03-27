@@ -8,7 +8,12 @@ import {
   getPaytotaFailureRedirectUrl,
   getPaytotaSuccessRedirectUrl,
 } from "@/lib/app-url";
-import { createPurchase, getPaytotaConfig } from "@/lib/paytota";
+import {
+  createPurchase,
+  getPaytotaConfig,
+  getPaytotaPaymentMethodWhitelist,
+  getPaytotaSkipCapture,
+} from "@/lib/paytota";
 
 type CheckoutItem = {
   productId: string;
@@ -25,23 +30,6 @@ function normalizeUgPhone(input: string): string {
   if (digits.startsWith("0") && digits.length === 10) return `256${digits.slice(1)}`;
   if (digits.length === 9) return `256${digits}`;
   return digits;
-}
-
-function getPaytotaPaymentMethodWhitelist(): string[] | undefined {
-  const raw = String(process.env.PAYTOTA_PAYMENT_METHOD_WHITELIST ?? "").trim();
-  if (!raw) return ["airtel", "mtnmomo"];
-  const list = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.length > 0 ? list : undefined;
-}
-
-function getPaytotaSkipCapture(): boolean {
-  const raw = String(process.env.PAYTOTA_SKIP_CAPTURE ?? "").trim().toLowerCase();
-  if (raw === "1" || raw === "true" || raw === "yes") return true;
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return false;
 }
 
 export async function POST(req: NextRequest) {
@@ -196,8 +184,10 @@ export async function POST(req: NextRequest) {
       reference,
       skip_capture: getPaytotaSkipCapture(),
       brand_id: brandId,
-      payment_method_whitelist: getPaytotaPaymentMethodWhitelist(),
     };
+
+    const methodWhitelist = getPaytotaPaymentMethodWhitelist();
+    if (methodWhitelist) purchasePayload.payment_method_whitelist = methodWhitelist;
 
     purchasePayload.success_redirect =
       successRedirect || getPaytotaSuccessRedirectUrl({ checkoutId });

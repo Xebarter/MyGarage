@@ -19,6 +19,35 @@ export function getPaytotaConfig() {
   return { baseUrl, secretKey, brandId };
 }
 
+/**
+ * Optional comma-separated method codes for `payment_method_whitelist`.
+ *
+ * Paytota Mobile Money “Collection/Purchase → Step 1” in `additems.txt` shows the initiate body as
+ * `client`, `purchase` (currency + products with string `price`), `reference`, `skip_capture`, `brand_id`
+ * only — no whitelist. We omit the field when this env is unset so the request matches that shape; set
+ * the env only when you intentionally restrict methods (codes must match your brand).
+ */
+export function getPaytotaPaymentMethodWhitelist(): string[] | undefined {
+  const raw = String(process.env.PAYTOTA_PAYMENT_METHOD_WHITELIST ?? "").trim();
+  if (!raw) return undefined;
+  const list = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : undefined;
+}
+
+/**
+ * Matches `additems.txt` Collection/Purchase examples (`skip_capture`: false). Only set
+ * `PAYTOTA_SKIP_CAPTURE=true` when using hold/capture flows described in Paytota purchase status docs.
+ */
+export function getPaytotaSkipCapture(): boolean {
+  const raw = String(process.env.PAYTOTA_SKIP_CAPTURE ?? "").trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes") return true;
+  if (raw === "0" || raw === "false" || raw === "no") return false;
+  return false;
+}
+
 function buildAuthHeaders(secretKey: string, contentType = "application/json"): HeadersInit {
   return {
     Authorization: `Bearer ${secretKey}`,
