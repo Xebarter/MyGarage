@@ -1,0 +1,17 @@
+# Keep local-only / sensitive files out of Vercel uploads.
+# (Vercel doesn't deploy .env anyway, but this prevents accidental uploads.)
+.env
+.env.*
+
+# Local tooling
+.cursor/
+.vscode/
+.idea/
+
+# Node / Next build artifacts (Vercel rebuilds)
+node_modules/
+.next/
+.turbo/
+
+# Misc
+additems.txt

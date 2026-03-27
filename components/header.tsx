@@ -1,0 +1,720 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ShoppingCart, Package, Menu, Search, UserCircle2, ChevronDown, Siren } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AddItemsSidebar } from '@/components/additems-sidebar';
+
+type SuggestionProduct = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  compareAtPrice: number | null;
+  image: string;
+  category: string;
+  brand: string;
+};
+
+type SuggestionCategory = {
+  name: string;
+  image: string;
+  count: number;
+};
+
+export function Header() {
+  const router = useRouter();
+  const [pinned, setPinned] = useState(false)
+  const [hoverOpen, setHoverOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [profileMenuMode, setProfileMenuMode] = useState<'login' | 'join'>('login')
+  const [cartCount, setCartCount] = useState(0)
+  const pinnedRef = useRef(pinned)
+  const hoverCloseTimerRef = useRef<number | null>(null)
+  const profileCloseTimerRef = useRef<number | null>(null)
+  const profileMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    pinnedRef.current = pinned
+  }, [pinned])
+
+  const refreshCartCount = useCallback(() => {
+    try {
+      const raw = localStorage.getItem('cartItems') || '[]'
+      const items = JSON.parse(raw) as Array<{ quantity?: number }>
+      const next = Array.isArray(items)
+        ? items.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity ?? 0) || 0), 0)
+        : 0
+      setCartCount(next)
+    } catch {
+      setCartCount(0)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshCartCount()
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'cartItems') refreshCartCount()
+    }
+    const onFocus = () => refreshCartCount()
+    const onCartUpdated = () => refreshCartCount()
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('cart:updated', onCartUpdated as EventListener)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('cart:updated', onCartUpdated as EventListener)
+    }
+  }, [refreshCartCount])
+
+  const [urlQ, setUrlQ] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return (new URLSearchParams(window.location.search).get('q') ?? '').toString().trim();
+  });
+  const [searchValue, setSearchValue] = useState(urlQ);
+
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<{
+    query: string;
+    categories: SuggestionCategory[];
+    products: SuggestionProduct[];
+  } | null>(null);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+
+  const suggestionsBlurCloseTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Keep the search input in sync when the URL changes (e.g. back/forward).
+    setSearchValue(urlQ);
+  }, [urlQ]);
+
+  useEffect(() => {
+    function syncFromLocation() {
+      setUrlQ((new URLSearchParams(window.location.search).get('q') ?? '').toString().trim());
+    }
+    window.addEventListener('popstate', syncFromLocation);
+    return () => window.removeEventListener('popstate', syncFromLocation);
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setPinned(false)
+    setHoverOpen(false)
+  }, [])
+
+  const applySearch = useCallback(
+    (raw: string, opts?: { closeSidebar?: boolean }) => {
+      const next = raw.trim();
+      if (next.length > 0) {
+        router.replace(`/?q=${encodeURIComponent(next)}`);
+        setUrlQ(next);
+      } else {
+        router.replace('/');
+        setUrlQ('');
+      }
+      if (opts?.closeSidebar) closeSidebar();
+    },
+    [router, closeSidebar],
+  );
+
+  // Amazon-like search: debounce updates while typing.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (searchValue.trim() === urlQ) return;
+      applySearch(searchValue);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [searchValue, urlQ, applySearch]);
+
+  // Live suggestions (categories + top matching products) under the search bar.
+  useEffect(() => {
+    if (!suggestionsVisible) return;
+
+    const q = searchValue.trim();
+    if (q.length < 2) {
+      setSuggestions(null);
+      setSuggestionsError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      try {
+        setSuggestionsLoading(true);
+        setSuggestionsError(null);
+
+        const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to fetch suggestions');
+        }
+        if (cancelled) return;
+        setSuggestions(data);
+      } catch (e) {
+        if (cancelled) return;
+        if ((e as Error)?.name === 'AbortError') return;
+        setSuggestions(null);
+        setSuggestionsError('No suggestions');
+      } finally {
+        if (cancelled) return;
+        setSuggestionsLoading(false);
+      }
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      controller.abort();
+    };
+  }, [searchValue, suggestionsVisible]);
+
+  const closeSuggestions = useCallback(() => {
+    setSuggestionsVisible(false);
+  }, []);
+
+  const showSuggestionsNow = useCallback(() => {
+    if (suggestionsBlurCloseTimerRef.current) window.clearTimeout(suggestionsBlurCloseTimerRef.current);
+    setSuggestionsVisible(true);
+  }, []);
+
+  const buildCategoryHref = useCallback((category?: string) => {
+    const cat = (category ?? '').trim();
+    if (!cat || cat === 'all') return '/';
+    return `/category/products/${encodeURIComponent(cat)}`;
+  }, []);
+
+  const open = pinned || hoverOpen
+
+  const scheduleHoverClose = useCallback(() => {
+    if (pinnedRef.current) return
+    if (hoverCloseTimerRef.current) window.clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = window.setTimeout(() => {
+      if (!pinnedRef.current) setHoverOpen(false)
+    }, 150)
+  }, [])
+
+  const handleHoverOpen = useCallback(() => {
+    if (pinnedRef.current) return
+    if (hoverCloseTimerRef.current) window.clearTimeout(hoverCloseTimerRef.current)
+    setHoverOpen(true)
+  }, [])
+
+  const togglePinned = useCallback(() => {
+    setPinned((prev) => {
+      const next = !prev
+      if (next) setHoverOpen(true)
+      else setHoverOpen(false)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeSidebar()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, closeSidebar])
+
+  useEffect(() => {
+    function onPointerDown(e: MouseEvent) {
+      if (!profileMenuRef.current) return
+      if (!profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
+
+  const handleProfileHoverOpen = useCallback(() => {
+    if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current)
+    setProfileMenuOpen(true)
+  }, [])
+
+  const scheduleProfileHoverClose = useCallback(() => {
+    if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current)
+    profileCloseTimerRef.current = window.setTimeout(() => {
+      setProfileMenuOpen(false)
+      setProfileMenuMode('login')
+    }, 150)
+  }, [])
+
+  const toggleProfileMenu = useCallback(() => {
+    setProfileMenuOpen((prev) => !prev)
+  }, [])
+
+  return (
+    <>
+    <header className="border-b border-border bg-background md:sticky md:top-0 md:z-40">
+      {open ? (
+        <div
+          className="fixed inset-x-0 top-12 md:top-16 bottom-0 z-40 bg-black/20 backdrop-blur-sm"
+          onClick={closeSidebar}
+        />
+      ) : null}
+      <AddItemsSidebar
+        open={open}
+        pinned={pinned}
+        onRequestClose={closeSidebar}
+        onMouseEnter={handleHoverOpen}
+        onMouseLeave={scheduleHoverClose}
+      />
+      <div className="md:hidden">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Open categories"
+                aria-expanded={open}
+                onMouseEnter={handleHoverOpen}
+                onMouseLeave={scheduleHoverClose}
+                onClick={togglePinned}
+                className="inline-flex items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <Link href="/" className="flex items-center">
+                <span className="text-lg font-bold text-foreground">MyGarage</span>
+              </Link>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/cart"
+                aria-label="Open cart"
+                className="relative inline-flex items-center justify-center rounded-lg border border-border bg-background p-2 text-foreground hover:bg-accent hover:text-accent-foreground transition"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-red-700 bg-red-600 px-1 text-[11px] font-semibold text-white shadow-sm">
+                    {cartCount > 99 ? '99+' : cartCount}
+                  </span>
+                ) : null}
+              </Link>
+              <div
+                ref={profileMenuRef}
+                className="relative"
+                onMouseEnter={handleProfileHoverOpen}
+                onMouseLeave={scheduleProfileHoverClose}
+              >
+                <button
+                  type="button"
+                  aria-label="Open profile menu"
+                  aria-expanded={profileMenuOpen}
+                  onClick={toggleProfileMenu}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
+                >
+                  <UserCircle2 className="h-5 w-5" />
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {profileMenuOpen ? (
+                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
+                    {profileMenuMode === 'login' ? (
+                      <>
+                        <Link
+                          href="/auth?role=buyer&next=/buyer"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Login as Buyer
+                        </Link>
+                        <Link
+                          href="/auth?role=vendor&next=/vendor"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Login as Vendor
+                        </Link>
+                        <Link
+                          href="/auth?role=services&next=/services"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Login as Service Provider
+                        </Link>
+                        <div className="my-1 h-px bg-border" />
+                        <button
+                          type="button"
+                          onClick={() => setProfileMenuMode('join')}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+                        >
+                          Join MyGarage
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          href="/auth?role=buyer&next=/buyer"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Join as Buyer
+                        </Link>
+                        <Link
+                          href="/auth?role=vendor&next=/vendor"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Join as Vendor
+                        </Link>
+                        <Link
+                          href="/auth?role=services&next=/services"
+                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                        >
+                          Join as Service Provider
+                        </Link>
+                        <div className="my-1 h-px bg-border" />
+                        <button
+                          type="button"
+                          onClick={() => setProfileMenuMode('login')}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+                        >
+                          My Account
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden md:block border-b border-border bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Open categories"
+                aria-expanded={open}
+                onMouseEnter={handleHoverOpen}
+                onMouseLeave={scheduleHoverClose}
+                onClick={togglePinned}
+                className="inline-flex items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+
+              <Link href="/" className="flex items-center gap-2">
+                <Package className="w-8 h-8 text-primary" />
+                <span className="text-2xl font-bold text-foreground">MyGarage</span>
+              </Link>
+            </div>
+
+            <Link
+              href="/buyer/services"
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"
+            >
+              <Siren className="h-4 w-4" />
+              <span>SOS</span>
+            </Link>
+            <form
+              className="mx-6 flex max-w-md flex-1 items-center"
+              onSubmit={(e) => {
+                e.preventDefault();
+                applySearch(searchValue, { closeSidebar: true });
+              }}
+            >
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  placeholder="Search products..."
+                  aria-label="Search products"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onFocus={() => {
+                    showSuggestionsNow();
+                  }}
+                  onBlur={() => {
+                    if (suggestionsBlurCloseTimerRef.current) window.clearTimeout(suggestionsBlurCloseTimerRef.current);
+                    suggestionsBlurCloseTimerRef.current = window.setTimeout(() => {
+                      closeSuggestions();
+                    }, 120);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setSearchValue('');
+                      applySearch('', { closeSidebar: true });
+                      closeSuggestions();
+                    }
+                  }}
+                  className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+
+                {suggestionsVisible && (searchValue.trim().length >= 2) ? (
+                  <div
+                    className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-border bg-popover shadow-lg z-50 overflow-hidden"
+                    onMouseDown={(e) => {
+                      // Prevent the input from losing focus before click/navigation.
+                      e.preventDefault();
+                    }}
+                  >
+                    <div className="p-3">
+                      {suggestionsLoading ? (
+                        <p className="text-xs text-muted-foreground">Searching…</p>
+                      ) : suggestionsError ? (
+                        <p className="text-xs text-muted-foreground">{suggestionsError}</p>
+                      ) : suggestions && suggestions.products.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No matches found</p>
+                      ) : null}
+
+                      {/* Category suggestions intentionally hidden to match the desired UI:
+                          show only image-based product strips under the search bar. */}
+
+                      {suggestions && suggestions.products.length > 0 ? (
+                        <>
+                          <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground mt-4 mb-2">
+                            Top products
+                          </p>
+                          <div className="flex gap-3 overflow-x-auto pb-1">
+                            {suggestions.products.slice(0, 8).map((p) => (
+                              <Link
+                                key={p.id}
+                                href={buildCategoryHref(p.category)}
+                                className="group shrink-0 w-[190px] rounded-lg border border-border bg-background hover:bg-accent transition"
+                                onClick={() => {
+                                  closeSuggestions();
+                                  closeSidebar();
+                                }}
+                              >
+                                <div className="flex items-center gap-3 px-2 py-2">
+                                  <div className="h-12 w-12 rounded-md bg-muted/40 overflow-hidden">
+                                    <img
+                                      src={p.image || '/placeholder.jpg'}
+                                      alt={p.name}
+                                      className="h-full w-full object-cover group-hover:scale-[1.03] transition"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium text-foreground line-clamp-1">{p.name}</p>
+                                    <p className="text-[10px] text-muted-foreground line-clamp-1">{p.category}</p>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </form>
+
+            <Link
+              href="/cart"
+              className="relative flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              <span>Cart</span>
+              {cartCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-red-700 bg-red-600 px-1 text-[11px] font-semibold text-white shadow-sm">
+                  {cartCount > 99 ? '99+' : cartCount}
+                </span>
+              ) : null}
+            </Link>
+            <div
+              ref={profileMenuRef}
+              className="relative ml-2"
+              onMouseEnter={handleProfileHoverOpen}
+              onMouseLeave={scheduleProfileHoverClose}
+            >
+              <button
+                type="button"
+                aria-label="Open profile menu"
+                aria-expanded={profileMenuOpen}
+                onClick={toggleProfileMenu}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
+              >
+                <UserCircle2 className="h-5 w-5" />
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {profileMenuOpen ? (
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
+                  {profileMenuMode === 'login' ? (
+                    <>
+                      <Link
+                        href="/auth?role=buyer&next=/buyer"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Login as Buyer
+                      </Link>
+                      <Link
+                        href="/auth?role=vendor&next=/vendor"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Login as Vendor
+                      </Link>
+                      <Link
+                        href="/auth?role=services&next=/services"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Login as Service Provider
+                      </Link>
+                      <div className="my-1 h-px bg-border" />
+                      <button
+                        type="button"
+                        onClick={() => setProfileMenuMode('join')}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+                      >
+                        Join MyGarage
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/auth?role=buyer&next=/buyer"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Join as Buyer
+                      </Link>
+                      <Link
+                        href="/auth?role=vendor&next=/vendor"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Join as Vendor
+                      </Link>
+                      <Link
+                        href="/auth?role=services&next=/services"
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
+                      >
+                        Join as Service Provider
+                      </Link>
+                      <div className="my-1 h-px bg-border" />
+                      <button
+                        type="button"
+                        onClick={() => setProfileMenuMode('login')}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+                      >
+                        My Account
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div className="md:hidden sticky top-0 z-40 border-t border-b border-border bg-background">
+      <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2">
+        <Link
+          href="/buyer/services"
+          className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"
+        >
+          <Siren className="h-4 w-4" />
+          <span>SOS</span>
+        </Link>
+        <form
+          className="flex flex-1 items-center"
+          onSubmit={(e) => {
+            e.preventDefault();
+            applySearch(searchValue, { closeSidebar: true });
+          }}
+        >
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search products..."
+              aria-label="Search products"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onFocus={() => {
+                showSuggestionsNow();
+              }}
+              onBlur={() => {
+                if (suggestionsBlurCloseTimerRef.current) window.clearTimeout(suggestionsBlurCloseTimerRef.current);
+                suggestionsBlurCloseTimerRef.current = window.setTimeout(() => {
+                  closeSuggestions();
+                }, 120);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchValue('');
+                  applySearch('', { closeSidebar: true });
+                  closeSuggestions();
+                }
+              }}
+              className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+
+            {suggestionsVisible && (searchValue.trim().length >= 2) ? (
+              <div
+                className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-border bg-popover shadow-lg z-50 overflow-hidden"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                }}
+              >
+                <div className="p-3">
+                  {suggestionsLoading ? (
+                    <p className="text-xs text-muted-foreground">Searching…</p>
+                ) : suggestions && suggestions.products.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No matches found</p>
+                  ) : null}
+
+                  {/* Category suggestions intentionally hidden to match the desired UI:
+                      show only image-based product strips under the search bar. */}
+
+                  {suggestions && suggestions.products.length > 0 ? (
+                    <>
+                      <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground mt-4 mb-2">
+                        Top products
+                      </p>
+                      <div className="flex gap-3 overflow-x-auto pb-1">
+                        {suggestions.products.slice(0, 8).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={buildCategoryHref(p.category)}
+                            className="group shrink-0 w-[190px] rounded-lg border border-border bg-background hover:bg-accent transition"
+                            onClick={() => {
+                              closeSuggestions();
+                              closeSidebar();
+                            }}
+                          >
+                            <div className="flex items-center gap-3 px-2 py-2">
+                              <div className="h-12 w-12 rounded-md bg-muted/40 overflow-hidden">
+                                <img
+                                  src={p.image || '/placeholder.jpg'}
+                                  alt={p.name}
+                                  className="h-full w-full object-cover group-hover:scale-[1.03] transition"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-foreground line-clamp-1">{p.name}</p>
+                                <p className="text-[10px] text-muted-foreground line-clamp-1">{p.category}</p>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </form>
+        <Link
+          href="/cart"
+          className="relative inline-flex items-center gap-1 bg-primary text-primary-foreground px-2 py-2 rounded-lg hover:bg-primary/90 transition text-xs"
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span>Cart</span>
+          {cartCount > 0 ? (
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-red-700 bg-red-600 px-1 text-[10px] font-semibold text-white shadow-sm">
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          ) : null}
+        </Link>
+      </div>
+    </div>
+    </>
+  );
+}
