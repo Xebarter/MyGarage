@@ -3,8 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, CheckCircle2, Circle, Loader2, MapPin, Radio } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  Loader2,
+  MapPin,
+  Radio,
+  RefreshCw,
+  Sparkles,
+} from 'lucide-react';
 
 type Assignment = {
   id: string;
@@ -32,6 +49,45 @@ type RequestDetail = {
   updated_at: string;
 };
 
+function formatStatusLabel(status: string) {
+  return status.replace(/_/g, ' ');
+}
+
+function statusBadgeProps(status: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } {
+  const s = status.toLowerCase();
+  if (s === 'cancelled') return { variant: 'destructive' };
+  if (s === 'completed') return { variant: 'secondary', className: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-400' };
+  if (s === 'in_progress' || s === 'matched') return { variant: 'default' };
+  if (s === 'pending') return { variant: 'outline', className: 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200' };
+  return { variant: 'outline' };
+}
+
+function formatRelativeTime(iso: string) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const diff = Date.now() - t;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 48) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 14) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatDateTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function ServiceTrackPage() {
   const params = useParams();
   const router = useRouter();
@@ -40,6 +96,7 @@ export default function ServiceTrackPage() {
   const [data, setData] = useState<{ request: RequestDetail; assignments: Assignment[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const id = (typeof window !== 'undefined' && localStorage.getItem('currentBuyerId')) || '';
@@ -68,6 +125,7 @@ export default function ServiceTrackPage() {
       setData(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [requestId, customerId]);
 
@@ -85,17 +143,29 @@ export default function ServiceTrackPage() {
     const r = data?.request;
     if (!r) {
       return [
-        { key: 'search', label: 'Finding a provider', done: false, active: true },
-        { key: 'matched', label: 'Provider matched', done: false, active: false },
-        { key: 'arrived', label: 'Provider arrived', done: false, active: false },
-        { key: 'progress', label: 'Service in progress', done: false, active: false },
-        { key: 'done', label: 'Completed', done: false, active: false },
+        { key: 'search', label: 'Finding a provider', description: 'Matching you with nearby professionals', done: false, active: true },
+        { key: 'matched', label: 'Provider matched', description: 'Confirmation and dispatch', done: false, active: false },
+        { key: 'arrived', label: 'Provider on site', description: 'Arrival at your location', done: false, active: false },
+        { key: 'progress', label: 'Service in progress', description: 'Work underway', done: false, active: false },
+        { key: 'done', label: 'Completed', description: 'Service finished', done: false, active: false },
       ];
     }
     if (r.status === 'cancelled') {
       return [
-        { key: 'search', label: 'Finding a provider', done: true, active: false },
-        { key: 'cancel', label: 'No providers available right now', done: true, active: true },
+        {
+          key: 'search',
+          label: 'Finding a provider',
+          description: 'We looked for an available provider',
+          done: true,
+          active: false,
+        },
+        {
+          key: 'cancel',
+          label: 'No providers available right now',
+          description: 'Try again shortly or choose a different service',
+          done: true,
+          active: true,
+        },
       ];
     }
     const matched = Boolean(r.accepted_at || r.provider_id);
@@ -103,80 +173,276 @@ export default function ServiceTrackPage() {
     const started = Boolean(r.started_at);
     const completed = Boolean(r.completed_at) || r.status === 'completed';
     return [
-      { key: 'search', label: 'Finding a provider', done: matched || completed, active: !matched && !completed },
-      { key: 'matched', label: 'Provider matched', done: matched || completed, active: matched && !arrived && !completed },
-      { key: 'arrived', label: 'Provider on site', done: arrived || completed, active: arrived && !started && !completed },
-      { key: 'progress', label: 'Service in progress', done: started || completed, active: started && !completed },
-      { key: 'done', label: 'Completed', done: completed, active: completed },
+      {
+        key: 'search',
+        label: 'Finding a provider',
+        description: 'Matching you with the best fit',
+        done: matched || completed,
+        active: !matched && !completed,
+      },
+      {
+        key: 'matched',
+        label: 'Provider matched',
+        description: 'Your provider is assigned',
+        done: matched || completed,
+        active: matched && !arrived && !completed,
+      },
+      {
+        key: 'arrived',
+        label: 'Provider on site',
+        description: 'They have arrived at your location',
+        done: arrived || completed,
+        active: arrived && !started && !completed,
+      },
+      {
+        key: 'progress',
+        label: 'Service in progress',
+        description: 'Work is underway',
+        done: started || completed,
+        active: started && !completed,
+      },
+      {
+        key: 'done',
+        label: 'Completed',
+        description: 'Service finished successfully',
+        done: completed,
+        active: completed,
+      },
     ];
   }, [data]);
 
+  const progressPercent = useMemo(() => {
+    const total = stages.length;
+    if (total === 0) return 0;
+    const doneCount = stages.filter((s) => s.done && s.key !== 'cancel').length;
+    const activeBoost = stages.some((s) => s.active && !s.done) ? 0.5 : 0;
+    const pct = ((doneCount + activeBoost) / total) * 100;
+    return Math.min(100, Math.round(pct));
+  }, [stages]);
+
   const pendingOffer = useMemo(() => data?.assignments?.find((a) => a.response === 'pending'), [data]);
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    void load();
+  };
 
   if (!customerId && !loading) {
     return (
-      <div className="min-h-[50vh] bg-background p-8 text-center text-sm text-muted-foreground">
-        Redirecting to sign in…
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 bg-background p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Redirecting to sign in…</p>
       </div>
     );
   }
 
+  const badgeConfig = data?.request ? statusBadgeProps(data.request.status) : null;
+
   return (
-    <div className="min-h-full bg-gradient-to-b from-background via-background to-muted/20 p-3 pb-28 sm:p-5 md:p-8">
-      <div className="mx-auto max-w-lg space-y-4">
+    <div className="min-h-full bg-gradient-to-b from-background via-background to-muted/30">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--primary)/0.12),transparent)]" />
+
+      <div className="relative mx-auto max-w-2xl space-y-6 px-4 py-8 pb-28 sm:px-6 md:py-10">
         <Link
           href="/buyer/services"
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="group inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border/80 bg-background/80 shadow-sm transition group-hover:border-primary/30 group-hover:bg-muted/50">
+            <ArrowLeft className="h-4 w-4" />
+          </span>
           Back to services
         </Link>
 
-        <Card className="rounded-2xl border-border/70 p-5 shadow-sm sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Live tracking</p>
-              <h1 className="mt-2 text-xl font-bold tracking-tight sm:text-2xl">{data?.request.service ?? 'Service request'}</h1>
-              <p className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {data?.request.location ?? '—'}
-              </p>
-            </div>
-            {loading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : <Radio className="h-5 w-5 text-primary" />}
-          </div>
-          {data?.request ? (
-            <p className="mt-3 text-xs uppercase tracking-wide text-primary">Status: {data.request.status.replace(/_/g, ' ')}</p>
-          ) : null}
-        </Card>
-
         {error ? (
-          <p className="text-sm text-destructive">{error}</p>
+          <Alert variant="destructive" className="border-destructive/40 shadow-sm">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Something went wrong</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{error}</span>
+              <Button type="button" variant="outline" size="sm" className="shrink-0 border-destructive/40 bg-background" onClick={handleManualRefresh}>
+                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                Try again
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : null}
 
-        <Card className="rounded-2xl border-border/70 p-5 shadow-sm sm:p-6">
-          <h2 className="text-sm font-semibold tracking-tight">Progress</h2>
-          <div className="mt-4 space-y-3">
-            {stages.map((s) => (
-              <div
-                key={s.key}
-                className={`flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                  s.active ? 'border-primary/50 bg-primary/5' : 'border-border/70 bg-background/70'
-                }`}
-              >
-                {s.done ? (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+        <Card className="overflow-hidden rounded-2xl border-border/60 bg-card/80 shadow-lg shadow-black/[0.03] backdrop-blur-sm dark:shadow-black/20">
+          <div className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent px-5 py-6 sm:px-7 sm:py-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                    </span>
+                    Live tracking
+                  </span>
+                  {data?.request && badgeConfig ? (
+                    <Badge variant={badgeConfig.variant} className={cn('font-medium capitalize', badgeConfig.className)}>
+                      {formatStatusLabel(data.request.status)}
+                    </Badge>
+                  ) : loading ? (
+                    <Skeleton className="h-5 w-24 rounded-md" />
+                  ) : null}
+                </div>
+
+                {loading && !data?.request ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-[85%] max-w-md rounded-lg" />
+                    <Skeleton className="h-4 w-2/3 rounded-md" />
+                  </div>
                 ) : (
-                  <Circle className={`h-5 w-5 shrink-0 ${s.active ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <>
+                    <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                      {data?.request.service ?? 'Service request'}
+                    </h1>
+                    <p className="flex items-start gap-2 text-sm leading-relaxed text-muted-foreground">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
+                      <span>{data?.request.location ?? '—'}</span>
+                    </p>
+                    {data?.request?.category ? (
+                      <p className="text-xs font-medium text-muted-foreground/90">
+                        <span className="text-muted-foreground/60">Category</span>{' '}
+                        <span className="text-foreground/80">{data.request.category}</span>
+                      </p>
+                    ) : null}
+                  </>
                 )}
-                <p className={`text-sm ${s.done || s.active ? 'text-foreground' : 'text-muted-foreground'}`}>{s.label}</p>
               </div>
-            ))}
+
+              <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+                <div className="flex items-center justify-end gap-2">
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : <Radio className="h-5 w-5 text-primary" />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-muted-foreground hover:text-foreground"
+                    onClick={handleManualRefresh}
+                    disabled={refreshing || !customerId}
+                  >
+                    <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                    Refresh
+                  </Button>
+                </div>
+                {data?.request ? (
+                  <p className="font-mono text-[11px] text-muted-foreground sm:text-right" title={data.request.id}>
+                    ID · {data.request.id.length > 14 ? `${data.request.id.slice(0, 8)}…${data.request.id.slice(-4)}` : data.request.id}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {data?.request ? (
+              <>
+                <Separator className="my-5 bg-border/60" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex gap-3 rounded-xl border border-border/50 bg-background/60 px-3 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/80">
+                      <Clock3 className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Requested</p>
+                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.created_at)}</p>
+                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 rounded-xl border border-border/50 bg-background/60 px-3 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/80">
+                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last updated</p>
+                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.updated_at)}</p>
+                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.updated_at)}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
-          {data?.request?.status === 'pending' && pendingOffer ? (
-            <p className="mt-4 text-xs text-muted-foreground">
-              A provider is being notified now. If they do not respond in time, we automatically try the next best match.
-            </p>
-          ) : null}
+
+          <div className="px-5 py-6 sm:px-7 sm:py-7">
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Journey</h2>
+                <p className="text-sm text-muted-foreground">Updates automatically every few seconds.</p>
+              </div>
+              {!loading || data?.request ? (
+                <p className="text-sm font-medium tabular-nums text-muted-foreground">
+                  <span className="text-foreground">{progressPercent}%</span> complete
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mb-8 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-[width] duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="relative">
+              <div
+                className="absolute left-[17px] top-5 bottom-5 w-px bg-border/80 sm:left-[18px]"
+                aria-hidden
+              />
+              <ul className="relative m-0 list-none space-y-0 p-0">
+                {stages.map((s, index) => {
+                const isCancel = s.key === 'cancel';
+                return (
+                  <li key={s.key} className="relative flex gap-4 pb-8 last:pb-0">
+                    <div className="relative z-10 flex shrink-0 flex-col items-center">
+                      <div
+                        className={cn(
+                          'flex h-9 w-9 items-center justify-center rounded-full border-2 bg-background shadow-sm transition-colors',
+                          s.done && !isCancel && 'border-primary bg-primary text-primary-foreground',
+                          s.active && !s.done && 'border-primary ring-4 ring-primary/15',
+                          !s.done && !s.active && 'border-border text-muted-foreground',
+                          isCancel && s.active && 'border-destructive/60 bg-destructive/10 text-destructive',
+                          isCancel && !s.active && 'border-border',
+                        )}
+                      >
+                        {s.done && !isCancel ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : isCancel && s.active ? (
+                          <AlertCircle className="h-4 w-4" />
+                        ) : (
+                          <Circle className={cn('h-4 w-4', s.active && 'fill-primary/20 text-primary')} />
+                        )}
+                      </div>
+                    </div>
+                    <div className={cn('min-w-0 flex-1 pt-1', index === stages.length - 1 && 'pb-0')}>
+                      <div
+                        className={cn(
+                          'rounded-xl border px-4 py-3 transition-colors',
+                          s.active && 'border-primary/40 bg-primary/[0.04] shadow-sm shadow-primary/5',
+                          !s.active && 'border-border/60 bg-muted/20',
+                          isCancel && s.active && 'border-destructive/30 bg-destructive/[0.06]',
+                        )}
+                      >
+                        <p className={cn('font-medium leading-snug', s.active ? 'text-foreground' : 'text-foreground/90')}>{s.label}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+              </ul>
+            </div>
+
+            {data?.request?.status === 'pending' && pendingOffer ? (
+              <Alert className="mt-2 border-primary/25 bg-primary/[0.04]">
+                <Radio className="h-4 w-4 text-primary" />
+                <AlertTitle className="text-foreground">Provider notification</AlertTitle>
+                <AlertDescription>
+                  A provider is being notified now. If they do not respond in time, we automatically try the next best match.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
         </Card>
       </div>
     </div>

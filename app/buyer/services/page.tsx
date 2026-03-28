@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
 import { ArrowRight, CheckCircle2, Circle, CreditCard, MapPin, Timer } from 'lucide-react';
 import Link from 'next/link';
@@ -489,8 +490,12 @@ function BuyerServicesPageInner() {
   const canPressSubmitRequest = Boolean(selectedService && resolvedLocation && (identityMode !== 'buyer' || customerId));
 
   const goToBuyerSignInForRequest = () => {
-    const next = `/buyer/services?openQuick=1`;
-    router.push(`/auth?role=buyer&next=${encodeURIComponent(next)}`);
+    savePendingBuyerServiceRequest({
+      category: selectedCategory,
+      service: selectedService,
+      location: resolvedLocation,
+    });
+    router.push(`/auth?role=buyer&next=${encodeURIComponent(BUYER_SERVICE_COMPLETE_PENDING_PATH)}`);
   };
 
   const handleSubmitRequestIntent = () => {
@@ -849,7 +854,7 @@ function BuyerServicesPageInner() {
             {submitError ? <p className="text-center text-sm text-destructive">{submitError}</p> : null}
             {identityMode !== 'buyer' ? (
               <p className="text-center text-xs text-muted-foreground">
-                You will be asked to sign in to a buyer account when you submit. Add a mobile number so providers can reach you.
+                Sign in with email and password, then add your mobile number so providers can reach you. Your request is saved and finishes automatically after that.
               </p>
             ) : null}
           </div>

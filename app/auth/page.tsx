@@ -140,11 +140,25 @@ function AuthForm() {
 
       if (cancelled) return;
 
+      const vendorHint = localStorage.getItem("currentVendorName");
+      const serviceHint = localStorage.getItem("currentServiceProviderName");
+      const samePortal =
+        activeRole === role ||
+        (role === "buyer" &&
+          activeRole === "unknown" &&
+          !isAdminUser &&
+          !vendorHint &&
+          !serviceHint);
+
       // Already signed into the same portal — redirect straight to the dashboard
-      if (activeRole === role) {
+      if (samePortal) {
         if (role === "buyer" && user.email) {
           const custRes = await fetch(`/api/customers?email=${encodeURIComponent(user.email.trim())}`);
-          const customer = custRes.ok ? ((await custRes.json()) as { phone?: string }) : null;
+          const customer = custRes.ok ? ((await custRes.json()) as { id: string; phone?: string }) : null;
+          if (customer?.id) {
+            localStorage.setItem("currentBuyerId", customer.id);
+            if (customer.phone) localStorage.setItem("currentBuyerPhone", customer.phone);
+          }
           const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
           if (!okPhone) {
             setBuyerFlowStep("phone");
@@ -276,6 +290,45 @@ function AuthForm() {
     localStorage.setItem("currentBuyerId", user.id);
   }
 
+  /** Ensures a customers row exists after email/password sign-up (phone added on the next step). */
+  async function ensureBuyerCustomerRecord(user: { id: string; email?: string | null }, email: string) {
+    const name = email.split("@")[0] || "Buyer";
+    const existingRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
+    if (existingRes.ok) {
+      const c = (await existingRes.json()) as { id: string };
+      localStorage.setItem("currentBuyerId", c.id);
+      return;
+    }
+    const post = await fetch("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: user.id,
+        name,
+        email,
+        phone: "",
+        address: "",
+        totalOrders: 0,
+        totalSpent: 0,
+      }),
+    });
+    if (!post.ok) throw new Error("Could not create your buyer profile.");
+    localStorage.setItem("currentBuyerId", user.id);
+  }
+
+  async function gateBuyerPhoneIfNeeded(userEmail: string): Promise<boolean> {
+    if (role !== "buyer") return false;
+    const custRes = await fetch(`/api/customers?email=${encodeURIComponent(userEmail)}`);
+    const customer = custRes.ok ? ((await custRes.json()) as { id?: string; phone?: string }) : null;
+    const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
+    if (!okPhone) {
+      setBuyerFlowStep("phone");
+      setPhone((customer?.phone ?? "").trim());
+      return true;
+    }
+    return false;
+  }
+
   const completeBuyerPhoneGate = async () => {
     setError(null);
     if (countPhoneDigits(phone) < 9) {
@@ -325,18 +378,10 @@ function AuthForm() {
           }
         }
         if (role === "buyer") {
-          const user = signInResult.data.user;
-          const userEmail = user?.email?.trim();
-          if (userEmail) {
-            const custRes = await fetch(`/api/customers?email=${encodeURIComponent(userEmail)}`);
-            const customer = custRes.ok ? ((await custRes.json()) as { id?: string; phone?: string }) : null;
-            const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
-            if (!okPhone) {
-              setBuyerFlowStep("phone");
-              setPhone((customer?.phone ?? "").trim());
-              setLoading(false);
-              return;
-            }
+          const userEmail = signInResult.data.user?.email?.trim();
+          if (userEmail && (await gateBuyerPhoneIfNeeded(userEmail))) {
+            setLoading(false);
+            return;
           }
         }
         await persistSessionProfile();
@@ -385,13 +430,17 @@ function AuthForm() {
         return;
       }
 
-      if (role === "buyer" && countPhoneDigits(phone) < 9) {
-        setError("Enter a valid mobile number (at least 9 digits) so service providers can reach you.");
-        setLoading(false);
-        return;
-      }
-
-      const signUpResult = await supabase.auth.signUp({ email: trimmedEmail, password });
+      const origin = window.location.origin;
+      const signUpResult =
+        role === "buyer"
+          ? await supabase.auth.signUp({
+              email: trimmedEmail,
+              password,
+              options: {
+                emailRedirectTo: `${origin}/auth?role=buyer&next=${encodeURIComponent(nextPath)}`,
+              },
+            })
+          : await supabase.auth.signUp({ email: trimmedEmail, password });
 
       if (signUpResult.error) {
         const signUpMsg = signUpResult.error.message.toLowerCase();
@@ -416,16 +465,25 @@ function AuthForm() {
       }
 
       if (!session) {
-        setSuccess("Account created. Please verify your email before signing in.");
+        setSuccess(
+          role === "buyer"
+            ? "Account created. Check your email to verify, then sign in. You will add your mobile number on the next step."
+            : "Account created. Please verify your email before signing in.",
+        );
         return;
       }
 
       if (role === "buyer" && signupUser) {
+        const buyerEmail = signupUser.email?.trim() || trimmedEmail;
         try {
-          await syncBuyerCustomerAfterAuth(signupUser, trimmedEmail, phone.trim());
+          await ensureBuyerCustomerRecord(signupUser, buyerEmail);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Could not save your buyer profile.");
           await supabase.auth.signOut();
+          return;
+        }
+        if (await gateBuyerPhoneIfNeeded(buyerEmail)) {
+          setLoading(false);
           return;
         }
       }
@@ -566,7 +624,7 @@ function AuthForm() {
                 {isAdminRole
                   ? "Admins can only sign in after role approval."
                   : role === "buyer"
-                    ? "Sign in with email and password. New accounts need a mobile number for service requests."
+                    ? "Sign in or create an account with email and password. If your profile has no mobile number yet, we will ask for it next so providers can reach you."
                     : "Simple access with email and password."}
               </p>
             </div>
@@ -592,21 +650,6 @@ function AuthForm() {
                   placeholder="Password"
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
-                {role === "buyer" ? (
-                  <>
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="Mobile number"
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Required when you are creating a new account. If you already have an account with a saved phone, you can leave this as-is when signing in.
-                    </p>
-                  </>
-                ) : null}
                 <button
                   type="submit"
                   disabled={loading}
