@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Package, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 
 type SuggestionProduct = {
@@ -105,6 +105,8 @@ export function Header() {
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   const suggestionsBlurCloseTimerRef = useRef<number | null>(null);
+  const mobileSearchFieldRef = useRef<HTMLDivElement | null>(null);
+  const [mobileSuggestLayout, setMobileSuggestLayout] = useState<{ top: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     // Keep the search input in sync when the URL changes (e.g. back/forward).
@@ -190,6 +192,42 @@ export function Header() {
       controller.abort();
     };
   }, [searchValue, suggestionsVisible]);
+
+  useLayoutEffect(() => {
+    if (!suggestionsVisible || searchValue.trim().length < 2) {
+      setMobileSuggestLayout(null);
+      return;
+    }
+
+    const run = () => {
+      if (typeof window === 'undefined') return;
+      const mq = window.matchMedia('(max-width: 767px)');
+      if (!mq.matches) {
+        setMobileSuggestLayout(null);
+        return;
+      }
+      const el = mobileSearchFieldRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const top = Math.ceil(r.bottom + 6);
+      const viewportH = window.visualViewport?.height ?? window.innerHeight;
+      const maxHeight = Math.max(180, viewportH - top - 12);
+      setMobileSuggestLayout({ top, maxHeight });
+    };
+
+    run();
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    window.addEventListener('resize', run);
+    window.addEventListener('scroll', run, true);
+    vv?.addEventListener('resize', run);
+    vv?.addEventListener('scroll', run);
+    return () => {
+      window.removeEventListener('resize', run);
+      window.removeEventListener('scroll', run, true);
+      vv?.removeEventListener('resize', run);
+      vv?.removeEventListener('scroll', run);
+    };
+  }, [suggestionsVisible, searchValue]);
 
   const closeSuggestions = useCallback(() => {
     setSuggestionsVisible(false);
@@ -760,8 +798,8 @@ export function Header() {
             applySearch(searchValue, { closeSidebar: true });
           }}
         >
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div ref={mobileSearchFieldRef} className="relative w-full min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               type="search"
               placeholder="Search products & services..."
@@ -784,27 +822,33 @@ export function Header() {
                   closeSuggestions();
                 }
               }}
-              className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full min-w-0 rounded-lg border border-border bg-background py-2.5 pl-9 pr-3 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
 
             {suggestionsVisible && (searchValue.trim().length >= 2) ? (
               <div
-                className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-border bg-popover shadow-lg z-50 overflow-hidden"
+                className="fixed inset-x-0 z-[60] flex flex-col overflow-hidden rounded-b-2xl border-x-0 border-b border-border bg-popover/98 shadow-[0_16px_48px_rgba(0,0,0,0.14)] backdrop-blur-md supports-[backdrop-filter]:bg-popover/90 dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
+                style={{
+                  top: mobileSuggestLayout?.top ?? 108,
+                  maxHeight: mobileSuggestLayout?.maxHeight ?? 'calc(100dvh - 120px)',
+                }}
                 onMouseDown={(e) => {
                   e.preventDefault();
                 }}
+                role="listbox"
+                aria-label="Search suggestions"
               >
-                <div className="p-3">
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]">
                   {suggestionsLoading ? (
-                    <p className="text-xs text-muted-foreground">Searching…</p>
+                    <p className="py-3 text-center text-sm text-muted-foreground">Searching…</p>
                   ) : suggestionsError ? (
-                    <p className="text-xs text-muted-foreground">{suggestionsError}</p>
+                    <p className="py-3 text-center text-sm text-muted-foreground">{suggestionsError}</p>
                   ) : suggestions &&
                     (suggestions.categories?.length ?? 0) === 0 &&
                     suggestions.products.length === 0 &&
                     (suggestions.serviceCategories?.length ?? 0) === 0 &&
                     (suggestions.services?.length ?? 0) === 0 ? (
-                    <p className="text-xs text-muted-foreground">No matches found</p>
+                    <p className="py-3 text-center text-sm text-muted-foreground">No matches found</p>
                   ) : null}
 
                   {suggestions &&
@@ -812,37 +856,37 @@ export function Header() {
                     suggestions.products.length > 0 ||
                     (suggestions.serviceCategories?.length ?? 0) > 0 ||
                     (suggestions.services?.length ?? 0) > 0) ? (
-                    <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto overflow-x-hidden pb-1">
+                    <div className="space-y-3">
                       {(suggestions.categories?.length ?? 0) > 0 ? (
                         <div>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Browse categories
                           </p>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1.5">
                             {(suggestions.categories ?? []).map((c) => (
                               <Link
                                 key={c.name}
                                 href={buildCategoryHref(c.name)}
-                                className="group w-full rounded-lg border border-primary/20 bg-primary/5 transition hover:border-primary/35 hover:bg-primary/10"
+                                className="group flex min-h-12 w-full items-center rounded-xl border border-primary/20 bg-primary/5 px-2 py-2 transition active:scale-[0.99] hover:border-primary/35 hover:bg-primary/10"
                                 onClick={() => {
                                   closeSuggestions();
                                   closeSidebar();
                                 }}
                               >
-                                <div className="flex items-center gap-3 px-2 py-2">
-                                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
+                                <div className="flex w-full min-w-0 items-center gap-2.5">
+                                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40 ring-1 ring-border">
                                     <img
                                       src={c.image?.trim() ? c.image : '/placeholder.jpg'}
                                       alt={c.headline}
-                                      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                      className="h-full w-full object-cover"
                                     />
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-semibold leading-snug text-foreground line-clamp-2">
+                                  <div className="min-w-0 flex-1 text-left">
+                                    <p className="text-[13px] font-semibold leading-snug text-foreground line-clamp-2">
                                       {c.headline}
                                     </p>
-                                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                                      View all in {c.name}
+                                    <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">
+                                      {c.name}
                                     </p>
                                   </div>
                                 </div>
@@ -853,31 +897,31 @@ export function Header() {
                       ) : null}
                       {suggestions.products.length > 0 ? (
                         <div>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Top products
                           </p>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1.5">
                             {suggestions.products.map((p) => (
                               <Link
                                 key={p.id}
                                 href={buildCategoryHref(p.category)}
-                                className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                className="group flex min-h-12 w-full items-center rounded-xl border border-border bg-background px-2 py-2 transition active:scale-[0.99] hover:bg-accent"
                                 onClick={() => {
                                   closeSuggestions();
                                   closeSidebar();
                                 }}
                               >
-                                <div className="flex items-center gap-3 px-2 py-2">
-                                  <div className="h-12 w-12 overflow-hidden rounded-md bg-muted/40">
+                                <div className="flex w-full min-w-0 items-center gap-2.5">
+                                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40">
                                     <img
                                       src={p.image || '/placeholder.jpg'}
                                       alt={p.name}
-                                      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                      className="h-full w-full object-cover"
                                     />
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="line-clamp-1 text-xs font-medium text-foreground">{p.name}</p>
-                                    <p className="line-clamp-1 text-[10px] text-muted-foreground">{p.category}</p>
+                                  <div className="min-w-0 flex-1 text-left">
+                                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground">{p.name}</p>
+                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{p.category}</p>
                                   </div>
                                 </div>
                               </Link>
@@ -887,34 +931,33 @@ export function Header() {
                       ) : null}
                       {(suggestions.serviceCategories?.length ?? 0) > 0 ? (
                         <div>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Browse service categories
+                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Service categories
                           </p>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1.5">
                             {(suggestions.serviceCategories ?? []).map((sc) => (
                               <Link
                                 key={sc.categoryId}
                                 href={buildServiceCategoryHref(sc.categoryId)}
-                                className="group w-full rounded-lg border border-amber-500/25 bg-amber-500/5 transition hover:border-amber-500/40 hover:bg-amber-500/10"
+                                className="group flex min-h-12 w-full items-center rounded-xl border border-amber-500/25 bg-amber-500/5 px-2 py-2 transition active:scale-[0.99] hover:border-amber-500/40 hover:bg-amber-500/10"
                                 onClick={() => {
                                   closeSuggestions();
                                   closeSidebar();
                                 }}
                               >
-                                <div className="flex items-center gap-3 px-2 py-2">
+                                <div className="flex w-full min-w-0 items-center gap-2.5">
                                   <div
-                                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background text-2xl leading-none ring-1 ring-border"
+                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background text-xl leading-none ring-1 ring-border"
                                     aria-hidden
                                   >
                                     {sc.emoji}
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
+                                  <div className="min-w-0 flex-1 text-left">
+                                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">
                                       {sc.headline}
                                     </p>
-                                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
-                                      <span className="line-clamp-1">{sc.topServiceName}</span>
-                                      <span className="text-muted-foreground/80"> · Browse category</span>
+                                    <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                                      {sc.topServiceName}
                                     </p>
                                   </div>
                                 </div>
@@ -925,27 +968,27 @@ export function Header() {
                       ) : null}
                       {(suggestions.services?.length ?? 0) > 0 ? (
                         <div>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Services
                           </p>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1.5">
                             {(suggestions.services ?? []).map((s) => (
                               <Link
                                 key={s.id}
                                 href={buildServiceHref(s.categoryId, s.name)}
-                                className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                className="group flex min-h-12 w-full items-center rounded-xl border border-border bg-background px-2 py-2 transition active:scale-[0.99] hover:bg-accent"
                                 onClick={() => {
                                   closeSuggestions();
                                   closeSidebar();
                                 }}
                               >
-                                <div className="flex items-center gap-3 px-2 py-2">
-                                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                <div className="flex w-full min-w-0 items-center gap-2.5">
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                     <Wrench className="h-5 w-5" aria-hidden />
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="line-clamp-2 text-xs font-medium text-foreground">{s.name}</p>
-                                    <p className="line-clamp-1 text-[10px] text-muted-foreground">{s.categoryTitle}</p>
+                                  <div className="min-w-0 flex-1 text-left">
+                                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground">{s.name}</p>
+                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{s.categoryTitle}</p>
                                   </div>
                                 </div>
                               </Link>
