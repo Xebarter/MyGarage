@@ -16,7 +16,11 @@ function isProtectedPath(pathname: string) {
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const response = NextResponse.next();
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,6 +38,21 @@ export async function middleware(request: NextRequest) {
       },
     },
   );
+
+  const authCode = request.nextUrl.searchParams.get("code");
+  if (authCode) {
+    const { error } = await supabase.auth.exchangeCodeForSession(authCode);
+    if (!error) {
+      const clean = request.nextUrl.clone();
+      clean.searchParams.delete("code");
+      const redirectResponse = NextResponse.redirect(clean);
+      const forwarded = response.headers.getSetCookie?.() ?? [];
+      for (const cookieHeader of forwarded) {
+        redirectResponse.headers.append("Set-Cookie", cookieHeader);
+      }
+      return redirectResponse;
+    }
+  }
 
   const {
     data: { user },

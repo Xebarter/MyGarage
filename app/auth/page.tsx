@@ -503,6 +503,8 @@ function AuthForm() {
 
     try {
       const origin = window.location.origin;
+      // Must match an entry under Supabase → Authentication → URL Configuration → Redirect URLs
+      // (e.g. https://your-domain.com/** or http://localhost:3000/**), or users are sent to Site URL (often /).
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${origin}/auth/reset-password`,
       });
