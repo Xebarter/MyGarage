@@ -158,6 +158,8 @@ export interface Vendor {
   address: string;
   rating: number;
   totalProducts: number;
+  /** Keywords this provider serves; empty = generalist (eligible for all dispatch categories). */
+  serviceOfferings: string[];
   createdAt: Date;
 }
 
@@ -372,6 +374,8 @@ let payoutPreferences: VendorPayoutPreference[] = [
 
 // Product operations (Supabase)
 export const getProducts = async () => productsRepo.listProducts();
+export const getProductsByCategories = async (categories: string[]) =>
+  productsRepo.listProductsByCategories(categories);
 export const getHomeFeed = async (
   customerId?: string,
   limit = 80,
@@ -502,11 +506,13 @@ export const createBuyerSupportTicket = async (payload: buyerSupportTicketsRepo.
 
 // Buyer services
 export const getBuyerServiceRequests = async (customerId: string) => buyerServicesRepo.listBuyerServiceRequests(customerId);
+export const getBuyerServiceRequestForCustomer = async (id: string, customerId: string) =>
+  buyerServicesRepo.getBuyerServiceRequestByIdForCustomer(id, customerId);
 export const getAllBuyerServiceRequests = async () => buyerServicesRepo.listAllBuyerServiceRequests();
 export const createBuyerServiceRequest = async (payload: buyerServicesRepo.BuyerServiceRequestInsert) => {
   return buyerServicesRepo.insertBuyerServiceRequest(payload);
 };
-export const updateBuyerServiceRequestStatus = async (id: string, status: BuyerServiceRequest["status"]) => {
+export const updateBuyerServiceRequestStatus = async (id: string, status: buyerServicesRepo.BuyerServiceRequest["status"]) => {
   return buyerServicesRepo.updateBuyerServiceRequestStatusById(id, status);
 };
 export const getBuyerProviderRatings = async (customerId: string) => buyerServicesRepo.listBuyerProviderRatings(customerId);
@@ -538,6 +544,7 @@ export const createVendor = async (vendor: VendorInsert) => {
   const newVendor = await vendorsRepo.insertVendor({
     ...vendor,
     totalProducts: 0,
+    serviceOfferings: vendor.serviceOfferings ?? [],
   });
   return newVendor;
 };
@@ -547,10 +554,29 @@ export const updateVendor = async (id: string, updates: Partial<Vendor>) => {
 };
 
 export const deleteVendor = async (id: string) => {
-  const deleted = await vendorsRepo.deleteVendorById(id);
-  if (!deleted) return false;
+  // 1. Delete products + their storage images (must happen before vendor row is removed
+  //    so we can still query products by vendor_id).
   await productsRepo.deleteProductsByVendorId(id);
 
+  // 2. Delete orphaned rows in tables that have no FK to vendors — Postgres cannot
+  //    cascade these automatically, so we handle them explicitly.
+  await vendorsRepo.deleteVendorAdApplications(id);
+  await vendorsRepo.deleteVendorProviderRatings(id);
+
+  // 3. Delete the vendor row. Postgres FK cascades fire here and remove:
+  //    vendor_payout_accounts, admin_disbursements, product_vendor_settlements,
+  //    service_request_assignments, service_request_quotes, service_provider_payouts.
+  //    Columns with ON DELETE SET NULL (checkout_line_items, paytota_transactions,
+  //    product_order_items, refund_requests, buyer_service_requests, service_payments)
+  //    are nulled automatically.
+  const deleted = await vendorsRepo.deleteVendorById(id);
+  if (!deleted) return false;
+
+  // 4. Delete the Supabase Auth account last — after all DB rows are gone — so the
+  //    vendor can no longer sign in.
+  await vendorsRepo.deleteVendorAuthUser(id);
+
+  // 5. Clean up in-memory order cache (mock data layer).
   orders = orders
     .map((order) => {
       const filteredItems = order.items.filter((item) => item.vendorId !== id);

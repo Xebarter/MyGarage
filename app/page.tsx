@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,7 +8,8 @@ import { Footer } from '@/components/footer';
 import { ProductCard } from '@/components/product-card';
 import type { Product } from '@/lib/db';
 import { formatProductPriceLabel } from '@/lib/product-variants';
-import { userServiceCategories } from '@/lib/services-catalog';
+import { serviceIntentKeywordsByCategoryId, userServiceCategories } from '@/lib/services-catalog';
+import type { UserServiceCategory } from '@/lib/services-catalog';
 import { Wrench, Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
 
 type HomeCollection = {
@@ -59,16 +60,6 @@ function CompactProductTile({ product }: { product: Product }) {
   );
 }
 
-const SERVICE_INTENT_KEYWORDS: Record<string, string[]> = {
-  'emergency-help': ['jump', 'start', 'tow', 'battery', 'flat', 'tyre', 'tire', 'fuel', 'stuck', 'rescue'],
-  'fix-my-car': ['engine', 'brake', 'overheat', 'cooling', 'gearbox', 'clutch', 'suspension', 'electrical', 'repair'],
-  'service-my-car': ['oil', 'filter', 'service', 'inspection', 'maintenance', 'fluid'],
-  'tyres-battery': ['tyre', 'tire', 'wheel', 'alignment', 'battery'],
-  'car-wash-cleaning': ['wash', 'clean', 'detailing', 'interior'],
-  'body-repair-painting': ['body', 'paint', 'bumper', 'dent', 'scratch'],
-  'ac-cooling': ['ac', 'air', 'cooling', 'radiator', 'overheat'],
-};
-
 function tokenizeProduct(product: Product): string {
   return [product.name, product.description, product.category, product.brand, product.subcategory, ...(product.tags ?? [])]
     .join(' ')
@@ -78,6 +69,38 @@ function tokenizeProduct(product: Product): string {
 function scoreIntentMatch(product: Product, keywords: string[]): number {
   const haystack = tokenizeProduct(product);
   return keywords.reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0);
+}
+
+function productFeedWeight(product: Product, indexInFeed: number): number {
+  const meta = product as Product & RecommendedFeedMeta;
+  const feedScore = typeof meta.feedScore === 'number' && Number.isFinite(meta.feedScore) ? meta.feedScore : 0;
+  const feedRank =
+    typeof meta.feedRank === 'number' && Number.isFinite(meta.feedRank) && meta.feedRank > 0
+      ? meta.feedRank
+      : indexInFeed + 1;
+  const rankWeight = 1 / Math.max(1, feedRank);
+  return Math.max(0.12, rankWeight * 6 + feedScore * 0.12);
+}
+
+function recommendationIntentScore(product: Product, keywords: string[], indexInFeed: number): number {
+  const intent = scoreIntentMatch(product, keywords);
+  if (intent <= 0) return 0;
+  return intent * productFeedWeight(product, indexInFeed);
+}
+
+/** Service categories ordered by how strongly the current recommendation feed matches each intent. */
+function rankUserServiceCategoriesByFeed(products: Product[]): UserServiceCategory[] {
+  const scored = userServiceCategories.map((cat, order) => {
+    const keywords = serviceIntentKeywordsByCategoryId[cat.id] ?? [];
+    let affinity = 0;
+    products.forEach((p, i) => {
+      affinity += recommendationIntentScore(p, keywords, i);
+    });
+    return { cat, affinity, order };
+  });
+  return [...scored]
+    .sort((a, b) => b.affinity - a.affinity || a.order - b.order)
+    .map((row) => row.cat);
 }
 
 function getRecommendedCategories(feedProducts: Product[]): string[] {
@@ -280,20 +303,33 @@ function HomePageInner() {
   const visibleProducts = displayedProducts.slice(0, visibleCount);
   const isDefaultHomeFeed = selectedCategory === 'all' && !searchQuery.trim();
 
+  const feedOrderedServiceCategories = useMemo(
+    () => rankUserServiceCategoriesByFeed(products),
+    [products],
+  );
+
   const smartCollections = useMemo<HomeCollection[]>(() => {
     if (!isDefaultHomeFeed) return [];
 
     const usedProductIds = new Set<string>();
     const built: HomeCollection[] = [];
 
-    for (const serviceCategory of userServiceCategories) {
-      const keywords = SERVICE_INTENT_KEYWORDS[serviceCategory.id] ?? [];
+    for (const serviceCategory of feedOrderedServiceCategories) {
+      const keywords = serviceIntentKeywordsByCategoryId[serviceCategory.id] ?? [];
       if (keywords.length === 0) continue;
 
       const ranked = products
-        .map((product) => ({ product, score: scoreIntentMatch(product, keywords) }))
+        .map((product, indexInFeed) => ({
+          product,
+          score: recommendationIntentScore(product, keywords, indexInFeed),
+        }))
         .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score || Number(b.product.featured) - Number(a.product.featured))
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            Number(b.product.featured) - Number(a.product.featured) ||
+            a.product.name.localeCompare(b.product.name),
+        )
         .map((item) => item.product)
         .filter((product) => !usedProductIds.has(product.id))
         .slice(0, 8);
@@ -315,12 +351,19 @@ function HomePageInner() {
     }
 
     if (built.length === 0) {
-      const fallback = products.filter((product) => !product.featured).slice(0, 8);
+      const fallback = [...products]
+        .map((product, indexInFeed) => ({
+          product,
+          w: productFeedWeight(product, indexInFeed),
+        }))
+        .sort((a, b) => b.w - a.w || Number(b.product.featured) - Number(a.product.featured))
+        .slice(0, 8)
+        .map((row) => row.product);
       if (fallback.length > 0) {
         built.push({
           id: 'recommended-products',
           title: 'Recommended For You',
-            subtitle: 'Popular picks based on your recommendation feed',
+          subtitle: 'Top picks from your personalized feed — pair with a service when you need help',
           products: fallback,
           serviceTitle: 'Quick Service Request',
           serviceEmoji: '🛠',
@@ -330,7 +373,7 @@ function HomePageInner() {
     }
 
     return built;
-  }, [isDefaultHomeFeed, products]);
+  }, [isDefaultHomeFeed, products, feedOrderedServiceCategories]);
 
   const dealProducts = useMemo(() => {
     return [...products].sort((a, b) => a.price - b.price).slice(0, 8);
@@ -366,9 +409,9 @@ function HomePageInner() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm min-h-[250px] md:h-[220px] flex flex-col">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 md:gap-4 items-start md:items-center flex-1 min-h-0">
-                  <div className="md:col-span-4 min-h-0 flex flex-col justify-center order-2 md:order-1">
+              <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm flex flex-col">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 md:gap-4 items-center">
+                  <div className="md:col-span-4 flex flex-col justify-center order-2 md:order-1">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                       <span className="text-[11px] uppercase tracking-wider bg-primary/10 text-primary px-2 py-1 rounded-full">
                         Sponsored
@@ -414,15 +457,18 @@ function HomePageInner() {
                     </p>
                   </div>
 
-                  <div className="md:col-span-8 rounded-xl overflow-hidden border border-border bg-muted/30 relative h-[120px] sm:h-[140px] md:h-full min-h-0 order-1 md:order-2">
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/5 pointer-events-none" />
-                    <img
-                      src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
-                      alt={activeBannerProduct.name}
-                      className={`h-full w-full object-cover transition-opacity duration-500 ease-in-out ${
-                        bannerFading ? 'opacity-0' : 'opacity-100'
-                      }`}
-                    />
+                  <div className="md:col-span-8 order-1 md:order-2">
+                    {/* Frame matches 1600×450 promo assets (32∶9) */}
+                    <div className="relative aspect-[1600/450] w-full overflow-hidden rounded-xl border border-border bg-muted/30">
+                      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-black/10 via-transparent to-black/5" />
+                      <img
+                        src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
+                        alt={activeBannerProduct.name}
+                        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-in-out ${
+                          bannerFading ? 'opacity-0' : 'opacity-100'
+                        }`}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -553,13 +599,14 @@ function HomePageInner() {
                   </div>
                   <h3 className="mt-2 text-xl font-bold">Book Car Services Fast</h3>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    One tap to request mechanics, towing, wash, diagnostics, and more.
+                    Categories below follow your recommendation feed — jump in where your shopping suggests you’ll need
+                    help next.
                   </p>
                   <div className="mt-4 space-y-2">
-                    {userServiceCategories.slice(0, 4).map((serviceCategory) => (
+                    {feedOrderedServiceCategories.slice(0, 5).map((serviceCategory) => (
                       <Link
                         key={`service-feature-${serviceCategory.id}`}
-                        href="/buyer/services"
+                        href={`/buyer/services?sc=${encodeURIComponent(serviceCategory.id)}&quick=1`}
                         className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-accent/40 transition"
                       >
                         <span className="truncate">
@@ -611,8 +658,15 @@ function HomePageInner() {
                         <p className="mt-1 text-xs text-muted-foreground">
                           Try: {collection.serviceTopOptions.join(' • ')}
                         </p>
-                        <Link href="/buyer/services" className="mt-2 inline-flex items-center text-xs font-semibold text-primary hover:underline">
-                          Open Services Marketplace
+                        <Link
+                          href={
+                            collection.id === 'recommended-products'
+                              ? '/buyer/services'
+                              : `/buyer/services?sc=${encodeURIComponent(collection.id)}&quick=1`
+                          }
+                          className="mt-2 inline-flex items-center text-xs font-semibold text-primary hover:underline"
+                        >
+                          Request this kind of service
                         </Link>
                       </div>
 

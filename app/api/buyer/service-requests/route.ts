@@ -1,5 +1,10 @@
-import { createBuyerServiceRequest, getBuyerServiceRequests } from '@/lib/db';
+import { createBuyerServiceRequest, getBuyerServiceRequests, getCustomer } from '@/lib/db';
+import { startDispatchForNewRequest } from '@/lib/service-dispatch';
 import { NextRequest, NextResponse } from 'next/server';
+
+function countPhoneDigits(value: string): number {
+  return (value || '').replace(/\D/g, '').length;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,13 +27,33 @@ export async function POST(req: NextRequest) {
     if (!customerId || !category || !service || !location) {
       return NextResponse.json({ error: 'customerId, category, service and location are required' }, { status: 400 });
     }
+    const customer = await getCustomer(customerId);
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+    if (countPhoneDigits(customer.phone) < 9) {
+      return NextResponse.json(
+        {
+          error:
+            'Add a valid mobile number to your buyer account before requesting service. Open Buyer profile or complete sign-in to add your phone.',
+        },
+        { status: 400 },
+      );
+    }
     const created = await createBuyerServiceRequest({
       customerId,
       category,
       service,
       location,
       status: 'pending',
+      buyerContactPhone: customer.phone.trim(),
+      buyerContactName: (customer.name || '').trim() || 'Buyer',
     });
+    try {
+      await startDispatchForNewRequest(created.id);
+    } catch (dispatchError) {
+      console.error('startDispatchForNewRequest failed:', dispatchError);
+    }
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create buyer service request' }, { status: 500 });

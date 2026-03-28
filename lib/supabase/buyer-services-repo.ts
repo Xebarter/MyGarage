@@ -6,7 +6,14 @@ export interface BuyerServiceRequest {
   category: string;
   service: string;
   location: string;
-  status: "pending" | "matched" | "in_progress" | "completed";
+  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
+  providerId: string | null;
+  acceptedAt: Date | null;
+  arrivedAt: Date | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  buyerContactPhone: string;
+  buyerContactName: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +33,14 @@ type BuyerServiceRequestRow = {
   category: string;
   service: string;
   location: string;
-  status: "pending" | "matched" | "in_progress" | "completed";
+  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
+  provider_id: string | null;
+  accepted_at: string | null;
+  arrived_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  buyer_contact_phone: string | null;
+  buyer_contact_name: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -40,9 +54,24 @@ type BuyerProviderRatingRow = {
   updated_at: string;
 };
 
-export type BuyerServiceRequestInsert = Omit<BuyerServiceRequest, "id" | "createdAt" | "updatedAt" | "status"> & {
+export type BuyerServiceRequestInsert = Omit<
+  BuyerServiceRequest,
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "status"
+  | "providerId"
+  | "acceptedAt"
+  | "arrivedAt"
+  | "startedAt"
+  | "completedAt"
+  | "buyerContactPhone"
+  | "buyerContactName"
+> & {
   id?: string;
   status?: BuyerServiceRequest["status"];
+  buyerContactPhone: string;
+  buyerContactName: string;
 };
 
 export type BuyerProviderRatingUpsert = Omit<BuyerProviderRating, "id" | "createdAt" | "updatedAt"> & { id?: string };
@@ -55,6 +84,13 @@ function rowToBuyerServiceRequest(row: BuyerServiceRequestRow): BuyerServiceRequ
     service: row.service,
     location: row.location,
     status: row.status,
+    providerId: row.provider_id ?? null,
+    acceptedAt: row.accepted_at ? new Date(row.accepted_at) : null,
+    arrivedAt: row.arrived_at ? new Date(row.arrived_at) : null,
+    startedAt: row.started_at ? new Date(row.started_at) : null,
+    completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    buyerContactPhone: row.buyer_contact_phone ?? "",
+    buyerContactName: row.buyer_contact_name ?? "",
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -106,11 +142,31 @@ export async function insertBuyerServiceRequest(request: BuyerServiceRequestInse
     service: request.service,
     location: request.location,
     status: request.status ?? "pending",
+    buyer_contact_phone: request.buyerContactPhone,
+    buyer_contact_name: request.buyerContactName,
   };
   const { data, error } = await supabase.from("buyer_service_requests").insert(row).select("*").single();
   if (error) {
     throw new Error(`Supabase insert buyer service request failed: ${error.message}`);
   }
+  return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);
+}
+
+export async function getBuyerServiceRequestByIdForCustomer(
+  id: string,
+  customerId: string,
+): Promise<BuyerServiceRequest | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_service_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("customer_id", customerId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Supabase get buyer service request failed: ${error.message}`);
+  }
+  if (!data) return null;
   return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);
 }
 

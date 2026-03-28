@@ -46,6 +46,8 @@ export async function DELETE(
     }
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete vendor' }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[DELETE /api/vendors/:id]', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

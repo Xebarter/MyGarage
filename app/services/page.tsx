@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -99,6 +99,32 @@ export default function ServiceProviderDashboardPage() {
   const [requestQuery, setRequestQuery] = useState('');
   const [requestFilter, setRequestFilter] = useState<'all' | ProviderRequest['status']>('all');
   const [trendRange, setTrendRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [vendorId, setVendorId] = useState('');
+  const [liveOffer, setLiveOffer] = useState<{
+    assignment: { id: string; requestId: string; assignedAt: string };
+    request: {
+      id: string;
+      service: string;
+      category: string;
+      location: string;
+      status: string;
+      buyer_contact_phone: string | null;
+      buyer_contact_name: string | null;
+    };
+  } | null>(null);
+  const [liveJob, setLiveJob] = useState<{
+    id: string;
+    service: string;
+    location: string;
+    status: string;
+    buyer_contact_phone: string | null;
+    buyer_contact_name: string | null;
+    accepted_at: string | null;
+    arrived_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+  } | null>(null);
+  const [dispatchBusy, setDispatchBusy] = useState(false);
 
   useEffect(() => {
     const name = localStorage.getItem('currentServiceProviderName') || 'Service Provider';
@@ -106,7 +132,7 @@ export default function ServiceProviderDashboardPage() {
 
     const savedServices = localStorage.getItem('currentServiceProviderServices');
     const parsedServices = savedServices ? (JSON.parse(savedServices) as string[]) : [];
-    setSelectedServices(parsedServices.length > 0 ? parsedServices : providerSignupServiceOptions.slice(0, 6));
+    setSelectedServices(parsedServices);
 
     const savedRequests = localStorage.getItem('providerServiceRequests');
     const parsedRequests = savedRequests ? (JSON.parse(savedRequests) as ProviderRequest[]) : defaultRequests;
@@ -115,7 +141,87 @@ export default function ServiceProviderDashboardPage() {
     const savedReviews = localStorage.getItem('providerServiceReviews');
     const parsedReviews = savedReviews ? (JSON.parse(savedReviews) as ProviderReview[]) : defaultReviews;
     setReviews(parsedReviews);
+
+    setVendorId(localStorage.getItem('currentVendorId') || '');
   }, []);
+
+  const refreshDispatch = useCallback(async () => {
+    const id = typeof window !== 'undefined' ? localStorage.getItem('currentVendorId') || '' : '';
+    setVendorId(id);
+    if (!id) {
+      setLiveOffer(null);
+      setLiveJob(null);
+      return;
+    }
+    const res = await fetch(`/api/services/dispatch/me?vendorId=${encodeURIComponent(id)}`);
+    if (!res.ok) return;
+    const json = (await res.json()) as {
+      offer: {
+        assignment: { id: string; requestId: string; assignedAt: string };
+        request: {
+          id: string;
+          service: string;
+          category: string;
+          location: string;
+          status: string;
+          buyer_contact_phone: string | null;
+          buyer_contact_name: string | null;
+        };
+      } | null;
+      activeJob: {
+        id: string;
+        service: string;
+        location: string;
+        status: string;
+        buyer_contact_phone: string | null;
+        buyer_contact_name: string | null;
+        accepted_at: string | null;
+        arrived_at: string | null;
+        started_at: string | null;
+        completed_at: string | null;
+      } | null;
+    };
+    setLiveOffer(json.offer);
+    setLiveJob(json.activeJob);
+  }, []);
+
+  useEffect(() => {
+    void refreshDispatch();
+    const t = setInterval(() => void refreshDispatch(), 4000);
+    return () => clearInterval(t);
+  }, [refreshDispatch]);
+
+  const respondToLiveOffer = async (assignmentId: string, action: 'accept' | 'decline') => {
+    const id = vendorId || (typeof window !== 'undefined' ? localStorage.getItem('currentVendorId') || '' : '');
+    if (!id || dispatchBusy) return;
+    setDispatchBusy(true);
+    try {
+      await fetch('/api/services/dispatch/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId, vendorId: id, action }),
+      });
+      await refreshDispatch();
+    } finally {
+      setDispatchBusy(false);
+    }
+  };
+
+  const advanceLiveJob = async (requestId: string, stage: 'arrived' | 'started' | 'completed') => {
+    const id = vendorId || (typeof window !== 'undefined' ? localStorage.getItem('currentVendorId') || '' : '');
+    if (!id || dispatchBusy) return;
+    setDispatchBusy(true);
+    try {
+      await fetch('/api/services/dispatch/stage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, vendorId: id, stage }),
+      });
+      await refreshDispatch();
+    } finally {
+      setDispatchBusy(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('providerServiceRequests', JSON.stringify(requests));
@@ -274,6 +380,110 @@ export default function ServiceProviderDashboardPage() {
             Keep high coverage to appear for more service requests.
           </p>
         </div>
+
+        <Card className="rounded-2xl border-primary/25 bg-primary/5 p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Live dispatch</p>
+              <h3 className="mt-1 text-lg font-semibold tracking-tight">Incoming offers from buyers</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Requests are offered to one provider at a time. Accept to claim the job, or decline to pass it to the next provider.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            {!vendorId ? (
+              <p className="text-sm text-muted-foreground">
+                <button
+                  type="button"
+                  onClick={() => router.push('/auth?role=services')}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Sign in as a provider
+                </button>{' '}
+                to receive real-time job offers on this dashboard.
+              </p>
+            ) : liveOffer ? (
+              <div className="rounded-xl border border-border/80 bg-background/90 p-4">
+                <p className="text-sm font-medium text-foreground">{liveOffer.request.service}</p>
+                <p className="text-xs text-muted-foreground">
+                  {liveOffer.request.category} · {liveOffer.request.location}
+                </p>
+                <p className="mt-2 text-sm text-foreground">
+                  <span className="font-medium">Buyer contact</span>{' '}
+                  <span className="tabular-nums">
+                    {(liveOffer.request.buyer_contact_name || '').trim() || '—'} ·{' '}
+                    {(liveOffer.request.buyer_contact_phone || '').trim() || '—'}
+                  </span>
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Offer sent {new Date(liveOffer.assignment.assignedAt).toLocaleString()} — please respond promptly.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={dispatchBusy}
+                    onClick={() => void respondToLiveOffer(liveOffer.assignment.id, 'accept')}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    Accept job
+                  </button>
+                  <button
+                    type="button"
+                    disabled={dispatchBusy}
+                    onClick={() => void respondToLiveOffer(liveOffer.assignment.id, 'decline')}
+                    className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ) : liveJob ? (
+              <div className="rounded-xl border border-border/80 bg-background/90 p-4">
+                <p className="text-sm font-medium text-foreground">Active job: {liveJob.service}</p>
+                <p className="text-xs text-muted-foreground">{liveJob.location}</p>
+                <p className="mt-2 text-sm text-foreground">
+                  <span className="font-medium">Buyer contact</span>{' '}
+                  <span className="tabular-nums">
+                    {(liveJob.buyer_contact_name || '').trim() || '—'} ·{' '}
+                    {(liveJob.buyer_contact_phone || '').trim() || '—'}
+                  </span>
+                </p>
+                <p className="mt-2 text-xs uppercase tracking-wide text-primary">Status: {liveJob.status.replace(/_/g, ' ')}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={dispatchBusy || Boolean(liveJob.arrived_at)}
+                    onClick={() => void advanceLiveJob(liveJob.id, 'arrived')}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 disabled:opacity-50"
+                  >
+                    Mark arrived on site
+                  </button>
+                  <button
+                    type="button"
+                    disabled={dispatchBusy || Boolean(liveJob.started_at) || !liveJob.arrived_at}
+                    onClick={() => void advanceLiveJob(liveJob.id, 'started')}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 disabled:opacity-50"
+                  >
+                    Start service
+                  </button>
+                  <button
+                    type="button"
+                    disabled={dispatchBusy || Boolean(liveJob.completed_at) || !liveJob.started_at}
+                    onClick={() => void advanceLiveJob(liveJob.id, 'completed')}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 disabled:opacity-50"
+                  >
+                    Mark completed
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No offer right now. Keep this tab open — when a buyer request matches you, it will show up here first.
+              </p>
+            )}
+          </div>
+        </Card>
 
         <Card className="rounded-2xl border-border/70 p-3 shadow-sm">
           <div className="flex gap-2 overflow-x-auto">

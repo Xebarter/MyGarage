@@ -5,6 +5,10 @@ const protectedPrefixes = ["/buyer", "/vendor", "/services"];
 const adminPrefix = "/admin";
 
 function isProtectedPath(pathname: string) {
+  // Book and pay for roadside / help services without signing in.
+  if (pathname === "/buyer/services" || pathname.startsWith("/buyer/services/")) {
+    return false;
+  }
   return protectedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );

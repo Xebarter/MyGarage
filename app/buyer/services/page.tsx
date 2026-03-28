@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { userServiceCategories } from '@/lib/services-catalog';
@@ -12,7 +13,12 @@ type BuyerServiceRequest = {
   category: string;
   service: string;
   location: string;
-  status: 'pending' | 'matched' | 'in_progress' | 'completed';
+  status: 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled';
+  providerId?: string | null;
+  acceptedAt?: string | null;
+  arrivedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
   createdAt: string;
 };
 
@@ -29,6 +35,10 @@ type BuyerProviderRating = {
   providerId: string;
   stars: number;
 };
+
+const PAY_CONTACT_NAME_KEY = 'servicePaymentContactName';
+const PAY_CONTACT_EMAIL_KEY = 'servicePaymentContactEmail';
+const PAY_CONTACT_PHONE_KEY = 'servicePaymentContactPhone';
 
 const providerDirectory: ServiceProviderProfile[] = [
   {
@@ -57,7 +67,12 @@ const providerDirectory: ServiceProviderProfile[] = [
   },
 ];
 
-export default function BuyerServicesPage() {
+function BuyerServicesPageInner() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const appliedDeepLinkSc = useRef(false);
+  const appliedOpenQuickFromAuth = useRef(false);
   const [customerId, setCustomerId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(userServiceCategories[0]?.title || '');
   const [selectedService, setSelectedService] = useState(userServiceCategories[0]?.services[0] || '');
@@ -71,10 +86,84 @@ export default function BuyerServicesPage() {
   const [requests, setRequests] = useState<BuyerServiceRequest[]>([]);
   const [ratings, setRatings] = useState<BuyerProviderRating[]>([]);
   const [paying, setPaying] = useState(false);
+  const [identityMode, setIdentityMode] = useState<'buyer' | 'guest'>('guest');
+  const [payContactName, setPayContactName] = useState('');
+  const [payContactEmail, setPayContactEmail] = useState('');
+  const [payContactPhone, setPayContactPhone] = useState('');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (appliedOpenQuickFromAuth.current) return;
+    if (searchParams.get('openQuick') !== '1') return;
+    appliedOpenQuickFromAuth.current = true;
+    setIsQuickRequestDialogOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('openQuick');
+    const q = params.toString();
+    router.replace(`${pathname}${q ? `?${q}` : ''}`, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  useEffect(() => {
+    if (appliedDeepLinkSc.current) return;
+    const sc = (searchParams.get('sc') || '').trim();
+    const ss = (searchParams.get('ss') || '').trim();
+    if (!sc && !ss) return;
+
+    const openQuickDialog =
+      searchParams.get('quick') === '1' ||
+      searchParams.get('quick') === 'true' ||
+      searchParams.get('quick') === 'yes';
+
+    const stripQuickFromUrl = () => {
+      if (!openQuickDialog) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('quick');
+      const q = params.toString();
+      router.replace(`${pathname}${q ? `?${q}` : ''}`, { scroll: false });
+    };
+
+    if (sc) {
+      const cat = userServiceCategories.find((c) => c.id === sc);
+      if (cat) {
+        appliedDeepLinkSc.current = true;
+        setSelectedCategory(cat.title);
+        if (ss) {
+          const exact = cat.services.find((s) => s === ss);
+          const ci = cat.services.find((s) => s.toLowerCase() === ss.toLowerCase());
+          setSelectedService(exact || ci || cat.services[0] || '');
+        } else {
+          setSelectedService(cat.services[0] || '');
+        }
+        if (openQuickDialog) {
+          setIsQuickRequestDialogOpen(true);
+          stripQuickFromUrl();
+        }
+        return;
+      }
+    }
+
+    if (ss) {
+      for (const c of userServiceCategories) {
+        const exact = c.services.find((s) => s === ss);
+        const ci = c.services.find((s) => s.toLowerCase() === ss.toLowerCase());
+        if (exact || ci) {
+          appliedDeepLinkSc.current = true;
+          setSelectedCategory(c.title);
+          setSelectedService(exact || ci || '');
+          if (openQuickDialog) {
+            setIsQuickRequestDialogOpen(true);
+            stripQuickFromUrl();
+          }
+          return;
+        }
+      }
+    }
+  }, [searchParams, pathname, router]);
 
   useEffect(() => {
     if (!customerId) return;
@@ -185,24 +274,57 @@ export default function BuyerServicesPage() {
     detectCurrentLocation();
   }, []);
 
-  const bootstrap = async () => {
-    const localId = localStorage.getItem('currentBuyerId') || '';
-    const email = (localStorage.getItem('currentBuyerEmail') || '').trim();
+  const persistPayContact = useCallback(() => {
     try {
+      if (payContactName.trim()) localStorage.setItem(PAY_CONTACT_NAME_KEY, payContactName.trim());
+      if (payContactEmail.trim()) localStorage.setItem(PAY_CONTACT_EMAIL_KEY, payContactEmail.trim());
+      if (payContactPhone.trim()) localStorage.setItem(PAY_CONTACT_PHONE_KEY, payContactPhone.trim());
+    } catch {
+      /* ignore */
+    }
+  }, [payContactName, payContactEmail, payContactPhone]);
+
+  const bootstrap = async () => {
+    try {
+      const localId = (localStorage.getItem('currentBuyerId') || '').trim();
       if (localId) {
+        setIdentityMode('buyer');
         setCustomerId(localId);
         return;
       }
-      if (!email) return;
-      const byEmail = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
-      if (!byEmail.ok) return;
-      const customer = await byEmail.json();
-      setCustomerId(customer.id);
-      localStorage.setItem('currentBuyerId', customer.id);
+
+      const savedEmail = (localStorage.getItem('currentBuyerEmail') || '').trim();
+      if (savedEmail) {
+        const byEmail = await fetch(`/api/customers?email=${encodeURIComponent(savedEmail)}`);
+        if (byEmail.ok) {
+          const customer = (await byEmail.json()) as { id: string };
+          if (customer?.id) {
+            setIdentityMode('buyer');
+            setCustomerId(customer.id);
+            localStorage.setItem('currentBuyerId', customer.id);
+            return;
+          }
+        }
+      }
+
+      setIdentityMode('guest');
+      setCustomerId('');
     } catch (error) {
       console.error('Failed to resolve customer for services:', error);
+    } finally {
+      setSessionReady(true);
     }
   };
+
+  useEffect(() => {
+    const name =
+      (localStorage.getItem(PAY_CONTACT_NAME_KEY) || localStorage.getItem('currentBuyerName') || '').trim();
+    const email = (localStorage.getItem(PAY_CONTACT_EMAIL_KEY) || localStorage.getItem('currentBuyerEmail') || '').trim();
+    const phone = (localStorage.getItem(PAY_CONTACT_PHONE_KEY) || localStorage.getItem('currentBuyerPhone') || '').trim();
+    if (name) setPayContactName(name);
+    if (email) setPayContactEmail(email);
+    if (phone) setPayContactPhone(phone);
+  }, []);
 
   const loadServiceData = async (id: string) => {
     try {
@@ -264,7 +386,8 @@ export default function BuyerServicesPage() {
   }, [activeServiceRequest]);
 
   const submitRequest = async () => {
-    if (!selectedService || !resolvedLocation || !customerId) return;
+    if (identityMode !== 'buyer' || !selectedService || !resolvedLocation || !customerId) return;
+    setSubmitError(null);
     try {
       const response = await fetch('/api/buyer/service-requests', {
         method: 'POST',
@@ -276,17 +399,44 @@ export default function BuyerServicesPage() {
           location: resolvedLocation,
         }),
       });
-      if (!response.ok) return;
-      const created = (await response.json()) as BuyerServiceRequest;
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        setSubmitError(body.error || 'Could not submit your request. Try again.');
+        return;
+      }
+      const raw = (await response.json()) as Record<string, unknown>;
+      const created: BuyerServiceRequest = {
+        id: String(raw.id),
+        category: String(raw.category),
+        service: String(raw.service),
+        location: String(raw.location),
+        status: raw.status as BuyerServiceRequest['status'],
+        providerId: (raw.providerId as string | null | undefined) ?? (raw.provider_id as string | null | undefined) ?? null,
+        createdAt:
+          typeof raw.createdAt === 'string'
+            ? raw.createdAt
+            : typeof raw.created_at === 'string'
+              ? raw.created_at
+              : new Date().toISOString(),
+      };
       setRequests((current) => [created, ...current]);
       setIsQuickRequestDialogOpen(false);
+      router.push(`/buyer/services/track/${encodeURIComponent(created.id)}`);
     } catch (error) {
       console.error('Failed to create buyer service request:', error);
     }
   };
 
+  const canPayForService = useMemo(() => {
+    const name = payContactName.trim();
+    const email = payContactEmail.trim();
+    const phone = payContactPhone.replace(/\D/g, '');
+    return Boolean(name && email && phone.length >= 9);
+  }, [payContactName, payContactEmail, payContactPhone]);
+
   const payForActiveService = async () => {
-    if (!activeServiceRequest || !paymentSummary || !customerId || paying) return;
+    if (!activeServiceRequest || !paymentSummary || !customerId || paying || !canPayForService) return;
+    persistPayContact();
     setPaying(true);
     try {
       const response = await fetch('/api/paytota/service-payment', {
@@ -295,9 +445,9 @@ export default function BuyerServicesPage() {
         body: JSON.stringify({
           requestId: activeServiceRequest.id,
           customerId,
-          customerName: localStorage.getItem('currentBuyerName') || 'Buyer',
-          customerEmail: localStorage.getItem('currentBuyerEmail') || '',
-          customerPhone: localStorage.getItem('currentBuyerPhone') || '',
+          customerName: payContactName.trim(),
+          customerEmail: payContactEmail.trim().toLowerCase(),
+          customerPhone: payContactPhone.trim(),
           amount: paymentSummary.total,
         }),
       });
@@ -336,7 +486,22 @@ export default function BuyerServicesPage() {
   };
 
   const getMyRating = (providerId: string) => ratings.find((item) => item.providerId === providerId)?.stars || 0;
-  const canSubmitRequest = Boolean(selectedService && resolvedLocation && customerId);
+  const canPressSubmitRequest = Boolean(selectedService && resolvedLocation && (identityMode !== 'buyer' || customerId));
+
+  const goToBuyerSignInForRequest = () => {
+    const next = `/buyer/services?openQuick=1`;
+    router.push(`/auth?role=buyer&next=${encodeURIComponent(next)}`);
+  };
+
+  const handleSubmitRequestIntent = () => {
+    setSubmitError(null);
+    if (!selectedService || !resolvedLocation) return;
+    if (identityMode !== 'buyer' || !customerId) {
+      goToBuyerSignInForRequest();
+      return;
+    }
+    void submitRequest();
+  };
 
   const renderStep = (label: string, done: boolean) => (
     <div className="flex min-h-12 items-center gap-2 rounded-lg border border-border/70 bg-background/70 px-3 py-2">
@@ -354,7 +519,7 @@ export default function BuyerServicesPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Find Help Fast</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                Choose your need, confirm location, and submit in under a minute.
+                Choose your need, confirm location, and submit in under a minute. Sign in is required to send a request so we can match you to providers in real time.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-[290px]">
@@ -372,6 +537,17 @@ export default function BuyerServicesPage() {
               </div>
             </div>
           </div>
+          {sessionReady && identityMode !== 'buyer' ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              <Link
+                href="/auth?role=buyer&next=%2Fbuyer%2Fservices%3FopenQuick%3D1"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Sign in or create a buyer account
+              </Link>{' '}
+              to submit a service request and see live tracking.
+            </p>
+          ) : null}
         </div>
 
         {activeServiceRequest ? (
@@ -414,11 +590,47 @@ export default function BuyerServicesPage() {
                     Total: UGX {paymentSummary.total.toLocaleString()}
                   </p>
                 </div>
+                <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-background/80 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Payment contact (required for checkout)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    No account needed — we only use this to process your payment with Paytota.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <input
+                      value={payContactName}
+                      onChange={(e) => setPayContactName(e.target.value)}
+                      onBlur={persistPayContact}
+                      placeholder="Full name"
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      autoComplete="name"
+                    />
+                    <input
+                      type="email"
+                      value={payContactEmail}
+                      onChange={(e) => setPayContactEmail(e.target.value)}
+                      onBlur={persistPayContact}
+                      placeholder="Email"
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      autoComplete="email"
+                    />
+                    <input
+                      type="tel"
+                      value={payContactPhone}
+                      onChange={(e) => setPayContactPhone(e.target.value)}
+                      onBlur={persistPayContact}
+                      placeholder="Mobile (e.g. 07… or 256…)"
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      autoComplete="tel"
+                    />
+                  </div>
+                </div>
                 <div className="mt-3">
                   <button
                     type="button"
                     onClick={payForActiveService}
-                    disabled={paying}
+                    disabled={paying || !canPayForService}
                     className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {paying ? 'Redirecting to Paytota...' : 'Pay for this service'}
@@ -427,17 +639,26 @@ export default function BuyerServicesPage() {
               </div>
             ) : null}
 
-            <div className="mt-5 grid gap-2 md:grid-cols-3">
-              <Link href="/buyer/orders" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                View order and payment history
-              </Link>
-              <Link href="/buyer/support" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                Contact support about this service
-              </Link>
-              <Link href="/buyer/addresses" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                Manage saved service locations
-              </Link>
-            </div>
+            {identityMode === 'buyer' ? (
+              <div className="mt-5 grid gap-2 md:grid-cols-3">
+                <Link href="/buyer/orders" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
+                  View order and payment history
+                </Link>
+                <Link href="/buyer/support" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
+                  Contact support about this service
+                </Link>
+                <Link href="/buyer/addresses" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
+                  Manage saved service locations
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">
+                <Link href="/auth?role=buyer&next=/buyer" className="font-medium text-primary underline-offset-4 hover:underline">
+                  Sign in or create a buyer account
+                </Link>{' '}
+                to track requests and payments across devices.
+              </p>
+            )}
           </Card>
         ) : (
           <Card className="rounded-2xl border-border/70 p-4 shadow-sm sm:p-6">
@@ -496,6 +717,14 @@ export default function BuyerServicesPage() {
                   {request.category} - {request.location} - {new Date(request.createdAt).toLocaleString()}
                 </p>
                 <p className="mt-2 text-xs uppercase tracking-wide text-primary">Status: {request.status}</p>
+                {identityMode === 'buyer' ? (
+                  <Link
+                    href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
+                    className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    View live tracking
+                  </Link>
+                ) : null}
               </div>
             ))}
             {requests.length === 0 ? <p className="text-sm text-muted-foreground">No requests yet. Submit your first service request above.</p> : null}
@@ -611,15 +840,33 @@ export default function BuyerServicesPage() {
 
             <button
               type="button"
-              onClick={submitRequest}
-              disabled={!canSubmitRequest}
+              onClick={handleSubmitRequestIntent}
+              disabled={!canPressSubmitRequest}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Submit Request <ArrowRight className="h-4 w-4" />
             </button>
+            {submitError ? <p className="text-center text-sm text-destructive">{submitError}</p> : null}
+            {identityMode !== 'buyer' ? (
+              <p className="text-center text-xs text-muted-foreground">
+                You will be asked to sign in to a buyer account when you submit. Add a mobile number so providers can reach you.
+              </p>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function BuyerServicesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[40vh] bg-background p-8 text-center text-sm text-muted-foreground">Loading services…</div>
+      }
+    >
+      <BuyerServicesPageInner />
+    </Suspense>
   );
 }

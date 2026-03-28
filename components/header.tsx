@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Package, Menu, Search, UserCircle2, ChevronDown, Siren } from 'lucide-react';
+import { ShoppingCart, Package, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 
@@ -21,6 +21,23 @@ type SuggestionCategory = {
   name: string;
   image: string;
   count: number;
+  headline: string;
+};
+
+type SuggestionService = {
+  id: string;
+  name: string;
+  categoryId: string;
+  categoryTitle: string;
+};
+
+type SuggestionServiceCategory = {
+  categoryId: string;
+  categoryTitle: string;
+  emoji: string;
+  count: number;
+  headline: string;
+  topServiceName: string;
 };
 
 export function Header() {
@@ -82,6 +99,8 @@ export function Header() {
     query: string;
     categories: SuggestionCategory[];
     products: SuggestionProduct[];
+    serviceCategories?: SuggestionServiceCategory[];
+    services?: SuggestionService[];
   } | null>(null);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
@@ -185,6 +204,14 @@ export function Header() {
     const cat = (category ?? '').trim();
     if (!cat || cat === 'all') return '/';
     return `/category/products/${encodeURIComponent(cat)}`;
+  }, []);
+
+  const buildServiceHref = useCallback((categoryId: string, serviceName: string) => {
+    return `/buyer/services?sc=${encodeURIComponent(categoryId)}&ss=${encodeURIComponent(serviceName)}&quick=1`;
+  }, []);
+
+  const buildServiceCategoryHref = useCallback((categoryId: string) => {
+    return `/buyer/services?sc=${encodeURIComponent(categoryId)}&quick=1`;
   }, []);
 
   const open = pinned || hoverOpen
@@ -423,8 +450,8 @@ export function Header() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
-                  placeholder="Search products..."
-                  aria-label="Search products"
+                  placeholder="Search products & services..."
+                  aria-label="Search products and services"
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   onFocus={() => {
@@ -459,46 +486,161 @@ export function Header() {
                         <p className="text-xs text-muted-foreground">Searching…</p>
                       ) : suggestionsError ? (
                         <p className="text-xs text-muted-foreground">{suggestionsError}</p>
-                      ) : suggestions && suggestions.products.length === 0 ? (
+                      ) : suggestions &&
+                        (suggestions.categories?.length ?? 0) === 0 &&
+                        suggestions.products.length === 0 &&
+                        (suggestions.serviceCategories?.length ?? 0) === 0 &&
+                        (suggestions.services?.length ?? 0) === 0 ? (
                         <p className="text-xs text-muted-foreground">No matches found</p>
                       ) : null}
 
-                      {/* Category suggestions intentionally hidden to match the desired UI:
-                          show only image-based product strips under the search bar. */}
-
-                      {suggestions && suggestions.products.length > 0 ? (
-                        <>
-                          <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground mt-4 mb-2">
-                            Top products
-                          </p>
-                          <div className="flex gap-3 overflow-x-auto pb-1">
-                            {suggestions.products.slice(0, 8).map((p) => (
-                              <Link
-                                key={p.id}
-                                href={buildCategoryHref(p.category)}
-                                className="group shrink-0 w-[190px] rounded-lg border border-border bg-background hover:bg-accent transition"
-                                onClick={() => {
-                                  closeSuggestions();
-                                  closeSidebar();
-                                }}
-                              >
-                                <div className="flex items-center gap-3 px-2 py-2">
-                                  <div className="h-12 w-12 rounded-md bg-muted/40 overflow-hidden">
-                                    <img
-                                      src={p.image || '/placeholder.jpg'}
-                                      alt={p.name}
-                                      className="h-full w-full object-cover group-hover:scale-[1.03] transition"
-                                    />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-foreground line-clamp-1">{p.name}</p>
-                                    <p className="text-[10px] text-muted-foreground line-clamp-1">{p.category}</p>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        </>
+                      {suggestions &&
+                      ((suggestions.categories?.length ?? 0) > 0 ||
+                        suggestions.products.length > 0 ||
+                        (suggestions.serviceCategories?.length ?? 0) > 0 ||
+                        (suggestions.services?.length ?? 0) > 0) ? (
+                        <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto overflow-x-hidden pb-1">
+                          {(suggestions.categories?.length ?? 0) > 0 ? (
+                            <div>
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Browse categories
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                {(suggestions.categories ?? []).map((c) => (
+                                  <Link
+                                    key={c.name}
+                                    href={buildCategoryHref(c.name)}
+                                    className="group w-full rounded-lg border border-primary/20 bg-primary/5 transition hover:border-primary/35 hover:bg-primary/10"
+                                    onClick={() => {
+                                      closeSuggestions();
+                                      closeSidebar();
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3 px-2 py-2">
+                                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
+                                        <img
+                                          src={c.image?.trim() ? c.image : '/placeholder.jpg'}
+                                          alt={c.headline}
+                                          className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                        />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold leading-snug text-foreground line-clamp-2">
+                                          {c.headline}
+                                        </p>
+                                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                          View all in {c.name}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                          {suggestions.products.length > 0 ? (
+                            <div>
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Top products
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                {suggestions.products.map((p) => (
+                                  <Link
+                                    key={p.id}
+                                    href={buildCategoryHref(p.category)}
+                                    className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                    onClick={() => {
+                                      closeSuggestions();
+                                      closeSidebar();
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3 px-2 py-2">
+                                      <div className="h-12 w-12 overflow-hidden rounded-md bg-muted/40">
+                                        <img
+                                          src={p.image || '/placeholder.jpg'}
+                                          alt={p.name}
+                                          className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                        />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="line-clamp-1 text-xs font-medium text-foreground">{p.name}</p>
+                                        <p className="line-clamp-1 text-[10px] text-muted-foreground">{p.category}</p>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                          {(suggestions.serviceCategories?.length ?? 0) > 0 ? (
+                            <div>
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Browse service categories
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                {(suggestions.serviceCategories ?? []).map((sc) => (
+                                  <Link
+                                    key={sc.categoryId}
+                                    href={buildServiceCategoryHref(sc.categoryId)}
+                                    className="group w-full rounded-lg border border-amber-500/25 bg-amber-500/5 transition hover:border-amber-500/40 hover:bg-amber-500/10"
+                                    onClick={() => {
+                                      closeSuggestions();
+                                      closeSidebar();
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3 px-2 py-2">
+                                      <div
+                                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background text-2xl leading-none ring-1 ring-border"
+                                        aria-hidden
+                                      >
+                                        {sc.emoji}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
+                                          {sc.headline}
+                                        </p>
+                                        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                                          <span className="line-clamp-1">{sc.topServiceName}</span>
+                                          <span className="text-muted-foreground/80"> · Browse category</span>
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                          {(suggestions.services?.length ?? 0) > 0 ? (
+                            <div>
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Services
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                {(suggestions.services ?? []).map((s) => (
+                                  <Link
+                                    key={s.id}
+                                    href={buildServiceHref(s.categoryId, s.name)}
+                                    className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                    onClick={() => {
+                                      closeSuggestions();
+                                      closeSidebar();
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3 px-2 py-2">
+                                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                        <Wrench className="h-5 w-5" aria-hidden />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="line-clamp-2 text-xs font-medium text-foreground">{s.name}</p>
+                                        <p className="line-clamp-1 text-[10px] text-muted-foreground">{s.categoryTitle}</p>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -622,8 +764,8 @@ export function Header() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="search"
-              placeholder="Search products..."
-              aria-label="Search products"
+              placeholder="Search products & services..."
+              aria-label="Search products and services"
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               onFocus={() => {
@@ -655,46 +797,163 @@ export function Header() {
                 <div className="p-3">
                   {suggestionsLoading ? (
                     <p className="text-xs text-muted-foreground">Searching…</p>
-                ) : suggestions && suggestions.products.length === 0 ? (
+                  ) : suggestionsError ? (
+                    <p className="text-xs text-muted-foreground">{suggestionsError}</p>
+                  ) : suggestions &&
+                    (suggestions.categories?.length ?? 0) === 0 &&
+                    suggestions.products.length === 0 &&
+                    (suggestions.serviceCategories?.length ?? 0) === 0 &&
+                    (suggestions.services?.length ?? 0) === 0 ? (
                     <p className="text-xs text-muted-foreground">No matches found</p>
                   ) : null}
 
-                  {/* Category suggestions intentionally hidden to match the desired UI:
-                      show only image-based product strips under the search bar. */}
-
-                  {suggestions && suggestions.products.length > 0 ? (
-                    <>
-                      <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground mt-4 mb-2">
-                        Top products
-                      </p>
-                      <div className="flex gap-3 overflow-x-auto pb-1">
-                        {suggestions.products.slice(0, 8).map((p) => (
-                          <Link
-                            key={p.id}
-                            href={buildCategoryHref(p.category)}
-                            className="group shrink-0 w-[190px] rounded-lg border border-border bg-background hover:bg-accent transition"
-                            onClick={() => {
-                              closeSuggestions();
-                              closeSidebar();
-                            }}
-                          >
-                            <div className="flex items-center gap-3 px-2 py-2">
-                              <div className="h-12 w-12 rounded-md bg-muted/40 overflow-hidden">
-                                <img
-                                  src={p.image || '/placeholder.jpg'}
-                                  alt={p.name}
-                                  className="h-full w-full object-cover group-hover:scale-[1.03] transition"
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground line-clamp-1">{p.name}</p>
-                                <p className="text-[10px] text-muted-foreground line-clamp-1">{p.category}</p>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    </>
+                  {suggestions &&
+                  ((suggestions.categories?.length ?? 0) > 0 ||
+                    suggestions.products.length > 0 ||
+                    (suggestions.serviceCategories?.length ?? 0) > 0 ||
+                    (suggestions.services?.length ?? 0) > 0) ? (
+                    <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto overflow-x-hidden pb-1">
+                      {(suggestions.categories?.length ?? 0) > 0 ? (
+                        <div>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Browse categories
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {(suggestions.categories ?? []).map((c) => (
+                              <Link
+                                key={c.name}
+                                href={buildCategoryHref(c.name)}
+                                className="group w-full rounded-lg border border-primary/20 bg-primary/5 transition hover:border-primary/35 hover:bg-primary/10"
+                                onClick={() => {
+                                  closeSuggestions();
+                                  closeSidebar();
+                                }}
+                              >
+                                <div className="flex items-center gap-3 px-2 py-2">
+                                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
+                                    <img
+                                      src={c.image?.trim() ? c.image : '/placeholder.jpg'}
+                                      alt={c.headline}
+                                      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold leading-snug text-foreground line-clamp-2">
+                                      {c.headline}
+                                    </p>
+                                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                      View all in {c.name}
+                                    </p>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {suggestions.products.length > 0 ? (
+                        <div>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Top products
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {suggestions.products.map((p) => (
+                              <Link
+                                key={p.id}
+                                href={buildCategoryHref(p.category)}
+                                className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                onClick={() => {
+                                  closeSuggestions();
+                                  closeSidebar();
+                                }}
+                              >
+                                <div className="flex items-center gap-3 px-2 py-2">
+                                  <div className="h-12 w-12 overflow-hidden rounded-md bg-muted/40">
+                                    <img
+                                      src={p.image || '/placeholder.jpg'}
+                                      alt={p.name}
+                                      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="line-clamp-1 text-xs font-medium text-foreground">{p.name}</p>
+                                    <p className="line-clamp-1 text-[10px] text-muted-foreground">{p.category}</p>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {(suggestions.serviceCategories?.length ?? 0) > 0 ? (
+                        <div>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Browse service categories
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {(suggestions.serviceCategories ?? []).map((sc) => (
+                              <Link
+                                key={sc.categoryId}
+                                href={buildServiceCategoryHref(sc.categoryId)}
+                                className="group w-full rounded-lg border border-amber-500/25 bg-amber-500/5 transition hover:border-amber-500/40 hover:bg-amber-500/10"
+                                onClick={() => {
+                                  closeSuggestions();
+                                  closeSidebar();
+                                }}
+                              >
+                                <div className="flex items-center gap-3 px-2 py-2">
+                                  <div
+                                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background text-2xl leading-none ring-1 ring-border"
+                                    aria-hidden
+                                  >
+                                    {sc.emoji}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
+                                      {sc.headline}
+                                    </p>
+                                    <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                                      <span className="line-clamp-1">{sc.topServiceName}</span>
+                                      <span className="text-muted-foreground/80"> · Browse category</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {(suggestions.services?.length ?? 0) > 0 ? (
+                        <div>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Services
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {(suggestions.services ?? []).map((s) => (
+                              <Link
+                                key={s.id}
+                                href={buildServiceHref(s.categoryId, s.name)}
+                                className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
+                                onClick={() => {
+                                  closeSuggestions();
+                                  closeSidebar();
+                                }}
+                              >
+                                <div className="flex items-center gap-3 px-2 py-2">
+                                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                    <Wrench className="h-5 w-5" aria-hidden />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="line-clamp-2 text-xs font-medium text-foreground">{s.name}</p>
+                                    <p className="line-clamp-1 text-[10px] text-muted-foreground">{s.categoryTitle}</p>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               </div>

@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest) {
     if (!id || !status) {
       return NextResponse.json({ error: 'id and status are required' }, { status: 400 });
     }
-    if (!['pending', 'matched', 'in_progress', 'completed'].includes(status)) {
+    if (!['pending', 'matched', 'in_progress', 'completed', 'cancelled'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
     const updated = await updateBuyerServiceRequestStatus(id, status);

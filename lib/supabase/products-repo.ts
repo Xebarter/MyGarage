@@ -163,6 +163,24 @@ export async function getProductById(id: string): Promise<Product | undefined> {
   return rowToProduct(data as ProductRow);
 }
 
+export async function listProductsByCategories(categories: string[]): Promise<Product[]> {
+  if (categories.length === 0) return [];
+  await ensureSeedIfEmpty();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+    .in("category", categories)
+    .eq("published", true)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Supabase list products by categories failed: ${error.message}`);
+  }
+
+  return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];
+}
+
 export async function listProductsByVendor(vendorId: string): Promise<Product[]> {
   await ensureSeedIfEmpty();
   const supabase = createAdminClient();
