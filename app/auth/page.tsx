@@ -4,6 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 
+import {
+  AuthBrandBanner,
+  AuthPageBackground,
+  authCardClassName,
+  authFieldClassName,
+  authPrimaryButtonClassName,
+  authSecondaryButtonClassName,
+} from "@/components/auth-chrome";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 
@@ -36,19 +44,27 @@ function getRoleLabel(role: string) {
 
 function AuthSkeleton() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md space-y-5 p-6 md:p-8">
-        <div className="space-y-3">
-          <div className="mx-auto h-7 w-40 animate-pulse rounded-md bg-muted" />
-          <div className="mx-auto h-4 w-56 animate-pulse rounded-md bg-muted" />
-        </div>
-        <div className="space-y-3">
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+    <AuthPageBackground>
+      <Card className={authCardClassName}>
+        <div className="space-y-5 p-6 md:p-8">
+          <div className="border-b border-border/80 pb-6">
+            <div className="mx-auto flex w-fit items-center gap-3 px-2">
+              <div className="h-14 w-14 animate-pulse rounded-2xl bg-muted ring-1 ring-border/50" />
+              <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
+            </div>
+          </div>
+          <div className="space-y-3 text-center">
+            <div className="mx-auto h-7 w-40 animate-pulse rounded-md bg-muted" />
+            <div className="mx-auto h-4 w-56 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="space-y-3">
+            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+          </div>
         </div>
       </Card>
-    </div>
+    </AuthPageBackground>
   );
 }
 
@@ -525,18 +541,20 @@ function AuthForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md space-y-5 p-6 md:p-8">
+    <AuthPageBackground>
+      <Card className={authCardClassName}>
+        <div className="space-y-5 p-6 md:p-8">
+          <AuthBrandBanner />
         {conflictSession ? (
           <>
-            <div className="space-y-1 text-center">
-              <h1 className="text-2xl font-bold">Already Signed In</h1>
-              <p className="text-sm text-muted-foreground">
+            <div className="space-y-1.5 text-center">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Already Signed In</h1>
+              <p className="mx-auto max-w-sm text-pretty text-sm text-muted-foreground">
                 Sign out of your current account to access the {getRoleLabel(role)} portal.
               </p>
             </div>
 
-            <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm space-y-0.5">
+            <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm space-y-0.5 shadow-sm">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Currently signed in as
               </p>
@@ -551,7 +569,7 @@ function AuthForm() {
                 type="button"
                 onClick={handleSignOutAndContinue}
                 disabled={conflictLoading}
-                className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                className={authPrimaryButtonClassName}
               >
                 {conflictLoading
                   ? "Signing out…"
@@ -562,7 +580,7 @@ function AuthForm() {
                   type="button"
                   onClick={goToCurrentDashboard}
                   disabled={conflictLoading}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted disabled:opacity-60"
+                  className={authSecondaryButtonClassName}
                 >
                   Stay in {getRoleLabel(conflictSession.role)} dashboard
                 </button>
@@ -577,9 +595,9 @@ function AuthForm() {
           </>
         ) : buyerFlowStep === "phone" && role === "buyer" ? (
           <>
-            <div className="space-y-1 text-center">
-              <h1 className="text-2xl font-bold">Add your mobile number</h1>
-              <p className="text-sm text-muted-foreground">
+            <div className="space-y-1.5 text-center">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Add your mobile number</h1>
+              <p className="mx-auto max-w-sm text-pretty text-sm text-muted-foreground">
                 Service providers see this number when you request help, so they can call or message you.
               </p>
             </div>
@@ -590,19 +608,19 @@ function AuthForm() {
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="e.g. 07… or 256…"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                className={authFieldClassName}
               />
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => void completeBuyerPhoneGate()}
-                className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                className={authPrimaryButtonClassName}
               >
                 {loading ? "Saving…" : "Save and continue"}
               </button>
             </div>
             {error ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</p>
             ) : null}
             <div className="flex justify-center text-sm">
               <button
@@ -620,9 +638,9 @@ function AuthForm() {
           </>
         ) : (
           <>
-            <div className="space-y-1 text-center">
-              <h1 className="text-2xl font-bold">{title}</h1>
-              <p className="text-sm text-muted-foreground">
+            <div className="space-y-1.5 text-center">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+              <p className="mx-auto max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground">
                 {isAdminRole
                   ? "Admins can only sign in after role approval."
                   : role === "buyer"
@@ -640,7 +658,7 @@ function AuthForm() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Email address"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  className={authFieldClassName}
                 />
                 <input
                   required
@@ -650,12 +668,12 @@ function AuthForm() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Password"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  className={authFieldClassName}
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                  className={authPrimaryButtonClassName}
                 >
                   {loading ? "Please wait…" : "Continue"}
                 </button>
@@ -669,12 +687,12 @@ function AuthForm() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Email address"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  className={authFieldClassName}
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                  className={authPrimaryButtonClassName}
                 >
                   {loading ? "Sending…" : "Send reset link"}
                 </button>
@@ -682,18 +700,18 @@ function AuthForm() {
             )}
 
             {authError === "admin_required" ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
                 This account is not an admin. Ask the system owner to grant admin role.
               </p>
             ) : null}
             {error ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</p>
             ) : null}
             {success ? (
-              <p className="rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">{success}</p>
+              <p className="rounded-lg bg-primary/10 px-3 py-2.5 text-sm text-primary">{success}</p>
             ) : null}
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4 text-sm">
               <button
                 type="button"
                 onClick={() => {
@@ -701,18 +719,19 @@ function AuthForm() {
                   setSuccess(null);
                   setMode(mode === "signin" ? "forgot" : "signin");
                 }}
-                className="text-primary underline-offset-4 hover:underline"
+                className="font-medium text-primary underline-offset-4 hover:underline"
               >
                 {mode === "signin" ? "Forgot password?" : "Back to sign in"}
               </button>
-              <Link href="/" className="text-muted-foreground hover:text-foreground">
+              <Link href="/" className="text-muted-foreground transition hover:text-foreground">
                 Back to site
               </Link>
             </div>
           </>
         )}
+        </div>
       </Card>
-    </div>
+    </AuthPageBackground>
   );
 }
 
