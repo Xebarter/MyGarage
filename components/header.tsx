@@ -51,7 +51,8 @@ export function Header() {
   const pinnedRef = useRef(pinned)
   const hoverCloseTimerRef = useRef<number | null>(null)
   const profileCloseTimerRef = useRef<number | null>(null)
-  const profileMenuRef = useRef<HTMLDivElement | null>(null)
+  const mobileProfileMenuRef = useRef<HTMLDivElement | null>(null)
+  const desktopProfileMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     pinnedRef.current = pinned
@@ -289,8 +290,10 @@ export function Header() {
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
-      if (!profileMenuRef.current) return
-      if (!profileMenuRef.current.contains(e.target as Node)) {
+      const t = e.target as Node
+      const inMobile = mobileProfileMenuRef.current?.contains(t) ?? false
+      const inDesktop = desktopProfileMenuRef.current?.contains(t) ?? false
+      if (!inMobile && !inDesktop) {
         setProfileMenuOpen(false)
       }
     }
@@ -372,7 +375,7 @@ export function Header() {
                 ) : null}
               </Link>
               <div
-                ref={profileMenuRef}
+                ref={mobileProfileMenuRef}
                 className="relative"
                 onMouseEnter={handleProfileHoverOpen}
                 onMouseLeave={scheduleProfileHoverClose}
@@ -713,7 +716,7 @@ export function Header() {
               ) : null}
             </Link>
             <div
-              ref={profileMenuRef}
+              ref={desktopProfileMenuRef}
               className="relative ml-2"
               onMouseEnter={handleProfileHoverOpen}
               onMouseLeave={scheduleProfileHoverClose}
