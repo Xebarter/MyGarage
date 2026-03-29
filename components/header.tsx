@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Package, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
+import { ShoppingCart, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 
@@ -346,7 +347,14 @@ export function Header() {
               >
                 <Menu className="w-5 h-5" />
               </button>
-              <Link href="/" className="flex items-center">
+              <Link href="/" className="flex items-center gap-2">
+                <Image
+                  src="/icon0.svg"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 shrink-0 object-contain"
+                />
                 <span className="text-lg font-bold text-foreground">MyGarage</span>
               </Link>
             </div>
@@ -465,7 +473,13 @@ export function Header() {
               </button>
 
               <Link href="/" className="flex items-center gap-2">
-                <Package className="w-8 h-8 text-primary" />
+                <Image
+                  src="/icon0.svg"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 shrink-0 object-contain"
+                />
                 <span className="text-2xl font-bold text-foreground">MyGarage</span>
               </Link>
             </div>
