@@ -55,6 +55,69 @@ function rowToRecommendedProduct(row: RecommendedProductRow): RecommendedProduct
   };
 }
 
+function mapRecommendedRows(rows: RecommendedProductRow[]): RecommendedProduct[] {
+  const out: RecommendedProduct[] = [];
+  for (const row of rows) {
+    try {
+      out.push(rowToRecommendedProduct(row));
+    } catch {
+      // RPC / snapshot shape drift; skip bad rows instead of failing the whole feed.
+    }
+  }
+  return out;
+}
+
+async function listPublishedProductsFeed(
+  limit: number,
+  scoreBreakdown: Record<string, unknown>,
+): Promise<RecommendedProduct[]> {
+  const fallback = await listProducts();
+  return fallback
+    .filter((product) => product.published)
+    .sort((a, b) => Number(b.featured) - Number(a.featured) || b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limit)
+    .map((product, index) => ({
+      ...product,
+      feedRank: index + 1,
+      feedScore: product.featured ? 3 : 0,
+      scoreBreakdown,
+    }));
+}
+
+async function listCreativeAnonymousFeed(limit: number): Promise<RecommendedProduct[]> {
+  const fallback = await listProducts();
+  const published = fallback.filter((product) => product.published);
+  const featured = published.filter((p) => p.featured);
+  const rest = published.filter((p) => !p.featured);
+
+  const shuffle = <T,>(arr: T[]) => {
+    const out = [...arr];
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+
+  const shuffledFeatured = shuffle(featured);
+  const shuffledRest = shuffle(rest);
+
+  const featuredTarget = Math.min(shuffledFeatured.length, Math.ceil(limit * 0.6));
+  const featuredPicked = shuffledFeatured.slice(0, featuredTarget);
+  const remaining = Math.max(0, limit - featuredPicked.length);
+  const restPicked = shuffledRest.slice(0, remaining);
+  const combined = [...featuredPicked, ...restPicked];
+
+  combined.sort((a, b) => Number(b.featured) - Number(a.featured) || Math.random() - 0.5);
+
+  return combined.slice(0, limit).map((product, index) => ({
+    ...product,
+    feedRank: index + 1,
+    feedScore: product.featured ? 3 : 0,
+    scoreBreakdown: { fallback: true, creative: true },
+  }));
+}
+
 export async function listRecommendedHomeFeed(
   customerId?: string,
   limit = 80,
@@ -62,79 +125,60 @@ export async function listRecommendedHomeFeed(
 ): Promise<RecommendedProduct[]> {
   const forceRefresh = options?.forceRefresh ?? false;
   if (!customerId?.trim()) {
-    const fallback = await listProducts();
-    const published = fallback.filter((product) => product.published);
-    const featured = published.filter((p) => p.featured);
-    const rest = published.filter((p) => !p.featured);
-
-    // Creative variety: shuffle within buckets on each load.
-    const shuffle = <T,>(arr: T[]) => {
-      const out = [...arr];
-      for (let i = out.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
+    try {
+      return await listCreativeAnonymousFeed(limit);
+    } catch (error) {
+      console.error("listRecommendedHomeFeed anonymous feed:", error);
+      try {
+        return await listPublishedProductsFeed(limit, { fallback: true, reason: "anonymous_exception" });
+      } catch (inner) {
+        console.error("listRecommendedHomeFeed anonymous product fallback:", inner);
+        return [];
       }
-      return out;
-    };
-
-    const shuffledFeatured = shuffle(featured);
-    const shuffledRest = shuffle(rest);
-
-    // Ensure Featured products show up more often.
-    const featuredTarget = Math.min(shuffledFeatured.length, Math.ceil(limit * 0.6));
-    const featuredPicked = shuffledFeatured.slice(0, featuredTarget);
-    const remaining = Math.max(0, limit - featuredPicked.length);
-    const restPicked = shuffledRest.slice(0, remaining);
-    const combined = [...featuredPicked, ...restPicked];
-
-    // Randomize ordering slightly, but keep featured bias at the top.
-    combined.sort((a, b) => Number(b.featured) - Number(a.featured) || Math.random() - 0.5);
-
-    return combined.slice(0, limit).map((product, index) => ({
-      ...product,
-      feedRank: index + 1,
-      feedScore: product.featured ? 3 : 0,
-      scoreBreakdown: { fallback: true, creative: true },
-    }));
-  }
-
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc("get_customer_home_feed", {
-    p_customer_id: customerId,
-    p_limit: limit,
-    p_force_refresh: forceRefresh,
-  });
-
-  if (error) {
-    const fallback = await listProducts();
-    return fallback
-      .filter((product) => product.published)
-      .sort((a, b) => Number(b.featured) - Number(a.featured) || b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, limit)
-      .map((product, index) => ({
-        ...product,
-        feedRank: index + 1,
-        feedScore: product.featured ? 3 : 0,
-        scoreBreakdown: { fallback: true, reason: "rpc_error" },
-      }));
-  }
-
-  const rows = (data as RecommendedProductRow[] | null) ?? [];
-
-  // If snapshots were generated by an older scoring rule (e.g. stock-gated),
-  // force a refresh and read again so homepage reflects current recommendation logic.
-  if (!forceRefresh && rows.length > 0 && rows.length < Math.min(limit, 20)) {
-    const refreshed = await supabase.rpc("get_customer_home_feed", {
-      p_customer_id: customerId,
-      p_limit: limit,
-      p_force_refresh: true,
-    });
-    if (!refreshed.error) {
-      return ((refreshed.data as RecommendedProductRow[] | null) ?? []).map(rowToRecommendedProduct);
     }
   }
 
-  return rows.map(rowToRecommendedProduct);
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.rpc("get_customer_home_feed", {
+      p_customer_id: customerId,
+      p_limit: limit,
+      p_force_refresh: forceRefresh,
+    });
+
+    if (error) {
+      console.error("get_customer_home_feed RPC:", error.message);
+      return listPublishedProductsFeed(limit, { fallback: true, reason: "rpc_error" });
+    }
+
+    const rows = (data as RecommendedProductRow[] | null) ?? [];
+
+    if (!forceRefresh && rows.length > 0 && rows.length < Math.min(limit, 20)) {
+      const refreshed = await supabase.rpc("get_customer_home_feed", {
+        p_customer_id: customerId,
+        p_limit: limit,
+        p_force_refresh: true,
+      });
+      if (!refreshed.error) {
+        const refreshedRows = (refreshed.data as RecommendedProductRow[] | null) ?? [];
+        const mappedRefresh = mapRecommendedRows(refreshedRows);
+        if (mappedRefresh.length > 0) return mappedRefresh;
+      }
+    }
+
+    const mapped = mapRecommendedRows(rows);
+    if (mapped.length > 0) return mapped;
+
+    return listPublishedProductsFeed(limit, { fallback: true, reason: "empty_or_unmapped_rows" });
+  } catch (error) {
+    console.error("listRecommendedHomeFeed personalized path:", error);
+    try {
+      return await listPublishedProductsFeed(limit, { fallback: true, reason: "exception" });
+    } catch (inner) {
+      console.error("listRecommendedHomeFeed product fallback:", inner);
+      return [];
+    }
+  }
 }
 
 export async function refreshAllCustomerHomeFeeds(limit = 120): Promise<void> {

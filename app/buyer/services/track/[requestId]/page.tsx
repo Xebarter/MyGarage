@@ -33,20 +33,21 @@ type Assignment = {
   response_note: string | null;
 };
 
+/** Matches JSON from GET /api/buyer/service-requests/[id] (camelCase; dates are ISO strings). */
 type RequestDetail = {
   id: string;
-  customer_id: string;
+  customerId: string;
   category: string;
   service: string;
   location: string;
   status: string;
-  provider_id: string | null;
-  accepted_at: string | null;
-  arrived_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
+  providerId: string | null;
+  acceptedAt: string | null;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 function formatStatusLabel(status: string) {
@@ -62,7 +63,8 @@ function statusBadgeProps(status: string): { variant: 'default' | 'secondary' | 
   return { variant: 'outline' };
 }
 
-function formatRelativeTime(iso: string) {
+function formatRelativeTime(iso: string | undefined) {
+  if (!iso) return '';
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return '';
   const diff = Date.now() - t;
@@ -77,15 +79,14 @@ function formatRelativeTime(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function formatDateTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-  } catch {
-    return iso;
-  }
+function formatDateTime(iso: string | undefined) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 export default function ServiceTrackPage() {
@@ -168,10 +169,10 @@ export default function ServiceTrackPage() {
         },
       ];
     }
-    const matched = Boolean(r.accepted_at || r.provider_id);
-    const arrived = Boolean(r.arrived_at);
-    const started = Boolean(r.started_at);
-    const completed = Boolean(r.completed_at) || r.status === 'completed';
+    const matched = Boolean(r.acceptedAt || r.providerId);
+    const arrived = Boolean(r.arrivedAt);
+    const started = Boolean(r.startedAt);
+    const completed = Boolean(r.completedAt) || r.status === 'completed';
     return [
       {
         key: 'search',
@@ -345,8 +346,8 @@ export default function ServiceTrackPage() {
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Requested</p>
-                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.created_at)}</p>
-                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.created_at)}</p>
+                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.createdAt)}</p>
                     </div>
                   </div>
                   <div className="flex gap-3 rounded-xl border border-border/50 bg-background/60 px-3 py-3">
@@ -355,8 +356,8 @@ export default function ServiceTrackPage() {
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last updated</p>
-                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.updated_at)}</p>
-                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.updated_at)}</p>
+                      <p className="text-sm font-medium text-foreground">{formatDateTime(data.request.updatedAt)}</p>
+                      <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.updatedAt)}</p>
                     </div>
                   </div>
                 </div>

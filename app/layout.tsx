@@ -7,22 +7,23 @@ export const metadata: Metadata = {
   title: 'MyGarage - Premium Car Parts & Accessories',
   description: 'Shop high-quality car parts and accessories for all vehicles',
   generator: 'v0.app',
+  other: {
+    'apple-mobile-web-app-title': 'MyGarage',
+  },
   icons: {
     icon: [
+      { url: '/icon0.svg', type: 'image/svg+xml' },
+      { url: '/web-app-manifest-192x192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/web-app-manifest-512x512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: ['/icon0.svg'],
+    apple: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/web-app-manifest-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
       },
     ],
-    apple: '/apple-icon.png',
   },
 }
 

@@ -13,13 +13,19 @@ export async function GET(req: NextRequest) {
 
     let resolvedCustomerId = customerIdParam;
     if (!resolvedCustomerId && customerEmail) {
-      const customer = await getCustomerByEmail(customerEmail);
-      resolvedCustomerId = customer?.id ?? "";
+      try {
+        const customer = await getCustomerByEmail(customerEmail);
+        resolvedCustomerId = customer?.id ?? "";
+      } catch (lookupError) {
+        console.error("GET /api/feed customer lookup:", lookupError);
+        resolvedCustomerId = "";
+      }
     }
 
     const feed = await getHomeFeed(resolvedCustomerId || undefined, limit, { forceRefresh });
     return NextResponse.json(feed);
   } catch (error) {
+    console.error("GET /api/feed:", error);
     return NextResponse.json({ error: "Failed to fetch home feed" }, { status: 500 });
   }
 }

@@ -57,6 +57,15 @@ export async function processStaleOffers(): Promise<void> {
   }
 }
 
+/** Same as processStaleOffers but never throws — use on read endpoints so dispatch maintenance cannot mask primary data. */
+export async function processStaleOffersBestEffort(): Promise<void> {
+  try {
+    await processStaleOffers();
+  } catch (error) {
+    console.error("processStaleOffers failed:", error);
+  }
+}
+
 async function getExcludedProviderIds(requestId: string): Promise<Set<string>> {
   const assignments = await listAssignmentsForRequest(requestId);
   const excluded = new Set<string>();
