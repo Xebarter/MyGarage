@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { customerId, category, service, location } = body;
+    const destinationLat = body.destinationLat != null ? Number(body.destinationLat) : null;
+    const destinationLng = body.destinationLng != null ? Number(body.destinationLng) : null;
     if (!customerId || !category || !service || !location) {
       return NextResponse.json({ error: 'customerId, category, service and location are required' }, { status: 400 });
     }
@@ -48,6 +50,12 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       buyerContactPhone: customer.phone.trim(),
       buyerContactName: (customer.name || '').trim() || 'Buyer',
+      ...(destinationLat != null &&
+      destinationLng != null &&
+      Number.isFinite(destinationLat) &&
+      Number.isFinite(destinationLng)
+        ? { destinationLat, destinationLng }
+        : {}),
     });
     try {
       await startDispatchForNewRequest(created.id);

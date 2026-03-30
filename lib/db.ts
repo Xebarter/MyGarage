@@ -515,6 +515,15 @@ export const createBuyerServiceRequest = async (payload: buyerServicesRepo.Buyer
 export const updateBuyerServiceRequestStatus = async (id: string, status: buyerServicesRepo.BuyerServiceRequest["status"]) => {
   return buyerServicesRepo.updateBuyerServiceRequestStatusById(id, status);
 };
+export const getBuyerServiceRequestById = async (id: string) => buyerServicesRepo.getBuyerServiceRequestById(id);
+export const updateBuyerServiceRequestProviderLocation = async (id: string, lat: number, lng: number) =>
+  buyerServicesRepo.updateBuyerServiceRequestProviderLocation(id, lat, lng);
+export const updateBuyerServiceRequestDestinationCoords = async (id: string, lat: number, lng: number) =>
+  buyerServicesRepo.updateBuyerServiceRequestDestinationCoords(id, lat, lng);
+export const vendorAcceptServiceRequest = async (id: string, providerId: string) =>
+  buyerServicesRepo.vendorAcceptServiceRequest(id, providerId);
+export const assignProviderToUnassignedServiceRequest = async (id: string, providerId: string) =>
+  buyerServicesRepo.assignProviderToUnassignedServiceRequest(id, providerId);
 export const getBuyerProviderRatings = async (customerId: string) => buyerServicesRepo.listBuyerProviderRatings(customerId);
 export const upsertBuyerProviderRating = async (payload: buyerServicesRepo.BuyerProviderRatingUpsert) => {
   return buyerServicesRepo.upsertBuyerProviderRating(payload);

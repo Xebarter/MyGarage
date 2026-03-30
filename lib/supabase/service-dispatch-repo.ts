@@ -151,9 +151,29 @@ export async function getActiveFulfillmentRequestForVendor(vendorId: string): Pr
   return (data as BuyerServiceRequestFullRow) ?? null;
 }
 
+/** Provider ids that already have a matched or in_progress job (cannot take another until completed or buyer cancels). */
+export async function listProviderIdsWithActiveFulfillment(): Promise<Set<string>> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_service_requests")
+    .select("provider_id")
+    .in("status", ["matched", "in_progress"])
+    .not("provider_id", "is", null);
+  if (error) throw new Error(error.message);
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    const pid = row.provider_id as string | null;
+    if (pid) ids.add(pid);
+  }
+  return ids;
+}
+
 export async function getPendingAssignmentForVendor(vendorId: string): Promise<
   (ServiceRequestAssignmentRow & { request: BuyerServiceRequestFullRow }) | null
 > {
+  const active = await getActiveFulfillmentRequestForVendor(vendorId);
+  if (active) return null;
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("service_request_assignments")

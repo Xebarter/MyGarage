@@ -1,6 +1,11 @@
+import { assignProviderToUnassignedServiceRequest } from '@/lib/db';
 import { advanceRequestStage } from '@/lib/service-dispatch';
 import { getBuyerServiceRequestFullRow } from '@/lib/supabase/service-dispatch-repo';
 import { NextRequest, NextResponse } from 'next/server';
+
+function sameVendor(stored: string | null | undefined, vid: string) {
+  return (stored ?? '').trim() === vid.trim();
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,9 +16,24 @@ export async function POST(req: NextRequest) {
     if (!requestId || !vendorId || !['arrived', 'started', 'completed'].includes(stage ?? '')) {
       return NextResponse.json({ error: 'requestId, vendorId, and stage (arrived|started|completed) are required' }, { status: 400 });
     }
-    const row = await getBuyerServiceRequestFullRow(requestId);
-    if (!row || row.provider_id !== vendorId) {
+    let row = await getBuyerServiceRequestFullRow(requestId);
+    if (!row) {
       return NextResponse.json({ error: 'Request not found or not assigned to this provider' }, { status: 403 });
+    }
+    if (!sameVendor(row.provider_id, vendorId)) {
+      const unassigned = row.provider_id == null || String(row.provider_id).trim() === '';
+      if (unassigned) {
+        const assigned = await assignProviderToUnassignedServiceRequest(requestId, vendorId);
+        if (!assigned) {
+          return NextResponse.json(
+            { error: 'Cannot update this job (not assigned to you or you already have another active job).' },
+            { status: 403 },
+          );
+        }
+        row = (await getBuyerServiceRequestFullRow(requestId))!;
+      } else {
+        return NextResponse.json({ error: 'Request not found or not assigned to this provider' }, { status: 403 });
+      }
     }
     if (row.status === 'cancelled' || row.status === 'completed' || row.status === 'pending') {
       return NextResponse.json({ error: 'Invalid request state for this action' }, { status: 400 });

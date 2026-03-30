@@ -28,7 +28,7 @@ interface ConflictSession {
 
 function getDefaultNext(role: string) {
   if (role === "vendor") return "/vendor";
-  if (role === "services") return "/services";
+  if (role === "services") return "/services/orders";
   if (role === "admin") return "/admin";
   if (role === "buyer") return "/buyer";
   return "/";
@@ -255,6 +255,13 @@ function AuthForm() {
 
     if (role === "services") {
       localStorage.setItem("currentServiceProviderName", roleName);
+      localStorage.setItem("currentVendorId", user.id);
+      localStorage.setItem("currentVendorName", roleName);
+      try {
+        await fetch("/api/vendor/bootstrap", { method: "POST" });
+      } catch {
+        // best-effort — ensures vendors row exists for dispatch / orders
+      }
       return;
     }
 

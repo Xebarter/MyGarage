@@ -125,6 +125,7 @@ export default function ServiceProviderDashboardPage() {
     completed_at: string | null;
   } | null>(null);
   const [dispatchBusy, setDispatchBusy] = useState(false);
+  const [dispatchActionError, setDispatchActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const name = localStorage.getItem('currentServiceProviderName') || 'Service Provider';
@@ -194,14 +195,26 @@ export default function ServiceProviderDashboardPage() {
   const respondToLiveOffer = async (assignmentId: string, action: 'accept' | 'decline') => {
     const id = vendorId || (typeof window !== 'undefined' ? localStorage.getItem('currentVendorId') || '' : '');
     if (!id || dispatchBusy) return;
+    const tripRequestId = action === 'accept' ? liveOffer?.assignment.requestId : null;
     setDispatchBusy(true);
+    setDispatchActionError(null);
     try {
-      await fetch('/api/services/dispatch/respond', {
+      const res = await fetch('/api/services/dispatch/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignmentId, vendorId: id, action }),
       });
+      let acceptErr: string | null = null;
+      if (!res.ok && action === 'accept') {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        acceptErr = body.error || 'Could not accept this offer.';
+      }
       await refreshDispatch();
+      if (acceptErr) {
+        setDispatchActionError(acceptErr);
+      } else if (res.ok && action === 'accept' && tripRequestId) {
+        router.push(`/services/orders/trip/${encodeURIComponent(tripRequestId)}`);
+      }
     } finally {
       setDispatchBusy(false);
     }
@@ -419,6 +432,11 @@ export default function ServiceProviderDashboardPage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Offer sent {new Date(liveOffer.assignment.assignedAt).toLocaleString()} — please respond promptly.
                 </p>
+                {dispatchActionError ? (
+                  <p className="mt-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {dispatchActionError}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -451,6 +469,14 @@ export default function ServiceProviderDashboardPage() {
                 </p>
                 <p className="mt-2 text-xs uppercase tracking-wide text-primary">Status: {liveJob.status.replace(/_/g, ' ')}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={dispatchBusy}
+                    onClick={() => router.push(`/services/orders/trip/${encodeURIComponent(liveJob.id)}`)}
+                    className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-50"
+                  >
+                    Map &amp; call buyer
+                  </button>
                   <button
                     type="button"
                     disabled={dispatchBusy || Boolean(liveJob.arrived_at)}

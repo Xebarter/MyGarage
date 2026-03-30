@@ -17,7 +17,12 @@ export function ServiceProviderSidebar() {
 
     let mounted = true;
     supabase.auth.getUser().then(({ data }) => {
-      if (!mounted || !data.user?.email) return;
+      if (!mounted || !data.user) return;
+      const uid = data.user.id?.trim();
+      if (uid && !localStorage.getItem('currentVendorId')) {
+        localStorage.setItem('currentVendorId', uid);
+      }
+      if (!data.user.email) return;
       if (!localStorage.getItem('currentServiceProviderName')) {
         setProviderName(`${data.user.email.split('@')[0]} (service provider)`);
       }
@@ -30,8 +35,10 @@ export function ServiceProviderSidebar() {
   const handleLogout = async () => {
     localStorage.removeItem('currentServiceProviderName');
     localStorage.removeItem('currentServiceProviderServices');
+    localStorage.removeItem('currentVendorId');
+    localStorage.removeItem('currentVendorName');
     await supabase.auth.signOut();
-    window.location.href = '/auth?role=services&next=/services';
+    window.location.href = '/auth?role=services&next=/services/orders';
   };
 
 
@@ -40,12 +47,12 @@ export function ServiceProviderSidebar() {
   }, [pathname]);
 
   const navItems = [
-    { href: '/services', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/services/myservices', label: 'My Services', icon: BriefcaseBusiness },
-    { href: '/services/promotions', label: 'Promotions', icon: Megaphone },
     { href: '/services/orders', label: 'Orders', icon: ShoppingCart },
-    { href: '/services/funds', label: 'Funds', icon: Wallet },
+    { href: '/services/myservices', label: 'My Services', icon: BriefcaseBusiness },
     { href: '/services/customers', label: 'Customers', icon: Users },
+    { href: '/services/funds', label: 'Funds', icon: Wallet },
+    { href: '/services/promotions', label: 'Promotions', icon: Megaphone },
+    { href: '/services', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/services/profile', label: 'Profile', icon: Settings },
   ];
 

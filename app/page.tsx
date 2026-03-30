@@ -10,7 +10,17 @@ import type { Product } from '@/lib/db';
 import { formatProductPriceLabel } from '@/lib/product-variants';
 import { serviceIntentKeywordsByCategoryId, userServiceCategories } from '@/lib/services-catalog';
 import type { UserServiceCategory } from '@/lib/services-catalog';
-import { Wrench, Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Wrench, Sparkles, ShieldCheck, ArrowRight, LayoutGrid, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 
 type HomeCollection = {
   id: string;
@@ -103,6 +113,20 @@ function rankUserServiceCategoriesByFeed(products: Product[]): UserServiceCatego
     .map((row) => row.cat);
 }
 
+/** Product categories sorted by frequency, then name — always capped for UI sanity. */
+function topCategoriesByFrequency(feedProducts: Product[], limit: number): string[] {
+  const counts = new Map<string, number>();
+  feedProducts.forEach((p) => {
+    const c = p.category?.trim();
+    if (!c) return;
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([c]) => c);
+}
+
 function getRecommendedCategories(feedProducts: Product[]): string[] {
   if (feedProducts.length === 0) return ["all"];
 
@@ -128,11 +152,17 @@ function getRecommendedCategories(feedProducts: Product[]): string[] {
     .map(([category]) => category);
 
   if (suggested.length === 0) {
-    const fallback = Array.from(new Set(feedProducts.map((p) => p.category).filter(Boolean)));
+    // Never return an unbounded list — huge catalogs used to wrap across the entire viewport.
+    const fallback = topCategoriesByFrequency(feedProducts, 12);
     return ["all", ...fallback];
   }
 
   return ["all", ...suggested];
+}
+
+function formatCategoryLabel(category: string): string {
+  if (category === 'all') return 'All';
+  return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
 function HomePageInner() {
@@ -150,6 +180,8 @@ function HomePageInner() {
   const [promoBanners, setPromoBanners] = useState<Array<{ id: string; product: Product; bannerUrl: string }>>([]);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const categoryRailRef = useRef<HTMLDivElement | null>(null);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -379,6 +411,30 @@ function HomePageInner() {
     return [...products].sort((a, b) => a.price - b.price).slice(0, 8);
   }, [products]);
 
+  /** Full list for searchable picker — alphabetical, deduped. */
+  const categoryCatalog = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      const c = p.category?.trim();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  /** Quick rail: recommended chips plus deep-linked category if missing. */
+  const chipCategories = useMemo(() => {
+    const raw = categories.length ? categories : ['all'];
+    const withoutAll = raw.filter((c) => c !== 'all');
+    const ordered = ['all', ...withoutAll];
+    if (selectedCategory !== 'all' && !ordered.includes(selectedCategory)) {
+      return ['all', selectedCategory, ...withoutAll.filter((c) => c !== selectedCategory)];
+    }
+    return ordered;
+  }, [categories, selectedCategory]);
+
+  const chipsProductCount = chipCategories.filter((c) => c !== 'all').length;
+  const showCategoryBrowser = categoryCatalog.length > chipsProductCount;
+
   function scrollRow(rowKey: string, direction: 'left' | 'right') {
     const row = rowRefs.current[rowKey];
     if (!row) return;
@@ -497,24 +553,127 @@ function HomePageInner() {
           </div>
         </section>
 
-        {/* Search and Filter Section */}
-        <section className="bg-card py-8 border-b border-border">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-2 rounded-lg transition font-medium ${
-                    selectedCategory === category
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background border border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  }`}
-                >
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </button>
-              ))}
+        {/* Search and Filter Section — compact rail + searchable overflow */}
+        <section className="border-b border-border bg-card py-4 md:py-5">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex shrink-0 items-center gap-2">
+                <p className="text-sm font-semibold tracking-tight text-foreground">Shop by category</p>
+                {categoryCatalog.length > 0 ? (
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {categoryCatalog.length} in catalog
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <div
+                    className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-6 bg-gradient-to-r from-card to-transparent sm:w-8"
+                    aria-hidden
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-6 bg-gradient-to-l from-card to-transparent sm:w-8"
+                    aria-hidden
+                  />
+                  <div
+                    ref={categoryRailRef}
+                    role="tablist"
+                    aria-label="Product categories"
+                    className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {chipCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        role="tab"
+                        aria-selected={selectedCategory === category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                          selectedCategory === category
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-accent-foreground'
+                        }`}
+                      >
+                        {formatCategoryLabel(category)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {showCategoryBrowser ? (
+                  <Popover open={categoryMenuOpen} onOpenChange={setCategoryMenuOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 shrink-0 gap-1.5 rounded-full border-dashed px-3 text-xs font-semibold sm:text-sm"
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                        <span className="hidden sm:inline">All categories</span>
+                        <span className="sm:hidden">More</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="w-[min(calc(100vw-2rem),22rem)] p-0"
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <Command className="rounded-lg border-0 shadow-none">
+                        <CommandInput placeholder="Search categories…" className="h-10" />
+                        <CommandList className="max-h-[min(50vh,280px)]">
+                          <CommandEmpty>No matching category.</CommandEmpty>
+                          <CommandGroup heading="Quick">
+                            <CommandItem
+                              value="all everything browse"
+                              onSelect={() => {
+                                setSelectedCategory('all');
+                                setCategoryMenuOpen(false);
+                                categoryRailRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+                              }}
+                            >
+                              All products
+                            </CommandItem>
+                          </CommandGroup>
+                          <CommandGroup heading={`All categories (${categoryCatalog.length})`}>
+                            {categoryCatalog.map((category) => (
+                              <CommandItem
+                                key={category}
+                                value={`${category} ${category.toLowerCase()}`}
+                                onSelect={() => {
+                                  setSelectedCategory(category);
+                                  setCategoryMenuOpen(false);
+                                }}
+                              >
+                                {formatCategoryLabel(category)}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                ) : null}
+              </div>
             </div>
+
+            {selectedCategory !== 'all' ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                <span>Filtered to</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">
+                  {formatCategoryLabel(selectedCategory)}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory('all')}
+                    className="rounded-full p-0.5 hover:bg-primary/20"
+                    aria-label="Clear category filter"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
 

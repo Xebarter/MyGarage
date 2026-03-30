@@ -407,7 +407,7 @@ export function Header() {
                           Login as Vendor
                         </Link>
                         <Link
-                          href="/auth?role=services&next=/services"
+                          href="/auth?role=services&next=/services/orders"
                           className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
                         >
                           Login as Service Provider
@@ -436,7 +436,7 @@ export function Header() {
                           Join as Vendor
                         </Link>
                         <Link
-                          href="/auth?role=services&next=/services"
+                          href="/auth?role=services&next=/services/orders"
                           className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
                         >
                           Join as Service Provider
@@ -748,7 +748,7 @@ export function Header() {
                         Login as Vendor
                       </Link>
                       <Link
-                        href="/auth?role=services&next=/services"
+                        href="/auth?role=services&next=/services/orders"
                         className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
                       >
                         Login as Service Provider
@@ -777,7 +777,7 @@ export function Header() {
                         Join as Vendor
                       </Link>
                       <Link
-                        href="/auth?role=services&next=/services"
+                        href="/auth?role=services&next=/services/orders"
                         className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
                       >
                         Join as Service Provider

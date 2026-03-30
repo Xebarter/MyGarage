@@ -1,4 +1,4 @@
-import { getBuyerServiceRequestForCustomer } from '@/lib/db';
+import { getBuyerServiceRequestForCustomer, getVendor } from '@/lib/db';
 import { listAssignmentsForRequest } from '@/lib/supabase/service-dispatch-repo';
 import { processStaleOffersBestEffort } from '@/lib/service-dispatch';
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,7 +20,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     const assignments = await listAssignmentsForRequest(id);
-    return NextResponse.json({ request, assignments });
+    const provider =
+      request.providerId != null && request.providerId !== ''
+        ? await getVendor(request.providerId)
+        : undefined;
+    return NextResponse.json({
+      request,
+      assignments,
+      providerContact:
+        provider != null
+          ? { id: provider.id, name: provider.name, phone: provider.phone ?? '' }
+          : null,
+    });
   } catch (error) {
     console.error('GET buyer service request detail:', error);
     return NextResponse.json({ error: 'Failed to load request' }, { status: 500 });

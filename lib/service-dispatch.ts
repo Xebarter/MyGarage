@@ -1,9 +1,11 @@
 import {
   expireStalePendingAssignments,
+  getActiveFulfillmentRequestForVendor,
   getAssignmentById,
   getBuyerServiceRequestFullRow,
   insertPendingAssignment,
   listAssignmentsForRequest,
+  listProviderIdsWithActiveFulfillment,
   listVendorsForDispatch,
   updateAssignmentResponse,
   updateBuyerRequestDispatchFields,
@@ -85,10 +87,11 @@ export async function offerNextProviderIfNeeded(requestId: string): Promise<void
   if (hasPending) return;
 
   const excluded = await getExcludedProviderIds(requestId);
+  const busyProviders = await listProviderIdsWithActiveFulfillment();
   const vendors = await listVendorsForDispatch();
   const ranked = rankProviderIdsForRequest(request.category, request.service, vendors);
 
-  const nextId = ranked.find((id) => !excluded.has(id));
+  const nextId = ranked.find((id) => !excluded.has(id) && !busyProviders.has(id));
   if (!nextId) {
     await updateBuyerRequestDispatchFields(requestId, { status: "cancelled" });
     return;
@@ -132,6 +135,14 @@ export async function respondToDispatchOffer(
     await updateAssignmentResponse(assignmentId, "declined");
     await offerNextProviderIfNeeded(request.id);
     return { ok: true };
+  }
+
+  const alreadyBusy = await getActiveFulfillmentRequestForVendor(vendorId);
+  if (alreadyBusy != null) {
+    return {
+      ok: false,
+      error: "Finish your current job (or wait for the buyer to cancel) before accepting another.",
+    };
   }
 
   await updateAssignmentResponse(assignmentId, "accepted");

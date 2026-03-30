@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -18,10 +18,17 @@ import {
   Clock3,
   Loader2,
   MapPin,
+  Phone,
   Radio,
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
+import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
+import { createClient } from '@/lib/supabase/client';
+import {
+  mergeRealtimeRowIntoRequestDetail,
+  subscribeToBuyerServiceRequest,
+} from '@/lib/supabase/buyer-service-request-realtime';
 
 type Assignment = {
   id: string;
@@ -48,7 +55,15 @@ type RequestDetail = {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  buyerContactPhone?: string;
+  buyerContactName?: string;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
+  providerLat?: number | null;
+  providerLng?: number | null;
 };
+
+type ProviderContact = { id: string; name: string; phone: string };
 
 function formatStatusLabel(status: string) {
   return status.replace(/_/g, ' ');
@@ -94,7 +109,12 @@ export default function ServiceTrackPage() {
   const router = useRouter();
   const requestId = (params.requestId as string) || '';
   const [customerId, setCustomerId] = useState('');
-  const [data, setData] = useState<{ request: RequestDetail; assignments: Assignment[] } | null>(null);
+  const [data, setData] = useState<{
+    request: RequestDetail;
+    assignments: Assignment[];
+    providerContact: ProviderContact | null;
+  } | null>(null);
+  const [geocodedDest, setGeocodedDest] = useState<TripMapPoint | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -118,8 +138,16 @@ export default function ServiceTrackPage() {
         setData(null);
         return;
       }
-      const json = (await res.json()) as { request: RequestDetail; assignments: Assignment[] };
-      setData(json);
+      const json = (await res.json()) as {
+        request: RequestDetail;
+        assignments: Assignment[];
+        providerContact?: ProviderContact | null;
+      };
+      setData({
+        request: json.request,
+        assignments: json.assignments ?? [],
+        providerContact: json.providerContact ?? null,
+      });
       setError(null);
     } catch {
       setError('Could not load this request.');
@@ -134,11 +162,77 @@ export default function ServiceTrackPage() {
     void load();
   }, [load]);
 
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
-    if (!customerId || !requestId) return;
-    const t = setInterval(() => void load(), 4000);
-    return () => clearInterval(t);
-  }, [customerId, requestId, load]);
+    if (!requestId.trim() || !customerId.trim() || !data?.request) return;
+    const supabase = createClient();
+    return subscribeToBuyerServiceRequest(supabase, requestId, (row) => {
+      setData((d) => {
+        if (!d) return d;
+        const prevPid = d.request.providerId;
+        const nextRequest = mergeRealtimeRowIntoRequestDetail(d.request, row);
+        if (nextRequest.providerId !== prevPid && nextRequest.providerId) {
+          queueMicrotask(() => void loadRef.current());
+        }
+        return { ...d, request: nextRequest };
+      });
+    });
+  }, [requestId, customerId, data?.request?.id]);
+
+  const buyerGeocodeTried = useRef(false);
+  useEffect(() => {
+    buyerGeocodeTried.current = false;
+    setGeocodedDest(null);
+  }, [requestId]);
+
+  useEffect(() => {
+    const r = data?.request;
+    if (!r || (r.status !== 'matched' && r.status !== 'in_progress')) return;
+    const hasStored =
+      r.destinationLat != null &&
+      r.destinationLng != null &&
+      Number.isFinite(Number(r.destinationLat)) &&
+      Number.isFinite(Number(r.destinationLng));
+    if (hasStored || buyerGeocodeTried.current) return;
+    const q = r.location?.trim();
+    if (!q || q.length < 3) return;
+    buyerGeocodeTried.current = true;
+    void fetch(`/api/geocode?q=${encodeURIComponent(q)}`)
+      .then((res) => res.json())
+      .then((j: { lat?: number | null; lng?: number | null }) => {
+        if (j.lat != null && j.lng != null) setGeocodedDest({ lat: j.lat, lng: j.lng });
+      });
+  }, [data?.request]);
+
+  const destinationOnMap = useMemo((): TripMapPoint | null => {
+    const r = data?.request;
+    if (!r) return null;
+    if (
+      r.destinationLat != null &&
+      r.destinationLng != null &&
+      Number.isFinite(Number(r.destinationLat)) &&
+      Number.isFinite(Number(r.destinationLng))
+    ) {
+      return { lat: Number(r.destinationLat), lng: Number(r.destinationLng) };
+    }
+    return geocodedDest;
+  }, [data?.request, geocodedDest]);
+
+  const providerOnMap = useMemo((): TripMapPoint | null => {
+    const r = data?.request;
+    if (!r) return null;
+    if (
+      r.providerLat != null &&
+      r.providerLng != null &&
+      Number.isFinite(Number(r.providerLat)) &&
+      Number.isFinite(Number(r.providerLng))
+    ) {
+      return { lat: Number(r.providerLat), lng: Number(r.providerLng) };
+    }
+    return null;
+  }, [data?.request?.providerLat, data?.request?.providerLng]);
 
   const stages = useMemo(() => {
     const r = data?.request;
@@ -361,6 +455,47 @@ export default function ServiceTrackPage() {
                     </div>
                   </div>
                 </div>
+
+                {(data.request.status === 'matched' || data.request.status === 'in_progress') ? (
+                  <>
+                    <Separator className="my-5 bg-border/60" />
+                    <div>
+                      <h2 className="text-lg font-semibold tracking-tight">Live on the map</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        See your provider moving toward you — same view they use to reach your pin (SafeBoda-style tracking).
+                      </p>
+                      <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 shadow-sm">
+                        <ServiceTripMap
+                          destination={destinationOnMap}
+                          provider={providerOnMap}
+                          providerLabel="Your provider"
+                          destinationLabel="Your location"
+                        />
+                      </div>
+                      {data.providerContact?.phone ? (
+                        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border/50 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider</p>
+                            <p className="text-sm font-medium text-foreground">
+                              {data.providerContact.name || 'Assigned professional'}
+                            </p>
+                            <p className="font-mono text-sm text-muted-foreground">{data.providerContact.phone}</p>
+                          </div>
+                          <Button className="h-12 w-full shrink-0 gap-2 rounded-xl sm:w-auto" asChild>
+                            <a href={`tel:${data.providerContact.phone.replace(/\D/g, '')}`}>
+                              <Phone className="h-4 w-4" />
+                              Call provider
+                            </a>
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Provider contact details will show here when your vendor profile is linked to this job.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                ) : null}
               </>
             ) : null}
           </div>

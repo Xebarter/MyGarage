@@ -6,7 +6,19 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
-import { ArrowRight, CheckCircle2, Circle, CreditCard, MapPin, Timer } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
+  Circle,
+  CreditCard,
+  Loader2,
+  MapPin,
+  Navigation,
+  PencilLine,
+  Timer,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 type BuyerServiceRequest = {
@@ -74,6 +86,9 @@ function BuyerServicesPageInner() {
   const router = useRouter();
   const appliedDeepLinkSc = useRef(false);
   const appliedOpenQuickFromAuth = useRef(false);
+  /** When true, do not auto-pick the first service — buyer must tap one (progressive quick flow). */
+  const serviceAutofillSuppressed = useRef(false);
+  const serviceSectionRef = useRef<HTMLDivElement | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(userServiceCategories[0]?.title || '');
   const [selectedService, setSelectedService] = useState(userServiceCategories[0]?.services[0] || '');
@@ -84,6 +99,8 @@ function BuyerServicesPageInner() {
   const [locationMessage, setLocationMessage] = useState('Detecting your current location...');
   const [locationAccuracyLabel, setLocationAccuracyLabel] = useState('');
   const [isQuickRequestDialogOpen, setIsQuickRequestDialogOpen] = useState(false);
+  /** Quick dialog: service pick first, then location + submit. */
+  const [quickRequestUiStep, setQuickRequestUiStep] = useState<'service' | 'location'>('service');
   const [requests, setRequests] = useState<BuyerServiceRequest[]>([]);
   const [ratings, setRatings] = useState<BuyerProviderRating[]>([]);
   const [paying, setPaying] = useState(false);
@@ -102,6 +119,9 @@ function BuyerServicesPageInner() {
     if (appliedOpenQuickFromAuth.current) return;
     if (searchParams.get('openQuick') !== '1') return;
     appliedOpenQuickFromAuth.current = true;
+    serviceAutofillSuppressed.current = true;
+    setSelectedService('');
+    setQuickRequestUiStep('service');
     setIsQuickRequestDialogOpen(true);
     const params = new URLSearchParams(searchParams.toString());
     params.delete('openQuick');
@@ -136,13 +156,21 @@ function BuyerServicesPageInner() {
         if (ss) {
           const exact = cat.services.find((s) => s === ss);
           const ci = cat.services.find((s) => s.toLowerCase() === ss.toLowerCase());
+          serviceAutofillSuppressed.current = false;
           setSelectedService(exact || ci || cat.services[0] || '');
-        } else {
-          setSelectedService(cat.services[0] || '');
-        }
-        if (openQuickDialog) {
+          if (openQuickDialog) {
+            setQuickRequestUiStep('location');
+            setIsQuickRequestDialogOpen(true);
+            stripQuickFromUrl();
+          }
+        } else if (openQuickDialog) {
+          serviceAutofillSuppressed.current = true;
+          setSelectedService('');
+          setQuickRequestUiStep('service');
           setIsQuickRequestDialogOpen(true);
           stripQuickFromUrl();
+        } else {
+          setSelectedService(cat.services[0] || '');
         }
         return;
       }
@@ -155,8 +183,10 @@ function BuyerServicesPageInner() {
         if (exact || ci) {
           appliedDeepLinkSc.current = true;
           setSelectedCategory(c.title);
+          serviceAutofillSuppressed.current = false;
           setSelectedService(exact || ci || '');
           if (openQuickDialog) {
+            setQuickRequestUiStep('location');
             setIsQuickRequestDialogOpen(true);
             stripQuickFromUrl();
           }
@@ -266,6 +296,7 @@ function BuyerServicesPageInner() {
 
   useEffect(() => {
     if (!selectedCategoryMeta) return;
+    if (serviceAutofillSuppressed.current && selectedService === '') return;
     if (!selectedCategoryMeta.services.includes(selectedService)) {
       setSelectedService(selectedCategoryMeta.services[0] || '');
     }
@@ -390,6 +421,23 @@ function BuyerServicesPageInner() {
     if (identityMode !== 'buyer' || !selectedService || !resolvedLocation || !customerId) return;
     setSubmitError(null);
     try {
+      let coords: { destinationLat: number; destinationLng: number } | Record<string, never> = {};
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 120000,
+          });
+        });
+        const la = pos.coords.latitude;
+        const ln = pos.coords.longitude;
+        if (Number.isFinite(la) && Number.isFinite(ln)) {
+          coords = { destinationLat: la, destinationLng: ln };
+        }
+      } catch {
+        /* optional — address text still sent */
+      }
       const response = await fetch('/api/buyer/service-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -398,6 +446,7 @@ function BuyerServicesPageInner() {
           category: selectedCategory,
           service: selectedService,
           location: resolvedLocation,
+          ...coords,
         }),
       });
       if (!response.ok) {
@@ -488,6 +537,16 @@ function BuyerServicesPageInner() {
 
   const getMyRating = (providerId: string) => ratings.find((item) => item.providerId === providerId)?.stars || 0;
   const canPressSubmitRequest = Boolean(selectedService && resolvedLocation && (identityMode !== 'buyer' || customerId));
+  const canSubmitQuickRequest = canPressSubmitRequest && quickRequestUiStep === 'location';
+
+  const goBackToQuickServiceStep = () => {
+    serviceAutofillSuppressed.current = true;
+    setSelectedService('');
+    setQuickRequestUiStep('service');
+    window.setTimeout(() => {
+      serviceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
 
   const goToBuyerSignInForRequest = () => {
     savePendingBuyerServiceRequest({
@@ -685,7 +744,9 @@ function BuyerServicesPageInner() {
                       type="button"
                       onClick={() => {
                         setSelectedCategory(category.title);
-                        setSelectedService(category.services[0] || '');
+                        serviceAutofillSuppressed.current = true;
+                        setSelectedService('');
+                        setQuickRequestUiStep('service');
                         setIsQuickRequestDialogOpen(true);
                       }}
                       className={`min-h-[92px] rounded-xl border px-3 py-3 text-left transition ${
@@ -740,7 +801,12 @@ function BuyerServicesPageInner() {
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 p-3 backdrop-blur sm:hidden">
           <button
             type="button"
-            onClick={() => setIsQuickRequestDialogOpen(true)}
+            onClick={() => {
+              serviceAutofillSuppressed.current = true;
+              setSelectedService('');
+              setQuickRequestUiStep('service');
+              setIsQuickRequestDialogOpen(true);
+            }}
             disabled={!selectedCategory}
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -748,114 +814,293 @@ function BuyerServicesPageInner() {
           </button>
         </div>
       ) : null}
-      <Dialog open={isQuickRequestDialogOpen} onOpenChange={setIsQuickRequestDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto p-4 sm:max-w-xl sm:p-6">
-          <DialogHeader>
-            <DialogTitle>Finish your quick request</DialogTitle>
-            <DialogDescription>Select service details and confirm your location.</DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={isQuickRequestDialogOpen}
+        onOpenChange={(open) => {
+          setIsQuickRequestDialogOpen(open);
+          if (!open) {
+            serviceAutofillSuppressed.current = false;
+            setQuickRequestUiStep('service');
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={quickRequestUiStep === 'service'}
+          onEscapeKeyDown={(e) => {
+            if (quickRequestUiStep === 'location') {
+              e.preventDefault();
+              goBackToQuickServiceStep();
+            }
+          }}
+          className="flex max-h-[92dvh] min-h-[min(72dvh,640px)] w-full max-w-full flex-col gap-0 overflow-hidden p-0 max-sm:inset-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:max-w-xl"
+        >
+          <div className="relative flex min-h-[min(72dvh,640px)] flex-1 flex-col">
+            {quickRequestUiStep === 'service' ? (
+              <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
+                <DialogHeader>
+                  <DialogTitle>Choose your service</DialogTitle>
+                  <DialogDescription>
+                    Step 1 of 2 — Pick the exact service you need. Next, a full location screen opens on top of this one.
+                  </DialogDescription>
+                </DialogHeader>
 
-          <div className="space-y-4">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected category</p>
-              <div className="rounded-xl border border-border/70 bg-background px-3 py-2.5 text-sm font-medium">
-                {selectedCategory || 'Select a quick request first'}
-              </div>
-            </div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  <span className="text-primary">①</span> Service{' '}
+                  <span className="text-muted-foreground/60">→</span> <span className="opacity-70">② Location</span>
+                </p>
 
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">2. Select a specific service</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {suggestedServices.slice(0, 8).map((service, index) => {
-                  const isSelected = selectedService === service;
-                  return (
-                    <button
-                      key={service}
-                      type="button"
-                      onClick={() => setSelectedService(service)}
-                      className={`rounded-xl border px-3 py-3 text-left transition ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-                          : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium leading-snug">{service}</p>
-                        <span
-                          className={`mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border text-[10px] ${
-                            isSelected
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border bg-background text-muted-foreground'
-                          }`}
-                        >
-                          {isSelected ? '✓' : index + 1}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{isSelected ? 'Selected service' : 'Tap to select this option'}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">3. Your location</label>
-              <div className="rounded-xl border border-border/70 bg-background/70 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="inline-flex items-center gap-1 text-sm font-medium text-foreground">
-                      <MapPin className="h-4 w-4" /> {useDetectedLocation ? 'Using current location' : 'Using different location'}
-                    </p>
-                    {useDetectedLocation ? (
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <p>
-                          {locationStatus === 'ready' && detectedLocation ? detectedLocation : locationMessage}
-                        </p>
-                        {locationStatus === 'ready' && locationAccuracyLabel ? <p>{locationAccuracyLabel}</p> : null}
-                      </div>
-                    ) : null}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected category</p>
+                  <div className="rounded-xl border border-border/70 bg-background px-3 py-2.5 text-sm font-medium">
+                    {selectedCategory || 'Select a quick request first'}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setUseDetectedLocation((current) => !current)}
-                    className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted/40"
-                  >
-                    {useDetectedLocation ? 'Choose different' : 'Use current'}
-                  </button>
                 </div>
 
-                {useDetectedLocation ? (
+                <div ref={serviceSectionRef} className="rounded-xl">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Select a specific service
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {suggestedServices.slice(0, 8).map((service, index) => {
+                      const isSelected = selectedService === service;
+                      return (
+                        <button
+                          key={service}
+                          type="button"
+                          onClick={() => {
+                            serviceAutofillSuppressed.current = false;
+                            setSelectedService(service);
+                            setQuickRequestUiStep('location');
+                          }}
+                          className={cn(
+                            'rounded-xl border px-3 py-3 text-left transition',
+                            isSelected
+                              ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+                              : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium leading-snug">{service}</p>
+                            <span
+                              className={cn(
+                                'mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border text-[10px]',
+                                isSelected
+                                  ? 'border-primary bg-primary text-primary-foreground'
+                                  : 'border-border bg-background text-muted-foreground',
+                              )}
+                            >
+                              {isSelected ? '✓' : index + 1}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {isSelected
+                              ? 'Opens the location screen — use back there to pick a different service.'
+                              : 'Tap to open the location screen on top'}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  After you choose a service, the <span className="font-medium text-foreground">Your location</span> page slides
+                  over this panel so you can confirm where providers should meet you — same idea as this panel sitting over the
+                  Quick Request section behind it.
+                </p>
+              </div>
+            ) : null}
+
+            {quickRequestUiStep === 'location' ? (
+              <div
+                className="absolute inset-0 z-10 flex animate-in fade-in zoom-in-[0.99] flex-col bg-gradient-to-b from-background via-background to-muted/15 duration-200 sm:rounded-lg"
+                role="region"
+                aria-labelledby="quick-request-location-title"
+              >
+                <header className="shrink-0 border-b border-border/50 bg-background/85 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+                  <div className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      onClick={goBackToQuickServiceStep}
+                      className="inline-flex h-11 min-h-[44px] min-w-[44px] shrink-0 touch-manipulation items-center justify-center rounded-full border border-border/80 bg-background text-foreground shadow-sm transition active:scale-[0.97] hover:bg-muted/50"
+                      aria-label="Back to service selection"
+                    >
+                      <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
+                    </button>
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <span className="mb-1 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        Step 2 of 2
+                      </span>
+                      <h2
+                        id="quick-request-location-title"
+                        className="text-balance text-lg font-bold leading-tight tracking-tight text-foreground sm:text-xl"
+                      >
+                        Where should we meet you?
+                      </h2>
+                      <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted-foreground">
+                        <span className="font-medium text-foreground/90">{selectedService}</span>
+                        {selectedCategory ? (
+                          <>
+                            <span className="text-muted-foreground/70"> · </span>
+                            {selectedCategory}
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                  </div>
+                </header>
+
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
+                  <div className="mx-auto flex max-w-md flex-col gap-5">
+                    <div className="flex justify-center">
+                      <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent shadow-inner ring-1 ring-primary/15">
+                        <MapPin className="h-9 w-9 text-primary" strokeWidth={1.75} aria-hidden />
+                        {locationStatus === 'detecting' ? (
+                          <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-background shadow-md">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden />
+                          </span>
+                        ) : locationStatus === 'ready' && useDetectedLocation ? (
+                          <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-md">
+                            <CheckCircle2 className="h-4 w-4" aria-hidden />
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                      Share your <span className="font-medium text-foreground">service spot</span> so providers can route to you
+                      without back-and-forth.
+                    </p>
+
+                    <div
+                      className="grid grid-cols-2 gap-1.5 rounded-2xl border border-border/60 bg-muted/40 p-1.5 shadow-sm"
+                      role="tablist"
+                      aria-label="Location source"
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={useDetectedLocation}
+                        onClick={() => setUseDetectedLocation(true)}
+                        className={cn(
+                          'flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition active:scale-[0.99]',
+                          useDetectedLocation
+                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <Navigation className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                        <span className="truncate">Use GPS</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={!useDetectedLocation}
+                        onClick={() => setUseDetectedLocation(false)}
+                        className={cn(
+                          'flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition active:scale-[0.99]',
+                          !useDetectedLocation
+                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <PencilLine className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                        <span className="truncate">Type it</span>
+                      </button>
+                    </div>
+
+                    {useDetectedLocation ? (
+                      <div className="space-y-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+                              locationStatus === 'ready'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                                : locationStatus === 'detecting'
+                                  ? 'bg-primary/15 text-primary'
+                                  : locationStatus === 'error'
+                                    ? 'bg-destructive/15 text-destructive'
+                                    : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            {locationStatus === 'detecting'
+                              ? 'Locating…'
+                              : locationStatus === 'ready'
+                                ? 'Pin ready'
+                                : locationStatus === 'error'
+                                  ? 'Needs attention'
+                                  : 'Idle'}
+                          </span>
+                          {locationStatus === 'ready' && locationAccuracyLabel ? (
+                            <span className="text-[11px] text-muted-foreground">{locationAccuracyLabel}</span>
+                          ) : null}
+                        </div>
+                        <p className="break-words text-[15px] leading-snug text-foreground sm:text-sm">
+                          {locationStatus === 'ready' && detectedLocation
+                            ? detectedLocation
+                            : locationMessage}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={detectCurrentLocation}
+                          disabled={locationStatus === 'detecting'}
+                          className="flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-border bg-background text-sm font-semibold text-foreground transition hover:bg-muted/50 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          {locationStatus === 'detecting' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          ) : (
+                            <Navigation className="h-4 w-4 opacity-70" aria-hidden />
+                          )}
+                          Refresh location
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
+                        <label htmlFor="quick-request-manual-location" className="text-sm font-semibold text-foreground">
+                          Area or address
+                        </label>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Neighborhood, landmark, or street — whatever helps a driver find you.
+                        </p>
+                        <input
+                          id="quick-request-manual-location"
+                          value={manualLocation}
+                          onChange={(e) => setManualLocation(e.target.value)}
+                          placeholder="e.g. Ntinda, near Capital Shoppers"
+                          autoComplete="street-address"
+                          className="min-h-[52px] w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground shadow-sm transition-[box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 sm:text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <footer className="shrink-0 space-y-3 border-t border-border/50 bg-background/90 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
                   <button
                     type="button"
-                    onClick={detectCurrentLocation}
-                    className="mt-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs hover:bg-muted/40"
+                    onClick={handleSubmitRequestIntent}
+                    disabled={!canSubmitQuickRequest}
+                    className="inline-flex min-h-[52px] w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:min-h-12 sm:text-sm"
                   >
-                    Retry detection
+                    Submit request
+                    <ArrowRight className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
                   </button>
-                ) : (
-                  <input
-                    value={manualLocation}
-                    onChange={(e) => setManualLocation(e.target.value)}
-                    placeholder="e.g. Ntinda, Kampala"
-                    className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  />
-                )}
+                  {!canPressSubmitRequest ? (
+                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                      {useDetectedLocation
+                        ? 'Allow location or refresh until we have a fix, or switch to “Type it”.'
+                        : 'Enter where you are so we can submit your request.'}
+                    </p>
+                  ) : null}
+                  {submitError ? <p className="text-center text-sm font-medium text-destructive">{submitError}</p> : null}
+                  {identityMode !== 'buyer' ? (
+                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                      You’ll sign in next so we can save your request and match you with a provider.
+                    </p>
+                  ) : null}
+                </footer>
               </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSubmitRequestIntent}
-              disabled={!canPressSubmitRequest}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Submit Request <ArrowRight className="h-4 w-4" />
-            </button>
-            {submitError ? <p className="text-center text-sm text-destructive">{submitError}</p> : null}
-            {identityMode !== 'buyer' ? (
-              <p className="text-center text-xs text-muted-foreground">
-                Sign in with email and password, then add your mobile number so providers can reach you. Your request is saved and finishes automatically after that.
-              </p>
             ) : null}
           </div>
         </DialogContent>
