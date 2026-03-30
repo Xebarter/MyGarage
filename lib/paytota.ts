@@ -134,6 +134,28 @@ export async function createPurchase(payload: JsonRecord) {
   return parsePaytotaResponse(res);
 }
 
+/**
+ * Executes a Purchase via server-to-server method (Paytota Mobile Money V2 "Step 2 - Execute").
+ *
+ * Docs (`additems.txt`):
+ * - POST {base_url}/p/{id}/
+ * - Content-Type: multipart/form-data
+ * - Body: s2s=true, pm=paytota_proxy
+ */
+export async function executePurchaseS2S(purchaseId: string) {
+  const { baseUrl } = getPaytotaConfig();
+  const form = new FormData();
+  form.set("s2s", "true");
+  form.set("pm", "paytota_proxy");
+
+  const res = await fetch(`${baseUrl}/p/${encodeURIComponent(purchaseId)}/`, {
+    method: "POST",
+    body: form,
+  });
+
+  return parsePaytotaResponse(res);
+}
+
 export async function createPayout(payload: JsonRecord) {
   const { baseUrl, secretKey } = getPaytotaConfig();
   const res = await fetch(`${baseUrl}/api/v1/payouts/`, {
@@ -163,13 +185,12 @@ function normalizePem(key: string): string {
 export function verifyPaytotaSignature(rawBody: Buffer, signature: string | null): boolean {
   if (!signature) return false;
 
-  const key =
-    process.env.PAYTOTA_WEBHOOK_PUBLIC_KEY ||
-    process.env.PAYTOTA_WEBHOOK_SECRET ||
-    process.env.NEXT_PUBLIC_PAYTOTA_PUBLIC_KEY;
+  const key = process.env.PAYTOTA_WEBHOOK_PUBLIC_KEY;
 
   if (!key || key.trim().length === 0) {
-    throw new Error("Missing PAYTOTA webhook public key env variable");
+    // Intentionally require a server-side env var. Do NOT fall back to NEXT_PUBLIC_*,
+    // otherwise a misconfiguration could leak security material into the client bundle.
+    throw new Error("Missing PAYTOTA_WEBHOOK_PUBLIC_KEY environment variable");
   }
 
   const verifier = crypto.createVerify("RSA-SHA256");

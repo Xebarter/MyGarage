@@ -174,7 +174,7 @@ export async function PATCH(req: NextRequest) {
         id: `ptx-${randomUUID()}`,
         transaction_type: "disbursement",
         direction: "outbound",
-        provider_payout_id: disbursement.id,
+        admin_disbursement_id: disbursement.id,
         vendor_id: disbursement.vendor_id,
         currency: disbursement.currency,
         amount: Number(disbursement.net_amount),
