@@ -162,7 +162,7 @@ export default function CheckoutPage() {
       <Header />
       <main className="bg-background">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-16 pb-28 lg:pb-0">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Checkout</h1>
               <p className="text-sm text-muted-foreground">
@@ -178,7 +178,7 @@ export default function CheckoutPage() {
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Order Summary */}
             <aside className="order-1 lg:order-2 lg:col-span-1">
-              <div className="bg-card rounded-2xl border border-border p-5 sm:p-6 h-fit">
+              <div className="bg-card rounded-2xl border border-border p-5 sm:p-6 h-fit lg:sticky lg:top-24">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Wallet className="h-5 w-5 text-primary" />
                   Order Summary
@@ -242,7 +242,7 @@ export default function CheckoutPage() {
                           setFormError(null);
                           setFormData({ ...formData, customerName: e.target.value });
                         }}
-                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
+                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
                       />
                     </div>
 
@@ -260,7 +260,7 @@ export default function CheckoutPage() {
                           setFormError(null);
                           setFormData({ ...formData, customerEmail: e.target.value });
                         }}
-                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
+                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
                       />
                     </div>
 
@@ -279,7 +279,7 @@ export default function CheckoutPage() {
                           setFormError(null);
                           setFormData({ ...formData, customerPhone: e.target.value });
                         }}
-                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
+                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
                         placeholder="2567XXXXXXXX"
                       />
                     </div>
@@ -298,7 +298,7 @@ export default function CheckoutPage() {
                           setFormError(null);
                           setFormData({ ...formData, shippingAddress: e.target.value });
                         }}
-                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
+                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
                         placeholder="Street address, city, state, ZIP"
                       />
                     </div>
@@ -322,7 +322,7 @@ export default function CheckoutPage() {
                     <Tag className="h-5 w-5 text-primary" />
                     Promo Code <span className="text-muted-foreground font-normal text-sm">(Optional)</span>
                   </h2>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       id="promoCode"
                       type="text"
@@ -335,13 +335,13 @@ export default function CheckoutPage() {
                           promoCode: e.target.value.toUpperCase(),
                         })
                       }
-                      className="flex-1 px-4 py-3 border border-border rounded-xl bg-muted/30 text-foreground/70 focus:outline-none"
+                      className="flex-1 px-4 py-3 border border-border rounded-xl bg-muted/30 text-base text-foreground/70 focus:outline-none"
                       aria-disabled="true"
                     />
                     <button
                       type="button"
                       disabled
-                      className="px-4 py-3 bg-muted text-foreground rounded-xl opacity-60 cursor-not-allowed transition font-medium"
+                      className="px-4 py-3 bg-muted text-foreground rounded-xl opacity-60 cursor-not-allowed transition font-medium sm:shrink-0"
                     >
                       Apply
                     </button>
