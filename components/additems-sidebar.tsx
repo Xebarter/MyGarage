@@ -257,7 +257,7 @@ export function AddItemsSidebar({
   return (
     <aside
       className={cn(
-        'fixed left-0 top-16 z-50 flex h-[calc(100vh-4rem)] w-[min(100vw-1rem,340px)] max-w-[86vw] flex-col overflow-hidden border-r border-border bg-card shadow-xl transition-transform duration-200',
+        'fixed left-0 top-14 md:top-16 z-50 flex h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-[min(100vw-1rem,340px)] max-w-[86vw] flex-col overflow-hidden border-r border-border bg-card shadow-xl transition-transform duration-200',
         open ? 'translate-x-0' : '-translate-x-full',
         open ? 'pointer-events-auto' : 'pointer-events-none',
       )}

@@ -324,7 +324,7 @@ export function Header() {
     <header className="border-b border-border bg-background md:sticky md:top-0 md:z-40">
       {open ? (
         <div
-          className="fixed inset-x-0 top-12 md:top-16 bottom-0 z-40 bg-black/20 backdrop-blur-sm"
+          className="fixed inset-x-0 top-14 md:top-16 bottom-0 z-40 bg-black/20 backdrop-blur-sm"
           onClick={closeSidebar}
         />
       ) : null}
