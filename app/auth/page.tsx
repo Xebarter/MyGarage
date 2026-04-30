@@ -10,7 +10,6 @@ import {
   authCardClassName,
   authFieldClassName,
   authPrimaryButtonClassName,
-  authSecondaryButtonClassName,
 } from "@/components/auth-chrome";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
@@ -21,25 +20,12 @@ function countPhoneDigits(value: string): number {
   return value.replace(/\D/g, "").length;
 }
 
-interface ConflictSession {
-  role: string;
-  displayName: string;
-}
-
 function getDefaultNext(role: string) {
   if (role === "vendor") return "/vendor";
   if (role === "services") return "/services/orders";
   if (role === "admin") return "/admin";
   if (role === "buyer") return "/buyer";
   return "/";
-}
-
-function getRoleLabel(role: string) {
-  if (role === "admin") return "Admin";
-  if (role === "vendor") return "Vendor";
-  if (role === "services") return "Service Provider";
-  if (role === "buyer") return "Buyer";
-  return "Current Account";
 }
 
 function AuthSkeleton() {
@@ -87,9 +73,6 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
   const [buyerFlowStep, setBuyerFlowStep] = useState<"signin" | "phone">("signin");
-
-  const [conflictSession, setConflictSession] = useState<ConflictSession | null>(null);
-  const [conflictLoading, setConflictLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
 
   const title = useMemo(() => {
@@ -109,7 +92,6 @@ function AuthForm() {
     let cancelled = false;
 
     setSessionChecked(false);
-    setConflictSession(null);
     setError(null);
 
     const checkSession = async () => {
@@ -124,72 +106,36 @@ function AuthForm() {
         return;
       }
 
-      // Determine the role of the active session
-      const appRole = String(user.app_metadata?.role ?? "").toLowerCase();
-      const appRoles = Array.isArray(user.app_metadata?.roles)
-        ? (user.app_metadata.roles as unknown[]).map((r) => String(r).toLowerCase())
-        : [];
-      const isAdminUser = appRole === "admin" || appRoles.includes("admin");
-
-      let activeRole = "unknown";
-      let displayName = user.email ?? "your account";
-
-      if (isAdminUser) {
-        activeRole = "admin";
-        displayName = user.email ?? "Admin";
-      } else {
-        const vendorName = localStorage.getItem("currentVendorName");
-        const serviceName = localStorage.getItem("currentServiceProviderName");
-        const buyerName = localStorage.getItem("currentBuyerName");
-
-        if (vendorName) {
-          activeRole = "vendor";
-          displayName = vendorName;
-        } else if (serviceName) {
-          activeRole = "services";
-          displayName = serviceName;
-        } else if (buyerName) {
-          activeRole = "buyer";
-          displayName = buyerName;
+      // Admin portal remains role-gated; other portals are profile-based on the same auth user.
+      if (isAdminRole) {
+        const allowed = await hasAdminAccess();
+        if (!allowed) {
+          await supabase.auth.signOut();
+          setError("Admin access denied. Ask the system owner to grant your account admin role.");
+          setSessionChecked(true);
+          return;
         }
       }
 
-      if (cancelled) return;
-
-      const vendorHint = localStorage.getItem("currentVendorName");
-      const serviceHint = localStorage.getItem("currentServiceProviderName");
-      const samePortal =
-        activeRole === role ||
-        (role === "buyer" &&
-          activeRole === "unknown" &&
-          !isAdminUser &&
-          !vendorHint &&
-          !serviceHint);
-
-      // Already signed into the same portal — redirect straight to the dashboard
-      if (samePortal) {
-        if (role === "buyer" && user.email) {
-          const custRes = await fetch(`/api/customers?email=${encodeURIComponent(user.email.trim())}`);
-          const customer = custRes.ok ? ((await custRes.json()) as { id: string; phone?: string }) : null;
-          if (customer?.id) {
-            localStorage.setItem("currentBuyerId", customer.id);
-            if (customer.phone) localStorage.setItem("currentBuyerPhone", customer.phone);
-          }
-          const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
-          if (!okPhone) {
-            setBuyerFlowStep("phone");
-            setPhone((customer?.phone ?? "").trim());
-            setSessionChecked(true);
-            return;
-          }
+      if (role === "buyer" && user.email) {
+        const custRes = await fetch(`/api/customers?email=${encodeURIComponent(user.email.trim())}`);
+        const customer = custRes.ok ? ((await custRes.json()) as { id: string; phone?: string }) : null;
+        if (customer?.id) {
+          localStorage.setItem("currentBuyerId", customer.id);
+          if (customer.phone) localStorage.setItem("currentBuyerPhone", customer.phone);
         }
-        router.replace(nextPath);
-        return;
+        const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
+        if (!okPhone) {
+          setBuyerFlowStep("phone");
+          setPhone((customer?.phone ?? "").trim());
+          setSessionChecked(true);
+          return;
+        }
       }
 
-      // Different portal — show conflict prompt
-      setConflictSession({ role: activeRole, displayName });
+      await persistSessionProfile();
       setSessionChecked(true);
+      router.replace(nextPath);
     };
 
     checkSession();
@@ -197,26 +143,6 @@ function AuthForm() {
       cancelled = true;
     };
   }, [role, nextPath, router, supabase.auth]);
-
-  // Sign out of the current session so the user can log into the requested portal
-  const handleSignOutAndContinue = async () => {
-    setConflictLoading(true);
-    localStorage.removeItem("currentVendorId");
-    localStorage.removeItem("currentVendorName");
-    localStorage.removeItem("currentServiceProviderName");
-    localStorage.removeItem("currentBuyerName");
-    localStorage.removeItem("currentBuyerEmail");
-    localStorage.removeItem("currentBuyerId");
-    localStorage.removeItem("currentBuyerPhone");
-    localStorage.removeItem("buyerProfile");
-    await supabase.auth.signOut();
-    setConflictSession(null);
-    setConflictLoading(false);
-  };
-
-  const goToCurrentDashboard = () => {
-    router.push(getDefaultNext(conflictSession!.role));
-  };
 
   const hasAdminAccess = async () => {
     const {
@@ -552,55 +478,7 @@ function AuthForm() {
       <Card className={authCardClassName}>
         <div className="space-y-5 p-6 md:p-8">
           <AuthBrandBanner />
-        {conflictSession ? (
-          <>
-            <div className="space-y-1.5 text-center">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Already Signed In</h1>
-              <p className="mx-auto max-w-sm text-pretty text-sm text-muted-foreground">
-                Sign out of your current account to access the {getRoleLabel(role)} portal.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm space-y-0.5 shadow-sm">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Currently signed in as
-              </p>
-              <p className="font-medium text-foreground truncate">{conflictSession.displayName}</p>
-              <p className="text-xs text-muted-foreground">
-                {getRoleLabel(conflictSession.role)} account
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={handleSignOutAndContinue}
-                disabled={conflictLoading}
-                className={authPrimaryButtonClassName}
-              >
-                {conflictLoading
-                  ? "Signing out…"
-                  : `Sign out & access ${getRoleLabel(role)} portal`}
-              </button>
-              {conflictSession.role !== "unknown" && (
-                <button
-                  type="button"
-                  onClick={goToCurrentDashboard}
-                  disabled={conflictLoading}
-                  className={authSecondaryButtonClassName}
-                >
-                  Stay in {getRoleLabel(conflictSession.role)} dashboard
-                </button>
-              )}
-            </div>
-
-            <div className="flex justify-center text-sm">
-              <Link href="/" className="text-muted-foreground hover:text-foreground">
-                Back to site
-              </Link>
-            </div>
-          </>
-        ) : buyerFlowStep === "phone" && role === "buyer" ? (
+        {buyerFlowStep === "phone" && role === "buyer" ? (
           <>
             <div className="space-y-1.5 text-center">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">Add your mobile number</h1>

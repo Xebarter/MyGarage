@@ -10,6 +10,13 @@ import {
 import { getActiveFulfillmentRequestForVendor } from '@/lib/supabase/service-dispatch-repo';
 import { NextRequest, NextResponse } from 'next/server';
 
+function sameVendor(providerId: unknown, vendorId: string) {
+  if (!vendorId) return false;
+  const a = typeof providerId === 'string' ? providerId.trim() : String(providerId ?? '').trim();
+  const b = vendorId.trim();
+  return a !== '' && a === b;
+}
+
 export async function GET() {
   try {
     const requests = await getAllBuyerServiceRequests();

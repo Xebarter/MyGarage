@@ -452,7 +452,7 @@ function HomePageInner() {
       <main className="bg-background">
         {/* Product Ad Banner Section */}
         <section className="bg-background py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4">
             {!activeBannerProduct ? (
               <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm min-h-[150px] md:h-[210px]">
                 <div className="h-full flex flex-col justify-center">
@@ -555,7 +555,7 @@ function HomePageInner() {
 
         {/* Search and Filter Section — compact rail + searchable overflow */}
         <section className="border-b border-border bg-card py-4 md:py-5">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
               <div className="flex shrink-0 items-center gap-2">
                 <p className="text-sm font-semibold tracking-tight text-foreground">Shop by category</p>
@@ -679,7 +679,7 @@ function HomePageInner() {
 
         {/* Trust and deal strip */}
         <section className="border-b border-border bg-background/70">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4 py-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
               <div className="md:col-span-8 flex flex-wrap items-center gap-2">
                 {TRUST_BADGES.map((badge) => (
@@ -705,7 +705,7 @@ function HomePageInner() {
         </section>
 
         {/* Amazon-like discovery sections */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <section className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4 py-10">
           {loading ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Loading products...</p>
@@ -883,7 +883,7 @@ export default function Home() {
       fallback={
         <>
           <Header />
-          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-2 bg-background px-4 text-center">
+          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-2 bg-background px-2 sm:px-3 lg:px-4 text-center">
             <p className="text-sm font-medium text-foreground">Loading storefront…</p>
             <p className="text-xs text-muted-foreground">Preparing products and filters.</p>
           </main>

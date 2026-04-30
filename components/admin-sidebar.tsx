@@ -21,10 +21,9 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-  { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/clients', label: 'Clients', icon: Users },
   { href: '/admin/promotions', label: 'Promotions', icon: Tag },
-  { href: '/admin/vendors', label: 'Vendors', icon: Truck },
-  { href: '/admin/service-providers', label: 'Service Providers', icon: Truck },
+  { href: '/admin/vendors', label: 'Vendors & Providers', icon: Truck },
   { href: '/admin/payments', label: 'Payments', icon: Wallet },
 ];
 

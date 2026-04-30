@@ -49,6 +49,8 @@ export async function POST() {
       address: "",
       rating: 0,
       total_products: 0,
+      vendor_verified: false,
+      services_verified: false,
     });
 
     if (insertError) {

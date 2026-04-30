@@ -158,12 +158,20 @@ export interface Vendor {
   address: string;
   rating: number;
   totalProducts: number;
+  /** True when the admin approved access to the vendor dashboard. */
+  vendorVerified: boolean;
+  /** True when the admin approved access to the service-provider dashboard. */
+  servicesVerified: boolean;
   /** Keywords this provider serves; empty = generalist (eligible for all dispatch categories). */
   serviceOfferings: string[];
   createdAt: Date;
 }
 
-export type VendorInsert = Omit<Vendor, "id" | "createdAt"> & { id?: string };
+export type VendorInsert = Omit<Vendor, "id" | "createdAt" | "vendorVerified" | "servicesVerified"> & {
+  id?: string;
+  vendorVerified?: boolean;
+  servicesVerified?: boolean;
+};
 
 export type PayoutFrequency = "instant" | "daily" | "weekly" | "biweekly" | "monthly";
 

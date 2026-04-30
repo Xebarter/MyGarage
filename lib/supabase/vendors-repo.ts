@@ -1,4 +1,4 @@
-import type { Vendor } from "@/lib/db";
+import type { Vendor, VendorInsert } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type VendorRow = {
@@ -10,10 +10,10 @@ type VendorRow = {
   rating: number | string;
   total_products: number;
   service_offerings?: string[] | null;
+  vendor_verified?: boolean | null;
+  services_verified?: boolean | null;
   created_at: string;
 };
-
-export type VendorInsert = Omit<Vendor, "id" | "createdAt"> & { id?: string };
 
 function parseRating(value: number | string): number {
   if (typeof value === "number") return value;
@@ -31,6 +31,8 @@ function rowToVendor(row: VendorRow): Vendor {
     address: row.address ?? "",
     rating: parseRating(row.rating),
     totalProducts: Number(row.total_products) || 0,
+    vendorVerified: Boolean(row.vendor_verified),
+    servicesVerified: Boolean(row.services_verified),
     serviceOfferings: Array.isArray(offerings) ? offerings.map(String) : [],
     createdAt: new Date(row.created_at),
   };
@@ -74,6 +76,8 @@ export async function insertVendor(vendor: VendorInsert): Promise<Vendor> {
     rating: vendor.rating,
     total_products: vendor.totalProducts,
     service_offerings: vendor.serviceOfferings ?? [],
+    vendor_verified: vendor.vendorVerified ?? false,
+    services_verified: vendor.servicesVerified ?? false,
     created_at: new Date().toISOString(),
   };
 
@@ -97,6 +101,8 @@ export async function updateVendorById(id: string, updates: Partial<Vendor>): Pr
   if (updates.rating !== undefined) patch.rating = updates.rating;
   if (updates.totalProducts !== undefined) patch.total_products = updates.totalProducts;
   if (updates.serviceOfferings !== undefined) patch.service_offerings = updates.serviceOfferings;
+  if (updates.vendorVerified !== undefined) patch.vendor_verified = updates.vendorVerified;
+  if (updates.servicesVerified !== undefined) patch.services_verified = updates.servicesVerified;
 
   if (Object.keys(patch).length === 0) {
     return getVendorById(id).then((v) => v ?? null);

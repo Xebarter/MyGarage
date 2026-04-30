@@ -11,6 +11,8 @@ type VendorForm = {
   phone: string;
   address: string;
   rating: string;
+  vendorVerified: boolean;
+  servicesVerified: boolean;
 };
 
 export default function VendorSettingsPage() {
@@ -37,6 +39,8 @@ export default function VendorSettingsPage() {
           phone: data.phone,
           address: data.address,
           rating: String(data.rating),
+          vendorVerified: Boolean(data.vendorVerified),
+          servicesVerified: Boolean(data.servicesVerified),
         });
       } catch (error) {
         console.error('Failed to fetch vendor settings:', error);
@@ -150,6 +154,36 @@ export default function VendorSettingsPage() {
             className="h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 lg:col-span-2"
             placeholder="Address"
           />
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5 lg:col-span-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Vendor portal active</p>
+              <p className="text-xs text-muted-foreground">Allow this account to access `/vendor/*` dashboards.</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={form.vendorVerified}
+              onChange={(event) =>
+                setForm((current) => (current ? { ...current, vendorVerified: event.target.checked } : current))
+              }
+              className="h-4 w-4 accent-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5 lg:col-span-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Service-provider portal active</p>
+              <p className="text-xs text-muted-foreground">Allow this account to access `/services/*` dashboards.</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={form.servicesVerified}
+              onChange={(event) =>
+                setForm((current) => (current ? { ...current, servicesVerified: event.target.checked } : current))
+              }
+              className="h-4 w-4 accent-primary"
+            />
+          </div>
 
           <button
             type="submit"

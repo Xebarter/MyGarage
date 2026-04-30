@@ -14,6 +14,15 @@ function isProtectedPath(pathname: string) {
   );
 }
 
+function isVerificationBypassPath(pathname: string) {
+  return (
+    pathname === "/vendor/pending" ||
+    pathname.startsWith("/vendor/pending/") ||
+    pathname === "/services/pending" ||
+    pathname.startsWith("/services/pending/")
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   let response = NextResponse.next({
@@ -98,6 +107,42 @@ export async function middleware(request: NextRequest) {
     redirectUrl.searchParams.set("next", "/admin");
     redirectUrl.searchParams.set("error", "admin_required");
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Vendor + service-provider dashboards require admin verification.
+  if (user && !isVerificationBypassPath(pathname)) {
+    const isVendorPath = pathname === "/vendor" || pathname.startsWith("/vendor/");
+    const isServicesPath = pathname === "/services" || pathname.startsWith("/services/");
+
+    if (isVendorPath || isServicesPath) {
+      const { data: vendorRow, error: vendorLookupError } = await supabase
+        .from("vendors")
+        .select("id, vendor_verified, services_verified")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // If the profile row doesn't exist yet (e.g. user signed up as buyer first),
+      // send them through the portal auth entry which bootstraps the profile.
+      if (vendorLookupError || !vendorRow?.id) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/auth";
+        redirectUrl.searchParams.set("next", `${pathname}${search}`);
+        redirectUrl.searchParams.set("role", isVendorPath ? "vendor" : "services");
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      if (isVendorPath && !vendorRow.vendor_verified) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/vendor/pending";
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      if (isServicesPath && !vendorRow.services_verified) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/services/pending";
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
   }
 
   return response;

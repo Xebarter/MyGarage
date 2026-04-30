@@ -1,161 +1,513 @@
-## MyGarage UI specs: Hamburger sidebar + header search
+# MyGarage Auth Implementation (Build-Spec / Reference)
 
-This file is written so an AI agent can replicate the same UX in another application.
+This document describes exactly how authentication is implemented for the MyGarage portals:
 
----
+- `/admin`
+- `/vendor`
+- `/services`
+- `/buyer`
 
-## A) Header hamburger sidebar (pop-out drawer) — replication spec
-
-### A1) What it is
-- **Left-side drawer** that slides in/out from the hamburger in the header.
-- Used for **category navigation** (“Find parts”) with a **sidebar-local search** that switches between:
-  - **Browse mode**: hierarchical collapsible tree (`<details>/<summary>`).
-  - **Search/list mode**: flat list of matches with breadcrumbs.
-- Supports **hover-open (temporary)** and **pinned-open (sticky)** behavior.
-
-### A2) Visual design
-- **Placement**: `fixed` left, below the header:
-  - Mobile: `top-14` and `h-[calc(100vh-3.5rem)]`
-  - Desktop: `md:top-16` and `md:h-[calc(100vh-4rem)]`
-- **Width**: `w-[min(100vw-1rem,340px)] max-w-[86vw]`
-- **Layering**: sidebar `z-50`, overlay `z-40`
-- **Surface**: `bg-card`, `border-r border-border`, `shadow-xl`, `overflow-hidden`
-- **Animation**: translate X with `transition-transform duration-200`
-  - Open: `translate-x-0`
-  - Closed: `-translate-x-full`
-  - Also gates interaction: open → `pointer-events-auto`, closed → `pointer-events-none`
-
-### A3) Open/close behavior (state machine)
-Implemented in `components/header.tsx` and passed into `components/additems-sidebar.tsx`.
-
-- **State**:
-  - `pinned: boolean`
-  - `hoverOpen: boolean`
-  - `open = pinned || hoverOpen`
-- **Hover-open** (when not pinned):
-  - `onMouseEnter` (hamburger or sidebar) → `hoverOpen = true`
-  - `onMouseLeave` → schedule close in **150ms** (prevents flicker)
-- **Pinning**:
-  - Clicking hamburger toggles `pinned`
-  - Pin on → sidebar opens
-  - Pin off → sidebar closes
-- **Closing**:
-  - Click overlay backdrop → close
-  - Press `Escape` (while open) → close
-  - If pinned, the sidebar shows a small **“Close”** button in its own header → close
-  - Clicking category links closes the drawer **only when not pinned**
-
-### A4) Overlay backdrop
-- Rendered only when `open`.
-- `fixed inset-x-0 top-14 md:top-16 bottom-0 z-40 bg-black/20 backdrop-blur-sm`
-- Click handler closes the sidebar.
-
-### A5) Sidebar content behavior (inside drawer)
-Implemented in `components/additems-sidebar.tsx`.
-
-- **Data loading**:
-  - Fetches `GET /api/additems` with `{ cache: 'no-store' }`
-  - Expects JSON: `{ items: Array<{ title: string; children?: same[] }> }`
-  - `items === null` → skeleton loading UI
-  - `items.length === 0` → “No categories loaded.”
-- **Browse mode** (sidebar query empty):
-  - Renders full tree with `<details>` expansion
-  - Chevron is a “›” character that rotates on open (`group-open:rotate-90`)
-  - Children are indented with a left border (`border-l border-border/50`)
-- **Search/list mode** (sidebar query non-empty):
-  - Flattens the tree into rows containing:
-    - `title`
-    - `breadcrumb` (ancestors joined with ` › `)
-  - Filters rows by title or breadcrumb containing the query
-  - Sorts matches by relevance (exact > startsWith > includes; breadcrumb is weaker) then alphabetically
-  - Empty state includes a helpful hint (“Try a shorter word…”)
+It is written as an implementation spec so another AI agent can reproduce the same behavior.
 
 ---
 
-## B) Header search bar (products & services search) — replication spec
+## Core auth provider + session model
 
-This is the **search input in the header**, separate from the sidebar’s “Find parts” search.
-Implemented in `components/header.tsx`.
+- **Auth provider**: Supabase Auth (email/password).
+- **Session storage**: Supabase session is persisted via **cookies** (SSR-friendly) using `@supabase/ssr`.
+- **Client Supabase**: `lib/supabase/client.ts` uses `createBrowserClient(url, anonKey)` and returns a singleton.
+- **Server Supabase (cookies)**: `lib/supabase/server.ts` uses `createServerClient(url, anonKey, { cookies: ... })`.
+- **Admin/service role Supabase**: `lib/supabase/admin.ts` uses `SUPABASE_SERVICE_ROLE_KEY` and `persistSession: false`, `autoRefreshToken: false`. Used only in trusted server routes.
 
-### B1) Core idea: URL-driven search with debounce (“Amazon-like”)
-- The app treats the query as the URL param **`q`** on the homepage:
-  - With query: navigates to `/?q=<encoded>`
-  - Empty query: navigates to `/`
-- There are two pieces of state:
-  - `urlQ`: the current query derived from the browser URL (`window.location.search`)
-  - `searchValue`: what the user is currently typing in the input
-- On mount, `urlQ` initializes from the current URL.
+Key env vars (see `SUPABASE.md`):
 
-### B2) Keeping input in sync with browser navigation
-- A `popstate` event listener updates `urlQ` when the user uses back/forward.
-- Whenever `urlQ` changes, the component **updates the input** by setting `searchValue = urlQ`.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only)
 
-### B3) Debounced navigation while typing
-- When `searchValue` changes, a `useEffect` sets a **250ms timer**.
-- After 250ms:
-  - If `searchValue.trim()` equals `urlQ`, it does nothing.
-  - Otherwise it calls `applySearch(searchValue)` which performs `router.replace(...)`:
-    - non-empty → `router.replace("/?q=...")` and `setUrlQ(next)`
-    - empty → `router.replace("/")` and `setUrlQ("")`
+---
 
-### B4) Submit behavior (Enter key / form submit)
-- The input sits inside a `<form onSubmit={...}>`.
-- Submitting:
-  - prevents default
-  - calls `applySearch(searchValue, { closeSidebar: true })`
-  - This is a convenience so searching also collapses the hamburger drawer if it happens to be open.
+## Route protection and portal selection (global middleware)
 
-### B5) Escape key behavior inside the search input
-- On `Escape` key down in the input:
-  - `setSearchValue('')`
-  - `applySearch('', { closeSidebar: true })` (clears URL query and closes sidebar)
-  - `closeSuggestions()` (hides the suggestions panel)
+File: `middleware.ts`
 
-### B6) Live suggestions panel (desktop + mobile)
-The header search can show a suggestions dropdown/panel once focused.
+### Protected prefixes
 
-- **Visibility state**: `suggestionsVisible: boolean`
-  - `onFocus` → shows suggestions immediately (`showSuggestionsNow()`)
-  - `onBlur` → schedules close after **120ms**
-    - This delay allows the user to click a suggestion without the input losing focus and closing the panel first.
-- **Fetch trigger rules**:
-  - Suggestions only fetch when `suggestionsVisible === true`
-  - Query must be at least **2 characters** (`q.length < 2` clears suggestions and errors)
-- **Fetch implementation**:
-  - Debounced by **200ms** after changes to `searchValue`
-  - Uses `AbortController` to cancel in-flight requests when the query changes/unmounts
-  - Endpoint: `GET /api/search/suggestions?q=<encoded>`
-  - Handles:
-    - `suggestionsLoading` state while fetching
-    - `suggestionsError` (shows “No suggestions” on errors other than abort)
-- **Result model** (as used by the UI):
-  - `categories: { name, image, count, headline }[]`
-  - `products: { id, name, description, price, compareAtPrice, image, category, brand }[]`
-  - Optional: `serviceCategories: { categoryId, categoryTitle, emoji, count, headline, topServiceName }[]`
-  - Optional: `services: { id, name, categoryId, categoryTitle }[]`
+- Protected (requires Supabase user): `["/buyer", "/vendor", "/services"]`
+- Admin prefix (special-case): `"/admin"`
 
-### B7) Desktop suggestions UI behavior
-- Rendered as an **absolute dropdown** under the search input when:
-  - `suggestionsVisible && searchValue.trim().length >= 2`
-- Uses `onMouseDown(e.preventDefault())` on the dropdown wrapper so clicking inside doesn’t blur the input before the click runs.
-- Clicking any suggestion link:
-  - navigates (category/product/service routes are built via helper functions)
-  - calls `closeSuggestions()`
-  - calls `closeSidebar()` (so the hamburger drawer closes too)
+### Public exception (buyer services flow)
 
-### B8) Mobile suggestions UI behavior (fixed sheet below the search field)
-- On mobile, suggestions render as a **fixed, full-width panel** (`fixed inset-x-0`) with high z-index `z-[60]`.
-- The panel’s `top` and `maxHeight` are computed dynamically so it sits right under the search field and fits the viewport:
-  - A `useLayoutEffect` measures the search field (`getBoundingClientRect().bottom + 6`)
-  - Uses `visualViewport.height` when available for better keyboard/viewport behavior
-  - Updates on `resize`, `scroll` (including capture), and visualViewport resize/scroll
-- Panel is scrollable (`overflow-y-auto`) and uses `overscroll-y-contain`.
-- Like desktop, it prevents blur-on-click with `onMouseDown(e.preventDefault())`.
+`/buyer/services` and anything under `/buyer/services/...` is **explicitly public** so that a user can “book and pay for roadside/help services without signing in”.
 
-### B9) Route builders used by suggestions
-- Categories:
-  - If category is empty or “all” → `/`
-  - Else → `/category/products/<encoded category>`
-- Services:
-  - Service category page → `/buyer/services?sc=<categoryId>&quick=1`
-  - Specific service quick link → `/buyer/services?sc=<categoryId>&ss=<serviceName>&quick=1`
+Implementation rule:
+
+- If `pathname === "/buyer/services"` OR `pathname.startsWith("/buyer/services/")` → treat as **not protected** even though it’s under `/buyer`.
+
+### OAuth/code exchange support
+
+If the request URL contains a `?code=` query param (Supabase auth code), middleware runs:
+
+- `supabase.auth.exchangeCodeForSession(code)`
+- If successful: redirects to the same URL **with `code` removed**, while **forwarding any Set-Cookie headers** to ensure the auth cookies are set on the redirect response.
+
+This is what makes email-verify redirects (and similar auth redirects) land with a real session cookie.
+
+### Redirect behavior when not authenticated
+
+If there is **no Supabase user** and the path is protected:
+
+- Redirect to `/auth`
+- Add `next` query param: `next=<original pathname + search>`
+- Add `role` query param based on requested portal:
+  - If path starts with `/vendor` → `role=vendor`
+  - Else if starts with `/services` → `role=services`
+  - Else (buyer protected pages) → `role=buyer`
+
+If there is **no Supabase user** and path is admin:
+
+- Redirect to `/auth?role=admin&next=<original>`
+
+### Admin authorization (authenticated but not an admin)
+
+If a Supabase user exists and the path is `/admin` (or under it), middleware enforces that the user has an admin role in Supabase `app_metadata`.
+
+Role detection:
+
+- `app_metadata.role` (string) OR `app_metadata.roles` (array) is normalized to lowercase.
+- A user is treated as admin when either:
+  - `role === "admin"` OR
+  - `roles` includes `"admin"`
+
+If user is authenticated but **not admin** and tries to access `/admin...`:
+
+- Redirect to `/auth`
+- Force `role=admin`
+- Force `next=/admin`
+- Add `error=admin_required`
+
+This gives a consistent “you are not an admin” error message on the auth page.
+
+---
+
+## Portal entry points
+
+### `/auth` (shared login/sign-up dialog)
+
+File: `app/auth/page.tsx`
+
+This is the **single unified** UI for all portals. The portal is chosen by query params.
+
+Query params:
+
+- `role`: `"buyer" | "vendor" | "services" | "admin"` (defaults to `"buyer"`)
+- `next`: path to redirect to after successful auth
+- `error`: e.g. `"admin_required"` (used for admin-only messaging)
+
+If `next` is missing, defaults depend on `role`:
+
+- vendor → `/vendor`
+- services → `/services/orders`
+- admin → `/admin`
+- buyer → `/buyer`
+
+### `/vendor-login` (compat shim)
+
+File: `app/vendor-login/page.tsx`
+
+This route simply redirects into the unified auth page:
+
+- `/vendor-login` → `/auth?role=vendor&next=/vendor`
+
+Note: `VENDOR_DASHBOARD_GUIDE.md` claims “no authentication required (demo mode)”; the current codebase enforces authentication for `/vendor` via middleware.
+
+---
+
+## Auth UI behavior (signin + implicit signup + forgot password)
+
+### High-level model
+
+The `/auth` page acts like a “Continue” form:
+
+- It first attempts **sign in** with email/password.
+- If sign in fails with “invalid login credentials”, it decides whether to:
+  - show an error (“email exists; reset password”), OR
+  - proceed to **sign up** using the same email/password.
+
+Admin is a special case:
+
+- Admin is **sign-in only** (no self-signup).
+
+### Session conflict resolution (one Supabase session across portals)
+
+Because Supabase auth session is global per app, the UI checks if there is already an active session when opening `/auth`.
+
+On load (and whenever `role` changes in the URL), it runs `supabase.auth.getUser()` and tries to infer the “active portal” for the session:
+
+- If the user is admin (from `app_metadata`), active role is `admin`.
+- Otherwise, it checks localStorage hints:
+  - If `currentVendorName` exists → active role `vendor`
+  - Else if `currentServiceProviderName` exists → active role `services`
+  - Else if `currentBuyerName` exists → active role `buyer`
+  - Else → active role `unknown`
+
+If the active role matches the requested `role`, the UI auto-redirects to `next`.
+
+If the active role does NOT match, the UI shows a **conflict prompt**:
+
+- “Already signed in as …”
+- Buttons:
+  - “Sign out & access <target portal>”
+  - “Stay in <current portal> dashboard” (only if current portal is known)
+
+Conflict sign-out clears these localStorage keys then calls `supabase.auth.signOut()`:
+
+- `currentVendorId`
+- `currentVendorName`
+- `currentServiceProviderName`
+- `currentBuyerName`
+- `currentBuyerEmail`
+- `currentBuyerId`
+- `currentBuyerPhone`
+- `buyerProfile`
+
+### Sign in flow
+
+On submit, `/auth` runs:
+
+1. `supabase.auth.signInWithPassword({ email, password })`
+2. If success:
+   - If `role=admin`: run `hasAdminAccess()` (reads `app_metadata` again). If not admin:
+     - `supabase.auth.signOut()`
+     - show error: “Admin access denied…”
+     - do NOT redirect
+   - If `role=buyer`: enforce buyer phone gating (details below)
+   - Persist portal profile hints to localStorage (details below)
+   - `router.replace(nextPath)`
+
+If sign-in error message includes “email not confirmed”:
+
+- Shows explicit message: the email exists but must be verified first.
+
+If sign-in error is NOT “invalid login credentials”:
+
+- Shows the raw Supabase error message.
+
+If sign-in error is “invalid login credentials”:
+
+- Admin: shows “Invalid admin credentials. Admin accounts must be created and granted by the owner.” (no signup attempt)
+- Non-admin: the page runs a server-side check to decide whether it should attempt sign-up.
+
+### The sign-up decision (email/profile check)
+
+After “invalid login credentials” for non-admin portals, the page calls:
+
+- `POST /api/auth/check-email-registered`
+- Body: `{ email: trimmedEmail, portal: role }`
+
+If the API responds `{ registered: true }`:
+
+- The UI shows: “An account with this email already exists. Check your password or use Forgot password below.”
+- It does NOT sign up.
+
+If `{ registered: false }`:
+
+- The UI proceeds to sign up with `supabase.auth.signUp(...)`.
+
+Buyer sign-up uses a special redirect target:
+
+- `emailRedirectTo: <origin>/auth?role=buyer&next=<encoded nextPath>`
+
+Non-buyer sign-up uses default Supabase behavior (no explicit `emailRedirectTo` set).
+
+Sign-up outcomes:
+
+- If Supabase returns an “already registered” style error → show “account exists” message.
+- If session is NOT returned (email confirmation required):
+  - Buyer message: created + verify email + mobile number will be asked next step.
+  - Other roles: created + verify email before signing in.
+- If session IS returned immediately:
+  - Buyer: ensure a `customers` record exists (details below), then enforce buyer phone gate
+  - Persist portal profile hints to localStorage
+  - Redirect to `nextPath`
+
+Also handled: “ghost signup” case where `session` is null and `user.identities` is empty (meaning the email already has a login):
+
+- Shows: “This email already has a login. Use the same password to sign in…”
+
+### Forgot password
+
+In `/auth`, “Forgot password?” switches the form and sends:
+
+- `supabase.auth.resetPasswordForEmail(email, { redirectTo: <origin>/auth/reset-password })`
+
+This requires Supabase Auth URL configuration to allow the app origin and redirect patterns.
+
+### Reset password page
+
+File: `app/auth/reset-password/page.tsx`
+
+- Uses `supabase.auth.updateUser({ password })` to set the new password once the user lands with a valid recovery session.
+- If no session appears shortly after load, it shows a hint about expired links or missing redirect URL allowlist.
+- After success, redirects back to `/auth`.
+
+---
+
+## Buyer portal (`/buyer*`) auth behavior
+
+### What is protected?
+
+- Everything under `/buyer` is protected by middleware **except**:
+  - `/buyer/services` and `/buyer/services/...` (public exception)
+
+### Post-auth buyer profile: customers table + phone gating
+
+After a buyer signs in (or signs up and gets a session), the app enforces a “phone must exist” gate:
+
+- It fetches customer by email: `GET /api/customers?email=<buyer email>`
+- Phone validity check: at least **9 digits** (digits only, non-digits stripped)
+
+If phone is missing/too short:
+
+- The `/auth` page switches into a **buyer step**: `"phone"`
+- It shows an “Add your mobile number” screen.
+- The user must save a valid phone before continuing.
+
+Saving phone (`completeBuyerPhoneGate`):
+
+- Confirms phone has >= 9 digits.
+- Reads current Supabase user; requires a live session.
+- Calls `syncBuyerCustomerAfterAuth(...)`:
+  - If a customer record exists by email:
+    - `PUT /api/customers/<id>` with `{ phone }`
+  - Else (no customer yet):
+    - `POST /api/customers` to create a row using:
+      - `id = user.id`
+      - `name = email prefix`
+      - `email`, `phone`, plus other default fields
+- Then persists localStorage session profile and redirects to `nextPath`.
+
+Buyer sign-up also tries to ensure a customer row exists right away (even before phone is provided):
+
+- `ensureBuyerCustomerRecord(...)`:
+  - If customer exists by email: stores `currentBuyerId`
+  - Else: `POST /api/customers` with empty phone
+
+### Buyer “session hints” stored in localStorage
+
+On successful buyer sign-in/up, `persistSessionProfile()` sets:
+
+- `currentBuyerName` = `<emailPrefix> (buyer)`
+- `currentBuyerEmail` = `<user.email>`
+- Best-effort fetch `GET /api/customers?email=...`:
+  - sets `currentBuyerId`
+  - sets `currentBuyerPhone` when available
+
+Buyer logout (sidebar):
+
+- Clears:
+  - `currentBuyerName`
+  - `currentBuyerEmail`
+  - `buyerProfile`
+- Calls `supabase.auth.signOut()`
+- Redirects to `/auth?role=buyer&next=/buyer`
+
+---
+
+## Vendor portal (`/vendor*`) auth behavior
+
+### What is protected?
+
+- All `/vendor` routes are protected by middleware. Unauthenticated users are redirected to:
+  - `/auth?role=vendor&next=<requested>`
+
+### Vendor “session hints” stored in localStorage
+
+On successful vendor sign-in/up, `persistSessionProfile()` sets:
+
+- `currentVendorId` = `<supabase user id>`
+- `currentVendorName` = `<emailPrefix> (vendor)`
+
+It also best-effort calls:
+
+- `POST /api/vendor/bootstrap`
+
+This endpoint ensures a `vendors` table row exists for the authenticated user id.
+
+### Vendor bootstrap behavior
+
+File: `app/api/vendor/bootstrap/route.ts`
+
+- Uses server cookie-auth (`lib/supabase/server.ts`) to get the current user.
+- Requires authenticated user and email.
+- Uses service-role client to check `vendors` by `id = user.id`.
+- If missing:
+  - Inserts a vendors row with:
+    - `id = user.id`
+    - `name = email prefix`
+    - `email`, plus defaults
+- Returns `201` when inserted, `200` when already existed.
+
+Vendor logout (sidebar):
+
+- Clears:
+  - `currentVendorId`
+  - `currentVendorName`
+- Calls `supabase.auth.signOut()`
+- Pushes to `/auth?role=vendor&next=/vendor`
+
+---
+
+## Service Provider portal (`/services*`) auth behavior
+
+### What is protected?
+
+- All `/services` routes are protected by middleware. Unauthenticated users are redirected to:
+  - `/auth?role=services&next=<requested>`
+
+### Services portal profile/hints
+
+After auth, `persistSessionProfile()` treats services similarly to vendor:
+
+- `currentServiceProviderName` = `<emailPrefix> (service provider)`
+- Also sets vendor-like keys:
+  - `currentVendorId = user.id`
+  - `currentVendorName = <emailPrefix> (service provider)`
+
+And it best-effort calls:
+
+- `POST /api/vendor/bootstrap`
+
+Rationale in code: it ensures a vendors row exists for dispatch/orders flows (it’s explicitly “best-effort”).
+
+Services logout (sidebar):
+
+- Clears:
+  - `currentServiceProviderName`
+  - `currentServiceProviderServices`
+  - `currentVendorId`
+  - `currentVendorName`
+- Calls `supabase.auth.signOut()`
+- Redirects to `/auth?role=services&next=/services/orders`
+
+---
+
+## Admin portal (`/admin*`) auth behavior
+
+### What is protected?
+
+- All `/admin` routes are protected by middleware.
+- Additionally, middleware enforces admin authorization by Supabase `app_metadata` role(s).
+
+### Admin is sign-in only (no self-signup)
+
+In `/auth`:
+
+- If `role=admin` and sign-in fails with invalid credentials → it shows an admin-only message and does not attempt sign-up.
+- If `role=admin` and sign-in succeeds, it calls `hasAdminAccess()`:
+  - If not admin: it signs out immediately and shows an “admin access denied” message.
+
+### Admin role assignment mechanism
+
+Documented in `SUPABASE.md`:
+
+- You grant admin by updating `auth.users.raw_app_meta_data` to include `{"role":"admin"}` for the user’s email.
+- Middleware also supports an array-style `roles` metadata that can include `"admin"`.
+
+### Admin logout
+
+Admin sidebar clears no custom localStorage keys; it simply:
+
+- Calls `supabase.auth.signOut()`
+- Redirects to `/auth?role=admin&next=/admin`
+
+---
+
+## The “is this email already registered?” logic (server-side)
+
+Endpoint: `POST /api/auth/check-email-registered`
+
+- Uses service-role Supabase client.
+- Calls Postgres function `auth_portal_signup_blocked(check_email, portal)`.
+- Returns `{ registered: Boolean(data) }`.
+
+The design goal:
+
+- Avoid blindly trying to sign-up when a user actually already exists (so the UI can guide them to password reset).
+- Make the decision **portal-aware**.
+
+### Portal-aware rule (SQL function)
+
+Migration: `supabase/migrations/016_auth_portal_signup_blocked.sql`
+
+`auth_portal_signup_blocked(email, portal)` returns boolean:
+
+- For `buyer`: returns true if there is already a row in `public.customers` with that email (case-insensitive).
+- For `vendor`: returns true if there is already a row in `public.vendors` with that email.
+- For `services`: always returns false (services portal never blocks in this function).
+- For unknown portals (including `admin`): strict check against `auth.users` by email.
+
+Security:
+
+- Function is `security definer`.
+- Execute permission is granted only to `service_role`.
+
+There is also a simpler helper function `auth_email_registered(check_email)` (migration `015_auth_email_registered.sql`) that checks `auth.users` directly, also restricted to `service_role`.
+
+---
+
+## Practical “behavioral summary” per portal path
+
+### `/buyer`
+
+- **Unauthed**: redirected to `/auth?role=buyer&next=/buyer...` (except `/buyer/services...` is public).
+- **Authed**: allowed.
+- **Extra gate**: must have a valid phone number in `customers` (>= 9 digits). If not, auth UI forces a phone step.
+
+### `/buyer/services` (and children)
+
+- **Always public**, even if unauthenticated.
+
+### `/vendor`
+
+- **Unauthed**: redirected to `/auth?role=vendor&next=/vendor...`
+- **Authed**: allowed.
+- **On successful auth**: app stores vendor hints in localStorage and ensures a `vendors` row exists via `/api/vendor/bootstrap`.
+
+### `/services`
+
+- **Unauthed**: redirected to `/auth?role=services&next=/services...`
+- **Authed**: allowed.
+- **On successful auth**: stores service-provider hint and also vendor-like hints; bootstraps a vendor record best-effort.
+
+### `/admin`
+
+- **Unauthed**: redirected to `/auth?role=admin&next=/admin...`
+- **Authed but not admin**: redirected to `/auth?role=admin&next=/admin&error=admin_required`
+- **Admin**: allowed.
+- **No self-signup**: admin portal only supports sign-in after role is granted in Supabase metadata.
+
+---
+
+## Implementation notes for recreating this auth design
+
+To build the same auth process in another app:
+
+- Implement **Next.js middleware** with:
+  - protected prefixes
+  - public exceptions
+  - Supabase SSR cookie client
+  - auth code exchange support
+  - role-based redirects to a unified `/auth` page
+  - admin role enforcement via `app_metadata`
+- Build a single `/auth` UI that:
+  - is parameterized by `role` + `next`
+  - does “sign-in first, else sign-up” for non-admin portals
+  - has a “forgot password” mode
+  - detects and resolves “already logged in (wrong portal)” conflicts
+  - persists a few portal hints into localStorage (used only for UX/session labeling)
+- Add a server endpoint to check whether a signup should be allowed, implemented with:
+  - service-role Supabase client
+  - a Postgres function restricted to service_role
+  - portal-aware checks (customers/vendors tables) rather than only `auth.users`
+- Add buyer-specific “profile completeness” gating (phone) immediately after auth.
