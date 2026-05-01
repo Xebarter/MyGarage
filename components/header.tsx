@@ -336,7 +336,7 @@ export function Header() {
         onMouseLeave={scheduleHoverClose}
       />
       <div className="md:hidden">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2">
               <button
@@ -460,7 +460,7 @@ export function Header() {
       </div>
 
       <div className="hidden md:block border-b border-border bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <button
@@ -800,7 +800,7 @@ export function Header() {
       </div>
     </header>
     <div className="md:hidden sticky top-0 z-40 border-t border-b border-border bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2">
+      <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-2 flex items-center gap-2">
         <Link
           href="/buyer/services"
           className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"

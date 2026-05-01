@@ -21,6 +21,88 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import { getDepartmentTitles, resolveDepartmentForProductCategory } from '@/data/sidebar-categories';
+import { cn } from '@/lib/utils';
+
+const MORE_FOR_YOU_OTHER_LABEL = 'Other';
+
+type MoreForYouDepartmentSection = { title: string; products: Product[] };
+
+type MoreForYouLayoutBlock =
+  | { kind: 'multi'; section: MoreForYouDepartmentSection }
+  | { kind: 'singleRow'; sections: MoreForYouDepartmentSection[] };
+
+function moreForYouDepartmentGridClass(productCount: number): string {
+  return cn(
+    'grid gap-2.5 sm:gap-3 md:gap-4',
+    productCount === 1 && 'grid-cols-1',
+    productCount === 2 && 'grid-cols-2 lg:grid-cols-2',
+    productCount === 3 && 'grid-cols-2 lg:grid-cols-3',
+    productCount >= 4 && 'grid-cols-2 lg:grid-cols-3',
+  );
+}
+
+function moreForYouProductCellClass(index: number, productCount: number): string {
+  return cn(
+    productCount === 3 && index === 2 && 'col-span-2 lg:col-span-1',
+    productCount === 4 && index === 3 && 'lg:hidden',
+  );
+}
+
+/**
+ * Extend a short row (1–2 single-product departments) toward 3 cards using other single-product
+ * departments from `pool` in catalog order. No category title appears twice on the same row.
+ */
+function padSingleRowDistinct(
+  remainder: MoreForYouDepartmentSection[],
+  pool: MoreForYouDepartmentSection[],
+): MoreForYouDepartmentSection[] {
+  if (remainder.length === 0) return [];
+  const row = [...remainder];
+  const usedTitles = new Set(row.map((s) => s.title));
+
+  for (const candidate of pool) {
+    if (row.length >= 3) break;
+    if (usedTitles.has(candidate.title)) continue;
+    row.push(candidate);
+    usedTitles.add(candidate.title);
+  }
+
+  return row;
+}
+
+/**
+ * Peel full triples from the singles buffer into `singleRow` blocks. Before each multi-product
+ * section, flush leftovers padded with distinct singles from the full list (never duplicate a title
+ * on one row). Rows may have 1–3 cards if fewer than 3 unique single-product departments exist.
+ */
+function buildMoreForYouLayout(sections: MoreForYouDepartmentSection[]): MoreForYouLayoutBlock[] {
+  const allSingles = sections.filter((s) => s.products.length === 1);
+  const blocks: MoreForYouLayoutBlock[] = [];
+  const buffer: MoreForYouDepartmentSection[] = [];
+
+  const flushSinglesBeforeMulti = () => {
+    while (buffer.length >= 3) {
+      blocks.push({ kind: 'singleRow', sections: buffer.splice(0, 3) });
+    }
+    if (buffer.length > 0) {
+      blocks.push({ kind: 'singleRow', sections: padSingleRowDistinct([...buffer], allSingles) });
+      buffer.length = 0;
+    }
+  };
+
+  for (const section of sections) {
+    if (section.products.length === 1) {
+      buffer.push(section);
+      continue;
+    }
+    flushSinglesBeforeMulti();
+    blocks.push({ kind: 'multi', section });
+  }
+
+  flushSinglesBeforeMulti();
+  return blocks;
+}
 
 type HomeCollection = {
   id: string;
@@ -335,6 +417,35 @@ function HomePageInner() {
   const visibleProducts = displayedProducts.slice(0, visibleCount);
   const isDefaultHomeFeed = selectedCategory === 'all' && !searchQuery.trim();
 
+  const moreForYouDepartmentSections = useMemo(() => {
+    const slice = filteredProducts.slice(0, visibleCount);
+    const buckets = new Map<string, Product[]>();
+    for (const title of getDepartmentTitles()) {
+      buckets.set(title, []);
+    }
+    buckets.set(MORE_FOR_YOU_OTHER_LABEL, []);
+
+    for (const product of slice) {
+      const dept =
+        resolveDepartmentForProductCategory(product.category) ?? MORE_FOR_YOU_OTHER_LABEL;
+      const list = buckets.get(dept);
+      if (list && list.length < 4) list.push(product);
+    }
+
+    const sections: { title: string; products: Product[] }[] = [];
+    for (const title of getDepartmentTitles()) {
+      const products = buckets.get(title) ?? [];
+      if (products.length > 0) sections.push({ title, products });
+    }
+    const other = buckets.get(MORE_FOR_YOU_OTHER_LABEL) ?? [];
+    if (other.length > 0) sections.push({ title: MORE_FOR_YOU_OTHER_LABEL, products: other });
+    return sections;
+  }, [filteredProducts, visibleCount]);
+
+  const moreForYouLayout = useMemo(() => {
+    return buildMoreForYouLayout(moreForYouDepartmentSections);
+  }, [moreForYouDepartmentSections]);
+
   const feedOrderedServiceCategories = useMemo(
     () => rankUserServiceCategoriesByFeed(products),
     [products],
@@ -452,7 +563,7 @@ function HomePageInner() {
       <main className="bg-background">
         {/* Product Ad Banner Section */}
         <section className="bg-background py-4">
-          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4">
+          <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
             {!activeBannerProduct ? (
               <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm min-h-[150px] md:h-[210px]">
                 <div className="h-full flex flex-col justify-center">
@@ -520,9 +631,8 @@ function HomePageInner() {
                       <img
                         src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
                         alt={activeBannerProduct.name}
-                        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-in-out ${
-                          bannerFading ? 'opacity-0' : 'opacity-100'
-                        }`}
+                        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-in-out ${bannerFading ? 'opacity-0' : 'opacity-100'
+                          }`}
                       />
                     </div>
                   </div>
@@ -540,9 +650,8 @@ function HomePageInner() {
                           type="button"
                           onClick={() => setActiveBannerIndex(index)}
                           aria-label={`Show banner ${index + 1}`}
-                          className={`h-2.5 rounded-full transition ${
-                            index === activeBannerIndex ? 'w-6 bg-primary' : 'w-2 bg-muted-foreground/40 hover:bg-muted-foreground/70'
-                          }`}
+                          className={`h-2.5 rounded-full transition ${index === activeBannerIndex ? 'w-6 bg-primary' : 'w-2 bg-muted-foreground/40 hover:bg-muted-foreground/70'
+                            }`}
                         />
                       ))}
                     </div>
@@ -555,7 +664,7 @@ function HomePageInner() {
 
         {/* Search and Filter Section — compact rail + searchable overflow */}
         <section className="border-b border-border bg-card py-4 md:py-5">
-          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4">
+          <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
               <div className="flex shrink-0 items-center gap-2">
                 <p className="text-sm font-semibold tracking-tight text-foreground">Shop by category</p>
@@ -589,11 +698,10 @@ function HomePageInner() {
                         role="tab"
                         aria-selected={selectedCategory === category}
                         onClick={() => setSelectedCategory(category)}
-                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-                          selectedCategory === category
+                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${selectedCategory === category
                             ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-accent-foreground'
-                        }`}
+                          }`}
                       >
                         {formatCategoryLabel(category)}
                       </button>
@@ -679,7 +787,7 @@ function HomePageInner() {
 
         {/* Trust and deal strip */}
         <section className="border-b border-border bg-background/70">
-          <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4 py-4">
+          <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
               <div className="md:col-span-8 flex flex-wrap items-center gap-2">
                 {TRUST_BADGES.map((badge) => (
@@ -705,7 +813,7 @@ function HomePageInner() {
         </section>
 
         {/* Amazon-like discovery sections */}
-        <section className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4 py-10">
+        <section className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-10">
           {loading ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Loading products...</p>
@@ -720,12 +828,12 @@ function HomePageInner() {
             </div>
           ) : (
             <div className="space-y-10">
-              <section className="rounded-2xl border border-border bg-card p-4 md:p-5">
+              <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="text-lg md:text-xl font-semibold">Budget Deals Under Control</h2>
                   <p className="text-xs text-muted-foreground">Low-price picks from your current recommendation feed</p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                   {dealProducts.slice(0, 4).map((product) => (
                     <CompactProductTile key={`deal-${product.id}`} product={product} />
                   ))}
@@ -733,7 +841,7 @@ function HomePageInner() {
               </section>
 
               <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <div className="rounded-2xl border border-border bg-card p-5 lg:col-span-8">
+                <div className="rounded-2xl border border-border bg-card p-3 sm:p-4 lg:col-span-8">
                   <div className="flex items-center gap-2 text-primary">
                     <Sparkles className="h-4 w-4" />
                     <p className="text-xs uppercase tracking-wide font-semibold">Smart Picks</p>
@@ -744,14 +852,14 @@ function HomePageInner() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     Showing {displayedProducts.length} curated product{displayedProducts.length !== 1 ? 's' : ''} for this feed.
                   </p>
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
                     {visibleProducts.slice(0, 6).map((product) => (
                       <CompactProductTile key={`tile-${product.id}`} product={product} />
                     ))}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-border bg-card p-5 lg:col-span-4">
+                <div className="rounded-2xl border border-border bg-card p-3 sm:p-4 lg:col-span-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Wrench className="h-4 w-4" />
                     <p className="text-xs uppercase tracking-wide font-semibold">Services Near You</p>
@@ -781,7 +889,7 @@ function HomePageInner() {
               {isDefaultHomeFeed ? (
                 <div className="space-y-10">
                   {smartCollections.map((collection) => (
-                    <section key={collection.id} className="rounded-2xl border border-border bg-card p-4 md:p-5">
+                    <section key={collection.id} className="rounded-2xl border border-border bg-card p-3 sm:p-4">
                       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                           <h3 className="text-xl md:text-2xl font-semibold">
@@ -843,24 +951,91 @@ function HomePageInner() {
                       </div>
                     </section>
                   ))}
-                  <section className="rounded-2xl border border-border bg-card p-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
+                  <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <h2 className="text-lg md:text-xl font-semibold">More for you</h2>
                       <p className="text-xs text-muted-foreground">
-                        Showing {visibleProducts.length} of {filteredProducts.length}
+                        Showing products from your feed by department — {visibleProducts.length} of{' '}
+                        {filteredProducts.length} in view
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {visibleProducts.map((product) => (
-                        <ProductCard key={product.id} product={product} />
-                      ))}
+                    <div className="flex flex-col gap-8">
+                      {moreForYouLayout.map((block, blockIndex) => {
+                        if (block.kind === 'multi') {
+                          const section = block.section;
+                          return (
+                            <div
+                              key={section.title}
+                              className="rounded-xl border border-border bg-background/60 p-3 sm:p-4 lg:w-full lg:basis-full"
+                            >
+                              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                <h3 className="text-base font-semibold text-foreground">{section.title}</h3>
+                                {section.title !== MORE_FOR_YOU_OTHER_LABEL ? (
+                                  <Link
+                                    href={`/category/products/${encodeURIComponent(section.title)}`}
+                                    className="text-xs font-semibold text-primary hover:underline"
+                                  >
+                                    See all
+                                  </Link>
+                                ) : null}
+                              </div>
+                              <div className={moreForYouDepartmentGridClass(section.products.length)}>
+                                {section.products.map((product, index) => (
+                                  <div
+                                    key={product.id}
+                                    className={moreForYouProductCellClass(index, section.products.length)}
+                                  >
+                                    <ProductCard product={product} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={`singleRow-${blockIndex}-${block.sections.map((s) => s.title).join('|')}`}
+                            className="w-full flex flex-col gap-8 lg:flex-row lg:gap-6"
+                          >
+                            {block.sections.map((section, si) => (
+                              <div
+                                key={`${blockIndex}-${si}-${section.title}`}
+                                className="rounded-xl border border-border bg-background/60 p-3 sm:p-4 lg:flex-1 lg:min-w-0"
+                              >
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                  <h3 className="text-base font-semibold text-foreground">{section.title}</h3>
+                                  {section.title !== MORE_FOR_YOU_OTHER_LABEL ? (
+                                    <Link
+                                      href={`/category/products/${encodeURIComponent(section.title)}`}
+                                      className="text-xs font-semibold text-primary hover:underline"
+                                    >
+                                      See all
+                                    </Link>
+                                  ) : null}
+                                </div>
+                                <div className={moreForYouDepartmentGridClass(section.products.length)}>
+                                  {section.products.map((product, index) => (
+                                    <div
+                                      key={product.id}
+                                      className={moreForYouProductCellClass(index, section.products.length)}
+                                    >
+                                      <ProductCard product={product} />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div ref={sentinelRef} className="h-1 w-full" />
                   </section>
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                     {visibleProducts.map((product) => (
                       <ProductCard key={product.id} product={product} />
                     ))}
@@ -883,7 +1058,7 @@ export default function Home() {
       fallback={
         <>
           <Header />
-          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-2 bg-background px-2 sm:px-3 lg:px-4 text-center">
+          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-2 bg-background px-2 sm:px-2.5 md:px-3 text-center">
             <p className="text-sm font-medium text-foreground">Loading storefront…</p>
             <p className="text-xs text-muted-foreground">Preparing products and filters.</p>
           </main>

@@ -131,6 +131,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -141,6 +142,7 @@
   .input-no-spin {
     -moz-appearance: textfield;
   }
+
   .input-no-spin::-webkit-outer-spin-button,
   .input-no-spin::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -148,10 +150,12 @@
   }
 
   @keyframes urgent-pulse {
+
     0%,
     100% {
       box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35);
     }
+
     50% {
       box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
     }

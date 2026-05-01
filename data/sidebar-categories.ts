@@ -330,6 +330,40 @@ export function getDepartmentTitles(): string[] {
   return sidebarCategories.map((r) => r.title)
 }
 
+let departmentDescendantTitlesCache: Map<string, Set<string>> | null = null
+
+function buildDepartmentDescendantTitleSets(): Map<string, Set<string>> {
+  if (departmentDescendantTitlesCache) return departmentDescendantTitlesCache
+  const map = new Map<string, Set<string>>()
+  const walk = (node: SidebarCategoryNode, acc: Set<string>) => {
+    const t = node.title.trim()
+    if (t) acc.add(t)
+    node.children?.forEach((ch) => walk(ch, acc))
+  }
+  for (const root of sidebarCategories) {
+    const set = new Set<string>()
+    walk(root, set)
+    map.set(root.title, set)
+  }
+  departmentDescendantTitlesCache = map
+  return map
+}
+
+/**
+ * Returns the top-level sidebar department whose subtree includes this exact product `category` string
+ * (same matching as listProductsByCategories). If the title appears under multiple roots, the first root
+ * in sidebar order wins.
+ */
+export function resolveDepartmentForProductCategory(category: string): string | null {
+  const cat = category.trim()
+  if (!cat) return null
+  const sets = buildDepartmentDescendantTitleSets()
+  for (const root of sidebarCategories) {
+    if (sets.get(root.title)?.has(cat)) return root.title
+  }
+  return null
+}
+
 /** All catalog rows under one department, sorted by label. */
 export function getCatalogPicksForDepartment(departmentTitle: string): CatalogPick[] {
   return buildAllCatalogPicks()
