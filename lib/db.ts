@@ -593,6 +593,13 @@ export const getVendors = async () => {
   }));
 };
 
+/** Admin vendor directory: paginated list (no full-catalog product scan). */
+export type VendorsDirectoryFilter = vendorsRepo.VendorsDirectoryFilter;
+export type VendorsDirectoryPageArgs = vendorsRepo.VendorsDirectoryPageArgs;
+export const getVendorsAdminDirectoryPage = async (args: vendorsRepo.VendorsDirectoryPageArgs) =>
+  vendorsRepo.listVendorsDirectoryPage(args);
+export const getVendorsAdminDirectoryStats = async () => vendorsRepo.getVendorsDirectoryStats();
+
 export const getVendor = async (id: string) => {
   const vendor = await vendorsRepo.getVendorById(id);
   if (!vendor) return undefined;

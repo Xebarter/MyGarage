@@ -1,7 +1,15 @@
+import { setDefaultResultOrder } from "node:dns";
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
+
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {
+  /* restricted runtimes */
+}
 
 export async function createClient() {
   const cookieStore = await cookies();

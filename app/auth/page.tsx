@@ -13,6 +13,7 @@ import {
 } from "@/components/auth-chrome";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "signin" | "forgot";
 
@@ -74,6 +75,7 @@ function AuthForm() {
   const [phone, setPhone] = useState("");
   const [buyerFlowStep, setBuyerFlowStep] = useState<"signin" | "phone">("signin");
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const title = useMemo(() => {
     if (role === "admin") return "Admin Access";
@@ -545,16 +547,27 @@ function AuthForm() {
                   placeholder="Email address"
                   className={authFieldClassName}
                 />
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Password"
-                  className={authFieldClassName}
-                />
+                <div className="relative">
+                  <input
+                    required
+                    minLength={6}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Password"
+                    className={`${authFieldClassName} pr-11`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                  </button>
+                </div>
                 <button
                   type="submit"
                   disabled={loading}

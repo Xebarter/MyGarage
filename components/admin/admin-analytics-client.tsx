@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import type { AdminComprehensiveAnalytics } from '@/lib/admin-comprehensive-analytics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -46,25 +47,36 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   Bell,
+  CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Clock,
+  CreditCard,
   DollarSign,
   Download,
   ExternalLink,
+  FileSpreadsheet,
   Filter,
   Globe,
+  Info,
+  Landmark,
   LayoutDashboard,
+  Lightbulb,
   LineChart as LineChartIcon,
+  Mail,
   Copy,
   Layers2,
   Megaphone,
   Package,
+  Palette,
   Percent,
+  PieChart as PieChartIconLucide,
   Printer,
   RefreshCw,
   RotateCcw,
@@ -74,10 +86,13 @@ import {
   Star,
   Store,
   Tag,
+  Ticket,
   Timer,
   TrendingDown,
   TrendingUp,
   Trophy,
+  UserPlus,
+  Users,
   XCircle,
 } from 'lucide-react';
 
@@ -135,6 +150,7 @@ function InventoryVelocityRow({
   revenue,
   maxUnits,
   barClassName,
+  metricLabel = 'units',
 }: {
   rank: number;
   name: string;
@@ -142,6 +158,8 @@ function InventoryVelocityRow({
   revenue: number;
   maxUnits: number;
   barClassName: string;
+  /** Shown next to the numeric metric (e.g. "bookings" for services). */
+  metricLabel?: string;
 }) {
   const widthPct = maxUnits > 0 ? Math.max(6, Math.round((units / maxUnits) * 100)) : 6;
   return (
@@ -155,7 +173,10 @@ function InventoryVelocityRow({
         </span>
         <div className="min-w-0 flex-1 space-y-2">
           <p className="font-medium leading-snug text-foreground">{name}</p>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted" title={`${units} units in period`}>
+          <div
+            className="h-1.5 overflow-hidden rounded-full bg-muted"
+            title={`${units} ${metricLabel} in period`}
+          >
             <div
               className={cn('h-full rounded-full transition-[width]', barClassName)}
               style={{ width: `${widthPct}%` }}
@@ -165,7 +186,9 @@ function InventoryVelocityRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5 sm:text-right">
         <span className="text-sm font-semibold tabular-nums text-foreground">{formatUgx(revenue)}</span>
-        <span className="text-xs tabular-nums text-muted-foreground">{units} units</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {units} {metricLabel}
+        </span>
       </div>
     </li>
   );
@@ -1905,6 +1928,29 @@ export function AdminAnalyticsClient() {
     );
   }, [data]);
 
+  const heatmapPeakDay = useMemo(() => {
+    if (!data?.heatmapWeekday.length) return null;
+    return data.heatmapWeekday.reduce((best, h) => {
+      const t = h.productOrders + h.serviceBookings;
+      const bt = best.productOrders + best.serviceBookings;
+      return t > bt ? h : best;
+    });
+  }, [data]);
+
+  const alertStats = useMemo(() => {
+    if (!data) return { critical: 0, warning: 0, info: 0, total: 0 };
+    const critical = data.alerts.filter((a) => a.severity === 'critical').length;
+    const warning = data.alerts.filter((a) => a.severity === 'warning').length;
+    const info = data.alerts.filter((a) => a.severity === 'info').length;
+    return { critical, warning, info, total: data.alerts.length };
+  }, [data]);
+
+  const sortedAlerts = useMemo(() => {
+    if (!data) return [];
+    const rank: Record<'critical' | 'warning' | 'info', number> = { critical: 0, warning: 1, info: 2 };
+    return [...data.alerts].sort((a, b) => rank[a.severity] - rank[b.severity]);
+  }, [data]);
+
   const invFastMaxUnits = useMemo(() => {
     if (!data?.inventory.fastMovers.length) return 1;
     return Math.max(1, ...data.inventory.fastMovers.map((p) => p.units));
@@ -1924,6 +1970,60 @@ export function AdminAnalyticsClient() {
     return m;
   }, [data]);
 
+  const salesAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        categoryRevenueSum: 0,
+        regionOrderSum: 0,
+        regionRevenueSum: 0,
+        maxRegionRevenue: 0,
+        vendorRevenueSum: 0,
+        topVendorName: '—',
+        topCategoryName: '—',
+        topCategoryRevenue: 0,
+        paymentVolumeSum: 0,
+        primaryPaymentLabel: null as string | null,
+        topProductsMaxUnits: 1,
+        topServicesMaxBookings: 1,
+      };
+    }
+    const { sales } = data;
+    const categoryRevenueSum = sales.revenueByCategory.reduce((a, c) => a + c.revenue, 0);
+    const regionOrderSum = sales.revenueByLocation.reduce((a, r) => a + r.orders, 0);
+    const regionRevenueSum = sales.revenueByLocation.reduce((a, r) => a + r.revenue, 0);
+    const maxRegionRevenue = Math.max(0, ...sales.revenueByLocation.map((r) => r.revenue));
+    const vendorRevenueSum = sales.revenueByVendor.reduce((a, v) => a + v.revenue, 0);
+    const topVendor = sales.revenueByVendor.reduce<{ name: string; revenue: number } | null>(
+      (best, v) => (!best || v.revenue > best.revenue ? { name: v.vendorName, revenue: v.revenue } : best),
+      null,
+    );
+    const topCat = sales.revenueByCategory.reduce<{ name: string; revenue: number } | null>(
+      (best, c) => (!best || c.revenue > best.revenue ? { name: c.name, revenue: c.revenue } : best),
+      null,
+    );
+    const paymentVolumeSum = sales.paymentMethodPerformance.reduce((a, p) => a + p.amount, 0);
+    const primaryPay = sales.paymentMethodPerformance.reduce<{ method: string; amount: number } | null>(
+      (best, p) => (!best || p.amount > best.amount ? { method: p.method, amount: p.amount } : best),
+      null,
+    );
+    const topProductsMaxUnits = Math.max(1, ...sales.topProducts.map((p) => p.units));
+    const topServicesMaxBookings = Math.max(1, ...sales.topServices.map((s) => s.bookings));
+    return {
+      categoryRevenueSum,
+      regionOrderSum,
+      regionRevenueSum,
+      maxRegionRevenue,
+      vendorRevenueSum,
+      topVendorName: topVendor?.name ?? '—',
+      topCategoryName: topCat?.name ?? '—',
+      topCategoryRevenue: topCat?.revenue ?? 0,
+      paymentVolumeSum,
+      primaryPaymentLabel: primaryPay?.method ?? null,
+      topProductsMaxUnits,
+      topServicesMaxBookings,
+    };
+  }, [data]);
+
   const lastUpdatedLabel = useMemo(() => {
     if (!data) return '';
     try {
@@ -1931,6 +2031,215 @@ export function AdminAnalyticsClient() {
     } catch {
       return '';
     }
+  }, [data]);
+
+  const reportsScopeSummary = useMemo(() => {
+    const presetLabel =
+      preset === '7d'
+        ? 'Last 7 days'
+        : preset === '30d'
+          ? 'Last 30 days'
+          : preset === '90d'
+            ? 'Last 90 days'
+            : preset === 'ytd'
+              ? 'Year to date'
+              : 'Custom range';
+    let rangeLine: string;
+    try {
+      rangeLine = `${format(parseISO(fromStr), 'MMM d, yyyy')} – ${format(parseISO(toStr), 'MMM d, yyyy')}`;
+    } catch {
+      rangeLine = `${fromStr} – ${toStr}`;
+    }
+    const vendorLabel = !vendorId
+      ? 'All vendors'
+      : data?.filterOptions.vendors.find((v) => v.id === vendorId)?.name ?? 'Selected vendor';
+    const productCatLabel = productCategory || 'All product categories';
+    const serviceCatLabel = serviceCategory || 'All service types';
+    return { presetLabel, rangeLine, vendorLabel, productCatLabel, serviceCatLabel };
+  }, [data, preset, fromStr, toStr, vendorId, productCategory, serviceCategory]);
+
+  const overviewAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        productSharePct: null as number | null,
+        serviceSharePct: null as number | null,
+        categoryCount: 0,
+        seasonalMonths: 0,
+      };
+    }
+    const t = data.overview.revenueTotal;
+    return {
+      productSharePct: t > 0 ? (data.overview.productOrderRevenue / t) * 100 : null,
+      serviceSharePct: t > 0 ? (data.overview.serviceRevenue / t) * 100 : null,
+      categoryCount: data.sales.revenueByCategory.length,
+      seasonalMonths: data.sales.seasonalByMonth.length,
+    };
+  }, [data]);
+
+  const servicesAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        bookingsTotal: 0,
+        topCategoryLabel: null as string | null,
+        topCategoryCount: 0,
+        topServiceLabel: null as string | null,
+        topServiceCount: 0,
+        weightedAvgStars: null as number | null,
+        reviewCount: 0,
+        maxProviderRevenue: 0,
+      };
+    }
+    const s = data.services;
+    const bookingsTotal = s.bookingsByCategory.reduce((a, c) => a + c.count, 0);
+    const topCat = s.bookingsByCategory[0];
+    const topSvc = s.bookingsByService[0];
+    let weighted = 0;
+    let reviewCount = 0;
+    for (const r of s.ratingsByProvider) {
+      weighted += r.avgStars * r.count;
+      reviewCount += r.count;
+    }
+    const weightedAvgStars = reviewCount > 0 ? weighted / reviewCount : null;
+    const maxProviderRevenue = Math.max(0, ...s.revenueByProvider.map((p) => p.revenue));
+    return {
+      bookingsTotal,
+      topCategoryLabel: topCat?.category ?? null,
+      topCategoryCount: topCat?.count ?? 0,
+      topServiceLabel: topSvc?.service ?? null,
+      topServiceCount: topSvc?.count ?? 0,
+      weightedAvgStars,
+      reviewCount,
+      maxProviderRevenue,
+    };
+  }, [data]);
+
+  const financeAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        marginRevenueSum: 0,
+        revenueWeightedMarginPct: null as number | null,
+        topCategoryByRevenue: null as string | null,
+        topCategoryRevenue: 0,
+        topCategoryMarginPct: null as number | null,
+        highestMarginCategory: null as string | null,
+        highestMarginPct: null as number | null,
+        maxCategoryRevenue: 0,
+        pendingPayoutSharePct: null as number | null,
+      };
+    }
+    const f = data.finance;
+    const marginRevenueSum = f.marginByCategory.reduce((a, c) => a + c.revenue, 0);
+    const revWeightedMargin =
+      marginRevenueSum > 0
+        ? f.marginByCategory.reduce((a, c) => a + c.marginPct * c.revenue, 0) / marginRevenueSum
+        : null;
+    const topRev = f.marginByCategory.reduce<{
+      category: string;
+      revenue: number;
+      marginPct: number;
+    } | null>((b, c) => (!b || c.revenue > b.revenue ? { category: c.category, revenue: c.revenue, marginPct: c.marginPct } : b), null);
+    const topMargin = f.marginByCategory.reduce<{ category: string; marginPct: number } | null>(
+      (b, c) => (!b || c.marginPct > b.marginPct ? { category: c.category, marginPct: c.marginPct } : b),
+      null,
+    );
+    const maxCategoryRevenue = Math.max(0, ...f.marginByCategory.map((c) => c.revenue));
+    const payoutDenom = f.payoutsPaid + f.payoutsPending;
+    const pendingPayoutSharePct =
+      payoutDenom > 0 ? (f.payoutsPending / payoutDenom) * 100 : null;
+    return {
+      marginRevenueSum,
+      revenueWeightedMarginPct: revWeightedMargin,
+      topCategoryByRevenue: topRev?.category ?? null,
+      topCategoryRevenue: topRev?.revenue ?? 0,
+      topCategoryMarginPct: topRev?.marginPct ?? null,
+      highestMarginCategory: topMargin?.category ?? null,
+      highestMarginPct: topMargin?.marginPct ?? null,
+      maxCategoryRevenue,
+      pendingPayoutSharePct,
+    };
+  }, [data]);
+
+  const customersAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        newPlusReturning: 0,
+        newSharePct: null as number | null,
+        funnelMaxCount: 1,
+        topFunnelStage: null as string | null,
+        topFunnelCount: 0,
+        clvSkewHint: null as string | null,
+      };
+    }
+    const c = data.customers;
+    const newPlusReturning = c.newInPeriod + c.returningInPeriod;
+    const newSharePct = newPlusReturning > 0 ? (c.newInPeriod / newPlusReturning) * 100 : null;
+    const funnelMaxCount = Math.max(1, ...c.funnel.map((f) => f.count));
+    const topFunnel = c.funnel.reduce<{ stage: string; count: number } | null>(
+      (b, f) => (!b || f.count > b.count ? { stage: f.stage, count: f.count } : b),
+      null,
+    );
+    let clvSkewHint: string | null = null;
+    if (c.medianClv > 0 && c.avgClv > 0) {
+      const ratio = c.avgClv / c.medianClv;
+      if (ratio >= 1.2) {
+        clvSkewHint = 'Mean CLV is well above median — a concentrated set of high spenders may be driving the average.';
+      } else if (ratio <= 0.83) {
+        clvSkewHint = 'Median outpaces mean — more buyers sit below the average CLV; check discounting or mix.';
+      }
+    }
+    return {
+      newPlusReturning,
+      newSharePct,
+      funnelMaxCount,
+      topFunnelStage: topFunnel?.stage ?? null,
+      topFunnelCount: topFunnel?.count ?? 0,
+      clvSkewHint,
+    };
+  }, [data]);
+
+  const operationsAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        ticketThroughput: 0,
+        openToResolvedRatio: null as number | null,
+        txFailurePct: null as number | null,
+        txTotal: 0,
+        maxSubjectCount: 1,
+        topSubjectLabel: null as string | null,
+      };
+    }
+    const o = data.operations;
+    const ticketThroughput = o.supportTicketsOpen + o.supportTicketsResolved;
+    const openToResolvedRatio =
+      o.supportTicketsResolved > 0 ? o.supportTicketsOpen / o.supportTicketsResolved : null;
+    const txTotal = o.failedTransactions + o.succeededTransactions;
+    const txFailurePct = txTotal > 0 ? (o.failedTransactions / txTotal) * 100 : null;
+    const maxSubjectCount = Math.max(1, ...o.commonTicketSubjects.map((s) => s.count));
+    return {
+      ticketThroughput,
+      openToResolvedRatio,
+      txFailurePct,
+      txTotal,
+      maxSubjectCount,
+      topSubjectLabel: o.commonTicketSubjects[0]?.subject ?? null,
+    };
+  }, [data]);
+
+  const insightsAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        restockCount: 0,
+        priceHintCount: 0,
+        forecastToPeriodRatio: null as number | null,
+      };
+    }
+    const rev = data.overview.revenueTotal;
+    const fc = data.predictive.revenueForecastNext30d;
+    return {
+      restockCount: data.predictive.restockSuggestions.length,
+      priceHintCount: data.predictive.priceOptimizationHints.length,
+      forecastToPeriodRatio: rev > 0 ? fc / rev : null,
+    };
   }, [data]);
 
   const resetFilters = useCallback(() => {
@@ -2312,110 +2621,440 @@ export function AdminAnalyticsClient() {
         </div>
 
         <TabsContent value="overview" className="space-y-8 focus-visible:outline-none">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              label="Total revenue"
-              value={formatUgx(data.overview.revenueTotal)}
-              sub={`Products ${formatUgx(data.overview.productOrderRevenue)} · Services ${formatUgx(data.overview.serviceRevenue)}`}
-              trend={
-                data.overview.revenueMomPct != null
-                  ? { pct: data.overview.revenueMomPct, label: 'vs prior period' }
-                  : undefined
-              }
-            />
-            <KpiCard
-              label="Orders & payments"
-              value={`${data.overview.productOrdersCount + data.overview.servicePaymentsCount}`}
-              sub={`${data.overview.productOrdersCount} product orders · ${data.overview.servicePaymentsCount} service payments`}
-            />
-            <KpiCard
-              label="Net profit (est.)"
-              value={formatUgx(data.overview.netProfitEstimate)}
-              sub={`Gross ${formatUgx(data.overview.grossProfitEstimate)} · Fees ${formatUgx(data.overview.platformCommissionEstimate)}`}
-            />
-            <KpiCard
-              label="Average order value"
-              value={formatUgx(data.overview.averageOrderValue)}
-              sub={`${data.overview.payingCustomersCount} paying customers`}
-            />
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-primary/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-primary/15 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner"
+                aria-hidden
+              >
+                <LayoutDashboard className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Platform overview
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    High-level health for the current filters — revenue mix, throughput, and estimated margin before you
+                    drill into Sales or other tabs.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Updated {lastUpdatedLabel || '—'}</span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Tag className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Top category · {salesAggregates.topCategoryName}
+                      {salesAggregates.topCategoryRevenue > 0
+                        ? ` (${formatUgx(salesAggregates.topCategoryRevenue)})`
+                        : ''}
+                    </span>
+                  </Badge>
+                  {overviewAggregates.productSharePct != null && overviewAggregates.serviceSharePct != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <PieChartIconLucide className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Mix · Products {overviewAggregates.productSharePct.toFixed(0)}% · Services{' '}
+                        {overviewAggregates.serviceSharePct.toFixed(0)}%
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {data.overview.revenueMomPct != null ? (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'max-w-full gap-1 font-normal',
+                        data.overview.revenueMomPct >= 0
+                          ? 'border-emerald-500/30 bg-emerald-500/8 text-emerald-900 dark:text-emerald-100'
+                          : 'border-rose-500/30 bg-rose-500/8 text-rose-900 dark:text-rose-100',
+                      )}
+                    >
+                      {data.overview.revenueMomPct >= 0 ? (
+                        <ArrowUpRight className="h-3 w-3 shrink-0" aria-hidden />
+                      ) : (
+                        <ArrowDownRight className="h-3 w-3 shrink-0" aria-hidden />
+                      )}
+                      <span className="truncate">
+                        Rev. {Math.abs(data.overview.revenueMomPct).toFixed(1)}% vs prior period
+                      </span>
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <KpiCard
-              label="Platform commission (est.)"
-              value={formatUgx(data.overview.platformCommissionEstimate)}
-            />
-            <KpiCard
-              label="Active vendors"
-              value={String(data.overview.activeVendors)}
-              sub={`${data.overview.activeServiceProviders} active service providers`}
-            />
-            <KpiCard
-              label="Conversion (registered → paid)"
-              value={data.overview.conversionRate != null ? `${data.overview.conversionRate.toFixed(1)}%` : '—'}
-              sub={data.overview.conversionNote}
-            />
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <DollarSign className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Total revenue</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.overview.revenueTotal)}
+              </p>
+              {data.overview.revenueMomPct != null ? (
+                <p
+                  className={cn(
+                    'mt-2 inline-flex items-center gap-1 text-xs font-medium',
+                    data.overview.revenueMomPct >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400',
+                  )}
+                >
+                  {data.overview.revenueMomPct >= 0 ? (
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {Math.abs(data.overview.revenueMomPct).toFixed(1)}% vs prior period
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Products {formatUgx(data.overview.productOrderRevenue)} · Services{' '}
+                {formatUgx(data.overview.serviceRevenue)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Orders & payments</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {(data.overview.productOrdersCount + data.overview.servicePaymentsCount).toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.overview.productOrdersCount.toLocaleString()} product orders ·{' '}
+                {data.overview.servicePaymentsCount.toLocaleString()} service payments
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Net profit (est.)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.overview.netProfitEstimate)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Gross {formatUgx(data.overview.grossProfitEstimate)} · Fees{' '}
+                {formatUgx(data.overview.platformCommissionEstimate)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+              <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+                <BarChart3 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Average order value</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.overview.averageOrderValue)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.overview.payingCustomersCount.toLocaleString()} paying customers
+              </p>
+            </div>
           </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
+              <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
+                <Layers2 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Platform commission (est.)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.overview.platformCommissionEstimate)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Fees captured in the selected window</p>
+            </div>
+            <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/6 p-4 shadow-sm dark:bg-fuchsia-500/10">
+              <div className="flex items-center gap-2 text-fuchsia-800 dark:text-fuchsia-300">
+                <Store className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Active vendors</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.overview.activeVendors.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.overview.activeServiceProviders.toLocaleString()} active service providers
+              </p>
+            </div>
+            <div className="rounded-xl border border-teal-500/25 bg-teal-500/6 p-4 shadow-sm dark:bg-teal-500/10 sm:col-span-2 lg:col-span-1">
+              <div className="flex items-center gap-2 text-teal-800 dark:text-teal-300">
+                <Percent className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Conversion (registered → paid)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.overview.conversionRate != null ? `${data.overview.conversionRate.toFixed(1)}%` : '—'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{data.overview.conversionNote}</p>
+            </div>
+          </div>
+
           {data.overview.revenueYoyPct != null ? (
-            <p className="text-sm text-muted-foreground">
-              Year-over-year revenue change (approx.):{' '}
-              <span className="font-medium text-foreground">{data.overview.revenueYoyPct.toFixed(1)}%</span>
-            </p>
+            <div
+              className={cn(
+                'flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between',
+                data.overview.revenueYoyPct >= 0
+                  ? 'border-emerald-500/35 bg-emerald-500/8 dark:bg-emerald-500/10'
+                  : 'border-rose-500/35 bg-rose-500/8 dark:bg-rose-500/10',
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                    data.overview.revenueYoyPct >= 0
+                      ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-rose-500/20 text-rose-700 dark:text-rose-300',
+                  )}
+                  aria-hidden
+                >
+                  <LineChartIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Year-over-year revenue (approx.)</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    Compares this window to the same length in the prior year when the metric is available.
+                  </p>
+                </div>
+              </div>
+              <p
+                className={cn(
+                  'text-2xl font-bold tabular-nums sm:text-right',
+                  data.overview.revenueYoyPct >= 0
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-rose-700 dark:text-rose-400',
+                )}
+              >
+                {data.overview.revenueYoyPct >= 0 ? '+' : ''}
+                {data.overview.revenueYoyPct.toFixed(1)}%
+              </p>
+            </div>
           ) : null}
+
           <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Revenue by category" description="Product and service mix across categories in this period.">
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.sales.revenueByCategory}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => formatUgx(v)} />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            <SectionCard
+              title="Revenue by category"
+              description="Product and service mix across categories in this period — each bar uses a distinct color for quick scanning."
+            >
+              {data.sales.revenueByCategory.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No category revenue in this window.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.sales.revenueByCategory}
+                      margin={{ top: 8, right: 12, left: 4, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: string) => (v.length > 14 ? `${v.slice(0, 14)}…` : v)}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => (typeof v === 'number' && v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${v}`)}
+                      />
+                      <Tooltip
+                        formatter={(v: number) => formatUgx(v)}
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                      />
+                      <Bar dataKey="revenue" radius={[6, 6, 0, 0]} maxBarSize={52}>
+                        {data.sales.revenueByCategory.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {overviewAggregates.categoryCount > 0 ? (
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  {overviewAggregates.categoryCount} categor
+                  {overviewAggregates.categoryCount === 1 ? 'y' : 'ies'} in chart
+                </p>
+              ) : null}
             </SectionCard>
-            <SectionCard title="Seasonal trend" description="Revenue by calendar month in the selected window.">
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.sales.seasonalByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => formatUgx(v)} />
-                    <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            <SectionCard
+              title="Seasonal trend"
+              description="Revenue by calendar month in the selected window — points connect month-to-month totals."
+            >
+              {data.sales.seasonalByMonth.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No monthly revenue points in this window.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data.sales.seasonalByMonth} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => (typeof v === 'number' && v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${v}`)}
+                      />
+                      <Tooltip formatter={(v: number) => formatUgx(v)} cursor={{ stroke: 'hsl(var(--muted-foreground) / 0.35)' }} />
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: 'hsl(var(--card))' }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {overviewAggregates.seasonalMonths > 0 ? (
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  {overviewAggregates.seasonalMonths} month
+                  {overviewAggregates.seasonalMonths === 1 ? '' : 's'} in range
+                </p>
+              ) : null}
             </SectionCard>
           </div>
         </TabsContent>
 
-        <TabsContent value="sales" className="space-y-8">
+        <TabsContent value="sales" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-violet-500/8 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-violet-500/12 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 shadow-inner dark:text-violet-300"
+                aria-hidden
+              >
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Sales performance
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Revenue mix, geography, and checkout methods for the selected filters. Totals below follow the same
+                    window as the overview tab.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Store className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Top vendor · {salesAggregates.topVendorName}</span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Tag className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Top category · {salesAggregates.topCategoryName}
+                      {salesAggregates.topCategoryRevenue > 0
+                        ? ` (${formatUgx(salesAggregates.topCategoryRevenue)})`
+                        : ''}
+                    </span>
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <DollarSign className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Category revenue</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(salesAggregates.categoryRevenueSum)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Sum of product category buckets · Platform total {formatUgx(data.overview.revenueTotal)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <Globe className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Ship-to orders</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {salesAggregates.regionOrderSum.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Orders attributed to regions below
+                {salesAggregates.regionOrderSum > 0
+                  ? ` · ~${formatUgx(salesAggregates.regionRevenueSum / salesAggregates.regionOrderSum)} / order`
+                  : ''}
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Payment capture</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(salesAggregates.paymentVolumeSum)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.sales.paymentMethodPerformance.length === 0
+                  ? 'No payment rows in this window'
+                  : `${data.sales.paymentMethodPerformance.length} methods · Lead ${salesAggregates.primaryPaymentLabel ?? '—'}`}
+              </p>
+            </div>
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+              <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+                <Trophy className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Vendor share (top 8)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {salesAggregates.vendorRevenueSum > 0
+                  ? `${Math.min(100, Math.round((data.sales.revenueByVendor.slice(0, 8).reduce((a, v) => a + v.revenue, 0) / salesAggregates.vendorRevenueSum) * 100))}%`
+                  : '—'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Share of vendor revenue from the eight bars in the chart
+              </p>
+            </div>
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-2">
             <SectionCard title="Top vendors by revenue" description="Leading sellers in the selected period (top 8).">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.sales.revenueByVendor.slice(0, 8)} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="vendorName" width={120} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(v: number) => formatUgx(v)} />
-                    <Bar dataKey="revenue" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {data.sales.revenueByVendor.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No vendor revenue in this window.</p>
+              ) : (
+                <div className="h-[300px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.sales.revenueByVendor.slice(0, 8)}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${v}`)} />
+                      <YAxis
+                        type="category"
+                        dataKey="vendorName"
+                        width={128}
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(v: string) => (v.length > 18 ? `${v.slice(0, 18)}…` : v)}
+                      />
+                      <Tooltip formatter={(v: number) => formatUgx(v)} cursor={{ fill: 'hsl(var(--muted) / 0.35)' }} />
+                      <Bar dataKey="revenue" fill="#8b5cf6" radius={[0, 6, 6, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </SectionCard>
             <SectionCard
               title="Payment method performance"
               description="Share of captured payment volume by method."
             >
               {data.sales.paymentMethodPerformance.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No in-memory payment rows in this window.</p>
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No in-memory payment rows in this window.
+                </p>
               ) : (
-                <div className="h-[300px]">
+                <div className="h-[300px] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                    <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                       <Pie
                         data={data.sales.paymentMethodPerformance.map((p) => ({
                           name: p.method,
@@ -2424,65 +3063,132 @@ export function AdminAnalyticsClient() {
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label
+                        cy="46%"
+                        innerRadius={44}
+                        outerRadius={88}
+                        paddingAngle={2}
+                        label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                        labelLine={false}
                       >
                         {data.sales.paymentMethodPerformance.map((_, i) => (
-                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="hsl(var(--card))" strokeWidth={2} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(v: number) => formatUgx(Number(v))} />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </SectionCard>
           </div>
-          <SectionCard title="Revenue by location" description="Orders and revenue by shipping region.">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Region</TableHead>
-                  <TableHead className="text-right">Orders</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.sales.revenueByLocation.map((r) => (
-                  <TableRow key={r.region}>
-                    <TableCell className="font-medium">{r.region}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.orders}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatUgx(r.revenue)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+
+          <SectionCard
+            title="Revenue by location"
+            description="Orders and revenue by shipping region — bar shows share of the top region in this list."
+            contentClassName={data.sales.revenueByLocation.length === 0 ? undefined : 'p-0'}
+          >
+            {data.sales.revenueByLocation.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">No regional orders in this window.</p>
+            ) : (
+              <div className="overflow-x-auto [scrollbar-width:thin]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/80 hover:bg-transparent">
+                      <TableHead className="bg-muted/20 pl-5">Region</TableHead>
+                      <TableHead className="hidden bg-muted/20 md:table-cell">Mix</TableHead>
+                      <TableHead className="bg-muted/20 text-right tabular-nums">Orders</TableHead>
+                      <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Revenue</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.sales.revenueByLocation.map((r) => {
+                      const mixPct =
+                        salesAggregates.maxRegionRevenue > 0
+                          ? Math.round((r.revenue / salesAggregates.maxRegionRevenue) * 100)
+                          : 0;
+                      return (
+                        <TableRow key={r.region} className="border-border/50 transition-colors hover:bg-muted/25">
+                          <TableCell className="max-w-[12rem] pl-5 font-medium">
+                            <span className="line-clamp-2">{r.region}</span>
+                          </TableCell>
+                          <TableCell className="hidden w-[min(32%,14rem)] md:table-cell">
+                            <div
+                              className="h-2 overflow-hidden rounded-full bg-muted"
+                              title={`${mixPct}% of strongest region`}
+                            >
+                              <div
+                                className="h-full rounded-full bg-primary/75 transition-[width]"
+                                style={{ width: `${Math.max(8, mixPct)}%` }}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{r.orders}</TableCell>
+                          <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                            {formatUgx(r.revenue)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </SectionCard>
-          <div className="grid gap-6 md:grid-cols-2">
-            <SectionCard title="Top products" description="Best-selling SKUs by units and revenue.">
-              <ul className="space-y-0 divide-y divide-border/60 text-sm">
-                {data.sales.topProducts.slice(0, 8).map((p) => (
-                  <li key={p.id} className="flex justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <span className="truncate font-medium text-foreground">{p.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {p.units} units · {formatUgx(p.revenue)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Top products"
+              description="Best-selling SKUs by units and revenue — bars are relative to this list only."
+              contentClassName="p-0"
+            >
+              {data.sales.topProducts.length === 0 ? (
+                <p className="px-5 py-10 text-center text-sm text-muted-foreground">No product sales in this window.</p>
+              ) : (
+                <ul className="max-h-[min(26rem,58vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain px-5 text-sm [scrollbar-width:thin]">
+                  {data.sales.topProducts.slice(0, 8).map((p, i) => (
+                    <InventoryVelocityRow
+                      key={p.id}
+                      rank={i + 1}
+                      name={p.name}
+                      units={p.units}
+                      revenue={p.revenue}
+                      maxUnits={salesAggregates.topProductsMaxUnits}
+                      barClassName="bg-violet-500/85 dark:bg-violet-400/80"
+                    />
+                  ))}
+                </ul>
+              )}
             </SectionCard>
-            <SectionCard title="Top services" description="Bookings and estimated revenue by service.">
-              <ul className="space-y-0 divide-y divide-border/60 text-sm">
-                {data.sales.topServices.slice(0, 8).map((s) => (
-                  <li key={s.name} className="flex justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <span className="truncate font-medium text-foreground">{s.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {s.bookings} bookings · ~{formatUgx(s.revenue)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            <SectionCard
+              title="Top services"
+              description="Bookings and estimated revenue by service — bars compare bookings in this list."
+              contentClassName="p-0"
+            >
+              {data.sales.topServices.length === 0 ? (
+                <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+                  No service revenue in this window.
+                </p>
+              ) : (
+                <ul className="max-h-[min(26rem,58vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain px-5 text-sm [scrollbar-width:thin]">
+                  {data.sales.topServices.slice(0, 8).map((s, i) => (
+                    <InventoryVelocityRow
+                      key={s.name}
+                      rank={i + 1}
+                      name={s.name}
+                      units={s.bookings}
+                      revenue={s.revenue}
+                      maxUnits={salesAggregates.topServicesMaxBookings}
+                      barClassName="bg-sky-500/85 dark:bg-sky-400/75"
+                      metricLabel="bookings"
+                    />
+                  ))}
+                </ul>
+              )}
             </SectionCard>
           </div>
         </TabsContent>
@@ -2662,92 +3368,587 @@ export function AdminAnalyticsClient() {
           </SectionCard>
         </TabsContent>
 
-        <TabsContent value="services" className="space-y-8">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <KpiCard
-              label="Completion rate"
-              value={`${(data.services.completionRate * 100).toFixed(1)}%`}
-            />
-            <KpiCard
-              label="Cancellation rate"
-              value={`${(data.services.cancellationRate * 100).toFixed(1)}%`}
-            />
-            <KpiCard
-              label="Avg. service time"
-              value={
-                data.services.avgCompletionMinutes != null
-                  ? `${data.services.avgCompletionMinutes.toFixed(0)} min`
-                  : '—'
-              }
-            />
-          </div>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Bookings by category" description="Volume of service bookings by category.">
-              <div className="h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.services.bookingsByCategory.slice(0, 10)}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="category" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+        <TabsContent value="services" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-amber-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-amber-500/14 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/18 text-amber-800 shadow-inner dark:text-amber-200"
+                aria-hidden
+              >
+                <Sparkles className="h-5 w-5" />
               </div>
-            </SectionCard>
-            <SectionCard title="Provider ratings" description="Average stars and review count by provider.">
-              <div className="max-h-[280px] space-y-0 divide-y divide-border/60 overflow-y-auto text-sm">
-                {data.services.ratingsByProvider.length === 0 ? (
-                  <p className="py-4 text-muted-foreground">No ratings in this window.</p>
-                ) : (
-                  data.services.ratingsByProvider.slice(0, 12).map((r) => (
-                    <div key={r.providerId} className="flex justify-between gap-3 py-3 first:pt-0">
-                      <span className="font-mono text-xs text-muted-foreground">{r.providerId}</span>
-                      <span className="tabular-nums font-medium">
-                        {r.avgStars.toFixed(1)} ★ ({r.count})
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Services snapshot
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Bookings, completion quality, and provider signals for the selected window — complements product metrics
+                    on Overview and Sales.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <ClipboardList className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      {servicesAggregates.bookingsTotal.toLocaleString()} bookings ·{' '}
+                      {formatUgx(data.overview.serviceRevenue)} revenue
+                    </span>
+                  </Badge>
+                  {servicesAggregates.topCategoryLabel ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Tag className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Top category · {servicesAggregates.topCategoryLabel} (
+                        {servicesAggregates.topCategoryCount.toLocaleString()})
                       </span>
-                    </div>
-                  ))
-                )}
+                    </Badge>
+                  ) : null}
+                  {servicesAggregates.topServiceLabel ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Star className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Top service · {servicesAggregates.topServiceLabel} (
+                        {servicesAggregates.topServiceCount.toLocaleString()})
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {servicesAggregates.weightedAvgStars != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Star className="h-3 w-3 shrink-0 text-amber-600 opacity-90 dark:text-amber-400" aria-hidden />
+                      <span className="truncate">
+                        Avg rating · {servicesAggregates.weightedAvgStars.toFixed(2)} ★ (
+                        {servicesAggregates.reviewCount.toLocaleString()} reviews)
+                      </span>
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Completion rate</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {(data.services.completionRate * 100).toFixed(1)}%
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Share of service requests marked completed in period
+              </p>
+            </div>
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                data.services.cancellationRate > 0.2
+                  ? 'border-rose-500/35 bg-rose-500/8 dark:bg-rose-500/10'
+                  : 'border-amber-500/25 bg-amber-500/6 dark:bg-amber-500/10',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex items-center gap-2',
+                  data.services.cancellationRate > 0.2
+                    ? 'text-rose-700 dark:text-rose-400'
+                    : 'text-amber-800 dark:text-amber-400',
+                )}
+              >
+                <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Cancellation rate</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {(data.services.cancellationRate * 100).toFixed(1)}%
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.services.cancellationRate > 0.2
+                  ? 'Elevated — check provider capacity and buyer expectations.'
+                  : 'Cancelled or abandoned requests in this window'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <Timer className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. service time</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.services.avgCompletionMinutes != null
+                  ? `${data.services.avgCompletionMinutes.toFixed(0)} min`
+                  : '—'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Mean time to completion when timestamps allow
+              </p>
+            </div>
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+              <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+                <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Booking volume</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {servicesAggregates.bookingsTotal.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.overview.servicePaymentsCount.toLocaleString()} service payments ·{' '}
+                {data.services.bookingsByCategory.length} categor
+                {data.services.bookingsByCategory.length === 1 ? 'y' : 'ies'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Bookings by category"
+              description="Volume of service bookings by category (top 10) — colored bars for quick comparison."
+            >
+              {data.services.bookingsByCategory.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No service bookings in this window.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.services.bookingsByCategory.slice(0, 10)}
+                      margin={{ top: 8, right: 12, left: 4, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                      <XAxis
+                        dataKey="category"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 12)}…` : v)}
+                        interval={0}
+                      />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip
+                        formatter={(v: number) => [`${v} bookings`, 'Count']}
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                      />
+                      <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                        {data.services.bookingsByCategory.slice(0, 10).map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+            <SectionCard
+              title="Provider ratings"
+              description="Average stars and review volume — bar length is relative to 5★ within this list."
+              contentClassName={data.services.ratingsByProvider.length === 0 ? undefined : 'p-0'}
+            >
+              {data.services.ratingsByProvider.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No ratings in this window.</p>
+              ) : (
+                <ul className="max-h-[min(24rem,55vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain px-5 text-sm [scrollbar-width:thin]">
+                  {data.services.ratingsByProvider.slice(0, 12).map((r, i) => {
+                    const starPct = Math.max(6, Math.round((r.avgStars / 5) * 100));
+                    return (
+                      <li
+                        key={r.providerId}
+                        className="flex flex-col gap-3 py-3.5 first:pt-3 last:pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/80 text-xs font-bold tabular-nums text-muted-foreground"
+                            aria-hidden
+                          >
+                            {i + 1}
+                          </span>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <p className="break-all font-mono text-xs leading-snug text-foreground">{r.providerId}</p>
+                            <div
+                              className="h-1.5 overflow-hidden rounded-full bg-muted"
+                              title={`${r.avgStars.toFixed(1)} / 5 average`}
+                            >
+                              <div
+                                className="h-full rounded-full bg-amber-500/85 transition-[width] dark:bg-amber-400/80"
+                                style={{ width: `${starPct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-0.5 sm:text-right">
+                          <span className="text-sm font-semibold tabular-nums text-foreground">
+                            {r.avgStars.toFixed(1)} <span className="text-amber-600 dark:text-amber-400">★</span>
+                          </span>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {r.count.toLocaleString()} review{r.count === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Bookings by service"
+              description="Most-booked service lines in the period (top 8)."
+            >
+              {data.services.bookingsByService.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No per-service booking rows.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.services.bookingsByService.slice(0, 8).map((row) => ({
+                        name: row.service.length > 22 ? `${row.service.slice(0, 22)}…` : row.service,
+                        fullName: row.service,
+                        count: row.count,
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" width={128} tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        formatter={(v: number) => [`${v} bookings`, 'Count']}
+                        labelFormatter={(_, payload) =>
+                          payload?.[0]?.payload?.fullName != null
+                            ? String(payload[0].payload.fullName)
+                            : 'Service'
+                        }
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                      />
+                      <Bar dataKey="count" fill="#f59e0b" radius={[0, 6, 6, 0]} maxBarSize={26} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+            <SectionCard
+              title="Revenue by provider"
+              description="Captured service payments attributed to provider IDs — bar shows share of the top row in this list."
+              contentClassName={data.services.revenueByProvider.length === 0 ? undefined : 'p-0'}
+            >
+              {data.services.revenueByProvider.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No provider revenue in this window.</p>
+              ) : (
+                <div className="overflow-x-auto [scrollbar-width:thin]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-border/80 hover:bg-transparent">
+                        <TableHead className="bg-muted/20 pl-5 font-mono text-xs">Provider</TableHead>
+                        <TableHead className="hidden bg-muted/20 md:table-cell">Mix</TableHead>
+                        <TableHead className="bg-muted/20 text-right tabular-nums">Payments</TableHead>
+                        <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Revenue</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.services.revenueByProvider.slice(0, 12).map((p) => {
+                        const mixPct =
+                          servicesAggregates.maxProviderRevenue > 0
+                            ? Math.round((p.revenue / servicesAggregates.maxProviderRevenue) * 100)
+                            : 0;
+                        return (
+                          <TableRow key={p.providerId} className="border-border/50 transition-colors hover:bg-muted/25">
+                            <TableCell className="max-w-[14rem] pl-5">
+                              <span className="break-all font-mono text-xs text-foreground">{p.providerId}</span>
+                            </TableCell>
+                            <TableCell className="hidden w-[min(32%,14rem)] md:table-cell">
+                              <div
+                                className="h-2 overflow-hidden rounded-full bg-muted"
+                                title={`${mixPct}% of top provider in table`}
+                              >
+                                <div
+                                  className="h-full rounded-full bg-fuchsia-500/80 transition-[width] dark:bg-fuchsia-400/75"
+                                  style={{ width: `${Math.max(8, mixPct)}%` }}
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {p.payments.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                              {formatUgx(p.revenue)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </SectionCard>
           </div>
         </TabsContent>
 
-        <TabsContent value="customers" className="space-y-8">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="New customers (period)" value={String(data.customers.newInPeriod)} />
-            <KpiCard label="Returning customers" value={String(data.customers.returningInPeriod)} />
-            <KpiCard label="Avg. CLV (catalog)" value={formatUgx(data.customers.avgClv)} />
-            <KpiCard label="Median CLV" value={formatUgx(data.customers.medianClv)} />
-          </div>
-          <p className="rounded-lg border border-border/60 bg-muted/25 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-            {data.customers.cacNote}
-          </p>
-          <SectionCard title="Simplified funnel" description="Counts by lifecycle stage in this period.">
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.customers.funnel} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="stage" width={180} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#0ea5e9" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+        <TabsContent value="customers" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-cyan-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-cyan-500/14 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/18 text-cyan-900 shadow-inner dark:text-cyan-200"
+                aria-hidden
+              >
+                <Users className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Customer cohorts
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    New vs. returning activity, catalog-based lifetime value estimates, and a lightweight funnel for the
+                    selected filters.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Users className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      In period · {customersAggregates.newPlusReturning.toLocaleString()} new + returning
+                    </span>
+                  </Badge>
+                  {customersAggregates.newSharePct != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <UserPlus className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">New share · {customersAggregates.newSharePct.toFixed(0)}% of that pair</span>
+                    </Badge>
+                  ) : null}
+                  {customersAggregates.topFunnelStage ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Filter className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Busiest funnel stage · {customersAggregates.topFunnelStage} (
+                        {customersAggregates.topFunnelCount.toLocaleString()})
+                      </span>
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <ShoppingCart className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Paying customers (overview) · {data.overview.payingCustomersCount.toLocaleString()}
+                    </span>
+                  </Badge>
+                </div>
+              </div>
             </div>
-          </SectionCard>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Retention (approx.):{' '}
-            {data.customers.retentionRateApprox != null
-              ? `${data.customers.retentionRateApprox.toFixed(1)}% returning of active`
-              : '—'}
-            {' · '}
-            Churn proxy:{' '}
-            {data.customers.churnRateApprox != null
-              ? `${data.customers.churnRateApprox.toFixed(1)}% new of active`
-              : '—'}
-          </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">New (period)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.customers.newInPeriod.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                First-time buyers surfaced in this window
+              </p>
+            </div>
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <Users className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Returning (period)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.customers.returningInPeriod.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Repeat purchasers with prior activity
+              </p>
+            </div>
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+              <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. CLV (catalog)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.customers.avgClv)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Mean lifetime value from catalog orders · Median {formatUgx(data.customers.medianClv)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                <BarChart3 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Median CLV</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.customers.medianClv)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {customersAggregates.clvSkewHint ?? '50th percentile of modeled buyer CLV in this view.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3 shadow-sm ring-1 ring-black/4 dark:bg-muted/10 dark:ring-white/6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-muted-foreground shadow-inner"
+                aria-hidden
+              >
+                <Megaphone className="h-4 w-4" />
+              </div>
+              <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.customers.cacNote}</p>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              'flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between',
+              data.customers.retentionRateApprox != null && data.customers.retentionRateApprox >= 40
+                ? 'border-emerald-500/35 bg-emerald-500/8 dark:bg-emerald-500/10'
+                : 'border-border/70 bg-muted/15 dark:bg-muted/10',
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background/80 text-foreground shadow-inner"
+                aria-hidden
+              >
+                <RotateCcw className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Retention & churn (approx.)</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  Retention: share of active buyers who also purchased before. Churn proxy: new buyers as a share of
+                  active — directional only.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4 sm:justify-end">
+              <div className="text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Retention</p>
+                <p
+                  className={cn(
+                    'text-xl font-bold tabular-nums',
+                    data.customers.retentionRateApprox != null && data.customers.retentionRateApprox >= 40
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-foreground',
+                  )}
+                >
+                  {data.customers.retentionRateApprox != null
+                    ? `${data.customers.retentionRateApprox.toFixed(1)}%`
+                    : '—'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Churn proxy</p>
+                <p className="text-xl font-bold tabular-nums text-foreground">
+                  {data.customers.churnRateApprox != null ? `${data.customers.churnRateApprox.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Simplified funnel"
+              description="Counts by lifecycle stage — colored bars for drop-off scanning; hover for exact counts."
+            >
+              {data.customers.funnel.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No funnel stages in this window.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.customers.funnel}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="stage"
+                        width={168}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: string) => (v.length > 22 ? `${v.slice(0, 22)}…` : v)}
+                      />
+                      <Tooltip
+                        formatter={(v: number) => [`${v.toLocaleString()}`, 'Count']}
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                        {data.customers.funnel.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Funnel stages"
+              description="% of prior stage when provided — mix bar is relative to the largest count in this list."
+              contentClassName={data.customers.funnel.length === 0 ? undefined : 'p-0'}
+            >
+              {data.customers.funnel.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No rows.</p>
+              ) : (
+                <div className="max-h-[min(24rem,58vh)] overflow-auto overscroll-contain [scrollbar-width:thin]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-border/80 hover:bg-transparent">
+                        <TableHead className="sticky top-0 z-10 bg-muted/95 pl-5 backdrop-blur-sm">Stage</TableHead>
+                        <TableHead className="sticky top-0 z-10 hidden bg-muted/95 backdrop-blur-sm md:table-cell">
+                          Mix
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 text-right tabular-nums backdrop-blur-sm">
+                          % prior
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 pr-5 text-right tabular-nums backdrop-blur-sm">
+                          Count
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.customers.funnel.map((row) => {
+                        const mixPct =
+                          customersAggregates.funnelMaxCount > 0
+                            ? Math.round((row.count / customersAggregates.funnelMaxCount) * 100)
+                            : 0;
+                        return (
+                          <TableRow key={row.stage} className="border-border/50 transition-colors hover:bg-muted/25">
+                            <TableCell className="max-w-[14rem] pl-5 font-medium">
+                              <span className="line-clamp-2">{row.stage}</span>
+                            </TableCell>
+                            <TableCell className="hidden w-[min(32%,14rem)] md:table-cell">
+                              <div
+                                className="h-2 overflow-hidden rounded-full bg-muted"
+                                title={`${mixPct}% of largest stage in table`}
+                              >
+                                <div
+                                  className="h-full rounded-full bg-cyan-500/80 transition-[width] dark:bg-cyan-400/75"
+                                  style={{ width: `${Math.max(8, mixPct)}%` }}
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.pctOfPrior != null ? (
+                                <Badge variant="secondary" className="tabular-nums">
+                                  {row.pctOfPrior.toFixed(1)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                              {row.count.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </SectionCard>
+          </div>
         </TabsContent>
 
         <TabsContent value="vendors" className="space-y-8 focus-visible:outline-none">
@@ -2770,236 +3971,1320 @@ export function AdminAnalyticsClient() {
           <MarketingAnalyticsSection marketing={data.marketing} />
         </TabsContent>
 
-        <TabsContent value="finance" className="space-y-8">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              label="Fees (disbursements)"
-              value={formatUgx(data.finance.platformFeesFromDisbursements)}
-            />
-            <KpiCard label="Payouts pending" value={formatUgx(data.finance.payoutsPending)} />
-            <KpiCard label="Payouts paid (lifetime sum)" value={formatUgx(data.finance.payoutsPaid)} />
-            <KpiCard
-              label="Outstanding (estimate)"
-              value={formatUgx(data.finance.outstandingVendorBalanceEstimate)}
-            />
-          </div>
-          <p className="rounded-lg border border-border/60 bg-muted/25 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-            {data.finance.taxNote}
-          </p>
-          <SectionCard title="Margin by category" description="Modeled revenue roll-up by category.">
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.finance.marginByCategory}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="category" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="#6366f1" name="Revenue" />
-                </BarChart>
-              </ResponsiveContainer>
+        <TabsContent value="finance" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-indigo-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-indigo-500/14 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/18 text-indigo-800 shadow-inner dark:text-indigo-200"
+                aria-hidden
+              >
+                <Landmark className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Finance & payouts
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Disbursement fees, vendor balances, and modeled category margins — pair with Overview for headline
+                    revenue and commission estimates.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Layers2 className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Commission (est.) · {formatUgx(data.overview.platformCommissionEstimate)}
+                    </span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Net profit (est.) · {formatUgx(data.overview.netProfitEstimate)}</span>
+                  </Badge>
+                  {financeAggregates.topCategoryByRevenue ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Tag className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Top category (revenue) · {financeAggregates.topCategoryByRevenue} (
+                        {formatUgx(financeAggregates.topCategoryRevenue)}
+                        {financeAggregates.topCategoryMarginPct != null
+                          ? ` · ${financeAggregates.topCategoryMarginPct.toFixed(1)}% margin`
+                          : ''}
+                        )
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {financeAggregates.revenueWeightedMarginPct != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Percent className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Revenue-weighted margin · {financeAggregates.revenueWeightedMarginPct.toFixed(1)}%
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {financeAggregates.pendingPayoutSharePct != null ? (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'max-w-full gap-1 font-normal',
+                        financeAggregates.pendingPayoutSharePct > 35
+                          ? 'border-amber-500/35 bg-amber-500/8 text-amber-950 dark:text-amber-100'
+                          : '',
+                      )}
+                    >
+                      <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Pending share · {financeAggregates.pendingPayoutSharePct.toFixed(0)}% of paid+pending
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {financeAggregates.highestMarginCategory != null && financeAggregates.highestMarginPct != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Sparkles className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Peak margin category · {financeAggregates.highestMarginCategory} (
+                        {financeAggregates.highestMarginPct.toFixed(1)}%)
+                      </span>
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
             </div>
-          </SectionCard>
-        </TabsContent>
-
-        <TabsContent value="operations" className="space-y-8">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Support tickets open" value={String(data.operations.supportTicketsOpen)} />
-            <KpiCard label="Tickets resolved" value={String(data.operations.supportTicketsResolved)} />
-            <KpiCard
-              label="Avg. resolution time"
-              value={
-                data.operations.avgResolutionHours != null
-                  ? `${data.operations.avgResolutionHours.toFixed(1)} h`
-                  : '—'
-              }
-            />
-            <KpiCard label="Failed transactions" value={String(data.operations.failedTransactions)} />
           </div>
-          <p className="rounded-lg border border-border/60 bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
-            Succeeded (tracked): {data.operations.succeededTransactions} · Paytota rows in range:{' '}
-            {data.paytotaRowCount}
-          </p>
-          <SectionCard title="Common ticket subjects" description="Most frequent support themes in period.">
-            <ul className="space-y-0 divide-y divide-border/60 text-sm">
-              {data.operations.commonTicketSubjects.map((t) => (
-                <li key={t.subject} className="flex justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <span className="max-w-[80%] truncate font-medium text-foreground">{t.subject}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">{t.count}</span>
-                </li>
-              ))}
-            </ul>
-          </SectionCard>
-        </TabsContent>
 
-        <TabsContent value="predictive" className="space-y-8">
-          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-foreground shadow-sm">
-            {data.predictive.demandTrendLabel}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
+              <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
+                <Layers2 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Fees (disbursements)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.finance.platformFeesFromDisbursements)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Platform fees attributed to disbursement rows in range
+              </p>
+            </div>
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                financeAggregates.pendingPayoutSharePct != null && financeAggregates.pendingPayoutSharePct > 35
+                  ? 'border-amber-500/35 bg-amber-500/8 dark:bg-amber-500/10'
+                  : 'border-amber-500/25 bg-amber-500/6 dark:bg-amber-500/10',
+              )}
+            >
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                <Timer className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Payouts pending</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.finance.payoutsPending)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Awaiting settlement · Paid (lifetime) {formatUgx(data.finance.payoutsPaid)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Payouts paid</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.finance.payoutsPaid)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Cumulative paid out (lifetime sum)</p>
+            </div>
+            <div className="rounded-xl border border-rose-500/25 bg-rose-500/6 p-4 shadow-sm dark:bg-rose-500/10">
+              <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Outstanding (estimate)</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.finance.outstandingVendorBalanceEstimate)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Vendor balance still owed — reconcile with Paytota and ledger
+              </p>
+            </div>
           </div>
-          <KpiCard
-            label="30-day revenue forecast (naive trend)"
-            value={formatUgx(data.predictive.revenueForecastNext30d)}
-            sub="Extrapolated from recent monthly buckets — replace with ML when data volume allows."
-          />
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3 shadow-sm ring-1 ring-black/4 dark:bg-muted/10 dark:ring-white/6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-muted-foreground shadow-inner"
+                aria-hidden
+              >
+                <Percent className="h-4 w-4" />
+              </div>
+              <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.finance.taxNote}</p>
+            </div>
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Restock suggestions" description="Heuristic signals for inventory planning.">
-              <ul className="space-y-4 text-sm">
-                {data.predictive.restockSuggestions.map((s) => (
-                  <li key={s.productId} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
-                    <span className="font-semibold text-foreground">{s.name}</span>
-                    <p className="mt-1 leading-relaxed text-muted-foreground">{s.reason}</p>
-                  </li>
-                ))}
-              </ul>
+            <SectionCard
+              title="Margin by category"
+              description="Revenue bars (UGX) with modeled margin % as a line — dual scale for mix vs. rate."
+            >
+              {data.finance.marginByCategory.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No category margin rows for this window.</p>
+              ) : (
+                <div className="h-[300px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={data.finance.marginByCategory} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                      <XAxis
+                        dataKey="category"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 12)}…` : v)}
+                        interval={0}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => (typeof v === 'number' && v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${v}`)}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => `${v}%`}
+                        domain={[0, 'auto']}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                        formatter={(value: number, name: string) => {
+                          if (name === 'Revenue') return [formatUgx(Number(value)), name];
+                          if (name === 'Margin %') return [`${Number(value).toFixed(1)}%`, name];
+                          return [value, name];
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="revenue"
+                        name="Revenue"
+                        fill="#6366f1"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={52}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="marginPct"
+                        name="Margin %"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: 'hsl(var(--card))' }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {financeAggregates.marginRevenueSum > 0 ? (
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  Roll-up revenue in chart · {formatUgx(financeAggregates.marginRevenueSum)} across{' '}
+                  {data.finance.marginByCategory.length} line{data.finance.marginByCategory.length === 1 ? '' : 's'}
+                </p>
+              ) : null}
             </SectionCard>
-            <SectionCard title="Price optimization hints" description="Lightweight pricing guardrails from catalog data.">
-              <ul className="space-y-4 text-sm">
-                {data.predictive.priceOptimizationHints.map((s) => (
-                  <li key={s.productId} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
-                    <span className="font-semibold text-foreground">{s.name}</span>
-                    <p className="mt-1 leading-relaxed text-muted-foreground">{s.hint}</p>
-                  </li>
-                ))}
-              </ul>
+
+            <SectionCard
+              title="Category margin detail"
+              description="Same data as the chart — revenue share vs. the strongest category in this list and modeled margin %."
+              contentClassName={data.finance.marginByCategory.length === 0 ? undefined : 'p-0'}
+            >
+              {data.finance.marginByCategory.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No rows to show.</p>
+              ) : (
+                <div className="max-h-[min(24rem,58vh)] overflow-auto overscroll-contain [scrollbar-width:thin]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-border/80 hover:bg-transparent">
+                        <TableHead className="sticky top-0 z-10 bg-muted/95 pl-5 backdrop-blur-sm">Category</TableHead>
+                        <TableHead className="sticky top-0 z-10 hidden bg-muted/95 backdrop-blur-sm md:table-cell">
+                          Mix
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 bg-muted/95 text-right tabular-nums backdrop-blur-sm">
+                          Margin
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 bg-muted/95 pr-5 text-right tabular-nums backdrop-blur-sm">
+                          Revenue
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.finance.marginByCategory.map((row) => {
+                        const mixPct =
+                          financeAggregates.maxCategoryRevenue > 0
+                            ? Math.round((row.revenue / financeAggregates.maxCategoryRevenue) * 100)
+                            : 0;
+                        return (
+                          <TableRow key={row.category} className="border-border/50 transition-colors hover:bg-muted/25">
+                            <TableCell className="max-w-[12rem] pl-5 font-medium">
+                              <span className="line-clamp-2">{row.category}</span>
+                            </TableCell>
+                            <TableCell className="hidden w-[min(32%,14rem)] md:table-cell">
+                              <div
+                                className="h-2 overflow-hidden rounded-full bg-muted"
+                                title={`${mixPct}% of top category in table`}
+                              >
+                                <div
+                                  className="h-full rounded-full bg-indigo-500/80 transition-[width] dark:bg-indigo-400/75"
+                                  style={{ width: `${Math.max(8, mixPct)}%` }}
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary" className="tabular-nums">
+                                {row.marginPct.toFixed(1)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                              {formatUgx(row.revenue)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </SectionCard>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Personalized recommendations for buyers already run on the storefront feed; this admin view focuses on
-            aggregate demand and pricing guardrails.
-          </p>
         </TabsContent>
 
-        <TabsContent value="reports" className="space-y-8">
-          <SectionCard
-            title="Custom reports"
-            description="Scoped exports using the filters above — vendor, product category, and service category."
+        <TabsContent value="operations" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-slate-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-slate-500/15 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-500/18 text-slate-800 shadow-inner dark:text-slate-200"
+                aria-hidden
+              >
+                <Activity className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Operations & support
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Queue health, resolution speed, payment failures, and the themes buyers contact you about in this
+                    window.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Ticket className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Ticket signal · {operationsAggregates.ticketThroughput.toLocaleString()} open + resolved (proxy)
+                    </span>
+                  </Badge>
+                  {operationsAggregates.openToResolvedRatio != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Bell className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Open ÷ resolved · {operationsAggregates.openToResolvedRatio.toFixed(2)} (backlog pressure)
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {data.operations.avgResolutionHours != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Avg resolution · {data.operations.avgResolutionHours.toFixed(1)} h
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {operationsAggregates.txFailurePct != null && operationsAggregates.txTotal > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'max-w-full gap-1 font-normal',
+                        operationsAggregates.txFailurePct > 15
+                          ? 'border-rose-500/35 bg-rose-500/8 text-rose-950 dark:text-rose-100'
+                          : '',
+                      )}
+                    >
+                      <CreditCard className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Tx failure · {operationsAggregates.txFailurePct.toFixed(1)}% of tracked attempts
+                      </span>
+                    </Badge>
+                  ) : null}
+                  {operationsAggregates.topSubjectLabel ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <Search className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Top subject ·{' '}
+                        {operationsAggregates.topSubjectLabel.length > 42
+                          ? `${operationsAggregates.topSubjectLabel.slice(0, 42)}…`
+                          : operationsAggregates.topSubjectLabel}
+                      </span>
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Globe className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Paytota rows in range · {data.paytotaRowCount.toLocaleString()}</span>
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                data.operations.supportTicketsOpen > 0 &&
+                  data.operations.supportTicketsResolved > 0 &&
+                  data.operations.supportTicketsOpen > data.operations.supportTicketsResolved
+                  ? 'border-amber-500/35 bg-amber-500/8 dark:bg-amber-500/10'
+                  : 'border-slate-500/25 bg-slate-500/6 dark:bg-slate-500/10',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex items-center gap-2',
+                  data.operations.supportTicketsOpen > 0 &&
+                    data.operations.supportTicketsResolved > 0 &&
+                    data.operations.supportTicketsOpen > data.operations.supportTicketsResolved
+                    ? 'text-amber-800 dark:text-amber-400'
+                    : 'text-slate-800 dark:text-slate-300',
+                )}
+              >
+                <Bell className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Tickets open</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.operations.supportTicketsOpen.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Open or in-progress in support queue
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Tickets resolved</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.operations.supportTicketsResolved.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Closed in the selected period</p>
+            </div>
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <Timer className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. resolution</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.operations.avgResolutionHours != null
+                  ? `${data.operations.avgResolutionHours.toFixed(1)} h`
+                  : '—'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Mean hours for resolved tickets</p>
+            </div>
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                operationsAggregates.txFailurePct != null && operationsAggregates.txFailurePct > 15
+                  ? 'border-rose-500/35 bg-rose-500/8 dark:bg-rose-500/10'
+                  : 'border-slate-500/25 bg-slate-500/6 dark:bg-slate-500/10',
+              )}
+            >
+              <div className="flex items-center gap-2 text-slate-800 dark:text-slate-300">
+                <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Failed transactions</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {data.operations.failedTransactions.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {operationsAggregates.txTotal > 0 && operationsAggregates.txFailurePct != null
+                  ? `${operationsAggregates.txFailurePct.toFixed(1)}% of ${operationsAggregates.txTotal.toLocaleString()} tracked`
+                  : 'No tracked attempts in this slice'}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3 shadow-sm ring-1 ring-black/4 dark:bg-muted/10 dark:ring-white/6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background/80 text-emerald-700 shadow-inner dark:text-emerald-400"
+                  aria-hidden
+                >
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Payment attempts (tracked)</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    Succeeded vs. failed counts follow Paytota when rows exist in range; otherwise in-memory payment
+                    stats. Row count reflects Paytota payloads loaded for this filter.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-6 sm:justify-end">
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Succeeded</p>
+                  <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                    {data.operations.succeededTransactions.toLocaleString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Failed</p>
+                  <p
+                    className={cn(
+                      'text-xl font-bold tabular-nums',
+                      data.operations.failedTransactions > 0
+                        ? 'text-rose-700 dark:text-rose-400'
+                        : 'text-foreground',
+                    )}
+                  >
+                    {data.operations.failedTransactions.toLocaleString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paytota rows</p>
+                  <p className="text-xl font-bold tabular-nums text-foreground">
+                    {data.paytotaRowCount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Common ticket subjects"
+              description="Most frequent support themes — truncated labels on the axis; tooltip shows the full subject."
+            >
+              {data.operations.commonTicketSubjects.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No ticket subjects in this window.</p>
+              ) : (
+                <div className="h-[280px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.operations.commonTicketSubjects.map((row) => ({
+                        label: row.subject.length > 24 ? `${row.subject.slice(0, 24)}…` : row.subject,
+                        fullSubject: row.subject,
+                        count: row.count,
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <YAxis type="category" dataKey="label" width={132} tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        formatter={(v: number) => [`${v.toLocaleString()}`, 'Tickets']}
+                        labelFormatter={(_, payload) =>
+                          payload?.[0]?.payload?.fullSubject != null
+                            ? String(payload[0].payload.fullSubject)
+                            : 'Subject'
+                        }
+                        cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={26}>
+                        {data.operations.commonTicketSubjects.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Subject breakdown"
+              description="Same subjects as the chart — mix bar is relative to the busiest theme in this list."
+              contentClassName={data.operations.commonTicketSubjects.length === 0 ? undefined : 'p-0'}
+            >
+              {data.operations.commonTicketSubjects.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No rows.</p>
+              ) : (
+                <div className="max-h-[min(24rem,58vh)] overflow-auto overscroll-contain [scrollbar-width:thin]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-border/80 hover:bg-transparent">
+                        <TableHead className="sticky top-0 z-10 bg-muted/95 pl-5 backdrop-blur-sm">Subject</TableHead>
+                        <TableHead className="sticky top-0 z-10 hidden bg-muted/95 backdrop-blur-sm md:table-cell">
+                          Mix
+                        </TableHead>
+                        <TableHead className="sticky top-0 z-10 pr-5 text-right tabular-nums backdrop-blur-sm">
+                          Count
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.operations.commonTicketSubjects.map((row) => {
+                        const mixPct =
+                          operationsAggregates.maxSubjectCount > 0
+                            ? Math.round((row.count / operationsAggregates.maxSubjectCount) * 100)
+                            : 0;
+                        return (
+                          <TableRow key={row.subject} className="border-border/50 transition-colors hover:bg-muted/25">
+                            <TableCell className="max-w-[min(100%,18rem)] pl-5">
+                              <span className="line-clamp-3 text-sm font-medium text-foreground">{row.subject}</span>
+                            </TableCell>
+                            <TableCell className="hidden w-[min(32%,14rem)] md:table-cell">
+                              <div
+                                className="h-2 overflow-hidden rounded-full bg-muted"
+                                title={`${mixPct}% of top subject in table`}
+                              >
+                                <div
+                                  className="h-full rounded-full bg-slate-500/80 transition-[width] dark:bg-slate-400/75"
+                                  style={{ width: `${Math.max(8, mixPct)}%` }}
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                              {row.count.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </SectionCard>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="predictive" className="space-y-8 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-primary/12 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-primary/18 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/18 text-primary shadow-inner"
+                aria-hidden
+              >
+                <Lightbulb className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Insights</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Lightweight forecasts and catalog heuristics — not a replacement for BI or ML models, but fast
+                    signals for ops and merchandising with your current filters.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Package className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Restock ideas · {insightsAggregates.restockCount.toLocaleString()}
+                    </span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Tag className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Price hints · {insightsAggregates.priceHintCount.toLocaleString()}
+                    </span>
+                  </Badge>
+                  {insightsAggregates.forecastToPeriodRatio != null ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <LineChartIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Forecast ÷ period revenue · {insightsAggregates.forecastToPeriodRatio.toFixed(2)}× (30d vs
+                        selected window)
+                      </span>
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <DollarSign className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Period revenue · {formatUgx(data.overview.revenueTotal)}</span>
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              'flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between',
+              'border-primary/30 bg-primary/8 dark:bg-primary/12',
+            )}
           >
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Export CSV includes overview and sales tables. Excel and Sheets open CSV files directly.
-            </p>
-          </SectionCard>
-          <div className="rounded-xl border border-dashed border-border/80 bg-muted/15 p-6 shadow-sm">
-            <h3 className="mb-2 flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground">
-                <BarChart3 className="h-4 w-4" />
-              </span>
-              Scheduled reports
-            </h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Weekly or monthly email digests are not wired to a mail provider yet. When you add one, this block can
-              call a cron-triggered API with the same query parameters you use here.
-            </p>
-            <Button type="button" variant="secondary" disabled className="mt-4" size="sm">
-              Schedule report (soon)
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background/70 text-primary shadow-inner"
+                aria-hidden
+              >
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Demand trend</p>
+                <p className="mt-1 text-sm leading-relaxed text-foreground/90">{data.predictive.demandTrendLabel}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10 sm:col-span-2 lg:col-span-1">
+              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+                <LineChartIcon className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">30-day revenue forecast</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatUgx(data.predictive.revenueForecastNext30d)}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Naive extrapolation from recent monthly buckets — swap for ML when volume and features justify it.
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <Package className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Restock signals</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {insightsAggregates.restockCount.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">SKUs flagged by velocity heuristic</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                <Percent className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">Pricing hints</span>
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {insightsAggregates.priceHintCount.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Catalog rows with guardrail copy</p>
+            </div>
+          </div>
+
+          <div className="no-print flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" className="gap-2 shadow-sm" asChild>
+              <Link href="/admin/products">
+                <Package className="h-3.5 w-3.5" />
+                Manage catalog
+              </Link>
             </Button>
           </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+              title="Restock suggestions"
+              description="Heuristic signals tied to fast movers — review stock and vendor lead times before acting."
+              contentClassName={data.predictive.restockSuggestions.length === 0 ? undefined : 'p-0'}
+            >
+              {data.predictive.restockSuggestions.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No restock suggestions for this filter set.
+                </p>
+              ) : (
+                <ul className="max-h-[min(28rem,60vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain text-sm [scrollbar-width:thin]">
+                  {data.predictive.restockSuggestions.map((s) => (
+                    <li key={s.productId} className="flex gap-3 px-5 py-4 first:pt-4 last:pb-4">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-700 dark:text-emerald-400"
+                        aria-hidden
+                      >
+                        <Package className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-snug text-foreground">{s.name}</p>
+                        <p className="mt-1.5 text-xs font-mono text-muted-foreground">{s.productId}</p>
+                        <p className="mt-2 leading-relaxed text-muted-foreground">{s.reason}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+            <SectionCard
+              title="Price optimization hints"
+              description="Compare-at and discount posture — use alongside margin views on Finance."
+              contentClassName={data.predictive.priceOptimizationHints.length === 0 ? undefined : 'p-0'}
+            >
+              {data.predictive.priceOptimizationHints.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No pricing hints for this filter set.
+                </p>
+              ) : (
+                <ul className="max-h-[min(28rem,60vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain text-sm [scrollbar-width:thin]">
+                  {data.predictive.priceOptimizationHints.map((s) => (
+                    <li key={s.productId} className="flex gap-3 px-5 py-4 first:pt-4 last:pb-4">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/12 text-amber-800 dark:text-amber-400"
+                        aria-hidden
+                      >
+                        <Tag className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-snug text-foreground">{s.name}</p>
+                        <p className="mt-1.5 text-xs font-mono text-muted-foreground">{s.productId}</p>
+                        <p className="mt-2 leading-relaxed text-muted-foreground">{s.hint}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3 shadow-sm ring-1 ring-black/4 dark:bg-muted/10 dark:ring-white/6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-muted-foreground shadow-inner"
+                aria-hidden
+              >
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
+                Personalized recommendations for buyers already run on the storefront feed; this admin tab stays focused
+                on aggregate demand, inventory nudges, and pricing guardrails for the selected date range and scopes.
+              </p>
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="visuals" className="space-y-8">
-          <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground shadow-sm">
-            <LineChartIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            <p className="leading-relaxed">
-              Comparison mode overlays a modeled prior-period baseline on categories when enabled in Filters.
-            </p>
-          </div>
-          {compareMode ? (
-            <SectionCard
-              title="Category revenue — current vs. baseline"
-              description="Side-by-side with an approximate prior-period baseline from MoM %."
-            >
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryCompareData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => formatUgx(v)} />
-                    <Legend />
-                    <Bar dataKey="current" fill="#3b82f6" name="Current" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="previous" fill="#94a3b8" name="Baseline" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+        <TabsContent value="reports" className="space-y-6 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-teal-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-teal-500/14 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 text-teal-800 shadow-inner dark:text-teal-300"
+                aria-hidden
+              >
+                <FileSpreadsheet className="h-5 w-5" />
               </div>
-              <p className="mt-4 border-t border-border/50 pt-4 text-xs leading-relaxed text-muted-foreground">
-                Baseline bars approximate prior performance using MoM % — for exact prior-category breakdown, run two
-                exports with shifted date ranges.
-              </p>
-            </SectionCard>
-          ) : null}
-          <SectionCard
-            title="Activity heatmap"
-            description="Product orders vs. service bookings by weekday in the selected window."
-          >
-            <div className="grid grid-cols-7 gap-2 sm:gap-3">
-              {data.heatmapWeekday.map((h) => {
-                const intensity = (h.productOrders + h.serviceBookings) / heatMax;
-                return (
-                  <div key={h.weekday} className="flex flex-col items-center gap-2 text-center">
-                    <div
-                      className="flex h-[4.5rem] w-full max-w-[5.5rem] flex-col justify-end rounded-lg border border-border/60 p-1.5 text-[10px] font-medium text-white shadow-inner sm:h-[5rem]"
-                      style={{
-                        background: `linear-gradient(to top, rgb(59 130 246 / ${0.25 + intensity * 0.75}), rgb(16 185 129 / ${0.2 + intensity * 0.55}))`,
-                      }}
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Reports &amp; exports
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Download a snapshot of the current analytics dataset. The CSV mirrors the filters in{' '}
+                    <span className="font-medium text-foreground">Filters &amp; scope</span> — dates, vendor, and
+                    categories all flow through to the file.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Data {lastUpdatedLabel || '—'}</span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Filter className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">{reportsScopeSummary.presetLabel}</span>
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-linear-to-br from-emerald-500/[0.08] via-card to-card p-5 shadow-md ring-1 ring-emerald-500/10 dark:from-emerald-500/12 dark:ring-emerald-500/15">
+              <div
+                className="pointer-events-none absolute -right-8 -top-12 h-36 w-36 rounded-full bg-emerald-500/15 blur-2xl"
+                aria-hidden
+              />
+              <div className="relative flex flex-col gap-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-800 shadow-inner dark:text-emerald-300"
+                    aria-hidden
+                  >
+                    <Download className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h2 className="text-base font-semibold tracking-tight text-foreground">CSV export</h2>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      UTF-8 comma-separated values. Opens cleanly in Excel, Google Sheets, and Numbers.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-3 shadow-inner dark:bg-background/40">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Active scope
+                  </p>
+                  <ul className="mt-2 space-y-2 text-sm text-foreground/95">
+                    <li className="grid gap-0.5 sm:grid-cols-[5rem_1fr] sm:gap-x-3">
+                      <span className="text-muted-foreground">Range</span>
+                      <span className="font-medium leading-snug">{reportsScopeSummary.rangeLine}</span>
+                    </li>
+                    <li className="grid gap-0.5 sm:grid-cols-[5rem_1fr] sm:gap-x-3">
+                      <span className="text-muted-foreground">Vendor</span>
+                      <span className="min-w-0 font-medium leading-snug">{reportsScopeSummary.vendorLabel}</span>
+                    </li>
+                    <li className="grid gap-0.5 sm:grid-cols-[5rem_1fr] sm:gap-x-3">
+                      <span className="text-muted-foreground">Categories</span>
+                      <span className="min-w-0 font-medium leading-snug">
+                        {reportsScopeSummary.productCatLabel}
+                        <span className="text-muted-foreground"> · </span>
+                        {reportsScopeSummary.serviceCatLabel}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Included sections
+                  </p>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {[
+                      'Overview KPIs (revenue, orders, profit estimates)',
+                      'Revenue by category',
+                      'Top products (units & revenue)',
+                      'Export metadata (generated time, window)',
+                    ].map((line) => (
+                      <li
+                        key={line}
+                        className="flex gap-2 rounded-lg border border-border/50 bg-muted/25 px-2.5 py-2 text-xs leading-relaxed text-foreground/90 dark:bg-muted/15"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex flex-wrap gap-2 border-t border-border/50 pt-4">
+                  <Button
+                    type="button"
+                    className="gap-2 shadow-sm"
+                    onClick={() => downloadAnalyticsCsv(data)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download CSV
+                  </Button>
+                  <Button type="button" variant="outline" className="gap-2 border-border/80" onClick={() => window.print()}>
+                    <Printer className="h-4 w-4" />
+                    Print summary
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col rounded-xl border border-violet-500/25 bg-linear-to-b from-violet-500/[0.06] via-muted/15 to-card p-5 shadow-sm ring-1 ring-violet-500/10 dark:from-violet-500/10 dark:ring-violet-500/15">
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/18 text-violet-800 shadow-inner dark:text-violet-300"
+                  aria-hidden
+                >
+                  <CalendarClock className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-semibold tracking-tight text-foreground">Scheduled delivery</h2>
+                    <Badge
+                      variant="secondary"
+                      className="border border-violet-500/25 bg-violet-500/10 text-xs font-medium text-violet-950 dark:text-violet-100"
                     >
-                      <span className="text-[11px] font-semibold tracking-tight">{h.weekday}</span>
-                      <span className="mt-0.5 opacity-95">
-                        P{h.productOrders} · S{h.serviceBookings}
+                      Coming soon
+                    </Badge>
+                  </div>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                    Automated digests will reuse the same query parameters as manual exports once email or webhook
+                    delivery is connected.
+                  </p>
+                </div>
+              </div>
+
+              <ul className="mt-4 flex-1 space-y-3">
+                <li className="flex gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-3 dark:bg-background/30">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+                    aria-hidden
+                  >
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">Weekly email digest</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      Roll-up of revenue, orders, and alerts for leadership inboxes.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-3 dark:bg-background/30">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+                    aria-hidden
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">Monthly snapshot</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      Longer window CSV pushed on a schedule or fetched from a signed cron URL.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+
+              <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/20 px-3 py-2.5">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground/90">Integration note:</span> wire a mail provider or
+                  queue worker to call{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground/90">
+                    /api/admin/analytics
+                  </code>{' '}
+                  with the same filters you set above.
+                </p>
+              </div>
+
+              <Button type="button" variant="secondary" disabled className="mt-4 w-full gap-2 sm:w-auto" size="sm">
+                <CalendarClock className="h-4 w-4 opacity-50" />
+                Schedule report
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="visuals" className="space-y-6 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-sky-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-sky-500/14 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-800 shadow-inner dark:text-sky-300"
+                aria-hidden
+              >
+                <Palette className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Visuals &amp; patterns
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Explore category comparisons and a weekday activity grid for the filtered period. Toggle comparison
+                    mode in <span className="font-medium text-foreground">Filters &amp; scope</span> to overlay a modeled
+                    baseline on category revenue.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'max-w-full gap-1 font-normal',
+                      compareMode &&
+                        'border-sky-500/30 bg-sky-500/10 text-sky-950 dark:text-sky-100',
+                    )}
+                  >
+                    <LineChartIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Comparison {compareMode ? 'on' : 'off'}</span>
+                  </Badge>
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <Activity className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">Weekday heatmap</span>
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {!compareMode ? (
+              <div className="rounded-xl border border-dashed border-sky-500/35 bg-linear-to-b from-sky-500/[0.06] to-muted/10 px-6 py-10 text-center shadow-sm dark:from-sky-500/10">
+                <div
+                  className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/15 text-sky-800 dark:text-sky-300"
+                  aria-hidden
+                >
+                  <LineChartIcon className="h-6 w-6" />
+                </div>
+                <h2 className="mt-4 text-base font-semibold tracking-tight text-foreground">Comparison chart hidden</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                  Enable <span className="font-medium text-foreground">Comparison charts in Visuals</span> in the
+                  filters card above to show current category revenue next to a baseline derived from MoM %.
+                </p>
+                <Button type="button" className="mt-5 gap-2 shadow-sm" onClick={() => setCompareMode(true)}>
+                  <LineChartIcon className="h-4 w-4" />
+                  Turn on comparison
+                </Button>
+              </div>
+            ) : categoryCompareData.length === 0 ? (
+              <div className="rounded-xl border border-border/70 bg-muted/15 px-6 py-12 text-center shadow-sm">
+                <BarChart3 className="mx-auto h-9 w-9 text-muted-foreground/70" aria-hidden />
+                <p className="mt-3 text-sm font-medium text-foreground">No categories to compare</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This window has no category revenue. Widen the date range or clear category filters.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-indigo-500/25 bg-card shadow-md ring-1 ring-indigo-500/10 dark:ring-indigo-500/15">
+                <div className="border-b border-border/60 bg-linear-to-r from-indigo-500/[0.08] via-muted/25 to-transparent px-5 py-3.5 dark:from-indigo-500/12">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                        Category revenue — current vs. baseline
+                      </h3>
+                      <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                        Side-by-side bars; baseline approximates the prior period using platform MoM %.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] font-medium text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-[#3b82f6]" aria-hidden />
+                        Current
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-[#94a3b8]" aria-hidden />
+                        Baseline
                       </span>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+                <div className="p-4 sm:p-5">
+                  <div className="h-[min(22rem,55vh)] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={categoryCompareData}
+                        margin={{ top: 8, right: 8, left: 4, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 10 }}
+                          tickLine={false}
+                          axisLine={{ className: 'stroke-border' }}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) =>
+                            typeof v === 'number' && v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${v}`
+                          }
+                        />
+                        <Tooltip
+                          formatter={(v: number) => formatUgx(v)}
+                          cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 8 }} />
+                        <Bar dataKey="current" fill="#3b82f6" name="Current" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                        <Bar dataKey="previous" fill="#94a3b8" name="Baseline" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="mt-4 border-t border-border/50 pt-4 text-xs leading-relaxed text-muted-foreground">
+                    Baseline bars are modeled from MoM % — for an exact prior-category breakdown, export twice with
+                    shifted date ranges in the Reports tab.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="overflow-hidden rounded-xl border border-emerald-500/25 bg-card shadow-md ring-1 ring-emerald-500/10 dark:ring-emerald-500/15">
+              <div className="border-b border-border/60 bg-linear-to-r from-emerald-500/[0.08] via-muted/25 to-transparent px-5 py-3.5 dark:from-emerald-500/12">
+                <h3 className="text-sm font-semibold tracking-tight text-foreground">Weekday activity</h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Product orders (P) and service bookings (S) summed by weekday in the selected window — height and color
+                  reflect relative volume.
+                </p>
+              </div>
+              <div className="space-y-4 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span
+                      className="h-2 w-20 shrink-0 rounded-full bg-linear-to-r from-sky-500/35 via-sky-500/70 to-emerald-500"
+                      aria-hidden
+                    />
+                    <span>Lower → higher combined activity</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground/90">Legend:</span> P orders · S bookings
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
+                  {data.heatmapWeekday.map((h) => {
+                    const total = h.productOrders + h.serviceBookings;
+                    const intensity = total / heatMax;
+                    const isPeak = heatmapPeakDay?.weekday === h.weekday && total > 0;
+                    return (
+                      <div key={h.weekday} className="flex min-w-0 flex-col items-center gap-2 text-center">
+                        <div
+                          title={`${h.weekday}: ${h.productOrders} product orders, ${h.serviceBookings} service bookings`}
+                          className={cn(
+                            'flex h-16 w-full max-w-[6rem] flex-col justify-end rounded-xl border p-2 text-[10px] font-medium text-white shadow-inner ring-1 ring-black/10 transition-transform sm:h-[5.25rem]',
+                            isPeak && 'ring-2 ring-emerald-400/90 ring-offset-2 ring-offset-background sm:scale-[1.02]',
+                          )}
+                          style={{
+                            background: `linear-gradient(to top, rgb(59 130 246 / ${0.28 + intensity * 0.72}), rgb(16 185 129 / ${0.22 + intensity * 0.58}))`,
+                          }}
+                        >
+                          <span className="text-[11px] font-semibold tracking-tight drop-shadow-sm">{h.weekday}</span>
+                          <span className="mt-1 drop-shadow-sm">
+                            P{h.productOrders} · S{h.serviceBookings}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {heatmapPeakDay && heatmapPeakDay.productOrders + heatmapPeakDay.serviceBookings > 0 ? (
+                  <p className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs leading-relaxed text-muted-foreground dark:bg-emerald-500/10">
+                    <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                    <span>
+                      <span className="font-medium text-foreground">Busiest day:</span> {heatmapPeakDay.weekday} (
+                      {heatmapPeakDay.productOrders} orders · {heatmapPeakDay.serviceBookings} bookings)
+                    </span>
+                  </p>
+                ) : (
+                  <p className="rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+                    No product or service activity in this window for the heatmap.
+                  </p>
+                )}
+              </div>
             </div>
-          </SectionCard>
+          </div>
         </TabsContent>
 
-        <TabsContent value="alerts" className="space-y-6">
-          {data.alerts.length === 0 ? (
-            <div className="rounded-xl border border-border/60 bg-muted/20 px-6 py-12 text-center shadow-sm">
-              <Bell className="mx-auto h-8 w-8 text-muted-foreground/70" />
-              <p className="mt-3 text-sm font-medium text-foreground">All clear</p>
-              <p className="mt-1 text-sm text-muted-foreground">No automated alerts for this window.</p>
+        <TabsContent value="alerts" className="space-y-6 focus-visible:outline-none">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-rose-500/8 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-rose-500/12 dark:ring-white/6">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-800 shadow-inner dark:text-rose-300"
+                aria-hidden
+              >
+                <Bell className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Automated alerts
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Rule-based flags for the current filters — revenue stress, payments, cancellations, and catalog
+                    nudges. Severity helps you triage before wiring notifications.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <ClipboardList className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      {alertStats.total} active
+                      {alertStats.total === 1 ? ' alert' : ' alerts'}
+                    </span>
+                  </Badge>
+                  {alertStats.critical > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="max-w-full gap-1 border border-rose-500/30 bg-rose-500/10 font-normal text-rose-950 dark:text-rose-100"
+                    >
+                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+                      {alertStats.critical} critical
+                    </Badge>
+                  ) : null}
+                  {alertStats.warning > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="max-w-full gap-1 border border-amber-500/30 bg-amber-500/10 font-normal text-amber-950 dark:text-amber-100"
+                    >
+                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+                      {alertStats.warning} warning
+                    </Badge>
+                  ) : null}
+                  {alertStats.info > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="max-w-full gap-1 border border-sky-500/25 bg-sky-500/8 font-normal text-sky-950 dark:text-sky-100"
+                    >
+                      <Info className="h-3 w-3 shrink-0" aria-hidden />
+                      {alertStats.info} info
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {sortedAlerts.length === 0 ? (
+            <div className="overflow-hidden rounded-xl border border-emerald-500/25 bg-linear-to-b from-emerald-500/[0.07] to-card px-6 py-14 text-center shadow-md ring-1 ring-emerald-500/10 dark:from-emerald-500/12">
+              <div
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700 shadow-inner dark:text-emerald-400"
+                aria-hidden
+              >
+                <CheckCircle2 className="h-7 w-7" />
+              </div>
+              <h2 className="mt-5 text-base font-semibold tracking-tight text-foreground">All clear</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                No rules fired for this date range and scope. Adjust filters or check back after more activity.
+              </p>
             </div>
           ) : (
-            <ul className="space-y-3">
-              {data.alerts.map((a, i) => (
-                <li
-                  key={`${a.title}-${i}`}
-                  className={cn(
-                    'flex gap-4 rounded-xl border p-4 text-sm shadow-sm ring-1 transition-colors',
-                    a.severity === 'critical' &&
-                      'border-rose-500/35 bg-rose-500/[0.06] ring-rose-500/10 dark:bg-rose-500/10',
-                    a.severity === 'warning' &&
-                      'border-amber-500/35 bg-amber-500/[0.06] ring-amber-500/10 dark:bg-amber-500/10',
-                    a.severity !== 'critical' &&
-                      a.severity !== 'warning' &&
-                      'border-border/80 bg-card ring-black/[0.04] dark:ring-white/[0.06]',
-                  )}
-                >
-                  <span
+            <ul className="space-y-3" aria-label="Analytics alerts">
+              {sortedAlerts.map((a, i) => {
+                const severityLabel =
+                  a.severity === 'critical' ? 'Critical' : a.severity === 'warning' ? 'Warning' : 'Info';
+                const Icon = a.severity === 'info' ? Info : AlertTriangle;
+                return (
+                  <li
+                    key={`${a.title}-${i}`}
                     className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-                      a.severity === 'critical' && 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
-                      a.severity === 'warning' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-                      a.severity !== 'critical' &&
-                        a.severity !== 'warning' &&
-                        'bg-muted text-muted-foreground',
+                      'relative overflow-hidden rounded-xl border text-sm shadow-sm ring-1 transition-colors',
+                      'before:absolute before:top-0 before:bottom-0 before:left-0 before:w-[3px]',
+                      a.severity === 'critical' &&
+                        'border-rose-500/35 bg-rose-500/6 ring-rose-500/10 before:bg-rose-500 dark:bg-rose-500/10',
+                      a.severity === 'warning' &&
+                        'border-amber-500/35 bg-amber-500/6 ring-amber-500/10 before:bg-amber-500 dark:bg-amber-500/10',
+                      a.severity === 'info' &&
+                        'border-sky-500/25 bg-sky-500/[0.06] ring-sky-500/10 before:bg-sky-500 dark:bg-sky-500/10',
                     )}
                   >
-                    <AlertTriangle className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-semibold tracking-tight text-foreground">{a.title}</p>
-                    <p className="leading-relaxed text-muted-foreground">{a.detail}</p>
-                  </div>
-                </li>
-              ))}
+                    <div className="flex gap-4 p-4 pl-5">
+                      <span
+                        className={cn(
+                          'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-inner',
+                          a.severity === 'critical' && 'bg-rose-500/20 text-rose-700 dark:text-rose-400',
+                          a.severity === 'warning' && 'bg-amber-500/20 text-amber-800 dark:text-amber-400',
+                          a.severity === 'info' && 'bg-sky-500/15 text-sky-800 dark:text-sky-300',
+                        )}
+                        aria-hidden
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 gap-y-1">
+                          <p className="font-semibold tracking-tight text-foreground">{a.title}</p>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'text-[10px] font-semibold uppercase tracking-wide',
+                              a.severity === 'critical' &&
+                                'border-rose-500/40 bg-rose-500/10 text-rose-900 dark:text-rose-100',
+                              a.severity === 'warning' &&
+                                'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+                              a.severity === 'info' &&
+                                'border-sky-500/35 bg-sky-500/8 text-sky-900 dark:text-sky-100',
+                            )}
+                          >
+                            {severityLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-sm leading-relaxed text-muted-foreground">{a.detail}</p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
-          <p className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-            <Bell className="h-3.5 w-3.5 shrink-0" />
-            Wire these thresholds to email or Slack when notification infrastructure is ready.
-          </p>
+
+          <div className="rounded-xl border border-border/60 bg-muted/15 px-4 py-3 shadow-sm dark:bg-muted/10">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-muted-foreground shadow-inner"
+                aria-hidden
+              >
+                <Megaphone className="h-4 w-4" />
+              </div>
+              <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground/90">Notifications:</span> these alerts are dashboard-only
+                until you connect email, Slack, or webhooks. Reuse the same thresholds in a worker that polls{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground/90">
+                  /api/admin/analytics
+                </code>
+                .
+              </p>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

@@ -52,6 +52,116 @@ export async function listVendors(): Promise<Vendor[]> {
   return (data as VendorRow[] | null)?.map(rowToVendor) ?? [];
 }
 
+/** Admin directory tab filters (server-side). */
+export type VendorsDirectoryFilter = "all" | "vendor_only" | "provider_only" | "needs_verification";
+
+export type VendorsDirectoryPageArgs = {
+  search: string;
+  filter: VendorsDirectoryFilter;
+  limit: number;
+  offset: number;
+};
+
+/** Escape `%`, `_`, and `\` for Postgres ILIKE patterns. */
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+/**
+ * Paginated vendor list for admin (filters + search). Uses DB row counts only — no full product scan.
+ */
+export async function listVendorsDirectoryPage(
+  args: VendorsDirectoryPageArgs,
+): Promise<{ vendors: Vendor[]; total: number }> {
+  const supabase = createAdminClient();
+  const limit = Math.min(100, Math.max(1, args.limit));
+  const offset = Math.max(0, args.offset);
+  // Commas break PostgREST `.or()` filter lists; spaces are safe for multi-word search.
+  const q = args.search.trim().replace(/,/g, " ");
+
+  let qb = supabase.from("vendors").select("*", { count: "exact" });
+
+  switch (args.filter) {
+    case "vendor_only":
+      qb = qb.eq("vendor_verified", true);
+      break;
+    case "provider_only":
+      qb = qb.eq("services_verified", true);
+      break;
+    case "needs_verification":
+      qb = qb.or("vendor_verified.eq.false,services_verified.eq.false");
+      break;
+    default:
+      break;
+  }
+
+  if (q.length > 0) {
+    const p = `%${escapeIlikePattern(q)}%`;
+    qb = qb.or(`name.ilike.${p},email.ilike.${p},phone.ilike.${p},address.ilike.${p}`);
+  }
+
+  const { data, error, count } = await qb
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(`Supabase list vendors (paged) failed: ${error.message}`);
+  }
+
+  return {
+    vendors: (data as VendorRow[] | null)?.map(rowToVendor) ?? [],
+    total: count ?? 0,
+  };
+}
+
+export type VendorsDirectoryStats = {
+  total: number;
+  vendorVerified: number;
+  servicesVerified: number;
+  listedProducts: number;
+  avgRating: number;
+};
+
+/**
+ * Platform-wide stats for admin header tiles. Prefers RPC; falls back to count-only queries if RPC is missing.
+ */
+export async function getVendorsDirectoryStats(): Promise<VendorsDirectoryStats> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase.rpc("admin_vendors_directory_stats");
+
+  if (!error && data && Array.isArray(data) && data[0]) {
+    const r = data[0] as {
+      total: string | number;
+      vendor_verified: string | number;
+      services_verified: string | number;
+      products_sum: string | number;
+      rating_avg: string | number;
+    };
+    return {
+      total: Number(r.total) || 0,
+      vendorVerified: Number(r.vendor_verified) || 0,
+      servicesVerified: Number(r.services_verified) || 0,
+      listedProducts: Number(r.products_sum) || 0,
+      avgRating: Number(r.rating_avg) || 0,
+    };
+  }
+
+  const [allR, vvR, svR] = await Promise.all([
+    supabase.from("vendors").select("*", { count: "exact", head: true }),
+    supabase.from("vendors").select("*", { count: "exact", head: true }).eq("vendor_verified", true),
+    supabase.from("vendors").select("*", { count: "exact", head: true }).eq("services_verified", true),
+  ]);
+
+  return {
+    total: allR.count ?? 0,
+    vendorVerified: vvR.count ?? 0,
+    servicesVerified: svR.count ?? 0,
+    listedProducts: 0,
+    avgRating: 0,
+  };
+}
+
 export async function getVendorById(id: string): Promise<Vendor | undefined> {
   const supabase = createAdminClient();
   const { data, error } = await supabase.from("vendors").select("*").eq("id", id).maybeSingle();

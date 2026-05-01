@@ -3,6 +3,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 const MS_DAY = 86400000;
 
+function analyticsErrorHint(message: string): string | undefined {
+  if (message.includes("SUPABASE_SERVICE_ROLE_KEY") || message.includes("NEXT_PUBLIC_SUPABASE")) {
+    return "Add Supabase URL, anon key, and service role key to .env (see SUPABASE.md).";
+  }
+  if (
+    message.includes("fetch failed") ||
+    message.includes("ECONNREFUSED") ||
+    message.includes("ENOTFOUND") ||
+    message.includes("ETIMEDOUT") ||
+    message.includes("EAI_AGAIN") ||
+    message.includes("getaddrinfo") ||
+    message.includes("certificate") ||
+    message.includes("SSL")
+  ) {
+    return "The app server could not reach Supabase (network or DNS). Check NEXT_PUBLIC_SUPABASE_URL, VPN/firewall, TLS interception, and that the Supabase project is not paused.";
+  }
+  return undefined;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -37,10 +56,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: message,
-        hint:
-          message.includes("SUPABASE_SERVICE_ROLE_KEY") || message.includes("NEXT_PUBLIC_SUPABASE")
-            ? "Add Supabase URL, anon key, and service role key to .env (see SUPABASE.md)."
-            : undefined,
+        hint: analyticsErrorHint(message),
       },
       { status: 500 },
     );

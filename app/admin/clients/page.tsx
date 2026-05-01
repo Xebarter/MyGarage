@@ -3,21 +3,45 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   ChevronRight,
   Clock3,
   Copy,
   CreditCard,
   ExternalLink,
+  Filter,
   Loader2,
   Mail,
   Phone,
+  RefreshCw,
   Search,
   ShoppingBag,
+  Sparkles,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -54,7 +78,7 @@ type ClientDetail = {
 
 function formatMoneyUGX(amount: number): string {
   const safe = Number.isFinite(amount) ? amount : 0;
-  return `UGX ${safe.toFixed(0)}`;
+  return `UGX ${safe.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 function formatDate(value: string | Date | null | undefined): string {
@@ -72,10 +96,13 @@ function segmentLabel(segment: ClientSegment): string {
 }
 
 function segmentBadgeClass(segment: ClientSegment): string {
-  if (segment === 'mixed') return 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20';
-  if (segment === 'product') return 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20';
-  if (segment === 'service') return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
-  return 'bg-muted text-muted-foreground border-border';
+  if (segment === 'mixed')
+    return 'border-violet-500/35 bg-violet-500/10 text-violet-950 dark:text-violet-100';
+  if (segment === 'product')
+    return 'border-sky-500/35 bg-sky-500/10 text-sky-950 dark:text-sky-100';
+  if (segment === 'service')
+    return 'border-emerald-500/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100';
+  return 'border-border bg-muted/80 text-muted-foreground';
 }
 
 function clientSummaryToPreviewCustomer(s: ClientSummary): Customer {
@@ -112,18 +139,16 @@ function ClientMobileCard({
       tabIndex={0}
       onClick={open}
       onKeyDown={onKeyDown}
-      className="flex cursor-pointer flex-col gap-2 border-b border-border px-4 py-3 transition hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/80 touch-manipulation"
+      className="flex cursor-pointer flex-col gap-2 border-b border-border/70 px-4 py-3.5 transition hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/80 touch-manipulation"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 font-medium leading-snug text-foreground">{client.name}</p>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{client.email || '—'}</p>
         </div>
-        <span
-          className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${segmentBadgeClass(client.segment)}`}
-        >
+        <Badge variant="outline" className={cn('shrink-0 text-[10px] font-semibold', segmentBadgeClass(client.segment))}>
           {segmentLabel(client.segment)}
-        </span>
+        </Badge>
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div>
@@ -193,8 +218,10 @@ export default function AdminClientsPage() {
       setClients(Array.isArray(data?.clients) ? data.clients : []);
     } catch (e) {
       console.error('Failed to fetch clients:', e);
-      setError(e instanceof Error ? e.message : 'Could not load clients.');
+      const msg = e instanceof Error ? e.message : 'Could not load clients.';
+      setError(msg);
       setClients([]);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setFetching(false);
@@ -315,41 +342,32 @@ export default function AdminClientsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-5 px-4 pb-10 pt-4 sm:space-y-6 sm:p-6 lg:p-8">
-        <div className="rounded-2xl border border-border bg-linear-to-r from-card to-card/70 p-6 shadow-sm">
+      <div className="mx-auto max-w-[1600px] space-y-5 px-4 pb-10 pt-2 sm:space-y-6 sm:px-8 sm:pb-16 sm:pt-4">
+        <div className="rounded-2xl border border-border/80 bg-linear-to-br from-primary/6 via-card to-card p-6 shadow-md ring-1 ring-black/4 dark:ring-white/6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <Skeleton className="h-8 w-44" />
               <Skeleton className="mt-3 h-4 w-[min(520px,100%)]" />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Skeleton className="h-7 w-28 rounded-md" />
-              <Skeleton className="h-7 w-36 rounded-md" />
-              <Skeleton className="h-7 w-36 rounded-md" />
-            </div>
+            <Skeleton className="h-9 w-28 rounded-lg" />
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <Skeleton key={idx} className="h-[54px] rounded-md" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <Skeleton key={idx} className="h-24 rounded-xl" />
           ))}
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="grid gap-3 lg:grid-cols-12">
-            <Skeleton className="h-10 lg:col-span-8" />
-            <Skeleton className="h-10 lg:col-span-4" />
-          </div>
-        </div>
+        <Skeleton className="h-32 rounded-xl" />
 
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/4 dark:ring-white/6">
           <div className="p-4">
             <Skeleton className="h-6 w-44" />
           </div>
           <div className="space-y-3 p-4 pt-0">
             {Array.from({ length: 8 }).map((_, idx) => (
-              <Skeleton key={idx} className="h-12 w-full" />
+              <Skeleton key={idx} className="h-12 w-full rounded-lg" />
             ))}
           </div>
         </div>
@@ -360,141 +378,231 @@ export default function AdminClientsPage() {
   const hasActiveFilters = query.trim().length > 0 || activeTab !== 'all' || sort !== 'recent';
 
   return (
-    <div className="space-y-5 px-4 pb-10 pt-4 sm:space-y-6 sm:p-6 lg:p-8">
-      <div className="rounded-2xl border border-border bg-linear-to-r from-card to-card/70 p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Clients</h1>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Product customers and service clients in one place — search, segment, and open a profile drawer for details.
-            </p>
+    <div className="mx-auto max-w-[1600px] space-y-6 px-4 pb-12 pt-2 md:space-y-6 md:px-8 md:pb-16 md:pt-4">
+      <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-linear-to-br from-primary/[0.07] via-card to-card px-5 py-6 shadow-md ring-1 ring-black/4 dark:ring-white/6 md:px-8 md:py-7">
+        <div
+          className="pointer-events-none absolute -right-4 -top-16 h-44 w-44 rounded-full bg-primary/12 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex gap-3">
+            <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary sm:flex">
+              <Users className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                CRM
+              </p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">Clients</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Product buyers and service clients in one directory — search, segment by behavior, then open the drawer
+                for full history and profile edits.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <Users className="h-3 w-3 opacity-70" aria-hidden />
+                  {metrics.total} total
+                </Badge>
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <ShoppingBag className="h-3 w-3 opacity-70" aria-hidden />
+                  {metrics.product + metrics.mixed} product
+                </Badge>
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <Wrench className="h-3 w-3 opacity-70" aria-hidden />
+                  {metrics.service + metrics.mixed} service
+                </Badge>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <Badge variant="outline" className="border-border/70 bg-background">
-              <Users className="h-3 w-3" /> {metrics.total} total
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background">
-              <ShoppingBag className="h-3 w-3" /> {metrics.product + metrics.mixed} product buyers
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background">
-              <Wrench className="h-3 w-3" /> {metrics.service + metrics.mixed} service clients
-            </Badge>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-border/80 bg-background/80 lg:mt-1"
+            disabled={fetching}
+            onClick={() => void fetchClients({ q: query, segment: activeTab, sort })}
+          >
+            <RefreshCw className={cn('h-4 w-4', fetching && 'animate-spin')} aria-hidden />
+            Refresh
+          </Button>
         </div>
       </div>
 
       {error ? (
-        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/35 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
           {error}
-        </p>
+        </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-7">
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2 xl:col-span-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Revenue (products)</p>
-          <p className="mt-1 text-base font-medium text-foreground">{formatMoneyUGX(metrics.spent)}</p>
-        </div>
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Open service jobs</p>
-          <div className="mt-1 flex items-center gap-1">
-            <Clock3 className="h-3 w-3 text-muted-foreground" />
-            <p className="text-base font-medium text-foreground">{metrics.openJobs}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm sm:col-span-2 dark:bg-emerald-500/10 xl:col-span-2">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400">
+            <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Product revenue (loaded)</span>
           </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+            {formatMoneyUGX(metrics.spent)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Sum of totalSpent in current result set</p>
         </div>
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Product only</p>
-          <p className="mt-1 text-base font-medium text-foreground">{metrics.product}</p>
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+            <Clock3 className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Open jobs</span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{metrics.openJobs}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Service requests in flight</p>
         </div>
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Service only</p>
-          <p className="mt-1 text-base font-medium text-foreground">{metrics.service}</p>
+        <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+          <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+            <ShoppingBag className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Product only</span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{metrics.product}</p>
         </div>
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Mixed</p>
-          <p className="mt-1 text-base font-medium text-foreground">{metrics.mixed}</p>
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+          <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
+            <Wrench className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Service only</span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{metrics.service}</p>
         </div>
-        <div className="rounded-md border border-border/70 bg-card/60 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Inactive</p>
-          <p className="mt-1 text-base font-medium text-foreground">{metrics.inactive}</p>
+        <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/6 p-4 shadow-sm dark:bg-fuchsia-500/10">
+          <div className="flex items-center gap-2 text-fuchsia-800 dark:text-fuchsia-300">
+            <Filter className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Mixed / inactive</span>
+          </div>
+          <p className="mt-2 text-lg font-bold tabular-nums text-foreground">
+            {metrics.mixed} <span className="text-muted-foreground">·</span> {metrics.inactive}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Cross-channel · no activity</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-12">
-          <div className="relative lg:col-span-8">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              type="search"
-              enterKeyHint="search"
-              autoComplete="off"
-              placeholder="Search name, email, phone, address, or id…"
-              aria-label="Search clients"
-              className="h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-base text-foreground outline-none ring-offset-background transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 md:h-10 md:text-sm"
-            />
+      <Card className="border-border/80 shadow-sm ring-1 ring-black/4 dark:ring-white/6">
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="text-base font-semibold tracking-tight">Search &amp; sort</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Debounced server query. Sort applies within the selected segment tab below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="space-y-2 lg:col-span-6">
+              <Label htmlFor="clients-search" className="text-xs font-medium text-muted-foreground">
+                Search
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="clients-search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  type="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  placeholder="Name, email, phone, address, id…"
+                  aria-label="Search clients"
+                  className="h-10 border-border/80 bg-background/80 pl-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-2 lg:col-span-4">
+              <Label className="text-xs font-medium text-muted-foreground">Sort</Label>
+              <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+                <SelectTrigger className="h-10 border-border/80 bg-background/80" aria-label="Sort clients">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Recent activity</SelectItem>
+                  <SelectItem value="spent">Highest spend</SelectItem>
+                  <SelectItem value="orders">Most product orders</SelectItem>
+                  <SelectItem value="service">Most service requests</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end lg:col-span-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full border-border/80"
+                disabled={!hasActiveFilters}
+                onClick={() => {
+                  setQuery('');
+                  setSort('recent');
+                  setActiveTab('all');
+                }}
+              >
+                Clear
+              </Button>
+            </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-1">
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              aria-label="Sort clients"
-              className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base text-foreground outline-none ring-offset-background transition focus:border-primary focus:ring-2 focus:ring-primary/20 md:h-10 md:text-sm"
-            >
-              <option value="recent">Sort: Recent activity</option>
-              <option value="spent">Sort: Highest spend</option>
-              <option value="orders">Sort: Most product orders</option>
-              <option value="service">Sort: Most service requests</option>
-            </select>
-            <button
-              type="button"
-              disabled={!hasActiveFilters}
-              onClick={() => {
-                setQuery('');
-                setSort('recent');
-                setActiveTab('all');
-              }}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60 md:h-10 touch-manipulation"
-            >
-              Clear filters
-            </button>
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Showing <span className="font-medium text-foreground">{clients.length}</span> client
+              {clients.length === 1 ? '' : 's'}
+              {activeTab !== 'all' ? (
+                <span> · {segmentLabel(activeTab as ClientSegment)}</span>
+              ) : null}
+              {fetching ? (
+                <span className="ml-1 inline-flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  Updating
+                </span>
+              ) : null}
+            </p>
+            <p className="hidden sm:block">Row or Enter opens the profile drawer.</p>
+            <p className="sm:hidden">Tap a card for the drawer.</p>
           </div>
-        </div>
-        <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-          <p>
-            Showing <span className="font-medium text-foreground">{clients.length}</span> client{clients.length === 1 ? '' : 's'}
-            {activeTab !== 'all' ? <span> · {segmentLabel(activeTab as ClientSegment)}</span> : null}
-            {fetching ? <span className="ml-1 inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Updating</span> : null}
-          </p>
-          <p className="hidden sm:block">Click a row or press Enter to open the client drawer.</p>
-          <p className="sm:hidden">Tap a card for full profile.</p>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-        <div className="-mx-1 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <TabsList className="inline-flex h-auto min-h-9 w-max min-w-full justify-start rounded-lg bg-muted p-1 sm:flex sm:w-full">
-            <TabsTrigger value="all" className="shrink-0 px-3 sm:flex-1">
+        <div className="no-print -mx-1 overflow-x-auto pb-2 [scrollbar-width:thin]">
+          <TabsList className="inline-flex h-auto min-h-11 w-max max-w-none flex-nowrap justify-start gap-1 rounded-xl border border-border/60 bg-muted/45 p-1.5 shadow-inner md:flex-wrap md:justify-start">
+            <TabsTrigger
+              value="all"
+              className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+            >
               All
             </TabsTrigger>
-            <TabsTrigger value="product" className="shrink-0 px-3 sm:flex-1">
+            <TabsTrigger
+              value="product"
+              className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+            >
               Product
             </TabsTrigger>
-            <TabsTrigger value="service" className="shrink-0 px-3 sm:flex-1">
+            <TabsTrigger
+              value="service"
+              className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+            >
               Service
             </TabsTrigger>
-            <TabsTrigger value="mixed" className="shrink-0 px-3 sm:flex-1">
+            <TabsTrigger
+              value="mixed"
+              className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+            >
               Mixed
             </TabsTrigger>
-            <TabsTrigger value="inactive" className="shrink-0 px-3 sm:flex-1">
+            <TabsTrigger
+              value="inactive"
+              className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+            >
               Inactive
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value={activeTab} className="mt-3">
+        <TabsContent value={activeTab} className="mt-4 focus-visible:outline-none">
           <section
-            className={fetching ? 'overflow-hidden rounded-xl border border-border bg-card opacity-75 shadow-sm transition-opacity' : 'overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-opacity'}
+            className={cn(
+              'overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/4 transition-opacity dark:ring-white/6',
+              fetching && 'opacity-75',
+            )}
             aria-busy={fetching}
             aria-live="polite"
           >
@@ -510,17 +618,17 @@ export default function AdminClientsPage() {
                       <EmptyDescription>Try another search or clear filters.</EmptyDescription>
                     </EmptyHeader>
                     <EmptyContent>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => {
                           setQuery('');
                           setSort('recent');
                           setActiveTab('all');
                         }}
-                        className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 touch-manipulation"
+                        className="touch-manipulation"
                       >
                         Reset view
-                      </button>
+                      </Button>
                     </EmptyContent>
                   </Empty>
                 </div>
@@ -533,104 +641,134 @@ export default function AdminClientsPage() {
               )}
             </div>
 
-            <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[640px] table-fixed">
-              <thead className="sticky top-0 z-10 border-b border-border bg-muted/60 backdrop-blur supports-backdrop-filter:bg-muted/40">
-                <tr>
-                  <th className="w-[34%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Client</th>
-                  <th className="hidden w-[22%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground lg:table-cell">Contact</th>
-                  <th className="w-[16%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Segment</th>
-                  <th className="hidden w-[12%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">Product</th>
-                  <th className="hidden w-[12%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">Service</th>
-                  <th className="w-[16%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Activity</th>
-                  <th className="w-[4%] px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground"> </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {clients.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-6">
-                      <Empty className="border-border/60 bg-background">
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <Users className="h-5 w-5" />
-                          </EmptyMedia>
-                          <EmptyTitle>No clients found</EmptyTitle>
-                          <EmptyDescription>Try a different search term or clear filters.</EmptyDescription>
-                        </EmptyHeader>
-                        <EmptyContent>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setQuery('');
-                              setSort('recent');
-                              setActiveTab('all');
-                            }}
-                            className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 touch-manipulation md:h-10"
-                          >
-                            Reset view
-                          </button>
-                        </EmptyContent>
-                      </Empty>
-                    </td>
-                  </tr>
-                ) : (
-                  clients.map((client) => {
-                    const go = () => void openClient(client.id);
-                    const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        go();
-                      }
-                    };
-                    return (
-                    <tr
-                      key={client.id}
-                      tabIndex={0}
-                      className="group cursor-pointer transition hover:bg-accent/40 focus-visible:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/80"
-                      onClick={go}
-                      onKeyDown={onRowKeyDown}
-                    >
-                      <td className="px-4 py-4 text-sm">
-                        <p className="truncate font-medium text-foreground" title={client.name}>{client.name}</p>
-                        <p className="truncate text-xs text-muted-foreground" title={client.address}>{client.address || '—'}</p>
-                      </td>
-                      <td className="hidden px-4 py-4 text-sm lg:table-cell">
-                        <p className="truncate text-foreground" title={client.email}>{client.email}</p>
-                        <p className="truncate text-xs text-muted-foreground" title={client.phone}>{client.phone || '—'}</p>
-                      </td>
-                      <td className="px-4 py-4 text-sm">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${segmentBadgeClass(client.segment)}`}>
-                          {segmentLabel(client.segment)}
-                        </span>
-                      </td>
-                      <td className="hidden px-4 py-4 text-sm sm:table-cell">
-                        <p className="font-medium text-foreground">{client.totalOrders}</p>
-                        <p className="text-xs tabular-nums text-muted-foreground">{formatMoneyUGX(client.totalSpent)}</p>
-                      </td>
-                      <td className="hidden px-4 py-4 text-sm sm:table-cell">
-                        <p className="font-medium text-foreground">
-                          {client.serviceRequestsTotal}
-                          {client.serviceRequestsOpen > 0 ? (
-                            <span className="ml-1 text-xs text-muted-foreground">({client.serviceRequestsOpen} open)</span>
-                          ) : null}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Last: {formatDate(client.lastServiceRequestAt)}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-muted-foreground">
-                        {formatDate(client.lastActivityAt || client.createdAt)}
-                      </td>
-                      <td className="px-4 py-4 text-right text-sm text-muted-foreground">
-                        <ChevronRight className="ml-auto h-4 w-4 opacity-0 transition group-hover:opacity-70 group-focus-within:opacity-70" aria-hidden />
-                      </td>
-                    </tr>
-                  );
-                  })
-                )}
-              </tbody>
-            </table>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border/70 bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="min-w-[180px] pl-4 font-medium text-muted-foreground">Client</TableHead>
+                    <TableHead className="hidden min-w-[160px] font-medium text-muted-foreground lg:table-cell">
+                      Contact
+                    </TableHead>
+                    <TableHead className="w-[120px] font-medium text-muted-foreground">Segment</TableHead>
+                    <TableHead className="hidden w-[100px] font-medium text-muted-foreground sm:table-cell">
+                      Product
+                    </TableHead>
+                    <TableHead className="hidden w-[120px] font-medium text-muted-foreground sm:table-cell">
+                      Service
+                    </TableHead>
+                    <TableHead className="w-[110px] font-medium text-muted-foreground">Activity</TableHead>
+                    <TableHead className="w-10 pr-4 text-right font-medium text-muted-foreground"> </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-6">
+                        <Empty className="border-border/60 bg-background">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <Users className="h-5 w-5" />
+                            </EmptyMedia>
+                            <EmptyTitle>No clients found</EmptyTitle>
+                            <EmptyDescription>Try a different search term or clear filters.</EmptyDescription>
+                          </EmptyHeader>
+                          <EmptyContent>
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setQuery('');
+                                setSort('recent');
+                                setActiveTab('all');
+                              }}
+                            >
+                              Reset view
+                            </Button>
+                          </EmptyContent>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    clients.map((client) => {
+                      const go = () => void openClient(client.id);
+                      const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          go();
+                        }
+                      };
+                      const isActive = detailOpen && activeClientId === client.id;
+                      return (
+                        <TableRow
+                          key={client.id}
+                          tabIndex={0}
+                          className={cn(
+                            'group cursor-pointer border-border/60 transition-colors hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/80',
+                            isActive && 'bg-primary/6',
+                          )}
+                          onClick={go}
+                          onKeyDown={onRowKeyDown}
+                        >
+                          <TableCell className="pl-4 align-middle">
+                            <p className="truncate font-medium text-foreground" title={client.name}>
+                              {client.name}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground" title={client.address}>
+                              {client.address || '—'}
+                            </p>
+                          </TableCell>
+                          <TableCell className="hidden align-middle lg:table-cell">
+                            <p className="truncate text-sm text-foreground" title={client.email}>
+                              {client.email}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground" title={client.phone}>
+                              {client.phone || '—'}
+                            </p>
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <Badge
+                              variant="outline"
+                              className={cn('text-[10px] font-semibold', segmentBadgeClass(client.segment))}
+                            >
+                              {segmentLabel(client.segment)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden align-middle sm:table-cell">
+                            <p className="font-medium tabular-nums text-foreground">{client.totalOrders}</p>
+                            <p className="text-xs tabular-nums text-muted-foreground">
+                              {formatMoneyUGX(client.totalSpent)}
+                            </p>
+                          </TableCell>
+                          <TableCell className="hidden align-middle sm:table-cell">
+                            <p className="font-medium tabular-nums text-foreground">
+                              {client.serviceRequestsTotal}
+                              {client.serviceRequestsOpen > 0 ? (
+                                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                  ({client.serviceRequestsOpen} open)
+                                </span>
+                              ) : null}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Last: {formatDate(client.lastServiceRequestAt)}
+                            </p>
+                          </TableCell>
+                          <TableCell className="align-middle text-sm text-muted-foreground">
+                            {formatDate(client.lastActivityAt || client.createdAt)}
+                          </TableCell>
+                          <TableCell className="pr-4 text-right align-middle text-muted-foreground">
+                            <ChevronRight
+                              className={cn(
+                                'ml-auto h-4 w-4 transition-opacity',
+                                isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
+                              )}
+                              aria-hidden
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </section>
         </TabsContent>
@@ -641,18 +779,20 @@ export default function AdminClientsPage() {
           side="right"
           className="flex h-dvh max-h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl pb-[env(safe-area-inset-bottom)]"
         >
-          <SheetHeader className="shrink-0 space-y-0 border-b border-border/60 px-4 pb-4 pt-6 sm:px-6">
-            <SheetTitle className="flex items-center justify-between gap-3">
+          <SheetHeader className="shrink-0 space-y-1 border-b border-border/60 bg-muted/10 px-4 pb-4 pt-6 sm:px-6">
+            <SheetTitle className="flex items-center justify-between gap-3 pr-8 text-left">
               <span>Client profile</span>
               {detail?.customer?.id ? (
-                <Link
-                  href="/admin/customers"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted/50"
-                >
-                  Legacy customers <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
+                <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1 text-xs" asChild>
+                  <Link href="/admin/customers">
+                    Legacy <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
               ) : null}
             </SheetTitle>
+            <SheetDescription className="text-left text-xs sm:text-sm">
+              Orders, service requests, and profile fields for this customer id.
+            </SheetDescription>
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8 pt-4 sm:px-6">

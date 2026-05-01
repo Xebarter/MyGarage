@@ -1,4 +1,6 @@
-import type { Order, OrderItem, Product, Vendor } from "@/lib/db";
+import type { Customer, Order, OrderItem, Product, Vendor } from "@/lib/db";
+import type { BuyerServiceRequest } from "@/lib/supabase/buyer-services-repo";
+import type { BuyerSupportTicket } from "@/lib/supabase/buyer-support-tickets-repo";
 import {
   getDisbursementRecords,
   getOrders,
@@ -148,6 +150,12 @@ const MS_DAY = 86400000;
 const ESTIMATED_GROSS_MARGIN = 0.36;
 const DEFAULT_PLATFORM_FEE_RATE = 0.05;
 
+function noteOptionalLoadFailure(dataNotes: string[], label: string, err: unknown): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  dataNotes.push(`${label} could not be loaded: ${detail}`);
+  console.warn(`[getComprehensiveAdminAnalytics] ${label}`, err);
+}
+
 function inRange(d: Date, from: Date, to: Date): boolean {
   const t = d.getTime();
   return t >= from.getTime() && t <= to.getTime();
@@ -251,14 +259,29 @@ export async function getComprehensiveAdminAnalytics(
     paytotaCurrent,
     paytotaPrev,
   ] = await Promise.all([
-    productsRepo.listProducts(),
-    customersRepo.listCustomers(),
-    vendorsRepo.listVendors(),
+    productsRepo.listProducts().catch((err) => {
+      noteOptionalLoadFailure(dataNotes, "Product catalog", err);
+      return [] as Product[];
+    }),
+    customersRepo.listCustomers().catch((err) => {
+      noteOptionalLoadFailure(dataNotes, "Customers", err);
+      return [] as Customer[];
+    }),
+    vendorsRepo.listVendors().catch((err) => {
+      noteOptionalLoadFailure(dataNotes, "Vendors", err);
+      return [] as Vendor[];
+    }),
     getOrders(),
-    buyerServicesRepo.listAllBuyerServiceRequests(),
+    buyerServicesRepo.listAllBuyerServiceRequests().catch((err) => {
+      noteOptionalLoadFailure(dataNotes, "Service requests", err);
+      return [] as BuyerServiceRequest[];
+    }),
     getPaymentRecords(),
     getDisbursementRecords(),
-    buyerSupportTicketsRepo.listAllBuyerSupportTickets(),
+    buyerSupportTicketsRepo.listAllBuyerSupportTickets().catch((err) => {
+      noteOptionalLoadFailure(dataNotes, "Support tickets", err);
+      return [] as BuyerSupportTicket[];
+    }),
     buyerServicesRepo.listAllBuyerProviderRatings().catch((err: unknown) => {
       const detail = err instanceof Error ? err.message : String(err);
       dataNotes.push(`Provider ratings could not be loaded: ${detail}`);

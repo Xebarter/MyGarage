@@ -10,13 +10,28 @@ function requireEnvVar(name: string, value: string | undefined): string {
   return value;
 }
 
+/** Trim and strip trailing slashes so PostgREST base URL matches what supabase-js expects. */
+function normalizeSupabaseUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  try {
+    const u = new URL(trimmed);
+    if (u.protocol !== "https:" && u.protocol !== "http:") {
+      throw new Error("invalid protocol");
+    }
+    return trimmed;
+  } catch {
+    throw new Error(
+      `NEXT_PUBLIC_SUPABASE_URL must be a valid http(s) URL (got: ${JSON.stringify(raw.slice(0, 64))}${raw.length > 64 ? "…" : ""})`,
+    );
+  }
+}
+
 export function getSupabasePublicEnv() {
-  return {
-    url: requireEnvVar("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl),
-    anonKey: requireEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey),
-  };
+  const url = normalizeSupabaseUrl(requireEnvVar("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl));
+  const anonKey = requireEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey).trim();
+  return { url, anonKey };
 }
 
 export function getSupabaseServiceRoleKey() {
-  return requireEnvVar("SUPABASE_SERVICE_ROLE_KEY", supabaseServiceRoleKey);
+  return requireEnvVar("SUPABASE_SERVICE_ROLE_KEY", supabaseServiceRoleKey).trim();
 }
