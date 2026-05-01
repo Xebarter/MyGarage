@@ -6,7 +6,11 @@ import { ProductImage } from '@/components/product-image';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { createClient } from '@/lib/supabase/client';
+import { getAuthAvatarUrl, getAuthDisplayInitials, userHasAdminPortalAccess } from '@/lib/auth-avatar';
 
 type SuggestionProduct = {
   id: string;
@@ -42,12 +46,125 @@ type SuggestionServiceCategory = {
   topServiceName: string;
 };
 
+const profileMenuLinkClass =
+  'block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition';
+
+function HeaderProfileAvatar({ user }: { user: User | null }) {
+  const url = getAuthAvatarUrl(user);
+  const initials = getAuthDisplayInitials(user);
+  if (!user) {
+    return <UserCircle2 className="h-5 w-5 shrink-0" aria-hidden />;
+  }
+  return (
+    <Avatar className="h-7 w-7 shrink-0 border border-border sm:h-8 sm:w-8">
+      <AvatarImage src={url ?? undefined} alt="" referrerPolicy="no-referrer" className="object-cover" />
+      <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground sm:text-xs">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+function HeaderProfileMenuBody({
+  authUser,
+  profileMenuMode,
+  setProfileMenuMode,
+  onSignOut,
+}: {
+  authUser: User | null;
+  profileMenuMode: 'login' | 'join';
+  setProfileMenuMode: (mode: 'login' | 'join') => void;
+  onSignOut: () => void;
+}) {
+  if (authUser) {
+    return (
+      <>
+        <div className="border-b border-border px-3 py-2">
+          <p className="truncate text-xs font-medium text-foreground" title={authUser.email ?? undefined}>
+            {authUser.email ?? 'Account'}
+          </p>
+          <p className="text-[11px] text-muted-foreground">Signed in</p>
+        </div>
+        <Link href="/buyer" className={profileMenuLinkClass}>
+          Buyer workspace
+        </Link>
+        <Link href="/vendor" className={profileMenuLinkClass}>
+          Vendor workspace
+        </Link>
+        <Link href="/services/orders" className={profileMenuLinkClass}>
+          Service provider
+        </Link>
+        {userHasAdminPortalAccess(authUser) ? (
+          <Link href="/admin" className={profileMenuLinkClass}>
+            Admin
+          </Link>
+        ) : null}
+        <div className="my-1 h-px bg-border" />
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-destructive hover:bg-destructive/10 transition"
+        >
+          Sign out
+        </button>
+      </>
+    );
+  }
+
+  if (profileMenuMode === 'login') {
+    return (
+      <>
+        <Link href="/auth?role=buyer&next=/buyer" className={profileMenuLinkClass}>
+          Login as Buyer
+        </Link>
+        <Link href="/auth?role=vendor&next=/vendor" className={profileMenuLinkClass}>
+          Login as Vendor
+        </Link>
+        <Link href="/auth?role=services&next=/services/orders" className={profileMenuLinkClass}>
+          Login as Service Provider
+        </Link>
+        <div className="my-1 h-px bg-border" />
+        <button
+          type="button"
+          onClick={() => setProfileMenuMode('join')}
+          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+        >
+          Join MyGarage
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link href="/auth?role=buyer&next=/buyer" className={profileMenuLinkClass}>
+        Join as Buyer
+      </Link>
+      <Link href="/auth?role=vendor&next=/vendor" className={profileMenuLinkClass}>
+        Join as Vendor
+      </Link>
+      <Link href="/auth?role=services&next=/services/orders" className={profileMenuLinkClass}>
+        Join as Service Provider
+      </Link>
+      <div className="my-1 h-px bg-border" />
+      <button
+        type="button"
+        onClick={() => setProfileMenuMode('login')}
+        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
+      >
+        My Account
+      </button>
+    </>
+  );
+}
+
 export function Header() {
   const router = useRouter();
   const [pinned, setPinned] = useState(false)
   const [hoverOpen, setHoverOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [profileMenuMode, setProfileMenuMode] = useState<'login' | 'join'>('login')
+  const [authUser, setAuthUser] = useState<User | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const pinnedRef = useRef(pinned)
   const hoverCloseTimerRef = useRef<number | null>(null)
@@ -89,6 +206,23 @@ export function Header() {
       window.removeEventListener('cart:updated', onCartUpdated as EventListener)
     }
   }, [refreshCartCount])
+
+  useEffect(() => {
+    const supabase = createClient()
+    let cancelled = false
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!cancelled) setAuthUser(user)
+    })
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null)
+    })
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [])
 
   const [urlQ, setUrlQ] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -320,6 +454,27 @@ export function Header() {
     setProfileMenuOpen((prev) => !prev)
   }, [])
 
+  const handleSignOut = useCallback(async () => {
+    const supabase = createClient()
+    try {
+      localStorage.removeItem('currentBuyerName')
+      localStorage.removeItem('currentBuyerEmail')
+      localStorage.removeItem('currentBuyerId')
+      localStorage.removeItem('buyerProfile')
+      localStorage.removeItem('currentVendorId')
+      localStorage.removeItem('currentVendorName')
+      localStorage.removeItem('currentServiceProviderName')
+      localStorage.removeItem('currentServiceProviderServices')
+    } catch {
+      /* noop */
+    }
+    await supabase.auth.signOut()
+    setProfileMenuOpen(false)
+    setProfileMenuMode('login')
+    setAuthUser(null)
+    window.location.href = '/'
+  }, [])
+
   return (
     <>
     <header className="border-b border-border bg-background md:sticky md:top-0 md:z-40">
@@ -383,75 +538,22 @@ export function Header() {
               >
                 <button
                   type="button"
-                  aria-label="Open profile menu"
+                  aria-label={authUser ? `Account menu (${authUser.email ?? 'signed in'})` : 'Open profile menu'}
                   aria-expanded={profileMenuOpen}
                   onClick={toggleProfileMenu}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition sm:px-3 sm:py-2"
                 >
-                  <UserCircle2 className="h-5 w-5" />
-                  <ChevronDown className="h-4 w-4" />
+                  <HeaderProfileAvatar user={authUser} />
+                  <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
                 </button>
                 {profileMenuOpen ? (
                   <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
-                    {profileMenuMode === 'login' ? (
-                      <>
-                        <Link
-                          href="/auth?role=buyer&next=/buyer"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Login as Buyer
-                        </Link>
-                        <Link
-                          href="/auth?role=vendor&next=/vendor"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Login as Vendor
-                        </Link>
-                        <Link
-                          href="/auth?role=services&next=/services/orders"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Login as Service Provider
-                        </Link>
-                        <div className="my-1 h-px bg-border" />
-                        <button
-                          type="button"
-                          onClick={() => setProfileMenuMode('join')}
-                          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-                        >
-                          Join MyGarage
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <Link
-                          href="/auth?role=buyer&next=/buyer"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Join as Buyer
-                        </Link>
-                        <Link
-                          href="/auth?role=vendor&next=/vendor"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Join as Vendor
-                        </Link>
-                        <Link
-                          href="/auth?role=services&next=/services/orders"
-                          className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                        >
-                          Join as Service Provider
-                        </Link>
-                        <div className="my-1 h-px bg-border" />
-                        <button
-                          type="button"
-                          onClick={() => setProfileMenuMode('login')}
-                          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-                        >
-                          My Account
-                        </button>
-                      </>
-                    )}
+                    <HeaderProfileMenuBody
+                      authUser={authUser}
+                      profileMenuMode={profileMenuMode}
+                      setProfileMenuMode={setProfileMenuMode}
+                      onSignOut={handleSignOut}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -730,75 +832,22 @@ export function Header() {
             >
               <button
                 type="button"
-                aria-label="Open profile menu"
+                aria-label={authUser ? `Account menu (${authUser.email ?? 'signed in'})` : 'Open profile menu'}
                 aria-expanded={profileMenuOpen}
                 onClick={toggleProfileMenu}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
               >
-                <UserCircle2 className="h-5 w-5" />
-                <ChevronDown className="h-4 w-4" />
+                <HeaderProfileAvatar user={authUser} />
+                <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
               </button>
               {profileMenuOpen ? (
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
-                  {profileMenuMode === 'login' ? (
-                    <>
-                      <Link
-                        href="/auth?role=buyer&next=/buyer"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Login as Buyer
-                      </Link>
-                      <Link
-                        href="/auth?role=vendor&next=/vendor"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Login as Vendor
-                      </Link>
-                      <Link
-                        href="/auth?role=services&next=/services/orders"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Login as Service Provider
-                      </Link>
-                      <div className="my-1 h-px bg-border" />
-                      <button
-                        type="button"
-                        onClick={() => setProfileMenuMode('join')}
-                        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-                      >
-                        Join MyGarage
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        href="/auth?role=buyer&next=/buyer"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Join as Buyer
-                      </Link>
-                      <Link
-                        href="/auth?role=vendor&next=/vendor"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Join as Vendor
-                      </Link>
-                      <Link
-                        href="/auth?role=services&next=/services/orders"
-                        className="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition"
-                      >
-                        Join as Service Provider
-                      </Link>
-                      <div className="my-1 h-px bg-border" />
-                      <button
-                        type="button"
-                        onClick={() => setProfileMenuMode('login')}
-                        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-                      >
-                        My Account
-                      </button>
-                    </>
-                  )}
+                  <HeaderProfileMenuBody
+                    authUser={authUser}
+                    profileMenuMode={profileMenuMode}
+                    setProfileMenuMode={setProfileMenuMode}
+                    onSignOut={handleSignOut}
+                  />
                 </div>
               ) : null}
             </div>
