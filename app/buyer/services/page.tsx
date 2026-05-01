@@ -2,20 +2,26 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
 import {
   ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
   ChevronLeft,
   Circle,
   CreditCard,
+  History,
   Loader2,
   MapPin,
   Navigation,
   PencilLine,
+  RefreshCw,
   Timer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,6 +54,160 @@ type BuyerProviderRating = {
   providerId: string;
   stars: number;
 };
+
+type ServiceHistoryTab = 'all' | 'open' | 'completed' | 'cancelled';
+
+function statusRank(status: BuyerServiceRequest['status']): number {
+  switch (status) {
+    case 'pending':
+      return 0;
+    case 'matched':
+      return 1;
+    case 'in_progress':
+      return 2;
+    case 'completed':
+      return 4;
+    case 'cancelled':
+      return 5;
+    default:
+      return 3;
+  }
+}
+
+function formatHistoryWhen(iso: string): { primary: string; full: string } {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { primary: '—', full: '—' };
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((startOfToday.getTime() - startOfDay.getTime()) / 86400000);
+  let primary: string;
+  if (diffDays === 0) primary = `Today · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  else if (diffDays === 1) primary = `Yesterday · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  else if (diffDays > 1 && diffDays < 7) primary = `${diffDays} days ago`;
+  else primary = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const full = d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return { primary, full };
+}
+
+function serviceStatusPresentation(status: BuyerServiceRequest['status']): {
+  label: string;
+  borderClass: string;
+  badgeClass: string;
+} {
+  switch (status) {
+    case 'pending':
+      return {
+        label: 'Pending match',
+        borderClass: 'border-l-amber-500',
+        badgeClass:
+          'border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-100 font-medium',
+      };
+    case 'matched':
+      return {
+        label: 'Provider assigned',
+        borderClass: 'border-l-sky-500',
+        badgeClass: 'border-sky-500/35 bg-sky-500/10 text-sky-950 dark:text-sky-100 font-medium',
+      };
+    case 'in_progress':
+      return {
+        label: 'In progress',
+        borderClass: 'border-l-violet-500',
+        badgeClass: 'border-violet-500/35 bg-violet-500/10 text-violet-950 dark:text-violet-100 font-medium',
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        borderClass: 'border-l-emerald-500',
+        badgeClass: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 font-medium',
+      };
+    case 'cancelled':
+      return {
+        label: 'Cancelled',
+        borderClass: 'border-l-muted-foreground',
+        badgeClass: 'border-border bg-muted text-muted-foreground font-medium',
+      };
+    default:
+      return {
+        label: status,
+        borderClass: 'border-l-border',
+        badgeClass: 'border-border bg-muted text-muted-foreground font-medium',
+      };
+  }
+}
+
+function buildServiceHistoryList(requests: BuyerServiceRequest[], tab: ServiceHistoryTab): BuyerServiceRequest[] {
+  let list = [...requests];
+  if (tab === 'open') {
+    list = list.filter((r) => r.status === 'pending' || r.status === 'matched' || r.status === 'in_progress');
+  } else if (tab === 'completed') {
+    list = list.filter((r) => r.status === 'completed');
+  } else if (tab === 'cancelled') {
+    list = list.filter((r) => r.status === 'cancelled');
+  }
+
+  if (tab === 'all') {
+    list.sort((a, b) => {
+      const diff = statusRank(a.status) - statusRank(b.status);
+      if (diff !== 0) return diff;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  } else {
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  return list;
+}
+
+function normalizeBuyerServiceRequest(raw: Record<string, unknown>): BuyerServiceRequest | null {
+  const id = typeof raw.id === 'string' ? raw.id : null;
+  if (!id) return null;
+  const statusRaw = String(raw.status ?? '');
+  const allowed: BuyerServiceRequest['status'][] = ['pending', 'matched', 'in_progress', 'completed', 'cancelled'];
+  const status = allowed.includes(statusRaw as BuyerServiceRequest['status'])
+    ? (statusRaw as BuyerServiceRequest['status'])
+    : 'pending';
+  const createdRaw = raw.createdAt ?? raw.created_at;
+  const createdAt =
+    typeof createdRaw === 'string' ? createdRaw : createdRaw instanceof Date ? createdRaw.toISOString() : new Date().toISOString();
+  return {
+    id,
+    category: String(raw.category ?? ''),
+    service: String(raw.service ?? ''),
+    location: String(raw.location ?? ''),
+    status,
+    providerId:
+      typeof raw.providerId === 'string'
+        ? raw.providerId
+        : typeof raw.provider_id === 'string'
+          ? raw.provider_id
+          : null,
+    acceptedAt:
+      typeof raw.acceptedAt === 'string'
+        ? raw.acceptedAt
+        : typeof raw.accepted_at === 'string'
+          ? raw.accepted_at
+          : null,
+    arrivedAt:
+      typeof raw.arrivedAt === 'string'
+        ? raw.arrivedAt
+        : typeof raw.arrived_at === 'string'
+          ? raw.arrived_at
+          : null,
+    startedAt:
+      typeof raw.startedAt === 'string'
+        ? raw.startedAt
+        : typeof raw.started_at === 'string'
+          ? raw.started_at
+          : null,
+    completedAt:
+      typeof raw.completedAt === 'string'
+        ? raw.completedAt
+        : typeof raw.completed_at === 'string'
+          ? raw.completed_at
+          : null,
+    createdAt,
+  };
+}
 
 const PAY_CONTACT_NAME_KEY = 'servicePaymentContactName';
 const PAY_CONTACT_EMAIL_KEY = 'servicePaymentContactEmail';
@@ -102,6 +262,8 @@ function BuyerServicesPageInner() {
   /** Quick dialog: service pick first, then location + submit. */
   const [quickRequestUiStep, setQuickRequestUiStep] = useState<'service' | 'location'>('service');
   const [requests, setRequests] = useState<BuyerServiceRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [historyTab, setHistoryTab] = useState<ServiceHistoryTab>('all');
   const [ratings, setRatings] = useState<BuyerProviderRating[]>([]);
   const [paying, setPaying] = useState(false);
   const [identityMode, setIdentityMode] = useState<'buyer' | 'guest'>('guest');
@@ -359,6 +521,7 @@ function BuyerServicesPageInner() {
   }, []);
 
   const loadServiceData = async (id: string) => {
+    setRequestsLoading(true);
     try {
       const [requestsResponse, ratingsResponse] = await Promise.all([
         fetch(`/api/buyer/service-requests?customerId=${encodeURIComponent(id)}`),
@@ -366,8 +529,12 @@ function BuyerServicesPageInner() {
       ]);
 
       if (requestsResponse.ok) {
-        const requestsData = (await requestsResponse.json()) as BuyerServiceRequest[];
-        setRequests(Array.isArray(requestsData) ? requestsData : []);
+        const raw = (await requestsResponse.json()) as unknown;
+        const list = Array.isArray(raw) ? raw : [];
+        const normalized = list
+          .map((item) => normalizeBuyerServiceRequest(item as Record<string, unknown>))
+          .filter((x): x is BuyerServiceRequest => x != null);
+        setRequests(normalized);
       } else {
         setRequests([]);
       }
@@ -382,6 +549,8 @@ function BuyerServicesPageInner() {
       console.error('Failed to load buyer services data:', error);
       setRequests([]);
       setRatings([]);
+    } finally {
+      setRequestsLoading(false);
     }
   };
 
@@ -397,6 +566,18 @@ function BuyerServicesPageInner() {
     const active = requests.filter((item) => item.status === 'matched' || item.status === 'in_progress').length;
     const completed = requests.filter((item) => item.status === 'completed').length;
     return { pending, active, completed };
+  }, [requests]);
+
+  const historyCounts = useMemo(() => {
+    const open = requests.filter(
+      (r) => r.status === 'pending' || r.status === 'matched' || r.status === 'in_progress',
+    ).length;
+    return {
+      all: requests.length,
+      open,
+      completed: requests.filter((r) => r.status === 'completed').length,
+      cancelled: requests.filter((r) => r.status === 'cancelled').length,
+    };
   }, [requests]);
 
   const activeServiceRequest = useMemo(() => {
@@ -455,20 +636,8 @@ function BuyerServicesPageInner() {
         return;
       }
       const raw = (await response.json()) as Record<string, unknown>;
-      const created: BuyerServiceRequest = {
-        id: String(raw.id),
-        category: String(raw.category),
-        service: String(raw.service),
-        location: String(raw.location),
-        status: raw.status as BuyerServiceRequest['status'],
-        providerId: (raw.providerId as string | null | undefined) ?? (raw.provider_id as string | null | undefined) ?? null,
-        createdAt:
-          typeof raw.createdAt === 'string'
-            ? raw.createdAt
-            : typeof raw.created_at === 'string'
-              ? raw.created_at
-              : new Date().toISOString(),
-      };
+      const created = normalizeBuyerServiceRequest(raw);
+      if (!created) return;
       setRequests((current) => [created, ...current]);
       setIsQuickRequestDialogOpen(false);
       router.push(`/buyer/services/track/${encodeURIComponent(created.id)}`);
@@ -725,7 +894,7 @@ function BuyerServicesPageInner() {
             )}
           </Card>
         ) : (
-          <Card className="rounded-2xl border-border/70 p-4 shadow-sm sm:p-6">
+          <Card id="quick-request" className="rounded-2xl border-border/70 p-4 shadow-sm scroll-mt-24 sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="font-semibold tracking-tight">Quick Request</h2>
               <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -768,32 +937,174 @@ function BuyerServicesPageInner() {
           </Card>
         )}
 
-        <Card className="rounded-2xl border-border/70 p-4 shadow-sm sm:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 className="font-semibold tracking-tight">My Service Requests</h2>
-            <p className="text-xs text-muted-foreground">{requests.length} total</p>
-          </div>
-          <div className="space-y-3">
-            {requests.slice(0, 6).map((request) => (
-              <div key={request.id} className="rounded-xl border border-border/70 p-3.5 sm:p-4">
-                <p className="font-medium text-foreground">
-                  {request.service} - {request.id}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {request.category} - {request.location} - {new Date(request.createdAt).toLocaleString()}
-                </p>
-                <p className="mt-2 text-xs uppercase tracking-wide text-primary">Status: {request.status}</p>
-                {identityMode === 'buyer' ? (
-                  <Link
-                    href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
-                    className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
-                  >
-                    View live tracking
-                  </Link>
-                ) : null}
+        <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
+          <div className="border-b border-border/60 bg-gradient-to-br from-muted/40 via-card to-card px-4 py-5 sm:px-6 sm:py-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
+                  <History className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">Service history</h2>
+                  <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                    Every request you&apos;ve submitted, newest first. Open jobs are surfaced at the top so you can track
+                    progress without hunting.
+                  </p>
+                </div>
               </div>
-            ))}
-            {requests.length === 0 ? <p className="text-sm text-muted-foreground">No requests yet. Submit your first service request above.</p> : null}
+              {identityMode === 'buyer' && customerId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2 border-border/80 bg-background/80 shadow-sm"
+                  disabled={requestsLoading}
+                  onClick={() => void loadServiceData(customerId)}
+                >
+                  <RefreshCw className={cn('h-3.5 w-3.5', requestsLoading && 'animate-spin')} aria-hidden />
+                  Refresh
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6">
+            {sessionReady && identityMode !== 'buyer' ? (
+              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-10 text-center">
+                <p className="text-sm font-medium text-foreground">Sign in to see your service history</p>
+                <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+                  Your past and active requests sync here once you use a buyer account.
+                </p>
+                <Button asChild className="mt-5" size="sm">
+                  <Link href="/auth?role=buyer&next=%2Fbuyer%2Fservices">Continue as buyer</Link>
+                </Button>
+              </div>
+            ) : requestsLoading && requests.length === 0 ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="animate-pulse rounded-xl border border-border/50 bg-muted/30 p-4 sm:p-5"
+                  >
+                    <div className="h-4 w-1/3 max-w-[200px] rounded bg-muted" />
+                    <div className="mt-3 h-3 w-2/3 max-w-md rounded bg-muted" />
+                    <div className="mt-4 h-9 w-28 rounded-lg bg-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Tabs value={historyTab} onValueChange={(v) => setHistoryTab(v as ServiceHistoryTab)} className="gap-4">
+                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-muted/50 p-1 sm:w-auto">
+                  <TabsTrigger value="all" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
+                    All
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.all})</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="open" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
+                    In progress
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.open})</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="completed" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
+                    Completed
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.completed})</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="cancelled" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
+                    Cancelled
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.cancelled})</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                {(['all', 'open', 'completed', 'cancelled'] as const).map((tab) => {
+                  const tabItems = buildServiceHistoryList(requests, tab);
+                  return (
+                  <TabsContent key={tab} value={tab} className="mt-0 outline-none">
+                    {tabItems.length === 0 ? (
+                      <div className="rounded-xl border border-border/60 bg-muted/10 px-4 py-12 text-center">
+                        <p className="text-sm font-medium text-foreground">
+                          {tab === 'all'
+                            ? 'No service requests yet'
+                            : tab === 'open'
+                              ? 'Nothing in progress'
+                              : tab === 'completed'
+                                ? 'No completed jobs yet'
+                                : 'No cancelled requests'}
+                        </p>
+                        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+                          {tab === 'all'
+                            ? 'Submit a quick request above — it will appear here with live status updates.'
+                            : 'Try another tab, or create a new request when you need help.'}
+                        </p>
+                        {tab === 'all' ? (
+                          <Button asChild variant="outline" className="mt-5" size="sm">
+                            <Link href="#quick-request">Browse categories</Link>
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <ul className="space-y-3 p-0">
+                        {tabItems.map((request) => {
+                          const pres = serviceStatusPresentation(request.status);
+                          const when = formatHistoryWhen(request.createdAt);
+                          const shortId =
+                            request.id.length > 10 ? `…${request.id.slice(-8)}` : request.id;
+                          return (
+                            <li key={request.id}>
+                              <div
+                                className={cn(
+                                  'group rounded-xl border border-border/70 bg-card/50 transition hover:border-border hover:bg-card hover:shadow-sm',
+                                  'border-l-[3px] pl-4 pr-4 py-4 sm:pl-5 sm:pr-5 sm:py-5',
+                                  pres.borderClass,
+                                )}
+                              >
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                  <div className="min-w-0 flex-1 space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant="outline" className={cn('border', pres.badgeClass)}>
+                                        {pres.label}
+                                      </Badge>
+                                      <span className="font-mono text-[10px] text-muted-foreground sm:text-xs" title={request.id}>
+                                        {shortId}
+                                      </span>
+                                    </div>
+                                    <h3 className="text-base font-semibold leading-snug text-foreground sm:text-lg">
+                                      {request.service}
+                                    </h3>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                                      <span>{request.category || 'General'}</span>
+                                      <span className="hidden sm:inline" aria-hidden>
+                                        ·
+                                      </span>
+                                      <span className="min-w-0 max-w-full truncate sm:max-w-md" title={request.location}>
+                                        {request.location}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      <time dateTime={request.createdAt} title={when.full}>
+                                        {when.primary}
+                                      </time>
+                                    </p>
+                                  </div>
+                                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+                                    {identityMode === 'buyer' ? (
+                                      <Button asChild size="sm" variant="secondary" className="w-full gap-1.5 sm:w-auto">
+                                        <Link href={`/buyer/services/track/${encodeURIComponent(request.id)}`}>
+                                          {request.status === 'completed' ? 'View details' : 'Track request'}
+                                          <ArrowUpRight className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                                        </Link>
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </TabsContent>
+                  );
+                })}
+              </Tabs>
+            )}
           </div>
         </Card>
       </div>

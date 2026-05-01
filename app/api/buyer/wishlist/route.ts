@@ -4,6 +4,7 @@ import {
   getBuyerWishlistItemForProduct,
   getBuyerWishlistItems,
 } from '@/lib/db';
+import { getProductImagesByIds } from '@/lib/supabase/products-repo';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
@@ -22,7 +23,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(item);
     }
     const wishlist = await getBuyerWishlistItems(customerId);
-    return NextResponse.json(wishlist);
+    const productIds = wishlist.map((w) => w.productId).filter((id): id is string => Boolean(id?.trim()));
+    const imageByProductId = await getProductImagesByIds(productIds);
+    const enriched = wishlist.map((item) => ({
+      ...item,
+      imageUrl: item.productId ? imageByProductId.get(item.productId) || null : null,
+    }));
+    return NextResponse.json(enriched);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch buyer wishlist' }, { status: 500 });
   }

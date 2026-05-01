@@ -163,6 +163,26 @@ export async function getProductById(id: string): Promise<Product | undefined> {
   return rowToProduct(data as ProductRow);
 }
 
+/** Batch-resolve listing images for wishlist and similar UIs (one round-trip). */
+export async function getProductImagesByIds(ids: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  await ensureSeedIfEmpty();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("products").select("id, image").in("id", unique);
+
+  if (error) {
+    throw new Error(`Supabase get product images failed: ${error.message}`);
+  }
+
+  const map = new Map<string, string>();
+  for (const row of (data as { id: string; image: string | null }[] | null) ?? []) {
+    if (row?.id) map.set(row.id, row.image?.trim() ? row.image : "");
+  }
+  return map;
+}
+
 export async function listProductsByCategories(categories: string[]): Promise<Product[]> {
   if (categories.length === 0) return [];
   await ensureSeedIfEmpty();

@@ -123,53 +123,83 @@ export default function BuyerAddressesPage() {
   };
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Saved Addresses</h1>
-          <p className="text-muted-foreground">Manage your shipping destinations for faster checkout.</p>
+    <div className="space-y-5 px-4 pt-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6 md:p-8 md:pb-12">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Saved Addresses</h1>
+            <Badge variant="outline" className="shrink-0 font-normal">
+              {addresses.length} {addresses.length === 1 ? 'address' : 'addresses'}
+            </Badge>
+          </div>
+          <p className="max-w-xl text-sm text-muted-foreground">
+            Manage your shipping destinations for faster checkout.
+          </p>
         </div>
-        <Badge variant="outline">{addresses.length} address(es)</Badge>
       </div>
 
-      <Card className="space-y-4 p-5">
-        <h3 className="font-semibold">Add New Address</h3>
+      <Card className="space-y-4 p-4 sm:p-5">
+        <h3 className="text-base font-semibold sm:text-sm">Add New Address</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (Home, Office...)" />
-          <Input value={fullAddress} onChange={(e) => setFullAddress(e.target.value)} placeholder="Full address" className="md:col-span-2" />
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Label (Home, Office...)"
+            className="h-11 md:h-9"
+            autoComplete="off"
+          />
+          <Input
+            value={fullAddress}
+            onChange={(e) => setFullAddress(e.target.value)}
+            placeholder="Full address"
+            className="md:col-span-2 h-11 md:h-9"
+            autoComplete="section-shipping street-address"
+          />
         </div>
-        <Button onClick={addAddress} className="gap-2">
+        <Button onClick={addAddress} className="h-11 w-full gap-2 touch-manipulation sm:h-9 sm:w-auto">
           <Plus className="h-4 w-4" />
           Save Address
         </Button>
       </Card>
 
       {addresses.length === 0 ? (
-        <Card className="p-8 text-center">
+        <Card className="p-6 text-center sm:p-8">
           <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-2 font-medium">No saved addresses yet</p>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {addresses.map((address) => (
-            <Card key={address.id} className="p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
+            <Card key={address.id} className="p-4 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 gap-y-1">
                     <p className="font-semibold">{address.label}</p>
-                    {address.isDefault ? <Badge>Default</Badge> : null}
+                    {address.isDefault ? <Badge className="shrink-0">Default</Badge> : null}
                   </div>
-                  <p className="text-sm text-muted-foreground">{address.fullAddress}</p>
+                  <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground wrap-break-word">
+                    {address.fullAddress}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex w-full shrink-0 flex-col gap-2 touch-manipulation sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
                   {!address.isDefault && (
-                    <Button variant="outline" size="sm" className="gap-2" onClick={() => markDefault(address.id)}>
-                      <Star className="h-4 w-4" />
-                      Set Default
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-10 w-full gap-2 sm:h-8 sm:w-auto"
+                      onClick={() => markDefault(address.id)}
+                    >
+                      <Star className="h-4 w-4 shrink-0" />
+                      Set default
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive/10" onClick={() => removeAddress(address.id)}>
-                    <Trash2 className="h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-full gap-2 text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
+                    onClick={() => removeAddress(address.id)}
+                  >
+                    <Trash2 className="h-4 w-4 shrink-0" />
                     Remove
                   </Button>
                 </div>

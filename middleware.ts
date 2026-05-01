@@ -23,8 +23,53 @@ function isVerificationBypassPath(pathname: string) {
   );
 }
 
+/** Routes that never need session lookup or role redirects in middleware (unless OAuth `code` is present). */
+function canSkipAuthMiddleware(pathname: string, hasOAuthCode: boolean): boolean {
+  if (hasOAuthCode) return false;
+
+  if (pathname.startsWith("/api/")) return true;
+
+  if (pathname === "/") return true;
+
+  if (pathname.startsWith("/products")) return true;
+
+  if (pathname.startsWith("/category/")) return true;
+
+  if (pathname.startsWith("/auth")) return true;
+
+  if (pathname.startsWith("/payments/")) return true;
+
+  const exactPublic = new Set([
+    "/cart",
+    "/checkout",
+    "/order-confirmation",
+    "/contact-us",
+    "/faq",
+    "/privacy-policy",
+    "/refund-policy",
+    "/terms-and-conditions",
+    "/vendor-login",
+    "/manifest.webmanifest",
+  ]);
+  if (exactPublic.has(pathname)) return true;
+
+  // Book services without signing in (same exception as isProtectedPath).
+  if (pathname === "/buyer/services" || pathname.startsWith("/buyer/services/")) return true;
+
+  // Not listed in protectedPrefixes today; keep parity and avoid Supabase on full dashboard tree.
+  if (pathname === "/buyer-dashboard" || pathname.startsWith("/buyer-dashboard/")) return true;
+
+  return false;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const authCode = request.nextUrl.searchParams.get("code");
+
+  if (canSkipAuthMiddleware(pathname, Boolean(authCode))) {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -48,7 +93,6 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const authCode = request.nextUrl.searchParams.get("code");
   if (authCode) {
     const { error } = await supabase.auth.exchangeCodeForSession(authCode);
     if (!error) {
