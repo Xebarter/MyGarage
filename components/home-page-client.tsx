@@ -164,9 +164,14 @@ function CompactProductTile({
         </div>
         <div className="p-3">
           <p className="line-clamp-1 text-sm font-medium text-foreground">{product.name}</p>
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <p className="text-sm font-bold text-foreground">{formatProductPriceLabel(product)}</p>
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+            <p className="min-w-0 shrink text-sm font-bold tabular-nums text-foreground">
+              {formatProductPriceLabel(product)}
+            </p>
+            <span
+              title={product.category}
+              className="max-w-[45%] shrink-0 truncate rounded-full bg-primary/10 px-2 py-0.5 text-right text-[10px] font-medium text-primary"
+            >
               {product.category}
             </span>
           </div>
@@ -1089,11 +1094,12 @@ export function HomePageClient({
                                     key={product.id}
                                     className={moreForYouProductCellClass(index, section.products.length)}
                                   >
-                                    <ProductCard
+                                    <CompactProductTile
                                       product={product}
                                       customerId={customerId}
                                       wishlistItemId={wishlistByProductId[product.id] ?? null}
                                       onWishlistChange={handleWishlistChange}
+                                      imagePriority={blockIndex === 0 && index < 2}
                                     />
                                   </div>
                                 ))}
@@ -1129,11 +1135,12 @@ export function HomePageClient({
                                       key={product.id}
                                       className={moreForYouProductCellClass(index, section.products.length)}
                                     >
-                                      <ProductCard
+                                      <CompactProductTile
                                         product={product}
                                         customerId={customerId}
                                         wishlistItemId={wishlistByProductId[product.id] ?? null}
                                         onWishlistChange={handleWishlistChange}
+                                        imagePriority={blockIndex === 0 && index < 2}
                                       />
                                     </div>
                                   ))}
