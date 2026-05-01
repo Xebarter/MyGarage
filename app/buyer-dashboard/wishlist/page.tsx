@@ -10,6 +10,7 @@ import { Heart, Search, Trash2 } from 'lucide-react';
 
 interface WishlistItem {
   id: string;
+  productId?: string;
   name: string;
   price: number;
   category?: string;
@@ -56,6 +57,7 @@ export default function BuyerWishlistPage() {
       const data = await response.json();
       const mapped: WishlistItem[] = (Array.isArray(data) ? data : []).map((item: any) => ({
         id: item.id,
+        productId: typeof item.productId === 'string' ? item.productId : undefined,
         name: item.productName,
         price: Number(item.priceSnapshot) || 0,
         category: item.categorySnapshot || 'General',
@@ -137,7 +139,7 @@ export default function BuyerWishlistPage() {
           <Button onClick={addItem} className="gap-2"><Heart className="h-4 w-4" /> Save Item</Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Tip: You can also continue shopping and keep your wishlist in this dashboard.
+          Tip: Use the heart on product tiles while browsing — items you save show up here.
         </p>
       </Card>
 
@@ -167,7 +169,13 @@ export default function BuyerWishlistPage() {
             <Card key={item.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-semibold">{item.name}</p>
+                  {item.productId ? (
+                    <Link href={`/products/${item.productId}`} className="font-semibold hover:underline">
+                      {item.name}
+                    </Link>
+                  ) : (
+                    <p className="font-semibold">{item.name}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">{item.category || 'General'}</p>
                   <p className="mt-2 text-lg font-bold">UGX {item.price.toFixed(0)}</p>
                 </div>

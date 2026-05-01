@@ -113,6 +113,17 @@ export interface Customer {
 
 export type CustomerInsert = Omit<Customer, "id" | "createdAt"> & { id?: string };
 
+export type BuyerProfile = {
+  customer: Customer;
+  stats: {
+    wishlistItems: number;
+    addresses: number;
+    supportTickets: number;
+    serviceRequests: number;
+  };
+  defaultAddress: BuyerAddress | null;
+};
+
 export interface Promotion {
   id: string;
   code: string;
@@ -449,11 +460,38 @@ export const createCustomer = async (customer: CustomerInsert) => customersRepo.
 export const updateCustomer = async (id: string, updates: Partial<Customer>) => {
   return customersRepo.updateCustomerById(id, updates);
 };
+export const deleteCustomer = async (id: string) => customersRepo.deleteCustomerById(id);
 
 export const getCustomerByEmail = async (email: string) => {
   const all = await customersRepo.listCustomers();
   const lookup = email.trim().toLowerCase();
   return all.find((c) => c.email.toLowerCase() === lookup);
+};
+
+export const getBuyerProfile = async (customerId: string): Promise<BuyerProfile | null> => {
+  const customer = await customersRepo.getCustomerById(customerId);
+  if (!customer) return null;
+
+  const [addresses, wishlist, tickets, serviceRequests] = await Promise.all([
+    buyerAddressesRepo.listBuyerAddresses(customerId),
+    buyerWishlistRepo.listBuyerWishlistItems(customerId),
+    buyerSupportTicketsRepo.listBuyerSupportTickets(customerId),
+    buyerServicesRepo.listBuyerServiceRequests(customerId),
+  ]);
+
+  const defaultAddress =
+    addresses.find((a) => a.isDefault) ?? (addresses.length > 0 ? addresses[0] : null);
+
+  return {
+    customer,
+    stats: {
+      wishlistItems: wishlist.length,
+      addresses: addresses.length,
+      supportTickets: tickets.length,
+      serviceRequests: serviceRequests.length,
+    },
+    defaultAddress,
+  };
 };
 
 // Promotion operations
@@ -505,12 +543,20 @@ export const createBuyerWishlistItem = async (payload: buyerWishlistRepo.BuyerWi
   return buyerWishlistRepo.insertBuyerWishlistItem(payload);
 };
 export const deleteBuyerWishlistItem = async (id: string) => buyerWishlistRepo.deleteBuyerWishlistItemById(id);
+export const getBuyerWishlistItemForProduct = async (customerId: string, productId: string) =>
+  buyerWishlistRepo.getBuyerWishlistItemByCustomerAndProductId(customerId, productId);
+export const deleteBuyerWishlistItemForProduct = async (customerId: string, productId: string) =>
+  buyerWishlistRepo.deleteBuyerWishlistItemByCustomerAndProductId(customerId, productId);
 
 // Buyer support tickets
 export const getBuyerSupportTickets = async (customerId: string) => buyerSupportTicketsRepo.listBuyerSupportTickets(customerId);
 export const createBuyerSupportTicket = async (payload: buyerSupportTicketsRepo.BuyerSupportTicketInsert) => {
   return buyerSupportTicketsRepo.insertBuyerSupportTicket(payload);
 };
+export const getBuyerSupportTicket = async (id: string) => buyerSupportTicketsRepo.getBuyerSupportTicketById(id);
+export const updateBuyerSupportTicket = async (id: string, updates: Partial<BuyerSupportTicket>) =>
+  buyerSupportTicketsRepo.updateBuyerSupportTicketById(id, updates);
+export const deleteBuyerSupportTicket = async (id: string) => buyerSupportTicketsRepo.deleteBuyerSupportTicketById(id);
 
 // Buyer services
 export const getBuyerServiceRequests = async (customerId: string) => buyerServicesRepo.listBuyerServiceRequests(customerId);

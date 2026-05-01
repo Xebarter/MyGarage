@@ -8,6 +8,7 @@ import { Plus, Trash2, Edit, Megaphone } from 'lucide-react';
 import { ProductFormDialog } from '@/components/admin/product-form';
 import type { Product } from '@/lib/db';
 import { formatProductPriceLabel } from '@/lib/product-variants';
+import { ProductImage } from '@/components/product-image';
 
 export default function VendorProductsPage() {
   const [vendorId, setVendorId] = useState<string>('');
@@ -138,11 +139,12 @@ export default function VendorProductsPage() {
               <div className="flex flex-col md:flex-row">
                 <div className="relative h-40 w-full bg-muted/30 md:h-auto md:w-56 md:shrink-0">
                   {product.image && product.image !== "/products/default.jpg" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ProductImage
                       src={product.image}
                       alt=""
-                      className="h-full w-full object-cover md:min-h-[160px]"
+                      fill
+                      className="object-cover md:min-h-[160px]"
+                      sizes="(max-width: 768px) 100vw, 224px"
                     />
                   ) : (
                     <div className="flex h-full min-h-[160px] items-center justify-center bg-gradient-to-br from-primary/15 to-accent/20 text-sm text-muted-foreground">

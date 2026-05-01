@@ -76,3 +76,36 @@ export async function deleteBuyerWishlistItemById(id: string): Promise<boolean> 
   if (error) throw new Error(`Supabase delete buyer wishlist failed: ${error.message}`);
   return Boolean(data && data.length > 0);
 }
+
+export async function getBuyerWishlistItemByCustomerAndProductId(
+  customerId: string,
+  productId: string,
+): Promise<BuyerWishlistItem | undefined> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_wishlist_items")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("product_id", productId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Supabase get buyer wishlist item failed: ${error.message}`);
+  if (!data) return undefined;
+  return rowToBuyerWishlistItem(data as BuyerWishlistRow);
+}
+
+export async function deleteBuyerWishlistItemByCustomerAndProductId(
+  customerId: string,
+  productId: string,
+): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_wishlist_items")
+    .delete()
+    .eq("customer_id", customerId)
+    .eq("product_id", productId)
+    .select("id");
+
+  if (error) throw new Error(`Supabase delete buyer wishlist by product failed: ${error.message}`);
+  return Boolean(data && data.length > 0);
+}

@@ -128,3 +128,17 @@ export async function updateCustomerById(id: string, updates: Partial<Customer>)
   if (!data) return null;
   return rowToCustomer(data as CustomerRow);
 }
+
+export async function deleteCustomerById(id: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { error, count } = await supabase
+    .from("customers")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(`Supabase delete customer failed: ${error.message}`);
+  }
+
+  return Boolean(count);
+}

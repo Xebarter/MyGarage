@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { ProductImage } from '@/components/product-image';
 import { Trash2 } from 'lucide-react';
 import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
 
@@ -85,10 +86,13 @@ export default function CartPage() {
                 <div className="bg-card rounded-lg border border-border overflow-hidden">
                   {cartItems.map((item) => (
                     <div key={cartLineKey(item)} className="flex items-center gap-4 p-6 border-b border-border last:border-b-0">
-                      <img
+                      <ProductImage
                         src={item.image}
                         alt={item.name}
-                        className="w-24 h-24 object-cover rounded-lg"
+                        width={96}
+                        height={96}
+                        className="h-24 w-24 shrink-0 rounded-lg object-cover"
+                        sizes="96px"
                       />
                       <div className="flex-1">
                         <h3 className="font-semibold text-foreground">{item.name}</h3>

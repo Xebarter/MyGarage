@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { ProductImage } from '@/components/product-image';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -572,11 +573,14 @@ export function Header() {
                                     }}
                                   >
                                     <div className="flex items-center gap-3 px-2 py-2">
-                                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
-                                        <img
-                                          src={c.image?.trim() ? c.image : '/placeholder.jpg'}
+                                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
+                                        <ProductImage
+                                          src={c.image?.trim() ? c.image : '/products/default.jpg'}
                                           alt={c.headline}
+                                          width={48}
+                                          height={48}
                                           className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                          sizes="48px"
                                         />
                                       </div>
                                       <div className="min-w-0 flex-1">
@@ -610,11 +614,14 @@ export function Header() {
                                     }}
                                   >
                                     <div className="flex items-center gap-3 px-2 py-2">
-                                      <div className="h-12 w-12 overflow-hidden rounded-md bg-muted/40">
-                                        <img
-                                          src={p.image || '/placeholder.jpg'}
+                                      <div className="relative h-12 w-12 overflow-hidden rounded-md bg-muted/40">
+                                        <ProductImage
+                                          src={p.image || '/products/default.jpg'}
                                           alt={p.name}
+                                          width={48}
+                                          height={48}
                                           className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                          sizes="48px"
                                         />
                                       </div>
                                       <div className="min-w-0 flex-1">
@@ -891,11 +898,14 @@ export function Header() {
                                 }}
                               >
                                 <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40 ring-1 ring-border">
-                                    <img
-                                      src={c.image?.trim() ? c.image : '/placeholder.jpg'}
+                                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40 ring-1 ring-border">
+                                    <ProductImage
+                                      src={c.image?.trim() ? c.image : '/products/default.jpg'}
                                       alt={c.headline}
+                                      width={44}
+                                      height={44}
                                       className="h-full w-full object-cover"
+                                      sizes="44px"
                                     />
                                   </div>
                                   <div className="min-w-0 flex-1 text-left">
@@ -929,11 +939,14 @@ export function Header() {
                                 }}
                               >
                                 <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40">
-                                    <img
-                                      src={p.image || '/placeholder.jpg'}
+                                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40">
+                                    <ProductImage
+                                      src={p.image || '/products/default.jpg'}
                                       alt={p.name}
+                                      width={44}
+                                      height={44}
                                       className="h-full w-full object-cover"
+                                      sizes="44px"
                                     />
                                   </div>
                                   <div className="min-w-0 flex-1 text-left">

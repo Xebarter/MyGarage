@@ -70,3 +70,57 @@ export async function insertBuyerSupportTicket(ticket: BuyerSupportTicketInsert)
   if (error) throw new Error(`Supabase insert buyer support ticket failed: ${error.message}`);
   return rowToBuyerSupportTicket(data as BuyerSupportTicketRow);
 }
+
+export async function getBuyerSupportTicketById(id: string): Promise<BuyerSupportTicket | undefined> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_support_tickets")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Supabase get buyer support ticket failed: ${error.message}`);
+  if (!data) return undefined;
+  return rowToBuyerSupportTicket(data as BuyerSupportTicketRow);
+}
+
+export async function updateBuyerSupportTicketById(
+  id: string,
+  updates: Partial<BuyerSupportTicket>,
+): Promise<BuyerSupportTicket | null> {
+  const supabase = createAdminClient();
+  const patch: Record<string, unknown> = {};
+
+  if (updates.subject !== undefined) patch.subject = updates.subject;
+  if (updates.message !== undefined) patch.message = updates.message;
+  if (updates.orderId !== undefined) patch.order_id = updates.orderId ?? null;
+  if (updates.status !== undefined) patch.status = updates.status;
+  if (updates.priority !== undefined) patch.priority = updates.priority;
+
+  if (Object.keys(patch).length === 0) {
+    const existing = await getBuyerSupportTicketById(id);
+    return existing ?? null;
+  }
+
+  const { data, error } = await supabase
+    .from("buyer_support_tickets")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw new Error(`Supabase update buyer support ticket failed: ${error.message}`);
+  if (!data) return null;
+  return rowToBuyerSupportTicket(data as BuyerSupportTicketRow);
+}
+
+export async function deleteBuyerSupportTicketById(id: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { error, count } = await supabase
+    .from("buyer_support_tickets")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) throw new Error(`Supabase delete buyer support ticket failed: ${error.message}`);
+  return Boolean(count);
+}
