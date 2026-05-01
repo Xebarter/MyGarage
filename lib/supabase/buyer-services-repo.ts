@@ -348,6 +348,20 @@ export async function listBuyerProviderRatings(customerId: string): Promise<Buye
   return (data as BuyerProviderRatingRow[] | null)?.map(rowToBuyerProviderRating) ?? [];
 }
 
+/** Admin analytics: aggregate provider ratings. */
+export async function listAllBuyerProviderRatings(limit = 5000): Promise<BuyerProviderRating[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_provider_ratings")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`Supabase list all buyer provider ratings failed: ${error.message}`);
+  }
+  return (data as BuyerProviderRatingRow[] | null)?.map(rowToBuyerProviderRating) ?? [];
+}
+
 export async function upsertBuyerProviderRating(rating: BuyerProviderRatingUpsert): Promise<BuyerProviderRating> {
   const supabase = createAdminClient();
   const id = rating.id ?? `${rating.customerId}-${rating.providerId}`;

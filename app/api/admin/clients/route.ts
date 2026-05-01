@@ -34,6 +34,12 @@ function normalizeQuery(value: string | null): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+/** Avoid runtime errors when DB returns nulls and for `.includes()` search. */
+function safeText(value: unknown): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -49,22 +55,25 @@ export async function GET(req: NextRequest) {
       | "service"
       | "";
 
-    const [customers, serviceRequests, orders] = await Promise.all([
-      getCustomers(),
-      getAllBuyerServiceRequests(),
-      getOrders(),
-    ]);
+    const [customers, orders] = await Promise.all([getCustomers(), getOrders()]);
+
+    let serviceRequests: Awaited<ReturnType<typeof getAllBuyerServiceRequests>> = [];
+    try {
+      serviceRequests = await getAllBuyerServiceRequests();
+    } catch (e) {
+      console.error("admin clients GET: service requests unavailable, continuing with orders only", e);
+    }
 
     const serviceByCustomer = new Map<
       string,
       { total: number; open: number; lastAt: string | null }
     >();
-    for (const req of serviceRequests) {
-      const key = req.customerId;
+    for (const svc of serviceRequests) {
+      const key = svc.customerId;
       const existing = serviceByCustomer.get(key) ?? { total: 0, open: 0, lastAt: null };
       existing.total += 1;
-      if (["pending", "matched", "in_progress"].includes(req.status)) existing.open += 1;
-      const createdAt = toIso(req.createdAt);
+      if (["pending", "matched", "in_progress"].includes(svc.status)) existing.open += 1;
+      const createdAt = toIso(svc.createdAt);
       if (createdAt && (!existing.lastAt || createdAt > existing.lastAt)) existing.lastAt = createdAt;
       serviceByCustomer.set(key, existing);
     }
@@ -93,11 +102,11 @@ export async function GET(req: NextRequest) {
         [service.lastAt, orderAgg.lastAt, createdAt].filter(Boolean).sort().at(-1) ?? null;
 
       return {
-        id: c.id,
-        name: c.name,
-        email: c.email,
-        phone: c.phone,
-        address: c.address,
+        id: safeText(c.id),
+        name: safeText(c.name),
+        email: safeText(c.email),
+        phone: safeText(c.phone),
+        address: safeText(c.address),
         createdAt,
         totalOrders: productOrders,
         totalSpent: productSpent,
@@ -117,11 +126,11 @@ export async function GET(req: NextRequest) {
       if (!matchesSegment) return false;
       if (!q) return true;
       return (
-        row.name.toLowerCase().includes(q) ||
-        row.email.toLowerCase().includes(q) ||
-        row.phone.toLowerCase().includes(q) ||
-        row.address.toLowerCase().includes(q) ||
-        row.id.toLowerCase().includes(q)
+        safeText(row.name).toLowerCase().includes(q) ||
+        safeText(row.email).toLowerCase().includes(q) ||
+        safeText(row.phone).toLowerCase().includes(q) ||
+        safeText(row.address).toLowerCase().includes(q) ||
+        safeText(row.id).toLowerCase().includes(q)
       );
     });
 
@@ -137,7 +146,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ clients: sorted });
   } catch (error) {
     console.error("admin clients GET failed", error);
-    return NextResponse.json({ error: "Failed to load clients" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to load clients";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

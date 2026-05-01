@@ -11,6 +11,7 @@ import {
   Truck,
   Home,
   Wallet,
+  BarChart3,
   X,
   LogOut,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ import { createClient } from '@/lib/supabase/client';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
+  { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/admin/clients', label: 'Clients', icon: Users },
@@ -84,7 +86,10 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
         <nav id="admin-dashboard-nav" className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive =
+              item.href === '/admin'
+                ? pathname === '/admin' || pathname === '/admin/'
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link

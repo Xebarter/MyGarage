@@ -54,6 +54,18 @@ export async function listBuyerSupportTickets(customerId: string): Promise<Buyer
   return (data as BuyerSupportTicketRow[] | null)?.map(rowToBuyerSupportTicket) ?? [];
 }
 
+/** Admin analytics: all tickets (bounded). */
+export async function listAllBuyerSupportTickets(limit = 2000): Promise<BuyerSupportTicket[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_support_tickets")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Supabase list all buyer support tickets failed: ${error.message}`);
+  return (data as BuyerSupportTicketRow[] | null)?.map(rowToBuyerSupportTicket) ?? [];
+}
+
 export async function insertBuyerSupportTicket(ticket: BuyerSupportTicketInsert): Promise<BuyerSupportTicket> {
   const supabase = createAdminClient();
   const id = ticket.id ?? Date.now().toString();

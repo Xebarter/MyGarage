@@ -22,12 +22,17 @@ export async function GET(
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    const customer = await getCustomer(customerId);
-    if (!customer) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
-    }
-
-    const [orders, serviceRequests, addresses, wishlist, supportTickets, ratings, payments] = await Promise.all([
+    const [
+      customer,
+      orders,
+      serviceRequests,
+      addresses,
+      wishlist,
+      supportTickets,
+      ratings,
+      payments,
+    ] = await Promise.all([
+      getCustomer(customerId),
       getOrders(),
       getBuyerServiceRequests(customerId),
       getBuyerAddresses(customerId),
@@ -36,6 +41,10 @@ export async function GET(
       getBuyerProviderRatings(customerId),
       getPaymentRecords(),
     ]);
+
+    if (!customer) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
 
     const customerOrders = orders.filter((o) => o.customerId === customerId);
     const customerPayments = payments.filter((p) => p.customerId === customerId);

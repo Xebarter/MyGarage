@@ -69,8 +69,9 @@ export default function BuyerProfilePage() {
       if (!payload && email) {
         const byEmail = await fetch(`/api/buyer/profile?email=${encodeURIComponent(email)}`);
         if (byEmail.ok) {
-          payload = await byEmail.json();
-          resolvedCustomerId = payload.customer.id;
+          const body = (await byEmail.json()) as BuyerProfilePayload;
+          payload = body;
+          resolvedCustomerId = body.customer.id;
           localStorage.setItem('currentBuyerId', resolvedCustomerId);
         }
       }

@@ -34,7 +34,12 @@ function rowToCustomer(row: CustomerRow): Customer {
   };
 }
 
+/** Avoid a count round-trip on every admin/client request once the table is known populated. */
+let customersSeedEnsured = false;
+
 async function ensureSeedIfEmpty(): Promise<void> {
+  if (customersSeedEnsured) return;
+
   const supabase = createAdminClient();
   const { count, error: countError } = await supabase
     .from("customers")
@@ -44,13 +49,20 @@ async function ensureSeedIfEmpty(): Promise<void> {
     throw new Error(`Supabase customers count failed: ${countError.message}`);
   }
 
-  if (count !== null && count > 0) return;
+  if (count !== null && count > 0) {
+    customersSeedEnsured = true;
+    return;
+  }
 
   const { error } = await supabase.from("customers").insert(CUSTOMER_SEED_ROWS);
   if (error) {
-    if (error.code === "23505") return;
+    if (error.code === "23505") {
+      customersSeedEnsured = true;
+      return;
+    }
     throw new Error(`Supabase seed customers failed: ${error.message}`);
   }
+  customersSeedEnsured = true;
 }
 
 export async function listCustomers(): Promise<Customer[]> {

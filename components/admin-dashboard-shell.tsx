@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu, Package } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
+import { Toaster } from '@/components/ui/sonner';
 
 export function AdminDashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -59,7 +60,10 @@ export function AdminDashboardShell({ children }: { children: React.ReactNode })
 
       <AdminSidebar mobileOpen={mobileNavOpen} onMobileClose={closeMobile} />
 
-      <main className="min-h-0 flex-1 overflow-y-auto pt-14 md:pt-0">{children}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto pt-14 md:pt-0">
+        {children}
+        <Toaster position="top-center" richColors closeButton />
+      </main>
     </div>
   );
 }
