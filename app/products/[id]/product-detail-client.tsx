@@ -16,7 +16,10 @@ import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Package, ShoppingCart, Truck, Shield } from 'lucide-react';
 
-function initialVariantState(product: Product) {
+function initialVariantState(product: Product): {
+  selectedVariantId: string | null;
+  selectionByOptionId: Record<string, string>;
+} {
   const v = product.variants?.length ? product.variants : [];
   const pick = v[0];
   const multi = (product.variantOptions?.length ?? 0) > 0;
