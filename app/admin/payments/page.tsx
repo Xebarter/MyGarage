@@ -907,6 +907,12 @@ export default function AdminPaymentsPage() {
     setError(null);
     try {
       const res = await fetch('/api/admin/payments');
+      if (res.status === 403) {
+        setPayments([]);
+        setDisbursements([]);
+        setError('You need admin access to load payments and disbursements.');
+        return;
+      }
       if (!res.ok) throw new Error('Failed to fetch payment operations data');
       const data = await res.json();
       const rawPayments = Array.isArray(data.payments) ? data.payments : [];
@@ -1356,8 +1362,9 @@ export default function AdminPaymentsPage() {
             <DialogDescription>
               {rejectTarget ? (
                 <>
-                  This will mark <span className="font-medium text-foreground">{rejectTarget.vendorName}</span>’s
-                  payout as rejected. Add an internal note for audit (optional).
+                  This will mark the payout for{' '}
+                  <span className="font-medium text-foreground">{rejectTarget.vendorName}</span> as rejected. Add an
+                  internal note for audit (optional).
                 </>
               ) : null}
             </DialogDescription>
@@ -1379,6 +1386,7 @@ export default function AdminPaymentsPage() {
             <Button
               type="button"
               variant="destructive"
+              className="gap-2"
               disabled={!rejectTarget || savingDisbursementId === rejectTarget.id}
               onClick={() => {
                 if (!rejectTarget) return;
@@ -1394,10 +1402,9 @@ export default function AdminPaymentsPage() {
               }}
             >
               {rejectTarget && savingDisbursementId === rejectTarget.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Confirm reject'
-              )}
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : null}
+              Confirm reject
             </Button>
           </DialogFooter>
         </DialogContent>

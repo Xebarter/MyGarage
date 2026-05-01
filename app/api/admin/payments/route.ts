@@ -88,7 +88,7 @@ export async function GET() {
     const {
       data: { user },
     } = await authClient.auth.getUser();
-    if (!isAdminUser(user)) {
+    if (!user || !isAdminUser(user)) {
       return NextResponse.json({ error: "Admin required" }, { status: 403 });
     }
 
@@ -522,7 +522,7 @@ export async function PATCH(req: NextRequest) {
     const {
       data: { user },
     } = await authClient.auth.getUser();
-    if (!isAdminUser(user)) {
+    if (!user || !isAdminUser(user)) {
       return NextResponse.json({ error: "Admin required" }, { status: 403 });
     }
 
