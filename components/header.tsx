@@ -5,20 +5,26 @@ import Image from 'next/image';
 import { ProductImage } from '@/components/product-image';
 import { useRouter } from 'next/navigation';
 import {
-  ShoppingCart,
+  ChevronDown,
+  ChevronRight,
+  LayoutDashboard,
+  LogOut,
   Menu,
   Search,
-  UserCircle2,
-  ChevronDown,
+  Shield,
+  ShoppingBag,
+  ShoppingCart,
   Siren,
+  Store,
+  UserCircle2,
   Wrench,
-  LayoutDashboard,
   X,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useBuyerPortalChrome } from '@/components/buyer-portal-chrome';
 import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
 import { useServicesPortalChrome } from '@/components/services-portal-chrome';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -59,114 +65,167 @@ type SuggestionServiceCategory = {
   topServiceName: string;
 };
 
-const profileMenuLinkClass =
-  'block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition';
+const profileMenuPanelClass =
+  'absolute right-0 z-50 mt-2.5 w-[min(calc(100vw-2rem),18rem)] overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xl ring-1 ring-black/[0.04] dark:ring-white/[0.08]';
 
-function HeaderProfileAvatar({ user }: { user: User | null }) {
+type ProfileMenuAccent = 'buyer' | 'vendor' | 'services' | 'admin' | 'signout';
+
+const profileMenuAccentStyles: Record<
+  ProfileMenuAccent,
+  { iconWrap: string; icon: string }
+> = {
+  buyer: {
+    iconWrap: 'bg-primary/12 ring-1 ring-primary/20',
+    icon: 'text-primary',
+  },
+  vendor: {
+    iconWrap: 'bg-amber-500/12 ring-1 ring-amber-500/25',
+    icon: 'text-amber-700 dark:text-amber-400',
+  },
+  services: {
+    iconWrap: 'bg-violet-500/12 ring-1 ring-violet-500/25',
+    icon: 'text-violet-700 dark:text-violet-400',
+  },
+  admin: {
+    iconWrap: 'bg-slate-500/12 ring-1 ring-slate-500/25',
+    icon: 'text-slate-700 dark:text-slate-300',
+  },
+  signout: {
+    iconWrap: 'bg-destructive/10 ring-1 ring-destructive/20',
+    icon: 'text-destructive',
+  },
+};
+
+function HeaderProfileAvatar({
+  user,
+  size = 'md',
+}: {
+  user: User | null;
+  size?: 'md' | 'lg';
+}) {
   const url = getAuthAvatarUrl(user);
   const initials = getAuthDisplayInitials(user);
+  const sizeClass = size === 'lg' ? 'h-10 w-10 sm:h-11 sm:w-11' : 'h-7 w-7 sm:h-8 sm:w-8';
+  const fallbackText = size === 'lg' ? 'text-sm' : 'text-[10px] sm:text-xs';
+
   if (!user) {
-    return <UserCircle2 className="h-5 w-5 shrink-0" aria-hidden />;
+    return <UserCircle2 className={cn('shrink-0 text-muted-foreground', size === 'lg' ? 'h-6 w-6' : 'h-5 w-5')} aria-hidden />;
   }
   return (
-    <Avatar className="h-7 w-7 shrink-0 border border-border sm:h-8 sm:w-8">
+    <Avatar className={cn('shrink-0 border-2 border-background shadow-sm ring-1 ring-border/80', sizeClass)}>
       <AvatarImage src={url ?? undefined} alt="" referrerPolicy="no-referrer" className="object-cover" />
-      <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground sm:text-xs">
+      <AvatarFallback className={cn('bg-primary/10 font-semibold text-primary', fallbackText)}>
         {initials}
       </AvatarFallback>
     </Avatar>
   );
 }
 
-function HeaderProfileMenuBody({
-  authUser,
-  profileMenuMode,
-  setProfileMenuMode,
-  onSignOut,
+function ProfileMenuItem({
+  href,
+  icon: Icon,
+  label,
+  accent,
+  onClick,
 }: {
-  authUser: User | null;
-  profileMenuMode: 'login' | 'join';
-  setProfileMenuMode: (mode: 'login' | 'join') => void;
-  onSignOut: () => void;
+  href?: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  accent: ProfileMenuAccent;
+  onClick?: () => void;
 }) {
-  if (authUser) {
+  const tones = profileMenuAccentStyles[accent];
+  const className = cn(
+    'group flex w-full min-h-11 items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition',
+    'hover:bg-muted/60 active:scale-[0.99]',
+  );
+
+  const content = (
+    <>
+      <span
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-[1.02]',
+          tones.iconWrap,
+        )}
+      >
+        <Icon className={cn('h-[18px] w-[18px]', tones.icon)} aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-foreground">{label}</span>
+      {href ? (
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-muted-foreground/50 transition group-hover:translate-x-0.5 group-hover:text-muted-foreground"
+          aria-hidden
+        />
+      ) : null}
+    </>
+  );
+
+  if (href) {
     return (
-      <>
-        <div className="border-b border-border px-3 py-2">
-          <p className="truncate text-xs font-medium text-foreground" title={authUser.email ?? undefined}>
-            {authUser.email ?? 'Account'}
-          </p>
-          <p className="text-[11px] text-muted-foreground">Signed in</p>
-        </div>
-        <Link href="/buyer" className={profileMenuLinkClass}>
-          Buyer workspace
-        </Link>
-        <Link href="/vendor" className={profileMenuLinkClass}>
-          Vendor workspace
-        </Link>
-        <Link href="/services/orders" className={profileMenuLinkClass}>
-          Service provider
-        </Link>
-        {userHasAdminPortalAccess(authUser) ? (
-          <Link href="/admin" className={profileMenuLinkClass}>
-            Admin
-          </Link>
-        ) : null}
-        <div className="my-1 h-px bg-border" />
-        <button
-          type="button"
-          onClick={onSignOut}
-          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-destructive hover:bg-destructive/10 transition"
-        >
-          Sign out
-        </button>
-      </>
+      <Link href={href} className={className}>
+        {content}
+      </Link>
     );
   }
 
-  if (profileMenuMode === 'login') {
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
+  );
+}
+
+function HeaderProfileMenuBody({
+  authUser,
+  onSignOut,
+}: {
+  authUser: User | null;
+  onSignOut: () => void;
+}) {
+  if (authUser) {
+    const email = authUser.email ?? '';
     return (
       <>
-        <Link href="/auth?role=buyer&next=/buyer" className={profileMenuLinkClass}>
-          Login as Buyer
-        </Link>
-        <Link href="/auth?role=vendor&next=/vendor" className={profileMenuLinkClass}>
-          Login as Vendor
-        </Link>
-        <Link href="/auth?role=services&next=/services/orders" className={profileMenuLinkClass}>
-          Login as Service Provider
-        </Link>
-        <div className="my-1 h-px bg-border" />
-        <button
-          type="button"
-          onClick={() => setProfileMenuMode('join')}
-          className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-        >
-          Join MyGarage
-        </button>
+        <div className="border-b border-border/70 bg-gradient-to-br from-primary/[0.07] via-card to-card px-4 py-4">
+          <div className="flex items-center gap-3">
+            <HeaderProfileAvatar user={authUser} size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground" title={email || undefined}>
+                {email || 'Account'}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-0.5 p-2">
+          <ProfileMenuItem href="/buyer" icon={ShoppingBag} label="Buyer" accent="buyer" />
+          <ProfileMenuItem href="/vendor" icon={Store} label="Vendor" accent="vendor" />
+          <ProfileMenuItem href="/services/orders" icon={Wrench} label="Services" accent="services" />
+          {userHasAdminPortalAccess(authUser) ? (
+            <ProfileMenuItem href="/admin" icon={Shield} label="Admin" accent="admin" />
+          ) : null}
+        </div>
+        <div className="border-t border-border/70 bg-muted/20 p-2">
+          <ProfileMenuItem icon={LogOut} label="Sign out" accent="signout" onClick={onSignOut} />
+        </div>
       </>
     );
   }
 
   return (
     <>
-      <Link href="/auth?role=buyer&next=/buyer" className={profileMenuLinkClass}>
-        Join as Buyer
-      </Link>
-      <Link href="/auth?role=vendor&next=/vendor" className={profileMenuLinkClass}>
-        Join as Vendor
-      </Link>
-      <Link href="/auth?role=services&next=/services/orders" className={profileMenuLinkClass}>
-        Join as Service Provider
-      </Link>
-      <div className="my-1 h-px bg-border" />
-      <button
-        type="button"
-        onClick={() => setProfileMenuMode('login')}
-        className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-accent transition"
-      >
-        My Account
-      </button>
+      <div className="border-b border-border/70 bg-gradient-to-br from-muted/50 via-card to-card px-4 py-3.5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Sign in</p>
+      </div>
+      <div className="space-y-0.5 p-2">
+        <ProfileMenuItem href="/auth?role=buyer&next=/buyer" icon={ShoppingBag} label="Buyer" accent="buyer" />
+        <ProfileMenuItem href="/auth?role=vendor&next=/vendor" icon={Store} label="Vendor" accent="vendor" />
+        <ProfileMenuItem
+          href="/auth?role=services&next=/services/orders"
+          icon={Wrench}
+          label="Services"
+          accent="services"
+        />
+      </div>
     </>
   );
 }
@@ -176,7 +235,6 @@ export function Header() {
   const [pinned, setPinned] = useState(false)
   const [hoverOpen, setHoverOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [profileMenuMode, setProfileMenuMode] = useState<'login' | 'join'>('login')
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const pinnedRef = useRef(pinned)
@@ -484,7 +542,6 @@ export function Header() {
     if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current)
     profileCloseTimerRef.current = window.setTimeout(() => {
       setProfileMenuOpen(false)
-      setProfileMenuMode('login')
     }, 150)
   }, [])
 
@@ -508,7 +565,6 @@ export function Header() {
     }
     await supabase.auth.signOut()
     setProfileMenuOpen(false)
-    setProfileMenuMode('login')
     setAuthUser(null)
     window.location.href = '/'
   }, [])
@@ -603,19 +659,17 @@ export function Header() {
                   aria-label={authUser ? `Account menu (${authUser.email ?? 'signed in'})` : 'Open profile menu'}
                   aria-expanded={profileMenuOpen}
                   onClick={toggleProfileMenu}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition sm:px-3 sm:py-2"
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-background px-2.5 py-1.5 text-sm text-foreground shadow-sm transition hover:border-primary/25 hover:bg-accent sm:px-3 sm:py-2"
                 >
                   <HeaderProfileAvatar user={authUser} />
-                  <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                  <ChevronDown
+                    className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', profileMenuOpen && 'rotate-180')}
+                    aria-hidden
+                  />
                 </button>
                 {profileMenuOpen ? (
-                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
-                    <HeaderProfileMenuBody
-                      authUser={authUser}
-                      profileMenuMode={profileMenuMode}
-                      setProfileMenuMode={setProfileMenuMode}
-                      onSignOut={handleSignOut}
-                    />
+                  <div className={profileMenuPanelClass}>
+                    <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} />
                   </div>
                 ) : null}
               </div>
@@ -897,19 +951,17 @@ export function Header() {
                 aria-label={authUser ? `Account menu (${authUser.email ?? 'signed in'})` : 'Open profile menu'}
                 aria-expanded={profileMenuOpen}
                 onClick={toggleProfileMenu}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition"
+                className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-background px-3 py-2 text-sm text-foreground shadow-sm transition hover:border-primary/25 hover:bg-accent"
               >
                 <HeaderProfileAvatar user={authUser} />
-                <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                <ChevronDown
+                  className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', profileMenuOpen && 'rotate-180')}
+                  aria-hidden
+                />
               </button>
               {profileMenuOpen ? (
-                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-lg z-50">
-                  <HeaderProfileMenuBody
-                    authUser={authUser}
-                    profileMenuMode={profileMenuMode}
-                    setProfileMenuMode={setProfileMenuMode}
-                    onSignOut={handleSignOut}
-                  />
+                <div className={profileMenuPanelClass}>
+                  <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} />
                 </div>
               ) : null}
             </div>
