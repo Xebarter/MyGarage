@@ -8,21 +8,16 @@ Ensure `.env` includes:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only; used by API routes for product CRUD)
 
-### Google sign-in (Firebase + Supabase)
+### Google sign-in (Supabase OAuth)
 
-Add to `.env` (values from Firebase Console → Project settings → Your apps):
+1. Create a **Google Cloud** OAuth Web client with redirect URI  
+   `https://<project-ref>.supabase.co/auth/v1/callback`
+2. Enable **Google** in Supabase → **Authentication** → **Providers** and paste Client ID + secret.
+3. Add `http://localhost:3000/**` and `https://mygarage.ug/**` under Supabase → **URL Configuration** → **Redirect URLs**.
 
-- `NEXT_PUBLIC_FIREBASE_API_KEY`
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- `NEXT_PUBLIC_FIREBASE_APP_ID`
-- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` (optional, for Analytics)
+**Step-by-step:** [docs/google-sign-in-setup.md](docs/google-sign-in-setup.md)
 
-After changing `.env`, **restart** `npm run dev`. On production, set the same vars on your host and **redeploy**.
-
-**Step-by-step (Firebase + Google Cloud + Supabase):** see [docs/google-sign-in-setup.md](docs/google-sign-in-setup.md).
+Optional Firebase env vars (`NEXT_PUBLIC_FIREBASE_*`) are for Analytics only, not required for Google login.
 
 ## Database
 

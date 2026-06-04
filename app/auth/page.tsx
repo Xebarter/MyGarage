@@ -18,12 +18,9 @@ import {
   getAuthRoleMeta,
 } from "@/components/auth-chrome";
 import { Card } from "@/components/ui/card";
+import { redirectToGoogleSignIn } from "@/lib/auth/google-oauth";
 import { initFirebaseAnalytics } from "@/lib/firebase/client";
 import { isFirebaseConfigured } from "@/lib/firebase/env";
-import {
-  getGoogleIdTokenFromFirebase,
-  GoogleSignInCancelledError,
-} from "@/lib/firebase/google-sign-in";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -39,6 +36,21 @@ function getDefaultNext(role: string) {
   if (role === "admin") return "/admin";
   if (role === "buyer") return "/buyer";
   return "/";
+}
+
+function buildAuthCallbackPath(role: string, next: string) {
+  const query = new URLSearchParams();
+  query.set("role", role);
+  if (next) query.set("next", next);
+  return `/auth?${query.toString()}`;
+}
+
+function googleSignInErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.includes("invalid_client") || message.includes("client secret")) {
+    return "Google OAuth is misconfigured. In Supabase → Authentication → Providers → Google, use a valid Client ID and Secret from Google Cloud, and add Supabase’s callback URL to that OAuth client.";
+  }
+  return message || "Google sign-in failed.";
 }
 
 function AuthSkeleton() {
@@ -81,40 +93,26 @@ function AuthForm() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [firebaseReady, setFirebaseReady] = useState(() => isFirebaseConfigured());
 
   const roleMeta = useMemo(() => getAuthRoleMeta(role), [role]);
-  const googleAuthEnabled = firebaseReady;
 
   useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/auth/firebase-config")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body: { configured?: boolean } | null) => {
-        if (!cancelled && typeof body?.configured === "boolean") {
-          setFirebaseReady(body.configured);
-        }
-      })
-      .catch(() => {
-        /* keep build-time fallback */
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (googleAuthEnabled) {
+    if (isFirebaseConfigured()) {
       void initFirebaseAnalytics();
     }
-  }, [googleAuthEnabled]);
+  }, []);
 
   useEffect(() => {
     setPhone("");
     setBuyerFlowStep("signin");
   }, [role]);
+
+  useEffect(() => {
+    const description = searchParams.get("error_description") ?? searchParams.get("error");
+    if (description) {
+      setError(decodeURIComponent(description.replace(/\+/g, " ")));
+    }
+  }, [searchParams]);
 
   // Re-run whenever the target portal changes so stale conflict state is cleared
   useEffect(() => {
@@ -354,50 +352,14 @@ function AuthForm() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!googleAuthEnabled) {
-      setError(
-        "Google sign-in is not configured. Add NEXT_PUBLIC_FIREBASE_* to .env (or your host’s env), then restart the dev server or redeploy.",
-      );
-      return;
-    }
-
     setError(null);
     setSuccess(null);
     setGoogleLoading(true);
 
     try {
-      const { idToken, accessToken } = await getGoogleIdTokenFromFirebase();
-      const { data, error: signInError } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: idToken,
-        access_token: accessToken,
-      });
-
-      if (signInError) {
-        setError(signInError.message);
-        return;
-      }
-
-      const user = data.user;
-      const userEmail = user?.email?.trim();
-
-      if (role === "buyer" && user && userEmail) {
-        try {
-          await ensureBuyerCustomerRecord(user, userEmail);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Could not save your buyer profile.");
-          await supabase.auth.signOut();
-          return;
-        }
-      }
-
-      await finishAuthAfterSignIn(userEmail);
+      await redirectToGoogleSignIn(buildAuthCallbackPath(role, nextPath));
     } catch (e) {
-      if (e instanceof GoogleSignInCancelledError) {
-        return;
-      }
-      setError(e instanceof Error ? e.message : "Google sign-in failed.");
-    } finally {
+      setError(googleSignInErrorMessage(e));
       setGoogleLoading(false);
     }
   };
@@ -613,15 +575,9 @@ function AuthForm() {
               <div className="space-y-3">
                 <AuthGoogleButton
                   loading={googleLoading}
-                  disabled={loading || !googleAuthEnabled}
+                  disabled={loading}
                   onClick={() => void handleGoogleSignIn()}
                 />
-                {!googleAuthEnabled ? (
-                  <AuthMessage variant="info">
-                    Google sign-in needs Firebase env vars in <code className="text-[11px]">.env</code> and a
-                    server restart (or redeploy on production).
-                  </AuthMessage>
-                ) : null}
                 <AuthDivider />
               <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
                 <input
