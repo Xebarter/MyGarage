@@ -26,6 +26,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RangeSelector } from '@/components/analytics/range-selector';
+import {
+  AnalyticsMetricCard,
+  AnalyticsPageSkeleton,
+  AnalyticsSectionCard,
+  analyticsTabTriggerClass,
+} from '@/components/admin/admin-analytics-ui';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -93,6 +99,7 @@ import {
   Trophy,
   UserPlus,
   Users,
+  Wrench,
   XCircle,
 } from 'lucide-react';
 
@@ -112,36 +119,24 @@ function buildQuery(params: Record<string, string | undefined>) {
   return s ? `?${s}` : '';
 }
 
-function SectionCard({
-  title,
-  description,
-  children,
-  className,
-  contentClassName,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-  className?: string;
-  contentClassName?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.07]',
-        className,
-      )}
-    >
-      <div className="border-b border-border/60 bg-muted/30 px-5 py-3.5">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
-        {description ? (
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      <div className={cn('p-5', contentClassName)}>{children}</div>
-    </div>
-  );
-}
+const SectionCard = AnalyticsSectionCard;
+
+const ANALYTICS_TABS = [
+  { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { value: 'sales', label: 'Sales', icon: ShoppingCart },
+  { value: 'inventory', label: 'Inventory', icon: Package },
+  { value: 'services', label: 'Services', icon: Wrench },
+  { value: 'customers', label: 'Customers', icon: Users },
+  { value: 'vendors', label: 'Vendors', icon: Store },
+  { value: 'orders', label: 'Orders', icon: ClipboardList },
+  { value: 'marketing', label: 'Marketing', icon: Megaphone },
+  { value: 'finance', label: 'Finance', icon: Landmark },
+  { value: 'operations', label: 'Ops', icon: Activity },
+  { value: 'predictive', label: 'Insights', icon: Lightbulb },
+  { value: 'reports', label: 'Reports', icon: FileSpreadsheet },
+  { value: 'visuals', label: 'Visuals', icon: BarChart3 },
+  { value: 'alerts', label: 'Alerts', icon: Bell },
+] as const;
 
 function InventoryVelocityRow({
   rank,
@@ -1757,69 +1752,8 @@ function downloadAnalyticsCsv(data: AdminComprehensiveAnalytics) {
   toast.success('CSV export downloaded');
 }
 
-function KpiCard({
-  label,
-  value,
-  sub,
-  trend,
-  className,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  trend?: { pct: number; label: string };
-  className?: string;
-}) {
-  const up = trend && trend.pct >= 0;
-  return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-xl border border-border/80 bg-card p-4 pl-5 shadow-sm ring-1 ring-black/[0.04] transition-all duration-200 dark:ring-white/[0.07] hover:shadow-md',
-        'before:absolute before:top-3 before:bottom-3 before:left-0 before:w-[3px] before:rounded-full before:bg-primary/75',
-        className,
-      )}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
-      {sub ? <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{sub}</p> : null}
-      {trend ? (
-        <p
-          className={cn(
-            'mt-2 inline-flex items-center gap-1 text-xs font-medium',
-            up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
-          )}
-        >
-          {up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-          {Math.abs(trend.pct).toFixed(1)}% {trend.label}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function PageSkeleton() {
-  return (
-    <div className="mx-auto max-w-[1600px] animate-pulse space-y-8 px-4 py-6 md:px-8">
-      <div className="rounded-2xl border border-border/60 bg-muted/20 p-8">
-        <div className="h-6 w-40 rounded-md bg-muted" />
-        <div className="mt-3 h-4 max-w-lg rounded bg-muted/80" />
-        <div className="mt-6 flex flex-wrap gap-2">
-          <div className="h-9 w-24 rounded-lg bg-muted" />
-          <div className="h-9 w-24 rounded-lg bg-muted" />
-        </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-32 rounded-xl border border-border/50 bg-muted/40" />
-        ))}
-      </div>
-      <div className="h-36 rounded-xl border border-border/50 bg-muted/30" />
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="h-80 rounded-xl border border-border/50 bg-muted/35" />
-        <div className="h-80 rounded-xl border border-border/50 bg-muted/35" />
-      </div>
-    </div>
-  );
+function KpiCard(props: Parameters<typeof AnalyticsMetricCard>[0]) {
+  return <AnalyticsMetricCard {...props} />;
 }
 
 export function AdminAnalyticsClient() {
@@ -2249,7 +2183,7 @@ export function AdminAnalyticsClient() {
   }, []);
 
   if (loading && !data) {
-    return <PageSkeleton />;
+    return <AnalyticsPageSkeleton />;
   }
 
   if (!data) {
@@ -2305,10 +2239,12 @@ export function AdminAnalyticsClient() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Admin analytics
                 </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">Analytics</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  Revenue, services, customers, and operations in one place. Figures marked as estimates use
-                  assumptions where the database doesn&apos;t store full cost or visitor data yet.
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                  Platform analytics
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                  Revenue, orders, vendors, and operations for the selected date range. Estimates are labeled in
+                  Data assumptions.
                 </p>
                 <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1">
@@ -2357,9 +2293,9 @@ export function AdminAnalyticsClient() {
                   <Filter className="h-5 w-5" />
                 </span>
                 <div>
-                  <CardTitle className="text-base font-semibold tracking-tight">Filters &amp; scope</CardTitle>
-                  <CardDescription className="mt-1 max-w-2xl text-xs sm:text-sm">
-                    Date range and dimensions apply to every tab, export, and print view.
+                  <CardTitle className="text-base font-semibold tracking-tight">Scope</CardTitle>
+                  <CardDescription className="mt-1 max-w-xl text-xs sm:text-sm">
+                    Applies to all tabs, CSV export, and print.
                   </CardDescription>
                 </div>
               </div>
@@ -2531,93 +2467,23 @@ export function AdminAnalyticsClient() {
         <div className="no-print -mx-1 overflow-x-auto pb-2 [scrollbar-width:thin]">
           <TabsList
             aria-label="Analytics sections"
-            className="inline-flex h-auto min-h-11 w-max max-w-none flex-nowrap justify-start gap-1 rounded-xl border border-border/60 bg-muted/45 p-1.5 shadow-inner md:flex-wrap"
+            className="inline-flex h-auto min-h-11 w-max max-w-none flex-nowrap justify-start gap-1 rounded-2xl border border-border/60 bg-muted/40 p-1.5 shadow-inner md:flex-wrap"
           >
-          <TabsTrigger
-            value="overview"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Overview
-          </TabsTrigger>
-          <TabsTrigger
-            value="sales"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Sales
-          </TabsTrigger>
-          <TabsTrigger
-            value="inventory"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Inventory
-          </TabsTrigger>
-          <TabsTrigger
-            value="services"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Services
-          </TabsTrigger>
-          <TabsTrigger
-            value="customers"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Customers
-          </TabsTrigger>
-          <TabsTrigger
-            value="vendors"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Vendors
-          </TabsTrigger>
-          <TabsTrigger
-            value="orders"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Orders
-          </TabsTrigger>
-          <TabsTrigger
-            value="marketing"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Marketing
-          </TabsTrigger>
-          <TabsTrigger
-            value="finance"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Finance
-          </TabsTrigger>
-          <TabsTrigger
-            value="operations"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Operations
-          </TabsTrigger>
-          <TabsTrigger
-            value="predictive"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Insights
-          </TabsTrigger>
-          <TabsTrigger
-            value="reports"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Reports
-          </TabsTrigger>
-          <TabsTrigger
-            value="visuals"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Visuals
-          </TabsTrigger>
-          <TabsTrigger
-            value="alerts"
-            className="shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-          >
-            Alerts
-          </TabsTrigger>
-        </TabsList>
+            {ANALYTICS_TABS.map(({ value, label, icon: TabIcon }) => (
+              <TabsTrigger key={value} value={value} className={analyticsTabTriggerClass}>
+                <TabIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                {label}
+                {value === 'alerts' && alertStats.total > 0 ? (
+                  <Badge
+                    variant={alertStats.critical > 0 ? 'destructive' : 'secondary'}
+                    className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px] font-bold tabular-nums"
+                  >
+                    {alertStats.total}
+                  </Badge>
+                ) : null}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
 
         <TabsContent value="overview" className="space-y-8 focus-visible:outline-none">
@@ -2635,8 +2501,7 @@ export function AdminAnalyticsClient() {
                     Platform overview
                   </p>
                   <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
-                    High-level health for the current filters — revenue mix, throughput, and estimated margin before you
-                    drill into Sales or other tabs.
+                    Snapshot for the current scope — revenue, throughput, and margin before drilling into other tabs.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -2687,110 +2552,65 @@ export function AdminAnalyticsClient() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
-              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
-                <DollarSign className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Total revenue</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {formatUgx(data.overview.revenueTotal)}
-              </p>
-              {data.overview.revenueMomPct != null ? (
-                <p
-                  className={cn(
-                    'mt-2 inline-flex items-center gap-1 text-xs font-medium',
-                    data.overview.revenueMomPct >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400',
-                  )}
-                >
-                  {data.overview.revenueMomPct >= 0 ? (
-                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-                  ) : (
-                    <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
-                  )}
-                  {Math.abs(data.overview.revenueMomPct).toFixed(1)}% vs prior period
-                </p>
-              ) : null}
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Products {formatUgx(data.overview.productOrderRevenue)} · Services{' '}
-                {formatUgx(data.overview.serviceRevenue)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Orders & payments</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {(data.overview.productOrdersCount + data.overview.servicePaymentsCount).toLocaleString()}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {data.overview.productOrdersCount.toLocaleString()} product orders ·{' '}
-                {data.overview.servicePaymentsCount.toLocaleString()} service payments
-              </p>
-            </div>
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
-              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
-                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Net profit (est.)</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {formatUgx(data.overview.netProfitEstimate)}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Gross {formatUgx(data.overview.grossProfitEstimate)} · Fees{' '}
-                {formatUgx(data.overview.platformCommissionEstimate)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
-              <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
-                <BarChart3 className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Average order value</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {formatUgx(data.overview.averageOrderValue)}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {data.overview.payingCustomersCount.toLocaleString()} paying customers
-              </p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AnalyticsMetricCard
+              label="Total revenue"
+              value={formatUgx(data.overview.revenueTotal)}
+              sub={`Products ${formatUgx(data.overview.productOrderRevenue)} · Services ${formatUgx(data.overview.serviceRevenue)}`}
+              icon={DollarSign}
+              accent="violet"
+              trend={
+                data.overview.revenueMomPct != null
+                  ? { pct: data.overview.revenueMomPct, label: 'vs prior period' }
+                  : undefined
+              }
+            />
+            <AnalyticsMetricCard
+              label="Orders & payments"
+              value={(data.overview.productOrdersCount + data.overview.servicePaymentsCount).toLocaleString()}
+              sub={`${data.overview.productOrdersCount.toLocaleString()} product orders · ${data.overview.servicePaymentsCount.toLocaleString()} service payments`}
+              icon={ShoppingCart}
+              accent="emerald"
+            />
+            <AnalyticsMetricCard
+              label="Net profit (est.)"
+              value={formatUgx(data.overview.netProfitEstimate)}
+              sub={`Gross ${formatUgx(data.overview.grossProfitEstimate)} · Fees ${formatUgx(data.overview.platformCommissionEstimate)}`}
+              icon={TrendingUp}
+              accent="amber"
+            />
+            <AnalyticsMetricCard
+              label="Average order value"
+              value={formatUgx(data.overview.averageOrderValue)}
+              sub={`${data.overview.payingCustomersCount.toLocaleString()} paying customers`}
+              icon={BarChart3}
+              accent="sky"
+            />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
-              <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
-                <Layers2 className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Platform commission (est.)</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {formatUgx(data.overview.platformCommissionEstimate)}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Fees captured in the selected window</p>
-            </div>
-            <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/6 p-4 shadow-sm dark:bg-fuchsia-500/10">
-              <div className="flex items-center gap-2 text-fuchsia-800 dark:text-fuchsia-300">
-                <Store className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Active vendors</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.overview.activeVendors.toLocaleString()}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {data.overview.activeServiceProviders.toLocaleString()} active service providers
-              </p>
-            </div>
-            <div className="rounded-xl border border-teal-500/25 bg-teal-500/6 p-4 shadow-sm dark:bg-teal-500/10 sm:col-span-2 lg:col-span-1">
-              <div className="flex items-center gap-2 text-teal-800 dark:text-teal-300">
-                <Percent className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Conversion (registered → paid)</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.overview.conversionRate != null ? `${data.overview.conversionRate.toFixed(1)}%` : '—'}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{data.overview.conversionNote}</p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <AnalyticsMetricCard
+              label="Platform commission (est.)"
+              value={formatUgx(data.overview.platformCommissionEstimate)}
+              sub="Fees in the selected window"
+              icon={Layers2}
+              accent="indigo"
+            />
+            <AnalyticsMetricCard
+              label="Active vendors"
+              value={data.overview.activeVendors.toLocaleString()}
+              sub={`${data.overview.activeServiceProviders.toLocaleString()} active service providers`}
+              icon={Store}
+              accent="fuchsia"
+            />
+            <AnalyticsMetricCard
+              label="Conversion"
+              value={data.overview.conversionRate != null ? `${data.overview.conversionRate.toFixed(1)}%` : '—'}
+              sub={data.overview.conversionNote}
+              icon={Percent}
+              accent="teal"
+              className="sm:col-span-2 lg:col-span-1"
+            />
           </div>
 
           {data.overview.revenueYoyPct != null ? (

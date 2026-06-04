@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { BuyerServiceQuickRequestDialog } from '@/components/buyer/buyer-service-quick-request-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
@@ -13,14 +13,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
-  ChevronLeft,
   Circle,
   CreditCard,
   History,
-  Loader2,
-  MapPin,
-  Navigation,
-  PencilLine,
   RefreshCw,
   Timer,
 } from 'lucide-react';
@@ -1157,261 +1152,42 @@ function BuyerServicesPageInner() {
           </button>
         </div>
       ) : null}
-      <Dialog
+      <BuyerServiceQuickRequestDialog
         open={isQuickRequestDialogOpen}
-        onOpenChange={(open) => {
-          setIsQuickRequestDialogOpen(open);
-          if (!open) {
-            serviceAutofillSuppressed.current = false;
-            setQuickRequestUiStep('service');
-          }
+        onOpenChange={setIsQuickRequestDialogOpen}
+        step={quickRequestUiStep}
+        onCloseReset={() => {
+          serviceAutofillSuppressed.current = false;
+          setQuickRequestUiStep('service');
         }}
-      >
-        <DialogContent
-          showCloseButton={quickRequestUiStep === 'service'}
-          onEscapeKeyDown={(e) => {
-            if (quickRequestUiStep === 'location') {
-              e.preventDefault();
-              goBackToQuickServiceStep();
-            }
-          }}
-          className="flex max-h-[92dvh] min-h-[min(72dvh,640px)] w-full max-w-full flex-col gap-0 overflow-hidden p-0 max-sm:inset-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:max-w-xl"
-        >
-          <div className="relative flex min-h-[min(72dvh,640px)] flex-1 flex-col">
-            {quickRequestUiStep === 'service' ? (
-              <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 sm:gap-4 sm:p-6">
-                <DialogHeader className="space-y-1 text-left">
-                  <DialogTitle className="text-lg">Pick a service</DialogTitle>
-                  <DialogDescription className="text-xs sm:text-sm">Step 1 of 2 · then confirm location</DialogDescription>
-                </DialogHeader>
-
-                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium">
-                  {selectedCategory || 'Choose a category first'}
-                </div>
-
-                <div ref={serviceSectionRef} className="rounded-xl">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">Service</p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {suggestedServices.slice(0, 8).map((service, index) => {
-                      const isSelected = selectedService === service;
-                      return (
-                        <button
-                          key={service}
-                          type="button"
-                          onClick={() => {
-                            serviceAutofillSuppressed.current = false;
-                            setSelectedService(service);
-                            setQuickRequestUiStep('location');
-                          }}
-                          className={cn(
-                            'rounded-xl border px-3 py-2.5 text-left transition sm:py-3',
-                            isSelected
-                              ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-                              : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40',
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium leading-snug">{service}</p>
-                            {isSelected ? (
-                              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                            ) : (
-                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground">
-                                {index + 1}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {quickRequestUiStep === 'location' ? (
-              <div
-                className="absolute inset-0 z-10 flex animate-in fade-in zoom-in-[0.99] flex-col bg-gradient-to-b from-background via-background to-muted/15 duration-200 sm:rounded-lg"
-                role="region"
-                aria-labelledby="quick-request-location-title"
-              >
-                <header className="shrink-0 border-b border-border/50 bg-background/85 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
-                  <div className="flex items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={goBackToQuickServiceStep}
-                      className="inline-flex h-11 min-h-[44px] min-w-[44px] shrink-0 touch-manipulation items-center justify-center rounded-full border border-border/80 bg-background text-foreground shadow-sm transition active:scale-[0.97] hover:bg-muted/50"
-                      aria-label="Back to service selection"
-                    >
-                      <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
-                    </button>
-                    <div className="min-w-0 flex-1 pt-0.5">
-                      <span className="mb-1 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                        Step 2 of 2
-                      </span>
-                      <h2
-                        id="quick-request-location-title"
-                        className="text-balance text-lg font-bold leading-tight tracking-tight text-foreground sm:text-xl"
-                      >
-                        Where should we meet you?
-                      </h2>
-                      <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted-foreground">
-                        <span className="font-medium text-foreground/90">{selectedService}</span>
-                        {selectedCategory ? (
-                          <>
-                            <span className="text-muted-foreground/70"> · </span>
-                            {selectedCategory}
-                          </>
-                        ) : null}
-                      </p>
-                    </div>
-                  </div>
-                </header>
-
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
-                  <div className="mx-auto flex max-w-md flex-col gap-5">
-                    <div className="flex justify-center">
-                      <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent shadow-inner ring-1 ring-primary/15">
-                        <MapPin className="h-9 w-9 text-primary" strokeWidth={1.75} aria-hidden />
-                        {locationStatus === 'detecting' ? (
-                          <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-background shadow-md">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden />
-                          </span>
-                        ) : locationStatus === 'ready' && useDetectedLocation ? (
-                          <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-md">
-                            <CheckCircle2 className="h-4 w-4" aria-hidden />
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <p className="text-center text-xs text-muted-foreground sm:text-sm">Where should the provider meet you?</p>
-
-                    <div
-                      className="grid grid-cols-2 gap-1.5 rounded-2xl border border-border/60 bg-muted/40 p-1.5 shadow-sm"
-                      role="tablist"
-                      aria-label="Location source"
-                    >
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={useDetectedLocation}
-                        onClick={() => setUseDetectedLocation(true)}
-                        className={cn(
-                          'flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition active:scale-[0.99]',
-                          useDetectedLocation
-                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        <Navigation className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                        <span className="truncate">Use GPS</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={!useDetectedLocation}
-                        onClick={() => setUseDetectedLocation(false)}
-                        className={cn(
-                          'flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition active:scale-[0.99]',
-                          !useDetectedLocation
-                            ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
-                            : 'text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        <PencilLine className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                        <span className="truncate">Type it</span>
-                      </button>
-                    </div>
-
-                    {useDetectedLocation ? (
-                      <div className="space-y-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={cn(
-                              'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
-                              locationStatus === 'ready'
-                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                                : locationStatus === 'detecting'
-                                  ? 'bg-primary/15 text-primary'
-                                  : locationStatus === 'error'
-                                    ? 'bg-destructive/15 text-destructive'
-                                    : 'bg-muted text-muted-foreground',
-                            )}
-                          >
-                            {locationStatus === 'detecting'
-                              ? 'Locating…'
-                              : locationStatus === 'ready'
-                                ? 'Pin ready'
-                                : locationStatus === 'error'
-                                  ? 'Needs attention'
-                                  : 'Idle'}
-                          </span>
-                          {locationStatus === 'ready' && locationAccuracyLabel ? (
-                            <span className="text-[11px] text-muted-foreground">{locationAccuracyLabel}</span>
-                          ) : null}
-                        </div>
-                        <p className="break-words text-[15px] leading-snug text-foreground sm:text-sm">
-                          {locationStatus === 'ready' && detectedLocation
-                            ? detectedLocation
-                            : locationMessage}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={detectCurrentLocation}
-                          disabled={locationStatus === 'detecting'}
-                          className="flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-border bg-background text-sm font-semibold text-foreground transition hover:bg-muted/50 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50"
-                        >
-                          {locationStatus === 'detecting' ? (
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                          ) : (
-                            <Navigation className="h-4 w-4 opacity-70" aria-hidden />
-                          )}
-                          Refresh location
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
-                        <label htmlFor="quick-request-manual-location" className="text-sm font-semibold text-foreground">
-                          Area or address
-                        </label>
-                        <input
-                          id="quick-request-manual-location"
-                          value={manualLocation}
-                          onChange={(e) => setManualLocation(e.target.value)}
-                          placeholder="e.g. Ntinda, near Capital Shoppers"
-                          autoComplete="street-address"
-                          className="min-h-[52px] w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground shadow-sm transition-[box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 sm:text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <footer className="shrink-0 space-y-3 border-t border-border/50 bg-background/90 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
-                  <button
-                    type="button"
-                    onClick={handleSubmitRequestIntent}
-                    disabled={!canSubmitQuickRequest}
-                    className="inline-flex min-h-[52px] w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:min-h-12 sm:text-sm"
-                  >
-                    Submit request
-                    <ArrowRight className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
-                  </button>
-                  {!canPressSubmitRequest ? (
-                    <p className="text-center text-[11px] text-muted-foreground">
-                      {useDetectedLocation ? 'Allow GPS or refresh, or type your area.' : 'Add your location to continue.'}
-                    </p>
-                  ) : null}
-                  {submitError ? <p className="text-center text-sm font-medium text-destructive">{submitError}</p> : null}
-                  {identityMode !== 'buyer' ? (
-                    <p className="text-center text-[11px] text-muted-foreground">Sign in next to save your request.</p>
-                  ) : null}
-                </footer>
-              </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+        onEscapeLocation={goBackToQuickServiceStep}
+        selectedCategory={selectedCategory}
+        categoryEmoji={selectedCategoryMeta?.emoji}
+        categoryHint={selectedCategoryMeta?.useWhen}
+        selectedService={selectedService}
+        services={suggestedServices}
+        serviceSectionRef={serviceSectionRef}
+        onSelectService={(service) => {
+          serviceAutofillSuppressed.current = false;
+          setSelectedService(service);
+          setQuickRequestUiStep('location');
+        }}
+        onBackToService={goBackToQuickServiceStep}
+        useDetectedLocation={useDetectedLocation}
+        onUseDetectedLocation={setUseDetectedLocation}
+        locationStatus={locationStatus}
+        locationMessage={locationMessage}
+        locationAccuracyLabel={locationAccuracyLabel}
+        detectedLocation={detectedLocation}
+        manualLocation={manualLocation}
+        onManualLocationChange={setManualLocation}
+        onRefreshLocation={() => void detectCurrentLocation()}
+        canSubmit={canSubmitQuickRequest}
+        canPressSubmit={canPressSubmitRequest}
+        submitError={submitError}
+        identityMode={identityMode}
+        onSubmit={handleSubmitRequestIntent}
+      />
     </div>
   );
 }
