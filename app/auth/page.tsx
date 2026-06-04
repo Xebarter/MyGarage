@@ -4,14 +4,26 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 
+import { AuthGoogleButton } from "@/components/auth-google-button";
 import {
   AuthBrandBanner,
+  AuthCardFooter,
+  AuthDivider,
+  AuthFormHeader,
+  AuthMessage,
   AuthPageBackground,
   authCardClassName,
   authFieldClassName,
   authPrimaryButtonClassName,
+  getAuthRoleMeta,
 } from "@/components/auth-chrome";
 import { Card } from "@/components/ui/card";
+import { initFirebaseAnalytics } from "@/lib/firebase/client";
+import { isFirebaseConfigured } from "@/lib/firebase/env";
+import {
+  getGoogleIdTokenFromFirebase,
+  GoogleSignInCancelledError,
+} from "@/lib/firebase/google-sign-in";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -33,21 +45,13 @@ function AuthSkeleton() {
   return (
     <AuthPageBackground>
       <Card className={authCardClassName}>
-        <div className="space-y-5 p-6 md:p-8">
-          <div className="border-b border-border/80 pb-6">
-            <div className="mx-auto flex w-fit items-center gap-3 px-2">
-              <div className="h-14 w-14 animate-pulse rounded-2xl bg-muted ring-1 ring-border/50" />
-              <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
-            </div>
-          </div>
-          <div className="space-y-3 text-center">
-            <div className="mx-auto h-7 w-40 animate-pulse rounded-md bg-muted" />
-            <div className="mx-auto h-4 w-56 animate-pulse rounded-md bg-muted" />
-          </div>
-          <div className="space-y-3">
-            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
-            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
-            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+        <div className="space-y-5 p-5 sm:p-7">
+          <div className="mx-auto h-10 w-40 animate-pulse rounded-lg bg-muted/60" />
+          <div className="mx-auto h-6 w-32 animate-pulse rounded bg-muted/60" />
+          <div className="space-y-2.5">
+            <div className="h-11 animate-pulse rounded-xl bg-muted/50" />
+            <div className="h-11 animate-pulse rounded-xl bg-muted/50" />
+            <div className="h-11 animate-pulse rounded-xl bg-muted/50" />
           </div>
         </div>
       </Card>
@@ -76,13 +80,36 @@ function AuthForm() {
   const [buyerFlowStep, setBuyerFlowStep] = useState<"signin" | "phone">("signin");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [firebaseReady, setFirebaseReady] = useState(() => isFirebaseConfigured());
 
-  const title = useMemo(() => {
-    if (role === "admin") return "Admin Access";
-    if (role === "vendor") return "Vendor Access";
-    if (role === "services") return "Service Provider Access";
-    return "Buyer Access";
-  }, [role]);
+  const roleMeta = useMemo(() => getAuthRoleMeta(role), [role]);
+  const googleAuthEnabled = firebaseReady;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/firebase-enabled")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { enabled?: boolean } | null) => {
+        if (!cancelled && typeof body?.enabled === "boolean") {
+          setFirebaseReady(body.enabled);
+        }
+      })
+      .catch(() => {
+        /* keep build-time fallback */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (googleAuthEnabled) {
+      void initFirebaseAnalytics();
+    }
+  }, [googleAuthEnabled]);
 
   useEffect(() => {
     setPhone("");
@@ -113,7 +140,7 @@ function AuthForm() {
         const allowed = await hasAdminAccess();
         if (!allowed) {
           await supabase.auth.signOut();
-          setError("Admin access denied. Ask the system owner to grant your account admin role.");
+          setError("Admin access denied. Contact the system owner.");
           setSessionChecked(true);
           return;
         }
@@ -267,6 +294,25 @@ function AuthForm() {
     localStorage.setItem("currentBuyerId", user.id);
   }
 
+  async function finishAuthAfterSignIn(userEmail?: string): Promise<boolean> {
+    if (isAdminRole) {
+      const allowed = await hasAdminAccess();
+      if (!allowed) {
+        await supabase.auth.signOut();
+        setError("Admin access denied. Contact the system owner.");
+        return false;
+      }
+    }
+
+    if (role === "buyer" && userEmail && (await gateBuyerPhoneIfNeeded(userEmail))) {
+      return false;
+    }
+
+    await persistSessionProfile();
+    router.replace(nextPath);
+    return true;
+  }
+
   async function gateBuyerPhoneIfNeeded(userEmail: string): Promise<boolean> {
     if (role !== "buyer") return false;
     const custRes = await fetch(`/api/customers?email=${encodeURIComponent(userEmail)}`);
@@ -283,7 +329,7 @@ function AuthForm() {
   const completeBuyerPhoneGate = async () => {
     setError(null);
     if (countPhoneDigits(phone) < 9) {
-      setError("Enter a valid mobile number (at least 9 digits) so service providers can reach you.");
+      setError("Enter a valid mobile number (9+ digits).");
       return;
     }
     setLoading(true);
@@ -307,6 +353,55 @@ function AuthForm() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (!googleAuthEnabled) {
+      setError(
+        "Google sign-in is not configured. Add NEXT_PUBLIC_FIREBASE_* to .env (or your host’s env), then restart the dev server or redeploy.",
+      );
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setGoogleLoading(true);
+
+    try {
+      const { idToken, accessToken } = await getGoogleIdTokenFromFirebase();
+      const { data, error: signInError } = await supabase.auth.signInWithIdToken({
+        provider: "google",
+        token: idToken,
+        access_token: accessToken,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      const user = data.user;
+      const userEmail = user?.email?.trim();
+
+      if (role === "buyer" && user && userEmail) {
+        try {
+          await ensureBuyerCustomerRecord(user, userEmail);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Could not save your buyer profile.");
+          await supabase.auth.signOut();
+          return;
+        }
+      }
+
+      await finishAuthAfterSignIn(userEmail);
+    } catch (e) {
+      if (e instanceof GoogleSignInCancelledError) {
+        return;
+      }
+      setError(e instanceof Error ? e.message : "Google sign-in failed.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleSignInOrSignUp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -320,23 +415,10 @@ function AuthForm() {
       });
 
       if (!signInResult.error) {
-        if (isAdminRole) {
-          const allowed = await hasAdminAccess();
-          if (!allowed) {
-            await supabase.auth.signOut();
-            setError("Admin access denied. Ask the system owner to grant your account admin role.");
-            return;
-          }
+        const userEmail = signInResult.data.user?.email?.trim();
+        if (await finishAuthAfterSignIn(userEmail)) {
+          return;
         }
-        if (role === "buyer") {
-          const userEmail = signInResult.data.user?.email?.trim();
-          if (userEmail && (await gateBuyerPhoneIfNeeded(userEmail))) {
-            setLoading(false);
-            return;
-          }
-        }
-        await persistSessionProfile();
-        router.replace(nextPath);
         return;
       }
 
@@ -418,8 +500,8 @@ function AuthForm() {
       if (!session) {
         setSuccess(
           role === "buyer"
-            ? "Account created. Check your email to verify, then sign in. You will add your mobile number on the next step."
-            : "Account created. Please verify your email before signing in.",
+            ? "Check your email to verify, then sign in."
+            : "Check your email to verify, then sign in.",
         );
         return;
       }
@@ -439,8 +521,7 @@ function AuthForm() {
         }
       }
 
-      await persistSessionProfile();
-      router.replace(nextPath);
+      await finishAuthAfterSignIn(signupUser?.email?.trim() || trimmedEmail);
     } finally {
       setLoading(false);
     }
@@ -465,7 +546,7 @@ function AuthForm() {
         return;
       }
 
-      setSuccess("Password reset link sent. Check your email.");
+      setSuccess("Reset link sent — check your email.");
     } finally {
       setLoading(false);
     }
@@ -478,23 +559,22 @@ function AuthForm() {
   return (
     <AuthPageBackground>
       <Card className={authCardClassName}>
-        <div className="space-y-5 p-6 md:p-8">
+        <div className="space-y-5 p-5 sm:p-7">
           <AuthBrandBanner />
         {buyerFlowStep === "phone" && role === "buyer" ? (
           <>
-            <div className="space-y-1.5 text-center">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Add your mobile number</h1>
-              <p className="mx-auto max-w-sm text-pretty text-sm text-muted-foreground">
-                Service providers see this number when you request help, so they can call or message you.
-              </p>
-            </div>
+            <AuthFormHeader
+              badge="Buyer"
+              title="Your mobile number"
+              description="So providers can reach you for service requests."
+            />
             <div className="space-y-3">
               <input
                 type="tel"
                 autoComplete="tel"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                placeholder="e.g. 07… or 256…"
+                placeholder="07… or 256…"
                 className={authFieldClassName}
               />
               <button
@@ -503,13 +583,11 @@ function AuthForm() {
                 onClick={() => void completeBuyerPhoneGate()}
                 className={authPrimaryButtonClassName}
               >
-                {loading ? "Saving…" : "Save and continue"}
+                {loading ? "Saving…" : "Continue"}
               </button>
             </div>
-            {error ? (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</p>
-            ) : null}
-            <div className="flex justify-center text-sm">
+            {error ? <AuthMessage variant="error">{error}</AuthMessage> : null}
+            <div className="text-center">
               <button
                 type="button"
                 onClick={() => {
@@ -517,26 +595,34 @@ function AuthForm() {
                   setBuyerFlowStep("signin");
                   setError(null);
                 }}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-xs font-medium text-muted-foreground hover:text-foreground sm:text-sm"
               >
-                Use a different account
+                Different account
               </button>
             </div>
           </>
         ) : (
           <>
-            <div className="space-y-1.5 text-center">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
-              <p className="mx-auto max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground">
-                {isAdminRole
-                  ? "Admins can only sign in after role approval."
-                  : role === "buyer"
-                    ? "Sign in or create an account with email and password. If your profile has no mobile number yet, we will ask for it next so providers can reach you."
-                    : "Simple access with email and password."}
-              </p>
-            </div>
+            <AuthFormHeader
+              badge={roleMeta.badge}
+              title={roleMeta.title}
+              description={roleMeta.description}
+            />
 
             {mode === "signin" ? (
+              <div className="space-y-3">
+                <AuthGoogleButton
+                  loading={googleLoading}
+                  disabled={loading || !googleAuthEnabled}
+                  onClick={() => void handleGoogleSignIn()}
+                />
+                {!googleAuthEnabled ? (
+                  <AuthMessage variant="info">
+                    Google sign-in needs Firebase env vars in <code className="text-[11px]">.env</code> and a
+                    server restart (or redeploy on production).
+                  </AuthMessage>
+                ) : null}
+                <AuthDivider />
               <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
                 <input
                   required
@@ -544,7 +630,7 @@ function AuthForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email address"
+                  placeholder="Email"
                   className={authFieldClassName}
                 />
                 <div className="relative">
@@ -555,8 +641,8 @@ function AuthForm() {
                     autoComplete="current-password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Password"
-                    className={`${authFieldClassName} pr-11`}
+                    placeholder="Password (6+ characters)"
+                    className={`${authFieldClassName} pr-12`}
                   />
                   <button
                     type="button"
@@ -576,6 +662,7 @@ function AuthForm() {
                   {loading ? "Please wait…" : "Continue"}
                 </button>
               </form>
+              </div>
             ) : (
               <form className="space-y-3" onSubmit={handleForgotPassword}>
                 <input
@@ -584,7 +671,7 @@ function AuthForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email address"
+                  placeholder="Email"
                   className={authFieldClassName}
                 />
                 <button
@@ -598,18 +685,12 @@ function AuthForm() {
             )}
 
             {authError === "admin_required" ? (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                This account is not an admin. Ask the system owner to grant admin role.
-              </p>
+              <AuthMessage variant="error">This account is not an admin.</AuthMessage>
             ) : null}
-            {error ? (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</p>
-            ) : null}
-            {success ? (
-              <p className="rounded-lg bg-primary/10 px-3 py-2.5 text-sm text-primary">{success}</p>
-            ) : null}
+            {error ? <AuthMessage variant="error">{error}</AuthMessage> : null}
+            {success ? <AuthMessage variant="success">{success}</AuthMessage> : null}
 
-            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4 text-sm">
+            <AuthCardFooter>
               <button
                 type="button"
                 onClick={() => {
@@ -617,14 +698,14 @@ function AuthForm() {
                   setSuccess(null);
                   setMode(mode === "signin" ? "forgot" : "signin");
                 }}
-                className="font-medium text-primary underline-offset-4 hover:underline"
+                className="font-medium text-primary hover:underline"
               >
                 {mode === "signin" ? "Forgot password?" : "Back to sign in"}
               </button>
-              <Link href="/" className="text-muted-foreground transition hover:text-foreground">
-                Back to site
+              <Link href="/" className="text-muted-foreground hover:text-foreground">
+                Shop
               </Link>
-            </div>
+            </AuthCardFooter>
           </>
         )}
         </div>

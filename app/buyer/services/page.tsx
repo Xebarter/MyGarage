@@ -736,100 +736,127 @@ function BuyerServicesPageInner() {
     void submitRequest();
   };
 
-  const renderStep = (label: string, done: boolean) => (
-    <div className="flex min-h-12 items-center gap-2 rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-      {done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
-      <p className={`text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</p>
+  const renderStep = (label: string, shortLabel: string, done: boolean) => (
+    <div className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-background/70 px-2.5 py-2 sm:min-h-12 sm:px-3">
+      {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" /> : <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />}
+      <p className={`text-xs sm:text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>
+        <span className="sm:hidden">{shortLabel}</span>
+        <span className="hidden sm:inline">{label}</span>
+      </p>
     </div>
   );
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-background via-background to-muted/20 p-3 pb-28 sm:p-5 sm:pb-6 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
-        <div className="rounded-2xl border border-border/80 bg-card/80 p-4 shadow-sm backdrop-blur sm:p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Buyer Workspace</p>
-          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Find Help Fast</h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                Choose your need, confirm location, and submit in under a minute. Sign in is required to send a request so we can match you to providers in real time.
+    <div className="min-h-full bg-background px-3 pb-24 pt-2 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/20 sm:p-5 sm:pb-6 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-3 sm:space-y-6">
+        <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm sm:rounded-2xl sm:p-6 md:p-8">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Services</h1>
+              <p className="mt-0.5 text-xs text-muted-foreground sm:mt-1 sm:text-sm">
+                <span className="sm:hidden">Request help · track status</span>
+                <span className="hidden sm:inline">Pick a category, confirm location, and submit in under a minute.</span>
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-[290px]">
-              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-muted-foreground">Pending</p>
-                <p className="mt-1 text-base font-semibold sm:text-lg">{requestStats.pending}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-muted-foreground">Active</p>
-                <p className="mt-1 text-base font-semibold sm:text-lg">{requestStats.active}</p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-muted-foreground">Completed</p>
-                <p className="mt-1 text-base font-semibold sm:text-lg">{requestStats.completed}</p>
-              </div>
+            <div className="flex shrink-0 gap-1.5 text-center text-[10px] tabular-nums sm:grid sm:grid-cols-3 sm:gap-2 sm:text-xs md:min-w-[240px]">
+              {(
+                [
+                  { label: 'Pending', value: requestStats.pending },
+                  { label: 'Active', value: requestStats.active },
+                  { label: 'Done', value: requestStats.completed },
+                ] as const
+              ).map((stat) => (
+                <div
+                  key={stat.label}
+                  className="min-w-[2.75rem] rounded-md border border-border/70 bg-muted/30 px-2 py-1.5 sm:min-w-0 sm:p-3"
+                >
+                  <p className="text-muted-foreground">{stat.label}</p>
+                  <p className="mt-0.5 text-sm font-semibold sm:mt-1 sm:text-lg">{stat.value}</p>
+                </div>
+              ))}
             </div>
           </div>
           {sessionReady && identityMode !== 'buyer' ? (
-            <p className="mt-4 text-sm text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground sm:text-sm">
               <Link
                 href="/auth?role=buyer&next=%2Fbuyer%2Fservices%3FopenQuick%3D1"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                Sign in or create a buyer account
-              </Link>{' '}
-              to submit a service request and see live tracking.
+                Sign in
+              </Link>
+              <span className="hidden sm:inline"> or create a buyer account to submit requests and track live.</span>
+              <span className="sm:hidden"> to submit & track.</span>
             </p>
           ) : null}
         </div>
 
         {activeServiceRequest ? (
-          <Card className="rounded-2xl border-border/70 p-4 shadow-sm sm:p-6 md:p-8">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Active Service</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{activeServiceRequest.service}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {activeServiceRequest.category} - {activeServiceRequest.location}
+          <Card className="rounded-xl border-border/70 p-3 shadow-sm sm:rounded-2xl sm:p-6 md:p-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={cn('border text-[10px] sm:text-xs', serviceStatusPresentation(activeServiceRequest.status).badgeClass)}
+                  >
+                    {serviceStatusPresentation(activeServiceRequest.status).label}
+                  </Badge>
+                </div>
+                <h2 className="mt-2 text-lg font-semibold tracking-tight sm:text-2xl">{activeServiceRequest.service}</h2>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
+                  {activeServiceRequest.category}
+                  <span className="mx-1 text-muted-foreground/50">·</span>
+                  {activeServiceRequest.location}
                 </p>
-                <p className="mt-1 text-xs uppercase tracking-wide text-primary">Status: {activeServiceRequest.status.replace('_', ' ')}</p>
               </div>
-              <div className="rounded-xl border border-border/70 bg-background/80 p-3 text-sm">
-                <p className="font-medium">{activeServiceProvider?.name || 'Assigned Provider'}</p>
-                <p className="text-xs text-muted-foreground">
+              <div className="shrink-0 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs sm:rounded-xl sm:p-3 sm:text-sm">
+                <p className="font-medium">{activeServiceProvider?.name || 'Provider'}</p>
+                <p className="text-muted-foreground">
                   {activeServiceProvider
-                    ? `${activeServiceProvider.location} - ${activeServiceProvider.rating.toFixed(1)} avg`
-                    : 'Provider confirmation is in progress'}
+                    ? `${activeServiceProvider.rating.toFixed(1)}★`
+                    : 'Matching…'}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {renderStep('Request accepted', activeServiceRequest.status !== 'pending')}
-              {renderStep('Provider heading to location', activeServiceRequest.status === 'in_progress' || activeServiceRequest.status === 'completed')}
-              {renderStep('Service completed', activeServiceRequest.status === 'completed')}
-              {renderStep('Payment confirmed', activeServiceRequest.status === 'completed')}
+            <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden">
+              {renderStep('Request accepted', 'Accepted', activeServiceRequest.status !== 'pending')}
+              {renderStep(
+                'Provider heading to location',
+                'En route',
+                activeServiceRequest.status === 'in_progress' || activeServiceRequest.status === 'completed',
+              )}
+              {renderStep('Service completed', 'Done', activeServiceRequest.status === 'completed')}
+              {renderStep('Payment confirmed', 'Paid', activeServiceRequest.status === 'completed')}
             </div>
 
             {paymentSummary ? (
-              <div className="mt-5 rounded-xl border border-border/70 bg-background/70 p-4">
-                <p className="inline-flex items-center gap-2 text-sm font-medium">
-                  <CreditCard className="h-4 w-4" /> Payment Snapshot
-                </p>
-                <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">Service fee: UGX {paymentSummary.base.toLocaleString()}</p>
-                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">Platform fee: UGX {paymentSummary.platformFee.toLocaleString()}</p>
+              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3 sm:mt-5 sm:p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-1.5 text-sm font-medium">
+                    <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
+                    Payment
+                  </p>
+                  <p className="text-sm font-bold tabular-nums text-foreground sm:hidden">
+                    UGX {paymentSummary.total.toLocaleString()}
+                  </p>
+                </div>
+                <div className="mt-2 hidden gap-2 text-sm sm:grid md:grid-cols-3">
+                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                    Service: UGX {paymentSummary.base.toLocaleString()}
+                  </p>
+                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                    Platform: UGX {paymentSummary.platformFee.toLocaleString()}
+                  </p>
                   <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 font-semibold">
                     Total: UGX {paymentSummary.total.toLocaleString()}
                   </p>
                 </div>
-                <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-background/80 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Payment contact (required for checkout)
+                <div className="mt-3 space-y-2 rounded-lg border border-border/60 bg-background/80 p-3 sm:space-y-3 sm:rounded-xl">
+                  <p className="text-xs font-medium text-muted-foreground sm:font-semibold sm:uppercase sm:tracking-wide">
+                    Checkout contact
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    No account needed — we only use this to process your payment with Paytota.
-                  </p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Used only for Paytota checkout.</p>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <input
                       value={payContactName}
@@ -864,119 +891,119 @@ function BuyerServicesPageInner() {
                     type="button"
                     onClick={payForActiveService}
                     disabled={paying || !canPayForService}
-                    className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                   >
-                    {paying ? 'Redirecting to Paytota...' : 'Pay for this service'}
+                    {paying ? 'Redirecting…' : 'Pay now'}
                   </button>
                 </div>
               </div>
             ) : null}
 
             {identityMode === 'buyer' ? (
-              <div className="mt-5 grid gap-2 md:grid-cols-3">
-                <Link href="/buyer/orders" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                  View order and payment history
+              <div className="mt-4 grid grid-cols-3 gap-1.5 sm:mt-5 sm:gap-2 md:grid-cols-3">
+                <Link
+                  href="/buyer/orders"
+                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
+                >
+                  Orders
                 </Link>
-                <Link href="/buyer/support" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                  Contact support about this service
+                <Link
+                  href="/buyer/support"
+                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
+                >
+                  Support
                 </Link>
-                <Link href="/buyer/addresses" className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/40">
-                  Manage saved service locations
+                <Link
+                  href="/buyer/addresses"
+                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
+                >
+                  Locations
                 </Link>
               </div>
             ) : (
-              <p className="mt-5 text-sm text-muted-foreground">
+              <p className="mt-4 text-xs text-muted-foreground sm:mt-5 sm:text-sm">
                 <Link href="/auth?role=buyer&next=/buyer" className="font-medium text-primary underline-offset-4 hover:underline">
-                  Sign in or create a buyer account
-                </Link>{' '}
-                to track requests and payments across devices.
+                  Sign in
+                </Link>
+                <span className="hidden sm:inline"> or create a buyer account to sync requests across devices.</span>
+                <span className="sm:hidden"> to sync across devices.</span>
               </p>
             )}
           </Card>
         ) : (
-          <Card id="quick-request" className="rounded-2xl border-border/70 p-4 shadow-sm scroll-mt-24 sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="font-semibold tracking-tight">Quick Request</h2>
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <Timer className="h-3.5 w-3.5" /> 3 quick steps
+          <Card id="quick-request" className="scroll-mt-24 rounded-xl border-border/70 p-3 shadow-sm sm:rounded-2xl sm:p-6">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold tracking-tight sm:text-lg">New request</h2>
+              <p className="inline-flex items-center gap-1 text-[10px] text-muted-foreground sm:text-xs">
+                <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden />
+                2 steps
               </p>
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">1. What do you need?</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-2">
-                {userServiceCategories.slice(0, 8).map((category) => {
-                  const isActive = selectedCategory === category.title;
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory(category.title);
-                        serviceAutofillSuppressed.current = true;
-                        setSelectedService('');
-                        setQuickRequestUiStep('service');
-                        setIsQuickRequestDialogOpen(true);
-                      }}
-                      className={`min-h-[92px] rounded-xl border px-3 py-3 text-left transition ${
-                        isActive ? 'border-primary bg-primary/10' : 'border-border/70 bg-background hover:bg-muted/40'
-                      }`}
-                    >
-                      <p className="text-sm font-medium">
-                        {category.emoji} {category.title}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{category.useWhen}</p>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-2">
+              {userServiceCategories.slice(0, 8).map((category) => {
+                const isActive = selectedCategory === category.title;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(category.title);
+                      serviceAutofillSuppressed.current = true;
+                      setSelectedService('');
+                      setQuickRequestUiStep('service');
+                      setIsQuickRequestDialogOpen(true);
+                    }}
+                    className={cn(
+                      'min-h-[3.25rem] rounded-xl border px-2.5 py-2.5 text-left transition sm:min-h-[4.5rem] sm:px-3 sm:py-3',
+                      isActive ? 'border-primary bg-primary/10' : 'border-border/70 bg-background hover:bg-muted/40',
+                    )}
+                  >
+                    <p className="text-xs font-medium leading-snug sm:text-sm">
+                      <span className="mr-1" aria-hidden>
+                        {category.emoji}
+                      </span>
+                      {category.title}
+                    </p>
+                    <p className="mt-1 hidden line-clamp-2 text-xs text-muted-foreground sm:block">{category.useWhen}</p>
+                  </button>
+                );
+              })}
             </div>
-            <div className="mt-4 rounded-xl border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
-              Choose a quick request above to continue in a simplified popup flow.
-            </div>
+            <p className="mt-3 text-center text-[11px] text-muted-foreground sm:hidden">Tap a category to continue</p>
           </Card>
         )}
 
-        <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
-          <div className="border-b border-border/60 bg-gradient-to-br from-muted/40 via-card to-card px-4 py-5 sm:px-6 sm:py-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/10">
-                  <History className="h-5 w-5" aria-hidden />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">Service history</h2>
-                  <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                    Every request you&apos;ve submitted, newest first. Open jobs are surfaced at the top so you can track
-                    progress without hunting.
-                  </p>
-                </div>
+        <Card className="overflow-hidden rounded-xl border-border/70 shadow-sm sm:rounded-2xl">
+          <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <History className="h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" aria-hidden />
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold tracking-tight sm:text-lg">History</h2>
+                <p className="hidden text-sm text-muted-foreground sm:block">Newest first · open jobs at the top</p>
               </div>
-              {identityMode === 'buyer' && customerId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2 border-border/80 bg-background/80 shadow-sm"
-                  disabled={requestsLoading}
-                  onClick={() => void loadServiceData(customerId)}
-                >
-                  <RefreshCw className={cn('h-3.5 w-3.5', requestsLoading && 'animate-spin')} aria-hidden />
-                  Refresh
-                </Button>
-              ) : null}
             </div>
+            {identityMode === 'buyer' && customerId ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 px-2.5 sm:h-9 sm:px-3"
+                disabled={requestsLoading}
+                onClick={() => void loadServiceData(customerId)}
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', requestsLoading && 'animate-spin')} aria-hidden />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+            ) : null}
           </div>
 
-          <div className="p-4 sm:p-6">
+          <div className="p-3 sm:p-6">
             {sessionReady && identityMode !== 'buyer' ? (
-              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-10 text-center">
-                <p className="text-sm font-medium text-foreground">Sign in to see your service history</p>
-                <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-                  Your past and active requests sync here once you use a buyer account.
-                </p>
-                <Button asChild className="mt-5" size="sm">
-                  <Link href="/auth?role=buyer&next=%2Fbuyer%2Fservices">Continue as buyer</Link>
+              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-8 text-center sm:py-10">
+                <p className="text-sm font-medium text-foreground">Sign in to view history</p>
+                <Button asChild className="mt-4" size="sm">
+                  <Link href="/auth?role=buyer&next=%2Fbuyer%2Fservices">Continue</Link>
                 </Button>
               </div>
             ) : requestsLoading && requests.length === 0 ? (
@@ -993,24 +1020,26 @@ function BuyerServicesPageInner() {
                 ))}
               </div>
             ) : (
-              <Tabs value={historyTab} onValueChange={(v) => setHistoryTab(v as ServiceHistoryTab)} className="gap-4">
-                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-muted/50 p-1 sm:w-auto">
-                  <TabsTrigger value="all" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
-                    All
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.all})</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="open" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
-                    In progress
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.open})</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="completed" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
-                    Completed
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.completed})</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="cancelled" className="rounded-lg px-3 py-2 text-xs sm:text-sm">
-                    Cancelled
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">({historyCounts.cancelled})</span>
-                  </TabsTrigger>
+              <Tabs value={historyTab} onValueChange={(v) => setHistoryTab(v as ServiceHistoryTab)} className="gap-3 sm:gap-4">
+                <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg bg-muted/50 p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:w-auto sm:flex-wrap sm:rounded-xl [&::-webkit-scrollbar]:hidden">
+                  {(
+                    [
+                      { value: 'all' as const, label: 'All', short: 'All' },
+                      { value: 'open' as const, label: 'In progress', short: 'Open' },
+                      { value: 'completed' as const, label: 'Completed', short: 'Done' },
+                      { value: 'cancelled' as const, label: 'Cancelled', short: 'Cancelled' },
+                    ] as const
+                  ).map((tab) => (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className="shrink-0 rounded-md px-2.5 py-1.5 text-xs sm:rounded-lg sm:px-3 sm:py-2 sm:text-sm"
+                    >
+                      <span className="sm:hidden">{tab.short}</span>
+                      <span className="hidden sm:inline">{tab.label}</span>
+                      <span className="ml-1 tabular-nums text-muted-foreground">{historyCounts[tab.value]}</span>
+                    </TabsTrigger>
+                  ))}
                 </TabsList>
 
                 {(['all', 'open', 'completed', 'cancelled'] as const).map((tab) => {
@@ -1018,24 +1047,19 @@ function BuyerServicesPageInner() {
                   return (
                   <TabsContent key={tab} value={tab} className="mt-0 outline-none">
                     {tabItems.length === 0 ? (
-                      <div className="rounded-xl border border-border/60 bg-muted/10 px-4 py-12 text-center">
+                      <div className="rounded-xl border border-border/60 bg-muted/10 px-4 py-10 text-center sm:py-12">
                         <p className="text-sm font-medium text-foreground">
                           {tab === 'all'
-                            ? 'No service requests yet'
+                            ? 'No requests yet'
                             : tab === 'open'
-                              ? 'Nothing in progress'
+                              ? 'Nothing open'
                               : tab === 'completed'
-                                ? 'No completed jobs yet'
-                                : 'No cancelled requests'}
-                        </p>
-                        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-                          {tab === 'all'
-                            ? 'Submit a quick request above — it will appear here with live status updates.'
-                            : 'Try another tab, or create a new request when you need help.'}
+                                ? 'None completed'
+                                : 'None cancelled'}
                         </p>
                         {tab === 'all' ? (
-                          <Button asChild variant="outline" className="mt-5" size="sm">
-                            <Link href="#quick-request">Browse categories</Link>
+                          <Button asChild variant="outline" className="mt-4" size="sm">
+                            <Link href="#quick-request">New request</Link>
                           </Button>
                         ) : null}
                       </div>
@@ -1044,55 +1068,59 @@ function BuyerServicesPageInner() {
                         {tabItems.map((request) => {
                           const pres = serviceStatusPresentation(request.status);
                           const when = formatHistoryWhen(request.createdAt);
-                          const shortId =
-                            request.id.length > 10 ? `…${request.id.slice(-8)}` : request.id;
                           return (
                             <li key={request.id}>
                               <div
                                 className={cn(
-                                  'group rounded-xl border border-border/70 bg-card/50 transition hover:border-border hover:bg-card hover:shadow-sm',
-                                  'border-l-[3px] pl-4 pr-4 py-4 sm:pl-5 sm:pr-5 sm:py-5',
+                                  'group rounded-lg border border-border/70 bg-card/50 transition hover:border-border hover:bg-card',
+                                  'border-l-[3px] px-3 py-3 sm:rounded-xl sm:px-4 sm:py-4',
                                   pres.borderClass,
                                 )}
                               >
-                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                  <div className="min-w-0 flex-1 space-y-2">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className={cn('border', pres.badgeClass)}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn('h-5 px-1.5 text-[10px] sm:h-auto sm:px-2 sm:text-xs', pres.badgeClass)}
+                                      >
                                         {pres.label}
                                       </Badge>
-                                      <span className="font-mono text-[10px] text-muted-foreground sm:text-xs" title={request.id}>
-                                        {shortId}
-                                      </span>
-                                    </div>
-                                    <h3 className="text-base font-semibold leading-snug text-foreground sm:text-lg">
-                                      {request.service}
-                                    </h3>
-                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                                      <span>{request.category || 'General'}</span>
-                                      <span className="hidden sm:inline" aria-hidden>
-                                        ·
-                                      </span>
-                                      <span className="min-w-0 max-w-full truncate sm:max-w-md" title={request.location}>
-                                        {request.location}
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      <time dateTime={request.createdAt} title={when.full}>
+                                      <time
+                                        className="text-[10px] text-muted-foreground sm:text-xs"
+                                        dateTime={request.createdAt}
+                                        title={when.full}
+                                      >
                                         {when.primary}
                                       </time>
+                                    </div>
+                                    <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground sm:text-base">
+                                      {request.service}
+                                    </h3>
+                                    <p className="line-clamp-1 text-xs text-muted-foreground" title={request.location}>
+                                      {request.category || 'General'}
+                                      <span className="text-muted-foreground/60"> · </span>
+                                      {request.location}
                                     </p>
                                   </div>
-                                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end">
-                                    {identityMode === 'buyer' ? (
-                                      <Button asChild size="sm" variant="secondary" className="w-full gap-1.5 sm:w-auto">
-                                        <Link href={`/buyer/services/track/${encodeURIComponent(request.id)}`}>
-                                          {request.status === 'completed' ? 'View details' : 'Track request'}
-                                          <ArrowUpRight className="h-3.5 w-3.5 opacity-70" aria-hidden />
-                                        </Link>
-                                      </Button>
-                                    ) : null}
-                                  </div>
+                                  {identityMode === 'buyer' ? (
+                                    <Button
+                                      asChild
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-8 shrink-0 gap-0 px-2.5 sm:h-9 sm:gap-1.5 sm:px-3"
+                                    >
+                                      <Link
+                                        href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
+                                        aria-label={request.status === 'completed' ? 'View details' : 'Track request'}
+                                      >
+                                        <span className="hidden sm:inline">
+                                          {request.status === 'completed' ? 'Details' : 'Track'}
+                                        </span>
+                                        <ArrowUpRight className="h-4 w-4 sm:ms-1 sm:h-3.5 sm:w-3.5" aria-hidden />
+                                      </Link>
+                                    </Button>
+                                  ) : null}
                                 </div>
                               </div>
                             </li>
@@ -1109,19 +1137,23 @@ function BuyerServicesPageInner() {
         </Card>
       </div>
       {!activeServiceRequest ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 p-3 backdrop-blur sm:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
           <button
             type="button"
             onClick={() => {
+              if (!selectedCategory) {
+                document.getElementById('quick-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+              }
               serviceAutofillSuppressed.current = true;
               setSelectedService('');
               setQuickRequestUiStep('service');
               setIsQuickRequestDialogOpen(true);
             }}
-            disabled={!selectedCategory}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
           >
-            Continue Quick Request <ArrowRight className="h-4 w-4" />
+            {selectedCategory ? 'Continue' : 'Choose category'}
+            <ArrowRight className="h-4 w-4" aria-hidden />
           </button>
         </div>
       ) : null}
@@ -1147,30 +1179,18 @@ function BuyerServicesPageInner() {
         >
           <div className="relative flex min-h-[min(72dvh,640px)] flex-1 flex-col">
             {quickRequestUiStep === 'service' ? (
-              <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
-                <DialogHeader>
-                  <DialogTitle>Choose your service</DialogTitle>
-                  <DialogDescription>
-                    Step 1 of 2 — Pick the exact service you need. Next, a full location screen opens on top of this one.
-                  </DialogDescription>
+              <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 sm:gap-4 sm:p-6">
+                <DialogHeader className="space-y-1 text-left">
+                  <DialogTitle className="text-lg">Pick a service</DialogTitle>
+                  <DialogDescription className="text-xs sm:text-sm">Step 1 of 2 · then confirm location</DialogDescription>
                 </DialogHeader>
 
-                <p className="text-xs font-medium text-muted-foreground">
-                  <span className="text-primary">①</span> Service{' '}
-                  <span className="text-muted-foreground/60">→</span> <span className="opacity-70">② Location</span>
-                </p>
-
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected category</p>
-                  <div className="rounded-xl border border-border/70 bg-background px-3 py-2.5 text-sm font-medium">
-                    {selectedCategory || 'Select a quick request first'}
-                  </div>
+                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium">
+                  {selectedCategory || 'Choose a category first'}
                 </div>
 
                 <div ref={serviceSectionRef} className="rounded-xl">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Select a specific service
-                  </p>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Service</p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {suggestedServices.slice(0, 8).map((service, index) => {
                       const isSelected = selectedService === service;
@@ -1184,41 +1204,27 @@ function BuyerServicesPageInner() {
                             setQuickRequestUiStep('location');
                           }}
                           className={cn(
-                            'rounded-xl border px-3 py-3 text-left transition',
+                            'rounded-xl border px-3 py-2.5 text-left transition sm:py-3',
                             isSelected
                               ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
                               : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40',
                           )}
                         >
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium leading-snug">{service}</p>
-                            <span
-                              className={cn(
-                                'mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border text-[10px]',
-                                isSelected
-                                  ? 'border-primary bg-primary text-primary-foreground'
-                                  : 'border-border bg-background text-muted-foreground',
-                              )}
-                            >
-                              {isSelected ? '✓' : index + 1}
-                            </span>
+                            {isSelected ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                            ) : (
+                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground">
+                                {index + 1}
+                              </span>
+                            )}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {isSelected
-                              ? 'Opens the location screen — use back there to pick a different service.'
-                              : 'Tap to open the location screen on top'}
-                          </p>
                         </button>
                       );
                     })}
                   </div>
                 </div>
-
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  After you choose a service, the <span className="font-medium text-foreground">Your location</span> page slides
-                  over this panel so you can confirm where providers should meet you — same idea as this panel sitting over the
-                  Quick Request section behind it.
-                </p>
               </div>
             ) : null}
 
@@ -1278,10 +1284,7 @@ function BuyerServicesPageInner() {
                       </div>
                     </div>
 
-                    <p className="text-center text-sm leading-relaxed text-muted-foreground">
-                      Share your <span className="font-medium text-foreground">service spot</span> so providers can route to you
-                      without back-and-forth.
-                    </p>
+                    <p className="text-center text-xs text-muted-foreground sm:text-sm">Where should the provider meet you?</p>
 
                     <div
                       className="grid grid-cols-2 gap-1.5 rounded-2xl border border-border/60 bg-muted/40 p-1.5 shadow-sm"
@@ -1371,9 +1374,6 @@ function BuyerServicesPageInner() {
                         <label htmlFor="quick-request-manual-location" className="text-sm font-semibold text-foreground">
                           Area or address
                         </label>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          Neighborhood, landmark, or street — whatever helps a driver find you.
-                        </p>
                         <input
                           id="quick-request-manual-location"
                           value={manualLocation}
@@ -1398,17 +1398,13 @@ function BuyerServicesPageInner() {
                     <ArrowRight className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
                   </button>
                   {!canPressSubmitRequest ? (
-                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                      {useDetectedLocation
-                        ? 'Allow location or refresh until we have a fix, or switch to “Type it”.'
-                        : 'Enter where you are so we can submit your request.'}
+                    <p className="text-center text-[11px] text-muted-foreground">
+                      {useDetectedLocation ? 'Allow GPS or refresh, or type your area.' : 'Add your location to continue.'}
                     </p>
                   ) : null}
                   {submitError ? <p className="text-center text-sm font-medium text-destructive">{submitError}</p> : null}
                   {identityMode !== 'buyer' ? (
-                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                      You’ll sign in next so we can save your request and match you with a provider.
-                    </p>
+                    <p className="text-center text-[11px] text-muted-foreground">Sign in next to save your request.</p>
                   ) : null}
                 </footer>
               </div>

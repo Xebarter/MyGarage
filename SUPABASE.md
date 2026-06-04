@@ -8,6 +8,22 @@ Ensure `.env` includes:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only; used by API routes for product CRUD)
 
+### Google sign-in (Firebase + Supabase)
+
+Add to `.env` (values from Firebase Console → Project settings → Your apps):
+
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` (optional, for Analytics)
+
+After changing `.env`, **restart** `npm run dev`. On production, set the same vars on your host and **redeploy**.
+
+**Step-by-step (Firebase + Google Cloud + Supabase):** see [docs/google-sign-in-setup.md](docs/google-sign-in-setup.md).
+
 ## Database
 
 1. Open the Supabase dashboard → **SQL Editor**.

@@ -4,7 +4,20 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ProductImage } from '@/components/product-image';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Menu, Search, UserCircle2, ChevronDown, Siren, Wrench } from 'lucide-react';
+import {
+  ShoppingCart,
+  Menu,
+  Search,
+  UserCircle2,
+  ChevronDown,
+  Siren,
+  Wrench,
+  LayoutDashboard,
+  X,
+} from 'lucide-react';
+import { useBuyerPortalChrome } from '@/components/buyer-portal-chrome';
+import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
+import { useServicesPortalChrome } from '@/components/services-portal-chrome';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
@@ -389,6 +402,19 @@ export function Header() {
     return `/buyer/services?sc=${encodeURIComponent(categoryId)}&quick=1`;
   }, []);
 
+  const buyerChrome = useBuyerPortalChrome();
+  const vendorChrome = useVendorPortalChrome();
+  const servicesChrome = useServicesPortalChrome();
+  const accountPortalChrome = buyerChrome ?? vendorChrome ?? servicesChrome;
+  const inAccountPortal = accountPortalChrome != null;
+  const accountPortalHome = buyerChrome
+    ? '/buyer'
+    : vendorChrome
+      ? '/vendor'
+      : servicesChrome
+        ? '/services'
+        : '/';
+
   const open = pinned || hoverOpen
 
   const scheduleHoverClose = useCallback(() => {
@@ -406,13 +432,25 @@ export function Header() {
   }, [])
 
   const togglePinned = useCallback(() => {
+    buyerChrome?.setMobileNavOpen(false)
+    vendorChrome?.setMobileNavOpen(false)
+    servicesChrome?.setMobileNavOpen(false)
     setPinned((prev) => {
       const next = !prev
       if (next) setHoverOpen(true)
       else setHoverOpen(false)
       return next
     })
-  }, [])
+  }, [buyerChrome, vendorChrome, servicesChrome])
+
+  const handleMobileLeadingAction = useCallback(() => {
+    if (inAccountPortal && accountPortalChrome) {
+      if (open) closeSidebar()
+      accountPortalChrome.toggleMobileNav()
+      return
+    }
+    togglePinned()
+  }, [inAccountPortal, accountPortalChrome, open, closeSidebar, togglePinned])
 
   useEffect(() => {
     if (!open) return
@@ -494,19 +532,33 @@ export function Header() {
       <div className="md:hidden">
         <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
-                aria-label="Open categories"
-                aria-expanded={open}
-                onMouseEnter={handleHoverOpen}
-                onMouseLeave={scheduleHoverClose}
-                onClick={togglePinned}
-                className="inline-flex items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
+                aria-label={
+                  inAccountPortal
+                    ? accountPortalChrome?.mobileNavOpen
+                      ? 'Close portal navigation'
+                      : 'Open portal navigation'
+                    : 'Open categories'
+                }
+                aria-expanded={inAccountPortal ? accountPortalChrome?.mobileNavOpen : open}
+                onMouseEnter={inAccountPortal ? undefined : handleHoverOpen}
+                onMouseLeave={inAccountPortal ? undefined : scheduleHoverClose}
+                onClick={handleMobileLeadingAction}
+                className="inline-flex shrink-0 items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
               >
-                <Menu className="w-5 h-5" />
+                {inAccountPortal ? (
+                  accountPortalChrome?.mobileNavOpen ? (
+                    <X className="h-5 w-5" aria-hidden />
+                  ) : (
+                    <LayoutDashboard className="h-5 w-5" aria-hidden />
+                  )
+                ) : (
+                  <Menu className="h-5 w-5" aria-hidden />
+                )}
               </button>
-              <Link href="/" className="flex items-center gap-2">
+              <Link href={accountPortalHome} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
                 <Image
                   src="/icon0.svg"
                   alt=""
@@ -514,7 +566,17 @@ export function Header() {
                   height={28}
                   className="h-7 w-7 shrink-0 object-contain"
                 />
-                <span className="text-lg font-bold text-foreground">MyGarage</span>
+                <span className="shrink-0 text-base font-bold text-foreground sm:text-lg">MyGarage</span>
+                {inAccountPortal && accountPortalChrome ? (
+                  <>
+                    <span className="shrink-0 text-muted-foreground/80" aria-hidden>
+                      ·
+                    </span>
+                    <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
+                      {accountPortalChrome.activePageLabel}
+                    </span>
+                  </>
+                ) : null}
               </Link>
             </div>
             <div className="flex items-center gap-2">

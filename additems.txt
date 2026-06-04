@@ -1,126 +1,202 @@
-COMPREHENSIVE ANALYTICS FEATURES FOR GARAGE ECOMMERCE PLATFORM
+MYGARAGE PAYTOTA PAYMENTS — IMPLEMENTATION GUIDE
+=================================================
+This document describes how this project integrates Paytota (https://gate.paytota.com) so you can reproduce the same pattern elsewhere: collections (customer “Purchase” checkout), optional server-to-server purchase execution, webhooks with RSA signature verification, and disbursements (vendor “Payout” with a two-step initiate + execute flow).
 
-1.  OVERALL BUSINESS PERFORMANCE DASHBOARD
+-------------------------------------------------------------------------------
+1. PURPOSE AND FLOWS
+-------------------------------------------------------------------------------
+- Collections (inbound money): Paytota “Purchase” API. Two entry points in the app:
+  (A) Product cart checkout → POST /api/paytota/checkout
+  (B) Service job payment → POST /api/paytota/service-payment
+  Both call Paytota POST {BASE}/api/v1/purchases/ with JSON, receive a purchase id and checkout_url; the browser redirects the payer to checkout_url.
 
--   Total revenue (daily, weekly, monthly, yearly)
--   Number of orders (products vs services)
--   Gross profit and net profit
--   Platform commission earned
--   Active users (buyers, vendors, service providers)
--   Conversion rate (visitors to paying customers)
--   Average order value (AOV)
--   Growth rate trends (month-over-month, year-over-year)
+- Optional “Step 2” for purchases (e.g. trigger Mobile Money STK from your server instead of only using hosted checkout): POST /api/paytota/purchase-execute with body { "purchaseId": "<paytota purchase id>" }. That maps to Paytota POST {BASE}/p/{id}/ with multipart form: s2s=true, pm=paytota_proxy.
 
-2.  SALES & REVENUE ANALYTICS
+- Disbursements (outbound money): Admin triggers Paytota “Payout” from PATCH /api/admin/payments with { "disbursementId": "...", "status": "processing" }. Server calls POST {BASE}/api/v1/payouts/ then POST the execution_url returned by Paytota with a JSON body (mobile vs bank). Final states arrive on the webhook.
 
--   Revenue by category (spare parts, equipment, services)
--   Revenue by vendor/service provider
--   Top-selling products and services
--   Seasonal demand trends
--   Payment method performance
--   Revenue by location
+- Authoritative integration log: table paytota_transactions (one row per Paytota purchase or payout attempt, with request/response/webhook JSON). provider_reference is the Paytota purchase or payout id (unique when set).
 
-3.  PRODUCT & INVENTORY ANALYTICS
+-------------------------------------------------------------------------------
+2. ENVIRONMENT VARIABLES
+-------------------------------------------------------------------------------
+Required:
+- PAYTOTA_SECRET_KEY — sent as Authorization: Bearer <secret> on JSON API calls to gate.paytota.com (purchases, payouts, payout execute).
+- PAYTOTA_BRAND_ID — UUID string; included in every purchase and payout payload as brand_id.
+- PAYTOTA_WEBHOOK_PUBLIC_KEY — PEM RSA public key (literal newlines or \n escaped). Used to verify webhook authenticity; do NOT use NEXT_PUBLIC_* for this.
 
--   Stock levels and stock-out frequency
--   Fast-moving vs slow-moving items
--   Dead stock tracking
--   Product return rates and reasons
--   Pricing performance analysis
--   Supplier/vendor performance
+Optional:
+- PAYTOTA_BASE_URL — default https://gate.paytota.com (trim trailing slashes in code).
+- PAYTOTA_PAYMENT_METHOD_WHITELIST — comma-separated Paytota method codes; omit entirely unless you intentionally restrict methods (default app shape matches Paytota docs: client, purchase, reference, skip_capture, brand_id only).
+- PAYTOTA_SKIP_CAPTURE — true/false; default false. Match your brand’s hold/capture rules.
+- PAYTOTA_MIN_PURCHASE_UGX — minimum amount in UGX before calling Paytota for collections; default 500 in app logic, or set 0/false/off to disable the app-side check.
+- NEXT_PUBLIC_APP_URL — canonical public origin for success/failure/cancel redirects and webhook documentation helpers.
+- PAYTOTA_SUCCESS_REDIRECT, PAYTOTA_FAILURE_REDIRECT, PAYTOTA_CANCEL_REDIRECT — override default redirect bases (defaults under /payments/success|failure|cancel on the public app URL).
+- PAYTOTA_WEBHOOK_PATH — default /api/paytota/webhook (for documenting the URL to paste in Paytota dashboard).
 
-4.  SERVICE PERFORMANCE ANALYTICS
+-------------------------------------------------------------------------------
+3. HTTP CLIENT (SERVER-SIDE)
+-------------------------------------------------------------------------------
+Implement a small module that:
 
--   Number of bookings per service type
--   Most requested services
--   Service completion rate
--   Average service time
--   Cancellation rates and reasons
--   Service provider ratings and reviews
--   Revenue per service provider
+3.1 Config
+- Read BASE_URL, secret key, brand id from env; throw if missing where required.
 
-5.  CUSTOMER ANALYTICS
+3.2 createPurchase(payload)
+- POST `${BASE_URL}/api/v1/purchases/`
+- Headers: Authorization: Bearer <PAYTOTA_SECRET_KEY>, Content-Type: application/json
+- Body: JSON object (see section 4).
+- Parse JSON on success; on non-OK responses parse message from nested error shapes or fall back to raw body text for debugging.
 
--   New vs returning customers
--   Customer lifetime value (CLV)
--   Customer acquisition cost (CAC)
--   User behavior funnel (browse to purchase)
--   Customer journey tracking
--   Demographics (location, device)
--   Retention and churn rate
+3.3 executePurchaseS2S(purchaseId)
+- POST `${BASE_URL}/p/${encodeURIComponent(purchaseId)}/`
+- Body: multipart/form-data with fields s2s=true and pm=paytota_proxy
+- Note: This endpoint does not use the same header pattern as the JSON APIs in this codebase’s implementation—only FormData is sent.
 
-6.  VENDOR & SERVICE PROVIDER ANALYTICS
+3.4 createPayout(payload)
+- POST `${BASE_URL}/api/v1/payouts/` with Bearer auth and JSON body (see section 6).
 
--   Top-performing vendors/service providers
--   Revenue contribution per vendor
--   Order fulfillment rate
--   Delivery/service delays
--   Ratings and feedback trends
--   Vendor churn
--   Compliance metrics
+3.5 executePayout(executionUrl, payload)
+- POST executionUrl from createPayout response with Bearer auth and JSON body (mobile: { "payout_type": "mobile" }; bank: { "payout_type": "bank", bank_name, bank_code, bank_account_name, bank_account_number }).
 
-7.  ORDER & TRANSACTION ANALYTICS
+3.6 verifyPaytotaSignature(rawBody: Buffer, signatureHeader: string | null)
+- Read signature from X-Signature or Signature header (base64).
+- Use Node crypto.createVerify("RSA-SHA256"): verifier.update(rawBody); return verifier.verify(publicKeyPem, Buffer.from(signature, "base64")).
+- Normalize PEM if the env stores \n as escaped two-char sequences.
 
--   Total number of orders
--   Order success vs failure rate
--   Cart abandonment rate
--   Average order processing time
--   Refund and dispute rates
--   Delivery timelines
+-------------------------------------------------------------------------------
+4. COLLECTION — PURCHASE “STEP 1” (INITIATE) JSON SHAPE
+-------------------------------------------------------------------------------
+Paytota expects (minimum shape used here):
 
-8.  MARKETING & TRAFFIC ANALYTICS
+{
+  "client": {
+    "email": "<string>",
+    "phone": "<digits, Uganda MSISDN normalized e.g. 2567XXXXXXXX>",
+    "country": "UG",
+    "full_name": "<string>",
+    "street_address": "<optional string for product checkout>"
+  },
+  "purchase": {
+    "currency": "UGX",
+    "products": [
+      { "name": "<line title>", "price": "<string integer minor units / whole UGX as string per line>" }
+    ]
+  },
+  "reference": "<your unique reference, e.g. MYG-chk-... or SVC-spay-...>",
+  "skip_capture": <boolean>,
+  "brand_id": "<PAYTOTA_BRAND_ID>",
+  "success_redirect": "<https URL>",
+  "failure_redirect": "<https URL>",
+  "cancel_redirect": "<https URL>"
+}
 
--   Traffic sources (organic, social, ads)
--   Campaign performance
--   Cost per acquisition (CPA)
--   Click-through rates (CTR)
--   Search terms used on platform
--   Most viewed products/services
+Optional: "payment_method_whitelist": ["<code>", ...] only if env configured.
 
-9.  FINANCIAL & COMMISSION ANALYTICS
+Important product-checkout detail: build one product line per cart line with price = String(round(unit_price * quantity)); add a separate synthetic line for tax if applicable (e.g. { "name": "Tax", "price": "<tax>" }). Paytota expects string prices for products.
 
--   Platform earnings (commissions, fees)
--   Vendor/service provider payouts
--   Outstanding balances
--   Profit margins per category
--   Tax calculations
+On success, Paytota returns JSON including at least id (purchase id / provider reference) and checkout_url. Persist id as provider_reference and send the user to checkout_url.
 
-10. OPERATIONAL ANALYTICS
+Error handling: if the API returns purchase_no_available_payment_method, the usual causes are brand dashboard not enabling UGX/mobile methods, wrong key vs brand environment, skip_capture mismatch, or amount too low—surface a clear operator hint.
 
--   System performance (load times, downtime)
--   Support tickets and resolution times
--   Common customer complaints
--   Fraud detection indicators
--   Failed transactions
+-------------------------------------------------------------------------------
+5. APP ROUTES — COLLECTIONS
+-------------------------------------------------------------------------------
+5.1 POST /api/paytota/checkout (product)
+- Validate items, customer name/email, phone (normalize Uganda numbers: strip non-digits; 0XXXXXXXXX → 256…; 9 digits → 256…).
+- Resolve products and vendors from DB; create or load customer by email.
+- Compute subtotal, tax (this app uses 8% rounded), total; enforce PAYTOTA_MIN_PURCHASE_UGX if configured.
+- Create checkout_sessions row (checkout_type product, status progression through review → mark ready for payment via DB RPCs), line items via upsert_checkout_line_item, then mark_checkout_ready_for_payment.
+- Build purchase JSON (reference MYG-{checkoutId}), call createPurchase, store payment_reference on checkout_sessions, insert paytota_transactions row:
+  - transaction_type = collection, direction = inbound, checkout_id set, customer_id, currency, amount, provider_reference = purchase.id, status = processing, request_payload / response_payload JSON.
+- Return { checkoutId, paymentReference, checkoutUrl }.
 
-11. PREDICTIVE & AI ANALYTICS
+5.2 POST /api/paytota/service-payment (services)
+- Accept servicePaymentId or requestId (+ customerId/amount to create service_payments row if needed).
+- Load service_payments; enforce min UGX if currency is UGX.
+- Build purchase with a single product line name like "Service payment {request_id}", price string from rounded amount; reference SVC-{servicePaymentId}; redirects include servicePaymentId and requestId in query string helpers.
+- insert paytota_transactions with service_payment_id, vendor_id = provider_id, etc.
+- Return { servicePaymentId, paymentReference, checkoutUrl }.
 
--   Demand forecasting
--   Price optimization suggestions
--   Inventory restocking recommendations
--   Customer purchase predictions
--   Vendor performance forecasting
--   Personalized recommendation engine
+5.3 POST /api/paytota/purchase-execute
+- Body: { "purchaseId": "<paytota id>" }.
+- Call executePurchaseS2S; best-effort update paytota_transactions.provider_status and status for matching provider_reference.
 
-12. CUSTOM REPORTS & FILTERS
+-------------------------------------------------------------------------------
+6. DISBURSEMENTS — PAYOUT FLOW
+-------------------------------------------------------------------------------
+Prerequisites in DB: admin_disbursements queue rows, vendor_payout_accounts (mobile_money or bank_account; bank_code in metadata for banks).
 
--   Date range filters
--   Filter by vendor, category, service type
--   Export reports (PDF, Excel)
--   Scheduled reports
+Admin API: PATCH /api/admin/payments with authenticated admin user (role in JWT app_metadata).
 
-13. VISUALIZATION & UI FEATURES
+When status is set to "processing":
+- Load disbursement and default vendor_payout_accounts row.
+- Build Paytota payout initiate payload:
+  - client: { email (vendor email or synthetic), phone: account_number for mobile path, country: "UG", full_name, bank_account optional for bank type }
+  - payment: { currency, amount: net_amount number, description }
+  - reference: disbursement.id
+  - brand_id
+- createPayout → read execution_url from response.
+- executePayout(execution_url, executePayload):
+  - mobile_money → { "payout_type": "mobile" }
+  - bank_account → { "payout_type": "bank", bank_name: network field, bank_code from metadata, bank_account_name, bank_account_number }
+- RPC admin_set_disbursement_status to processing with payout_reference.
+- Insert paytota_transactions: transaction_type disbursement, direction outbound, admin_disbursement_id, vendor_id, amount, provider_reference (payout id), status processing, payloads stored.
 
--   Interactive charts
--   Heatmaps
--   Drill-down capability
--   Real-time updates
--   Comparison views
+Webhook later moves admin_disbursements to paid/failed when the outbound transaction row has admin_disbursement_id set (see section 8).
 
-14. ALERTS & NOTIFICATIONS
+-------------------------------------------------------------------------------
+7. WEBHOOK — POST /api/paytota/webhook
+-------------------------------------------------------------------------------
+7.1 Transport and security
+- Read the raw body as a Buffer / Uint8Array before JSON parse (signature is over exact bytes).
+- Verify RSA-SHA256 signature from X-Signature (or Signature) using PAYTOTA_WEBHOOK_PUBLIC_KEY; reject with 401 if invalid.
+- Parse JSON; require payload.id (provider reference) and payload.status; read payload.event_type.
 
--   Low stock alerts
--   Sales drop alerts
--   High cancellation alerts
--   Vendor underperformance alerts
--   Fraud/suspicious activity alerts
+7.2 Dispatch
+- For event_type starting with "purchase.":
+  - Call DB RPC on_paytota_webhook_finalize_checkout(p_provider_reference := id, p_provider_status := status, p_payload := full JSON, p_transaction_id := null).
+  - If event_type === "purchase.paid" AND the paytota_transactions row for that provider_reference has checkout_id set (product flow):
+    - Deterministic order id ord-{checkoutId}; call RPC materialize_paid_product_checkout (idempotent; tolerate “already materialized” and then read actual product_orders.id from checkout_id).
+    - Call RPC create_admin_disbursements_for_product_order to enqueue vendor payouts (fee percent parameter exists; this app passes 0 in the webhook path shown).
+
+- For event_type starting with "payout.":
+  - Normalize status strings (paid/success → succeeded; error/failed → failed; pending → processing; cancelled → cancelled).
+  - Call the same on_paytota_webhook_finalize_checkout with normalized status for disbursement-side updates.
+
+Return { ok: true } on success.
+
+-------------------------------------------------------------------------------
+8. DATABASE CONTRACT (MINIMUM YOU MUST REPRODUCE OR ADAPT)
+-------------------------------------------------------------------------------
+8.1 paytota_transactions
+- Logs every inbound collection and outbound disbursement.
+- Key columns: transaction_type (collection|disbursement|…), direction (inbound|outbound), checkout_id OR service_payment_id OR admin_disbursement_id, customer_id, vendor_id, currency, amount, provider_reference (UNIQUE when not null), provider_status, status (pending|processing|succeeded|failed|cancelled), request_payload, response_payload, webhook_payload (jsonb).
+
+8.2 on_paytota_webhook_finalize_checkout(provider_reference, provider_status, payload, transaction_id)
+- SECURITY DEFINER RPC: finds the newest paytota_transactions row by provider_reference (or by internal transaction id).
+- Updates that row’s status from Paytota status (normalize paid/success/completed → succeeded, etc.).
+- If checkout_id: set checkout_sessions to paid/failed/cancelled and paid_at when succeeded.
+- If service_payment_id: set service_payments to captured on success, failed/cancelled otherwise; set provider_reference and paid_at.
+- If provider_payout_id (service ledger): update service_provider_payouts and linked admin_disbursements.
+- If admin_disbursement_id: update that admin_disbursements row to paid or failed for approved/processing states.
+
+8.3 Supporting tables (conceptual)
+- checkout_sessions + checkout_line_items for product carts.
+- service_payments for service jobs.
+- admin_disbursements + admin_disbursement_queue view for operations UI.
+- vendor_payout_accounts for payout destinations.
+
+-------------------------------------------------------------------------------
+9. REDIRECT URLS
+-------------------------------------------------------------------------------
+Build absolute HTTPS URLs from NEXT_PUBLIC_APP_URL (or fixed production default). Append query params for checkoutId or servicePaymentId/requestId so success/failure pages can correlate. Allow env overrides PAYTOTA_*_REDIRECT.
+
+-------------------------------------------------------------------------------
+10. OPERATIONAL CHECKLIST TO GO LIVE
+-------------------------------------------------------------------------------
+- Register webhook URL in Paytota dashboard: {NEXT_PUBLIC_APP_URL}/api/paytota/webhook (or PAYTOTA_WEBHOOK_PATH).
+- Confirm brand has Uganda / UGX collection methods enabled; test vs live keys match brand_id.
+- Use whole-number UGX string prices in purchase.products[].price.
+- Keep webhook raw-body verification enabled; never expose the webhook public key to browser bundles.
+
+End of guide.

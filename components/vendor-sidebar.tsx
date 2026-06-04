@@ -1,154 +1,286 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, Package, ShoppingCart, Users, Settings, LogOut, ArrowLeft, Menu, X, Megaphone, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import {
+  BarChart3,
+  Package,
+  ShoppingCart,
+  Users,
+  Settings,
+  LogOut,
+  X,
+  Megaphone,
+  Wallet,
+  Store,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+/** Below merged mobile app header (top bar + search row). */
+const VENDOR_MOBILE_CHROME_TOP = 'top-28';
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { href: '/vendor', label: 'Dashboard', icon: BarChart3 },
+  { href: '/vendor/products', label: 'Products', icon: Package },
+  { href: '/vendor/promotions', label: 'Promotions', icon: Megaphone },
+  { href: '/vendor/orders', label: 'Orders', icon: ShoppingCart },
+  { href: '/vendor/funds', label: 'Funds', icon: Wallet },
+  { href: '/vendor/customers', label: 'Customers', icon: Users },
+  { href: '/vendor/profile', label: 'Profile', icon: Settings },
+];
+
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === '/vendor') return pathname === '/vendor';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getVendorInitials(name: string, email: string): string {
+  const trimmed = name.trim();
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+    return trimmed.slice(0, 2).toUpperCase();
+  }
+  const local = email.split('@')[0]?.trim() ?? '';
+  return (local.slice(0, 2) || 'VN').toUpperCase();
+}
+
+function VendorSidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Link
+      href="/vendor"
+      onClick={onNavigate}
+      className="flex items-center gap-2.5 rounded-lg outline-none ring-offset-background transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Image src="/icon0.svg" alt="" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
+      <div className="min-w-0">
+        <p className="text-sm font-bold tracking-tight text-foreground">MyGarage</p>
+        <p className="text-[11px] font-medium text-muted-foreground">Vendor portal</p>
+      </div>
+    </Link>
+  );
+}
+
+function VendorSidebarUserCard({
+  vendorName,
+  vendorEmail,
+  compact,
+}: {
+  vendorName: string;
+  vendorEmail: string;
+  compact?: boolean;
+}) {
+  const initials = useMemo(() => getVendorInitials(vendorName, vendorEmail), [vendorName, vendorEmail]);
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-xl border border-border/60 bg-background/80',
+        compact ? 'px-3 py-2.5' : 'px-3 py-3 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.04]',
+      )}
+    >
+      <Avatar className={cn('shrink-0 border border-border/80', compact ? 'h-9 w-9' : 'h-10 w-10')}>
+        <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">{vendorName || 'Vendor'}</p>
+        <p className="truncate text-xs text-muted-foreground">{vendorEmail || '—'}</p>
+      </div>
+    </div>
+  );
+}
+
+function VendorSidebarNav({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="flex-1 overflow-y-auto px-3 py-4 md:px-4" aria-label="Vendor portal">
+      <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Menu</p>
+      <ul className="space-y-0.5">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive = isNavActive(pathname, item.href);
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'group flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-foreground/90 hover:bg-accent/80 hover:text-foreground',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors',
+                    isActive
+                      ? 'bg-primary-foreground/15 text-primary-foreground'
+                      : 'bg-muted/80 text-muted-foreground group-hover:bg-background group-hover:text-foreground',
+                  )}
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="truncate">{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+function VendorSidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; onNavigate?: () => void }) {
+  return (
+    <div className="shrink-0 space-y-1 border-t border-border/70 bg-muted/20 p-3 md:p-4">
+      <Link
+        href="/"
+        onClick={onNavigate}
+        className="flex w-full items-center gap-3 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm font-medium text-foreground shadow-sm transition hover:bg-accent/60"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/80 text-muted-foreground">
+          <Store className="h-4 w-4" aria-hidden />
+        </span>
+        Back to shop
+      </Link>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/50">
+          <LogOut className="h-4 w-4" aria-hidden />
+        </span>
+        Sign out
+      </button>
+    </div>
+  );
+}
 
 export function VendorSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [vendorName, setVendorName] = useState<string>('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const portalChrome = useVendorPortalChrome();
+  const [localMobileMenuOpen, setLocalMobileMenuOpen] = useState(false);
+  const mobileMenuOpen = portalChrome?.mobileNavOpen ?? localMobileMenuOpen;
+  const setMobileMenuOpen = portalChrome?.setMobileNavOpen ?? setLocalMobileMenuOpen;
+  const usesMergedMobileHeader = portalChrome != null;
+  const closeMobile = () => setMobileMenuOpen(false);
+  const [vendorName, setVendorName] = useState('');
+  const [vendorEmail, setVendorEmail] = useState('');
   const supabase = createClient();
 
   useEffect(() => {
-    let mounted = true;
-    const currentVendorName = localStorage.getItem('currentVendorName');
-    if (currentVendorName) {
-      setVendorName(currentVendorName);
-    }
+    const storedName = localStorage.getItem('currentVendorName') ?? '';
+    setVendorName(storedName);
 
+    let mounted = true;
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted || !data.user) return;
-      const emailName = data.user.email?.split('@')[0] || 'Vendor';
-      if (!currentVendorName) {
-        setVendorName(emailName);
+      const email = data.user.email ?? '';
+      setVendorEmail(email);
+      if (!storedName) {
+        setVendorName(email.split('@')[0] || 'Vendor');
       }
     });
 
     return () => {
       mounted = false;
     };
-  }, [supabase.auth]);
+  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }, [pathname, setMobileMenuOpen]);
 
   const handleLogout = async () => {
     localStorage.removeItem('currentVendorId');
     localStorage.removeItem('currentVendorName');
+    setVendorName('');
+    setVendorEmail('');
     await supabase.auth.signOut();
     router.push('/auth?role=vendor&next=/vendor');
   };
 
-  const navItems = [
-    { href: '/vendor', label: 'Dashboard', icon: BarChart3 },
-    { href: '/vendor/products', label: 'My Products', icon: Package },
-    { href: '/vendor/promotions', label: 'Promotions', icon: Megaphone },
-    { href: '/vendor/orders', label: 'Orders', icon: ShoppingCart },
-    { href: '/vendor/funds', label: 'Funds', icon: Wallet },
-    { href: '/vendor/customers', label: 'Customers', icon: Users },
-    { href: '/vendor/profile', label: 'Profile', icon: Settings },
-  ];
-
   return (
     <>
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/80 bg-card/95 px-4 py-3 backdrop-blur md:hidden">
-        <div>
-          <h1 className="text-base font-bold tracking-tight text-foreground">MyGarage Vendor</h1>
-          <p className="text-xs text-muted-foreground">{vendorName}</p>
-        </div>
-        <button
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-          className="rounded-xl border border-border/70 bg-background/70 p-2 text-foreground transition hover:bg-accent"
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </header>
+      {!usesMergedMobileHeader ? (
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/80 bg-card px-4 py-3 shadow-sm md:hidden">
+          <VendorSidebarBrand />
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            className="rounded-lg border border-border/70 bg-background p-2 text-foreground shadow-sm transition hover:bg-accent"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
+          </button>
+        </header>
+      ) : null}
 
-      {/* Mobile Menu Drawer + Backdrop */}
-      {mobileMenuOpen && (
+      {mobileMenuOpen ? (
         <button
+          type="button"
           aria-label="Close menu backdrop"
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
+          className={cn(
+            'fixed inset-x-0 bottom-0 z-40 bg-black/50 backdrop-blur-[2px] md:hidden',
+            usesMergedMobileHeader ? VENDOR_MOBILE_CHROME_TOP : 'top-0',
+          )}
+          onClick={closeMobile}
         />
-      )}
+      ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-border/70 bg-card/95 shadow-xl backdrop-blur transition-transform md:static md:z-auto md:translate-x-0 md:shadow-none ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={cn(
+          'fixed left-0 z-50 flex w-[min(100vw-1rem,17.5rem)] flex-col border-r border-border/80 bg-card shadow-2xl transition-transform duration-200 ease-out md:static md:z-auto md:h-full md:w-64 md:translate-x-0 md:shadow-none',
+          usesMergedMobileHeader ? cn('bottom-0', VENDOR_MOBILE_CHROME_TOP) : 'inset-y-0',
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        )}
       >
-        <div className="flex h-full flex-col">
-          {/* Header */}
-          <div className="hidden border-b border-border/70 bg-muted/20 p-6 md:block">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Workspace</p>
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-foreground">MyGarage Vendor</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{vendorName}</p>
-          </div>
-
-          {mobileMenuOpen && (
-            <div className="flex items-center justify-between border-b border-border/70 p-4 md:hidden">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Workspace</p>
-                <p className="mt-1 text-sm font-medium text-foreground">{vendorName}</p>
-              </div>
-              <button
-                aria-label="Close navigation"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-lg p-2 text-foreground hover:bg-accent"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <nav className="flex-1 space-y-2 p-4">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-primary/95 text-primary-foreground shadow-sm'
-                      : 'text-foreground hover:bg-accent/70'
-                  }`}
+        <div className="flex h-full min-h-0 flex-col bg-gradient-to-b from-card via-card to-muted/25">
+          <div className="shrink-0 border-b border-border/70 px-4 py-4 md:py-5">
+            <div className="flex items-start justify-between gap-3">
+              <VendorSidebarBrand onNavigate={closeMobile} />
+              {usesMergedMobileHeader ? (
+                <button
+                  type="button"
+                  onClick={closeMobile}
+                  aria-label="Close vendor navigation"
+                  className="shrink-0 rounded-lg border border-border/70 bg-background p-2 text-foreground shadow-sm transition hover:bg-accent md:hidden"
                 >
-                  {isActive && <span className="absolute left-1 top-2.5 h-5 w-1 rounded-full bg-primary-foreground/80" />}
-                  <Icon className="h-4.5 w-4.5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Footer */}
-          <div className="space-y-2 border-t border-border/70 p-4">
-            <Link
-              href="/"
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-accent/70"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" />
-              Back to Site
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut className="h-4.5 w-4.5" />
-              Logout
-            </button>
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+            </div>
+            <div className="mt-4">
+              <VendorSidebarUserCard
+                vendorName={vendorName}
+                vendorEmail={vendorEmail}
+                compact={usesMergedMobileHeader}
+              />
+            </div>
           </div>
+
+          <VendorSidebarNav pathname={pathname} onNavigate={closeMobile} />
+          <VendorSidebarFooter onLogout={() => void handleLogout()} onNavigate={closeMobile} />
         </div>
       </aside>
     </>

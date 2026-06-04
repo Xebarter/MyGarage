@@ -717,9 +717,8 @@ export function HomePageClient({
                         src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
                         alt={activeBannerProduct.name}
                         fill
-                        className={`object-cover transition-opacity duration-500 ease-in-out ${
-                          bannerFading ? 'opacity-0' : 'opacity-100'
-                        }`}
+                        className={`object-cover transition-opacity duration-500 ease-in-out ${bannerFading ? 'opacity-0' : 'opacity-100'
+                          }`}
                         sizes="(max-width: 768px) 100vw, 66vw"
                         priority={activeBannerIndex === 0}
                       />
@@ -788,8 +787,8 @@ export function HomePageClient({
                         aria-selected={selectedCategory === category}
                         onClick={() => setSelectedCategory(category)}
                         className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${selectedCategory === category
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-accent-foreground'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-accent-foreground'
                           }`}
                       >
                         {formatCategoryLabel(category)}
