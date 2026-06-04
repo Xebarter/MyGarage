@@ -1,11 +1,15 @@
 import { Suspense } from 'react';
-import { Header } from '@/components/header';
+
 import { Footer } from '@/components/footer';
+import { Header } from '@/components/header';
 import { HomePageClient } from '@/components/home-page-client';
 import { loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
+import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 
 /** Fresh-enough storefront HTML without paying full dynamic TTFB on every request */
 export const revalidate = 120;
+
+export const metadata = buildPageMetadata(STATIC_PAGE_SEO['/']);
 
 export default async function Home() {
   const [initialProducts, initialPromoBanners] = await Promise.all([

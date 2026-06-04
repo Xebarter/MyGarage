@@ -89,11 +89,11 @@ function AuthForm() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/auth/firebase-enabled")
+    fetch("/api/auth/firebase-config")
       .then((res) => (res.ok ? res.json() : null))
-      .then((body: { enabled?: boolean } | null) => {
-        if (!cancelled && typeof body?.enabled === "boolean") {
-          setFirebaseReady(body.enabled);
+      .then((body: { configured?: boolean } | null) => {
+        if (!cancelled && typeof body?.configured === "boolean") {
+          setFirebaseReady(body.configured);
         }
       })
       .catch(() => {

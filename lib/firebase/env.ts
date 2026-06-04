@@ -13,11 +13,8 @@ function trimEnv(name: string): string | undefined {
   return value || undefined;
 }
 
-export function isFirebaseConfigured(): boolean {
-  return Boolean(trimEnv("NEXT_PUBLIC_FIREBASE_API_KEY"));
-}
-
-export function getFirebasePublicConfig(): FirebasePublicConfig | null {
+/** Read Firebase web config from server/runtime env (API routes, next.config). */
+export function readFirebaseConfigFromProcessEnv(): FirebasePublicConfig | null {
   const apiKey = trimEnv("NEXT_PUBLIC_FIREBASE_API_KEY");
   if (!apiKey) return null;
 
@@ -28,9 +25,7 @@ export function getFirebasePublicConfig(): FirebasePublicConfig | null {
   const appId = trimEnv("NEXT_PUBLIC_FIREBASE_APP_ID");
 
   if (!authDomain || !projectId || !storageBucket || !messagingSenderId || !appId) {
-    throw new Error(
-      "Firebase is partially configured. Set NEXT_PUBLIC_FIREBASE_API_KEY and all other NEXT_PUBLIC_FIREBASE_* variables.",
-    );
+    return null;
   }
 
   const measurementId = trimEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID");
@@ -44,4 +39,13 @@ export function getFirebasePublicConfig(): FirebasePublicConfig | null {
     appId,
     ...(measurementId ? { measurementId } : {}),
   };
+}
+
+/** Client bundle may not inline env; prefer server config via `/api/auth/firebase-config`. */
+export function getFirebasePublicConfigFromClientBundle(): FirebasePublicConfig | null {
+  return readFirebaseConfigFromProcessEnv();
+}
+
+export function isFirebaseConfigured(): boolean {
+  return Boolean(readFirebaseConfigFromProcessEnv());
 }

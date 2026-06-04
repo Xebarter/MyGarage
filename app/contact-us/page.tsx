@@ -1,5 +1,12 @@
-import { Header } from '@/components/header';
+import type { Metadata } from 'next';
+
 import { Footer } from '@/components/footer';
+import { Header } from '@/components/header';
+import { JsonLdScript } from '@/components/seo/json-ld-script';
+import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
+import { breadcrumbJsonLd } from '@/lib/seo/json-ld';
+
+export const metadata: Metadata = buildPageMetadata(STATIC_PAGE_SEO['/contact-us']);
 
 const contactItems = [
   {
@@ -31,6 +38,12 @@ const contactItems = [
 export default function ContactUsPage() {
   return (
     <>
+      <JsonLdScript
+        data={breadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'Contact us', path: '/contact-us' },
+        ])}
+      />
       <Header />
       <main className="bg-background">
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">

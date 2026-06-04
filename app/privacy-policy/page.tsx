@@ -1,6 +1,18 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Header } from '@/components/header';
-import { Footer } from '@/components/footer';
+
+import {
+  LegalContactStrip,
+  LegalContentLayout,
+  LegalDocumentShell,
+  LegalHero,
+  LegalSection,
+  type LegalSectionContent,
+  legalSectionId,
+} from '@/components/legal-page-layout';
+import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = buildPageMetadata(STATIC_PAGE_SEO['/privacy-policy']);
 
 const sharingRows = [
   ['Payment processors (Pesapal, DPO, Flutterwave)', 'Secure payment processing', 'Contractual obligations and PCI-DSS aligned controls'],
@@ -29,8 +41,9 @@ const rightsRows = [
   ['Right to data portability', 'Receive eligible personal data in a structured, machine-readable format.', 'Email dpo@mygarage.ug'],
 ];
 
-const sections = [
+const sections: LegalSectionContent[] = [
   {
+    id: legalSectionId('1. Who We Are and How to Contact Us'),
     title: '1. Who We Are and How to Contact Us',
     body: [
       'MyGarage ("we", "us", or "our") is an online automotive parts store serving customers in Uganda and the East African region. We act as the data controller for personal data collected through our website, customer support channels, and delivery interactions.',
@@ -38,6 +51,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('2. Scope and Acceptance'),
     title: '2. Scope and Acceptance',
     body: [
       'This Privacy Policy applies when you browse our site, create an account, place orders, submit support requests, request returns or warranties, or subscribe to marketing communications.',
@@ -45,6 +59,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('3. Personal Data We Collect'),
     title: '3. Personal Data We Collect',
     bullets: [
       'Identity data: name, optional gender/date of birth, and identity details where required for verification.',
@@ -58,6 +73,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('4. Sources of Data'),
     title: '4. Sources of Data',
     bullets: [
       'Directly from you during account creation, checkout, support, and communications.',
@@ -66,6 +82,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('5. Legal Bases for Processing'),
     title: '5. Legal Bases for Processing',
     bullets: [
       'Consent (for marketing, non-essential cookies, optional location sharing).',
@@ -76,6 +93,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('6. How We Use Personal Data'),
     title: '6. How We Use Personal Data',
     bullets: [
       'Create and manage accounts.',
@@ -89,19 +107,26 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('7. Sharing and Disclosure'),
     title: '7. Sharing and Disclosure',
     body: [
       'We share personal data only when necessary with service providers such as payment processors, delivery partners, cloud infrastructure providers, analytics providers (with consent where required), and legal/regulatory authorities when required by law.',
       'We do not sell your personal data.',
     ],
+    table: {
+      headers: ['Recipient', 'Purpose', 'Safeguards'],
+      rows: sharingRows,
+    },
   },
   {
+    id: legalSectionId('8. International Data Transfers'),
     title: '8. International Data Transfers',
     body: [
       'Some providers may process data outside Uganda. Where this occurs, we implement safeguards such as contractual protections and other lawful transfer mechanisms required by applicable data protection law.',
     ],
   },
   {
+    id: legalSectionId('9. Data Security Measures'),
     title: '9. Data Security Measures',
     bullets: [
       'Encryption in transit and at rest for sensitive data.',
@@ -111,13 +136,19 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('10. Data Retention'),
     title: '10. Data Retention',
     body: [
       'We retain personal data only for as long as necessary for the purposes in this Policy, including order fulfillment, legal compliance, dispute resolution, and fraud prevention.',
       'When retention is no longer necessary, data is securely deleted or irreversibly anonymized.',
     ],
+    table: {
+      headers: ['Data type', 'Retention period', 'Reason'],
+      rows: retentionRows,
+    },
   },
   {
+    id: legalSectionId('11. Your Data Rights'),
     title: '11. Your Data Rights',
     bullets: [
       'Right of access to your personal data.',
@@ -127,14 +158,22 @@ const sections = [
       'Right to withdraw consent at any time for consent-based processing.',
       'Right to data portability where applicable.',
     ],
+    table: {
+      headers: ['Right', 'Description', 'How to exercise'],
+      rows: rightsRows,
+    },
+    footerNote:
+      'We respond to valid rights requests within 30 calendar days, extendable for complex requests where permitted by law.',
   },
   {
+    id: legalSectionId('12. Automated Decision-Making'),
     title: '12. Automated Decision-Making',
     body: [
       'We do not currently use automated decision-making that produces legal or similarly significant effects without human review.',
     ],
   },
   {
+    id: legalSectionId('13. Cookies and Tracking Technologies'),
     title: '13. Cookies and Tracking Technologies',
     bullets: [
       'Essential cookies for authentication, security, and cart/session functionality.',
@@ -144,18 +183,21 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('14. Children and Minors'),
     title: '14. Children and Minors',
     body: [
       'Our services are not directed to children under 18. We do not knowingly collect personal data from minors without valid guardian authorization. If discovered, such data will be removed as appropriate.',
     ],
   },
   {
+    id: legalSectionId('15. Data Breach Notification'),
     title: '15. Data Breach Notification',
     body: [
       'If a personal data breach is likely to result in high risk to your rights and freedoms, we will notify relevant authorities and affected individuals in accordance with legal requirements.',
     ],
   },
   {
+    id: legalSectionId('16. Changes to This Privacy Policy'),
     title: '16. Changes to This Privacy Policy',
     body: [
       'We may update this Policy from time to time. Material changes will be communicated through site notices, email, and updated effective dates where appropriate.',
@@ -163,6 +205,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('17. Complaints'),
     title: '17. Complaints',
     body: [
       'If you have a privacy complaint, contact our Data Protection Officer first at dpo@mygarage.ug. If unresolved, you may escalate to the Personal Data Protection Office (PDPO) in Uganda.',
@@ -170,153 +213,57 @@ const sections = [
   },
 ];
 
+const toc = sections.map((s) => ({ id: s.id, title: s.title }));
+
 export default function PrivacyPolicyPage() {
   return (
-    <>
-      <Header />
-      <main className="bg-background">
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
-          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 mb-8 shadow-sm">
-            <p className="inline-flex rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1 mb-4">
-              Legal
-            </p>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">Privacy Policy</h1>
-            <p className="text-sm text-muted-foreground mb-1">Effective Date: April 1, 2026</p>
-            <p className="text-sm text-muted-foreground mb-4">Last Updated: April 1, 2026</p>
-            <p className="text-sm md:text-base text-muted-foreground leading-7 max-w-3xl">
-              This policy explains how MyGarage collects, uses, shares, protects, and retains personal data when you
-              use our website and related services.
-            </p>
-          </div>
+    <LegalDocumentShell>
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14 lg:px-8">
+        <LegalHero
+          badge="Legal"
+          title="Privacy Policy"
+          effectiveDate="April 1, 2026"
+          lastUpdated="April 1, 2026"
+          activeHref="/privacy-policy"
+          description="How MyGarage collects, uses, shares, protects, and retains personal data when you use our website and related services."
+          highlights={[
+            { label: 'Data controller', value: 'MyGarage' },
+            { label: 'Privacy contact', value: 'dpo@mygarage.ug' },
+            { label: 'Rights response', value: 'Within 30 days' },
+          ]}
+        />
 
-          <div className="space-y-5">
-            {sections.map((section) => (
-              <section key={section.title} className="rounded-xl border border-border bg-card p-5 md:p-7">
-                <h2 className="text-lg md:text-xl font-semibold text-foreground mb-3">{section.title}</h2>
-
-                {section.body ? (
-                  <div className="space-y-3">
-                    {section.body.map((paragraph) => (
-                      <p key={paragraph} className="text-sm md:text-base text-muted-foreground leading-7">
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-
-                {section.bullets ? (
-                  <ul className="list-disc pl-5 space-y-2">
-                    {section.bullets.map((bullet) => (
-                      <li key={bullet} className="text-sm md:text-base text-muted-foreground leading-7">
-                        {bullet}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {section.title === '7. Sharing and Disclosure' ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full text-sm text-left border border-border rounded-lg overflow-hidden">
-                      <thead className="bg-muted/50 text-foreground">
-                        <tr>
-                          <th className="px-3 py-2 border-b border-border">Recipient</th>
-                          <th className="px-3 py-2 border-b border-border">Purpose</th>
-                          <th className="px-3 py-2 border-b border-border">Safeguards</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sharingRows.map((row) => (
-                          <tr key={row[0]} className="align-top">
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[0]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[1]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[2]}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-
-                {section.title === '10. Data Retention' ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full text-sm text-left border border-border rounded-lg overflow-hidden">
-                      <thead className="bg-muted/50 text-foreground">
-                        <tr>
-                          <th className="px-3 py-2 border-b border-border">Data Type</th>
-                          <th className="px-3 py-2 border-b border-border">Retention Period</th>
-                          <th className="px-3 py-2 border-b border-border">Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {retentionRows.map((row) => (
-                          <tr key={row[0]} className="align-top">
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[0]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[1]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[2]}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-
-                {section.title === '11. Your Data Rights' ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full text-sm text-left border border-border rounded-lg overflow-hidden">
-                      <thead className="bg-muted/50 text-foreground">
-                        <tr>
-                          <th className="px-3 py-2 border-b border-border">Right</th>
-                          <th className="px-3 py-2 border-b border-border">Description</th>
-                          <th className="px-3 py-2 border-b border-border">How to Exercise</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rightsRows.map((row) => (
-                          <tr key={row[0]} className="align-top">
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[0]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[1]}</td>
-                            <td className="px-3 py-2 border-b border-border text-muted-foreground">{row[2]}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      We respond to valid rights requests within 30 calendar days, extendable for complex requests
-                      where permitted by law.
-                    </p>
-                  </div>
-                ) : null}
-              </section>
+        <details className="mt-4 rounded-xl border border-border/80 bg-card px-4 py-3 lg:hidden">
+          <summary className="cursor-pointer text-sm font-semibold text-foreground">Jump to section</summary>
+          <ol className="mt-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+            {toc.map((item) => (
+              <li key={item.id}>
+                <a href={`#${item.id}`} className="text-primary hover:underline">
+                  {item.title}
+                </a>
+              </li>
             ))}
-          </div>
+          </ol>
+        </details>
 
-          <div className="mt-10 rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
-            <p className="text-sm md:text-base text-muted-foreground leading-7">
-              Privacy contact: {' '}
-              <a href="mailto:dpo@mygarage.ug" className="text-primary hover:underline">
-                dpo@mygarage.ug
-              </a>
-              . General support:{' '}
-              <a href="mailto:support@mygarage.ug" className="text-primary hover:underline">
-                support@mygarage.ug
-              </a>
-              {' '}or phone: +256 783 676 313.
-            </p>
-            <p className="text-sm text-muted-foreground mt-3">
-              View our{' '}
-              <Link href="/terms-and-conditions" className="text-primary hover:underline">
+        <LegalContentLayout sections={toc}>
+          {sections.map((section) => (
+            <LegalSection key={section.id} section={section} />
+          ))}
+        </LegalContentLayout>
+
+        <LegalContactStrip
+          extra={
+            <>
+              Read our{' '}
+              <Link href="/terms-and-conditions" className="font-medium text-primary hover:underline">
                 Terms and Conditions
               </Link>
-              {' '}or return to{' '}
-              <Link href="/" className="text-primary hover:underline">
-                Home
-              </Link>
               .
-            </p>
-          </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+            </>
+          }
+        />
+      </section>
+    </LegalDocumentShell>
   );
 }

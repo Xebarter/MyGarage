@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Header } from '@/components/header';
+
 import { Footer } from '@/components/footer';
+import { Header } from '@/components/header';
+import { JsonLdScript } from '@/components/seo/json-ld-script';
+import { faqPageJsonLd } from '@/lib/seo/json-ld';
+import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = buildPageMetadata(STATIC_PAGE_SEO['/faq']);
 
 const faqSections = [
   {
@@ -183,6 +190,7 @@ const faqSections = [
 export default function FaqPage() {
   return (
     <>
+      <JsonLdScript data={faqPageJsonLd(faqSections)} />
       <Header />
       <main className="bg-background">
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">

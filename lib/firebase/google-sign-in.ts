@@ -15,7 +15,7 @@ export async function getGoogleIdTokenFromFirebase(): Promise<{
   idToken: string;
   accessToken?: string;
 }> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
 

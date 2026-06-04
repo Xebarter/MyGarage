@@ -1,10 +1,12 @@
-import type { MetadataRoute } from 'next'
+import type { MetadataRoute } from 'next';
+
+import { DEFAULT_DESCRIPTION, SITE_NAME } from '@/lib/seo/site';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'MyGarage',
-    short_name: 'MyGarage',
-    description: 'Shop high-quality car parts and accessories for all vehicles',
+    name: SITE_NAME,
+    short_name: SITE_NAME,
+    description: DEFAULT_DESCRIPTION,
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

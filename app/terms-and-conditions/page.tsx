@@ -1,9 +1,22 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Header } from '@/components/header';
-import { Footer } from '@/components/footer';
 
-const sections = [
+import {
+  LegalContactStrip,
+  LegalContentLayout,
+  LegalDocumentShell,
+  LegalHero,
+  LegalSection,
+  type LegalSectionContent,
+  legalSectionId,
+} from '@/components/legal-page-layout';
+import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = buildPageMetadata(STATIC_PAGE_SEO['/terms-and-conditions']);
+
+const sections: LegalSectionContent[] = [
   {
+    id: legalSectionId('1. Introduction'),
     title: '1. Introduction',
     body: [
       'Welcome to MyGarage ("we", "us", or "our"), an online platform specializing in the sale of genuine, aftermarket, refurbished, used, and performance car parts, accessories, fluids, and related products, primarily serving customers in Uganda and the East African region.',
@@ -13,6 +26,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('2. Definitions'),
     title: '2. Definitions',
     bullets: [
       '"Account" means the unique user profile you create on the site to access certain features and place orders.',
@@ -24,6 +38,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('3. Eligibility'),
     title: '3. Eligibility',
     bullets: [
       'You must be at least 18 years old and legally capable of entering a binding contract. If you are under 18, you may only use the site under supervision of a parent or legal guardian.',
@@ -35,6 +50,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('4. Account Registration and Security'),
     title: '4. Account Registration and Security',
     bullets: [
       'Certain features including address book, order history, and faster checkout require account registration.',
@@ -46,6 +62,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('5. Products and Product Information'),
     title: '5. Products and Product Information',
     body: [
       'We make reasonable efforts to ensure that product descriptions, specifications, compatibility notes, part numbers, fitment guidance, and images are accurate and up to date. However, due to supplier updates, model-year differences, and vehicle modifications, some details may vary.',
@@ -56,6 +73,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('6. Pricing and Payment'),
     title: '6. Pricing and Payment',
     bullets: [
       'All prices are displayed in Uganda Shillings (UGX) unless otherwise stated.',
@@ -69,6 +87,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('7. Orders and Order Acceptance'),
     title: '7. Orders and Order Acceptance',
     body: [
       'When you place an order, it is an offer to purchase products at the listed terms. An automated receipt confirmation only acknowledges submission and does not constitute acceptance.',
@@ -79,6 +98,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('8. Shipping, Delivery, and Risk'),
     title: '8. Shipping, Delivery, and Risk',
     bullets: [
       'We deliver within Uganda and selected cross-border destinations when available.',
@@ -91,6 +111,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('9. Returns, Refunds, and Exchanges'),
     title: '9. Returns, Refunds, and Exchanges',
     bullets: [
       'Return requests must be submitted within 14 days of receipt unless a shorter or longer period is stated on the product page.',
@@ -105,6 +126,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('10. Warranties and Disclaimers'),
     title: '10. Warranties and Disclaimers',
     body: [
       'At delivery, products are expected to match the listed description and be sold with legal right of sale by MyGarage.',
@@ -115,6 +137,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('11. Limitation of Liability'),
     title: '11. Limitation of Liability',
     body: [
       'To the fullest extent permitted by law, our total liability for claims connected to any product or order is limited to the amount paid for that product.',
@@ -124,6 +147,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('12. Indemnification'),
     title: '12. Indemnification',
     body: [
       'You agree to indemnify, defend, and hold harmless MyGarage, its owners, employees, and affiliates against claims, losses, liabilities, and expenses arising from your breach of these Terms, misuse of products, unlawful conduct, or violation of third-party rights.',
@@ -131,6 +155,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('13. Intellectual Property'),
     title: '13. Intellectual Property',
     body: [
       'All text, product data, images, logos, graphics, videos, software, page layouts, and related content on this site are owned by MyGarage or its licensors and are protected by applicable intellectual property laws.',
@@ -140,6 +165,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('14. Acceptable Use'),
     title: '14. Acceptable Use',
     bullets: [
       'Do not use the site for illegal, fraudulent, abusive, or harmful activities.',
@@ -151,6 +177,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('15. Third-Party Links and Services'),
     title: '15. Third-Party Links and Services',
     body: [
       'The site may link to or integrate with third-party services such as payment gateways, logistics providers, social platforms, and manufacturer websites.',
@@ -160,6 +187,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('16. Privacy and Data Protection'),
     title: '16. Privacy and Data Protection',
     body: [
       'Our collection and use of personal data are governed by our Privacy Policy and applicable data protection laws.',
@@ -169,6 +197,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('17. Force Majeure'),
     title: '17. Force Majeure',
     body: [
       'We are not liable for delay or non-performance caused by events outside reasonable control, including natural disasters, acts of government, civil unrest, strikes, supply shortages, customs delays, power outages, internet disruptions, epidemics, and similar events.',
@@ -176,6 +205,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('18. Termination and Suspension'),
     title: '18. Termination and Suspension',
     body: [
       'We may suspend accounts, restrict access, or cancel orders where there is breach of these Terms, non-payment, fraud risk, abuse, legal violations, or security threats.',
@@ -184,6 +214,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('19. Governing Law and Jurisdiction'),
     title: '19. Governing Law and Jurisdiction',
     body: [
       'These Terms and all disputes related to the site, products, and services are governed by the laws of the Republic of Uganda.',
@@ -191,6 +222,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('20. Dispute Resolution and Arbitration'),
     title: '20. Dispute Resolution and Arbitration',
     body: [
       'Parties agree to first attempt good-faith negotiation to resolve disputes.',
@@ -199,6 +231,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('21. Changes to These Terms'),
     title: '21. Changes to These Terms',
     body: [
       'We may revise these Terms from time to time.',
@@ -207,12 +240,14 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('22. Severability'),
     title: '22. Severability',
     body: [
       'If any provision is held invalid, illegal, or unenforceable, that provision will be limited or removed to the minimum extent necessary and the remaining provisions remain fully enforceable.',
     ],
   },
   {
+    id: legalSectionId('23. Entire Agreement'),
     title: '23. Entire Agreement',
     body: [
       'These Terms, together with incorporated policies and confirmed order documents, form the entire agreement between you and MyGarage for your use of the site and services.',
@@ -220,6 +255,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('24. Contact Information'),
     title: '24. Contact Information',
     bullets: [
       'Company: MyGarage',
@@ -231,6 +267,7 @@ const sections = [
     ],
   },
   {
+    id: legalSectionId('25. Miscellaneous'),
     title: '25. Miscellaneous',
     bullets: [
       'Our failure to enforce any right does not waive that right.',
@@ -243,82 +280,60 @@ const sections = [
   },
 ];
 
+const toc = sections.map((s) => ({ id: s.id, title: s.title }));
+
 export default function TermsAndConditionsPage() {
   return (
-    <>
-      <Header />
-      <main className="bg-background">
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
-          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 mb-8 shadow-sm">
-            <p className="inline-flex rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1 mb-4">
-              Legal
-            </p>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">Terms and Conditions</h1>
-            <p className="text-sm text-muted-foreground mb-4">Last Updated: March 23, 2026</p>
-            <p className="text-sm md:text-base text-muted-foreground leading-7 max-w-3xl">
-              These Terms govern your use of MyGarage, including browsing, account use, purchases, payments, shipping,
-              and related services. Please read them carefully before placing an order.
-            </p>
-          </div>
+    <LegalDocumentShell>
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14 lg:px-8">
+        <LegalHero
+          badge="Legal"
+          title="Terms and Conditions"
+          lastUpdated="March 23, 2026"
+          activeHref="/terms-and-conditions"
+          description="These Terms govern your use of MyGarage, including browsing, account use, purchases, payments, shipping, and related services. Please read them carefully before placing an order."
+          highlights={[
+            { label: 'Governing law', value: 'Republic of Uganda' },
+            { label: 'Return window', value: '14 days (see Refund Policy)' },
+            { label: 'Support', value: 'support@mygarage.ug' },
+          ]}
+        />
 
-          <div className="space-y-5">
-            {sections.map((section) => (
-              <section key={section.title} className="rounded-xl border border-border bg-card p-5 md:p-7">
-                <h2 className="text-lg md:text-xl font-semibold text-foreground mb-3">{section.title}</h2>
-
-                {section.body ? (
-                  <div className="space-y-3">
-                    {section.body.map((paragraph) => (
-                      <p key={paragraph} className="text-sm md:text-base text-muted-foreground leading-7">
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-
-                {section.bullets ? (
-                  <ul className="list-disc pl-5 space-y-2">
-                    {section.bullets.map((bullet) => (
-                      <li key={bullet} className="text-sm md:text-base text-muted-foreground leading-7">
-                        {bullet}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </section>
+        <details className="mt-4 rounded-xl border border-border/80 bg-card px-4 py-3 lg:hidden">
+          <summary className="cursor-pointer text-sm font-semibold text-foreground">Jump to section</summary>
+          <ol className="mt-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+            {toc.map((item) => (
+              <li key={item.id}>
+                <a href={`#${item.id}`} className="text-primary hover:underline">
+                  {item.title}
+                </a>
+              </li>
             ))}
-          </div>
+          </ol>
+        </details>
 
-          <div className="mt-10 rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
-            <p className="text-sm md:text-base text-muted-foreground leading-7">
-              For support about these Terms, contact{' '}
-              <a href="mailto:support@mygarage.ug" className="text-primary hover:underline">
-                support@mygarage.ug
-              </a>
-              . For data privacy requests, contact{' '}
-              <a href="mailto:dpo@mygarage.ug" className="text-primary hover:underline">
-                dpo@mygarage.ug
-              </a>
-              .
-            </p>
-            <p className="text-sm text-muted-foreground mt-3">
-              Read our{' '}
-              <Link href="/refund-policy" className="text-primary hover:underline">
+        <LegalContentLayout sections={toc}>
+          {sections.map((section) => (
+            <LegalSection key={section.id} section={section} />
+          ))}
+        </LegalContentLayout>
+
+        <LegalContactStrip
+          extra={
+            <>
+              See also our{' '}
+              <Link href="/refund-policy" className="font-medium text-primary hover:underline">
                 Refund Policy
-              </Link>
-              {' '}for detailed return, exchange, and refund procedures.
-            </p>
-            <p className="text-sm text-muted-foreground mt-3">
-              Return to{' '}
-              <Link href="/" className="text-primary hover:underline">
-                Home
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy-policy" className="font-medium text-primary hover:underline">
+                Privacy Policy
               </Link>
               .
-            </p>
-          </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+            </>
+          }
+        />
+      </section>
+    </LegalDocumentShell>
   );
 }
