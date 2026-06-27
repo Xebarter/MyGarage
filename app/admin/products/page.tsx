@@ -89,15 +89,22 @@ export default function ProductsPage() {
   }, [fetchProducts]);
 
   async function deleteProduct(id: string) {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    if (!confirm('Delete this product permanently? This cannot be undone.')) return;
 
     try {
       const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
       if (response.ok) {
-        setProducts((prev) => prev.filter((p) => p.id !== id));
-        toast.success('Product removed');
+        toast.success('Product deleted');
+        await fetchProducts('refresh');
       } else {
-        toast.error('Failed to delete product');
+        let message = 'Failed to delete product';
+        try {
+          const body = (await response.json()) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          /* ignore */
+        }
+        toast.error(message);
       }
     } catch (e) {
       console.error('Failed to delete product:', e);

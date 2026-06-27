@@ -1,9 +1,11 @@
 import type { Product, ProductInsert } from "@/lib/db";
 import { PRODUCT_SEED_ROWS } from "@/lib/data/product-seed";
 import { parseProductVariantsRow, parseVariantOptions } from "@/lib/product-variants";
+import { deleteAdApplicationsByProductId } from "@/lib/supabase/ad-applications-repo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFetchError, isTransientFetchError } from "@/lib/supabase/fetch-errors";
 import { removeListingImagesForProductFields } from "@/lib/supabase/listing-image-storage";
+import { deletePromoCarouselItemsByProductId } from "@/lib/supabase/promotions-repo";
 
 type ProductRow = {
   id: string;
@@ -313,29 +315,50 @@ export async function updateProductById(id: string, updates: Partial<Product>): 
   return rowToProduct(data as ProductRow);
 }
 
+async function deleteProductRelatedRecords(productId: string): Promise<void> {
+  await Promise.all([
+    deletePromoCarouselItemsByProductId(productId),
+    deleteAdApplicationsByProductId(productId),
+  ]);
+}
+
 export async function deleteProductById(id: string): Promise<boolean> {
-  const existing = await getProductById(id);
+  const productId = id.trim();
+  if (!productId) return false;
+
+  const existing = await getProductById(productId);
   if (!existing) {
     return false;
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.from("products").delete().eq("id", id).select("id");
+  await deleteProductRelatedRecords(productId);
 
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("products").delete().eq("id", productId);
   if (error) {
     throw new Error(`Supabase delete product failed: ${error.message}`);
   }
 
-  const deleted = Boolean(data && data.length > 0);
-  if (deleted) {
-    await removeListingImagesForProductFields(existing.image, existing.images);
+  const { data: stillThere, error: verifyError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("id", productId)
+    .maybeSingle();
+  if (verifyError) {
+    throw new Error(`Supabase verify product delete failed: ${verifyError.message}`);
+  }
+  if (stillThere) {
+    throw new Error("Supabase delete product failed: row still exists after delete");
   }
 
-  return deleted;
+  await removeListingImagesForProductFields(existing.image, existing.images);
+  return true;
 }
 
 export async function deleteProductsByVendorId(vendorId: string): Promise<void> {
   const products = await listProductsByVendor(vendorId);
+  await Promise.all(products.map((product) => deleteProductRelatedRecords(product.id)));
+
   const supabase = createAdminClient();
   const { error } = await supabase.from("products").delete().eq("vendor_id", vendorId);
 

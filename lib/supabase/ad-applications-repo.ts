@@ -110,3 +110,15 @@ export async function updateAdApplicationById(
   if (!data) return null;
   return rowToAdApplication(data as AdApplicationRow);
 }
+
+/** Removes single-product ad requests when the product is hard-deleted (no FK cascade in older DBs). */
+export async function deleteAdApplicationsByProductId(productId: string): Promise<void> {
+  const id = productId.trim();
+  if (!id) return;
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("ad_applications").delete().eq("product_id", id);
+  if (error) {
+    throw new Error(`Supabase delete ad applications for product failed: ${error.message}`);
+  }
+}

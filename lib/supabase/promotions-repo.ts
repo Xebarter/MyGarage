@@ -266,3 +266,15 @@ export async function deletePromoCarouselItemById(id: string): Promise<boolean> 
   }
   return Boolean(data && data.length > 0);
 }
+
+/** Removes carousel placements that reference a product (no FK cascade in older DBs). */
+export async function deletePromoCarouselItemsByProductId(productId: string): Promise<void> {
+  const id = productId.trim();
+  if (!id) return;
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("promo_carousel_items").delete().eq("product_id", id);
+  if (error) {
+    throw new Error(`Supabase delete promo carousel items for product failed: ${error.message}`);
+  }
+}
