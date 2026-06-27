@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
@@ -11,7 +11,7 @@ import type { Product } from '@/lib/db';
 import { formatProductPriceLabel } from '@/lib/product-variants';
 import { serviceIntentKeywordsByCategoryId, userServiceCategories } from '@/lib/services-catalog';
 import type { UserServiceCategory } from '@/lib/services-catalog';
-import { Wrench, Sparkles, ShieldCheck, ArrowRight, LayoutGrid, X } from 'lucide-react';
+import { Wrench, ShieldCheck, ArrowRight, LayoutGrid, X, ChevronLeft, ChevronRight, CreditCard, Truck, Headphones, Star, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -123,11 +123,168 @@ type RecommendedFeedMeta = {
 };
 
 const TRUST_BADGES = [
-  'Secure checkout',
-  'Verified vendors',
-  'Fast delivery',
-  'Easy returns',
-];
+  { icon: ShieldCheck, label: 'Secure checkout' },
+  { icon: CreditCard, label: 'Verified vendors' },
+  { icon: Truck, label: 'Fast delivery' },
+  { icon: Headphones, label: 'Easy returns' },
+] as const;
+
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+  className,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', className)}>
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
+        ) : null}
+        <h2 className={cn('font-bold tracking-tight text-foreground', eyebrow ? 'mt-1.5 text-xl sm:text-2xl' : 'text-xl sm:text-2xl')}>
+          {title}
+        </h2>
+        {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function ScrollControls({ onLeft, onRight, label }: { onLeft: () => void; onRight: () => void; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onLeft}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:border-primary/30 hover:bg-muted"
+        aria-label={`Scroll ${label} left`}
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onRight}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:border-primary/30 hover:bg-muted"
+        aria-label={`Scroll ${label} right`}
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function ProductRowSection({
+  sectionId,
+  eyebrow,
+  title,
+  description,
+  products,
+  customerId,
+  wishlistByProductId,
+  onWishlistChange,
+  onScroll,
+  registerRowRef,
+  imagePriorityCount = 0,
+  headerAction,
+}: {
+  sectionId: string;
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  products: Product[];
+  customerId: string | null;
+  wishlistByProductId: Record<string, string>;
+  onWishlistChange: (next: { productId: string; wishlistItemId: string | null }) => void;
+  onScroll: (key: string, direction: 'left' | 'right') => void;
+  registerRowRef: (id: string, node: HTMLDivElement | null) => void;
+  imagePriorityCount?: number;
+  headerAction?: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-border/60 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+        <SectionHeader eyebrow={eyebrow} title={title} description={description} />
+        <div className="flex items-center gap-3">
+          {headerAction}
+          <ScrollControls
+            label={title}
+            onLeft={() => onScroll(sectionId, 'left')}
+            onRight={() => onScroll(sectionId, 'right')}
+          />
+        </div>
+      </div>
+      <div
+        ref={(node) => registerRowRef(sectionId, node)}
+        className="flex flex-nowrap gap-4 overflow-x-auto px-5 py-5 sm:px-6 [scrollbar-width:thin]"
+      >
+        {products.map((product, index) => (
+          <div key={product.id} className="w-[72vw] flex-none sm:w-[220px] md:w-[240px]">
+            <CompactProductTile
+              product={product}
+              customerId={customerId}
+              wishlistItemId={wishlistByProductId[product.id] ?? null}
+              onWishlistChange={onWishlistChange}
+              imagePriority={index < imagePriorityCount}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CategoryQuickLink({ category, productCount }: { category: string; productCount?: number }) {
+  return (
+    <Link
+      href={`/?category=${encodeURIComponent(category)}`}
+      className="group flex min-w-[9rem] flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md sm:min-w-[10.5rem]"
+    >
+      <span className="text-sm font-semibold leading-snug text-foreground group-hover:text-primary">
+        {formatCategoryLabel(category)}
+      </span>
+      {productCount ? (
+        <span className="mt-3 text-xs text-muted-foreground">{productCount} items</span>
+      ) : (
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">
+          Shop now
+          <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" aria-hidden />
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function ServiceCategoryCard({ category }: { category: UserServiceCategory }) {
+  return (
+    <Link
+      href={`/buyer/services?sc=${encodeURIComponent(category.id)}&quick=1`}
+      className="group flex h-full flex-col rounded-xl border border-border/70 bg-card p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+    >
+      <span className="text-2xl" aria-hidden>
+        {category.emoji}
+      </span>
+      <h3 className="mt-3 text-base font-semibold leading-snug text-foreground group-hover:text-primary">
+        {category.title}
+      </h3>
+      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{category.useWhen}</p>
+      <p className="mt-3 line-clamp-1 text-xs text-muted-foreground">
+        {category.services.slice(0, 2).join(' · ')}
+      </p>
+      <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary">
+        Book now
+        <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" aria-hidden />
+      </span>
+    </Link>
+  );
+}
 
 function CompactProductTile({
   product,
@@ -143,36 +300,34 @@ function CompactProductTile({
   imagePriority?: boolean;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-background transition hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md">
       <ProductWishlistButton
         product={product}
         customerId={customerId}
         savedWishlistItemId={wishlistItemId}
         onUpdate={onWishlistChange}
-        className="absolute right-2 top-2 z-10"
+        className="absolute right-2.5 top-2.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 sm:opacity-100"
       />
       <Link href={`/products/${product.id}`} className="block">
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted/25">
+        <div className="relative aspect-square w-full overflow-hidden bg-muted/30">
           <ProductImage
             src={product.image}
             alt={product.name}
             fill
-            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+            className="object-cover transition duration-500 group-hover:scale-[1.04]"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px"
             priority={imagePriority}
           />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
         </div>
-        <div className="p-3">
-          <p className="line-clamp-1 text-sm font-medium text-foreground">{product.name}</p>
-          <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-            <p className="min-w-0 shrink text-sm font-bold tabular-nums text-foreground">
-              {formatProductPriceLabel(product)}
-            </p>
-            <span
-              title={product.category}
-              className="max-w-[45%] shrink-0 truncate rounded-full bg-primary/10 px-2 py-0.5 text-right text-[10px] font-medium text-primary"
-            >
-              {product.category}
+        <div className="p-3.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.category}</p>
+          <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-foreground">{product.name}</p>
+          <div className="mt-2.5 flex items-center justify-between gap-2">
+            <p className="text-base font-bold tabular-nums text-foreground">{formatProductPriceLabel(product)}</p>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+              View
+              <ArrowRight className="h-3 w-3" aria-hidden />
             </span>
           </div>
         </div>
@@ -621,6 +776,29 @@ export function HomePageClient({
   const chipsProductCount = chipCategories.filter((c) => c !== 'all').length;
   const showCategoryBrowser = categoryCatalog.length > chipsProductCount;
 
+  const popularCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    products.forEach((p) => {
+      const c = p.category?.trim();
+      if (!c) return;
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    });
+    return chipCategories
+      .filter((c) => c !== 'all')
+      .slice(0, 8)
+      .map((name) => ({ name, count: counts.get(name) ?? 0 }));
+  }, [chipCategories, products]);
+
+  const featuredProducts = useMemo(() => visibleProducts.slice(0, 8), [visibleProducts]);
+  const featuredServices = useMemo(
+    () => feedOrderedServiceCategories.slice(0, 6),
+    [feedOrderedServiceCategories],
+  );
+
+  const registerRowRef = useCallback((id: string, node: HTMLDivElement | null) => {
+    rowRefs.current[id] = node;
+  }, []);
+
   function scrollRow(rowKey: string, direction: 'left' | 'right') {
     const row = rowRefs.current[rowKey];
     if (!row) return;
@@ -636,100 +814,125 @@ export function HomePageClient({
     <>
       <Header />
       <main className="bg-background">
-        {/* Product Ad Banner Section */}
-        <section className="bg-background py-4">
-          <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
+        {/* Hero */}
+        <section className="border-b border-border/60 bg-gradient-to-b from-muted/30 to-background">
+          <div className="mx-auto w-full max-w-none px-2 py-5 sm:px-2.5 md:px-3 md:py-7">
             {!activeBannerProduct ? (
-              <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm min-h-[150px] md:h-[210px]">
-                <div className="h-full flex flex-col justify-center">
-                  <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground mb-1.5 md:mb-2 leading-tight">
-                    New Product Ads Coming Soon
-                  </h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Add promoted products and upload banners in /admin/promotions to display them here.
-                  </p>
+              <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/[0.07] via-card to-primary/[0.04] shadow-sm">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+                <div className="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-primary/5 blur-3xl" aria-hidden />
+                <div className="relative grid gap-8 p-6 sm:p-8 md:grid-cols-2 md:items-center md:p-10 lg:p-12">
+                  <div>
+                    <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+                      <Star className="h-3.5 w-3.5" aria-hidden />
+                      Uganda&apos;s automotive marketplace
+                    </p>
+                    <h1 className="mt-4 text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                      Quality parts. Trusted service. Delivered reliably.
+                    </h1>
+                    <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
+                      Browse fitment-focused parts from verified vendors, book workshop services, and checkout securely — all in one place.
+                    </p>
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <Link
+                        href="/"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90"
+                      >
+                        <ShoppingBag className="h-4 w-4" aria-hidden />
+                        Shop products
+                      </Link>
+                      <Link
+                        href="/services"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-accent"
+                      >
+                        Book a service
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    {TRUST_BADGES.map(({ icon: Icon, label }) => (
+                      <div
+                        key={label}
+                        className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/80 p-4 backdrop-blur-sm"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" aria-hidden />
+                        </span>
+                        <span className="text-sm font-medium text-foreground">{label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-border bg-card p-3 md:p-4 shadow-sm flex flex-col">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 md:gap-4 items-center">
-                  <div className="md:col-span-4 flex flex-col justify-center order-2 md:order-1">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                      <span className="text-[11px] uppercase tracking-wider bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        Sponsored
+              <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                {/* Frame matches 1600×450 promo assets (32∶9) */}
+                <div className="relative aspect-[1600/450] w-full overflow-hidden bg-muted/30">
+                  <ProductImage
+                    src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
+                    alt={activeBannerProduct.name}
+                    fill
+                    className={cn(
+                      'object-cover transition-opacity duration-500 ease-in-out',
+                      bannerFading ? 'opacity-0' : 'opacity-100',
+                    )}
+                    sizes="100vw"
+                    priority={activeBannerIndex === 0}
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/15 via-transparent to-black/5" />
+                </div>
+
+                <div className="flex flex-col gap-4 border-t border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5 md:p-6">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                        Featured
                       </span>
-                      <span className="text-[11px] uppercase tracking-wider bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
+                      <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                         Fast delivery
                       </span>
                     </div>
-
-                    <h1 className="text-base sm:text-lg md:text-xl font-extrabold text-foreground mb-1 line-clamp-1 leading-tight">
+                    <h1 className="mt-2 line-clamp-1 text-lg font-bold tracking-tight text-foreground sm:text-xl md:text-2xl">
                       {activeBannerProduct.name}
                     </h1>
-                    <p className="text-xs md:text-sm text-muted-foreground mb-2 max-w-xl line-clamp-1">
-                      Top pick in {activeBannerProduct.category}.
-                    </p>
-
-                    <div className="flex items-center gap-2 sm:gap-2.5 mb-2">
-                      <span className="text-base sm:text-lg font-bold text-foreground">
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <span className="text-lg font-bold tabular-nums text-foreground sm:text-xl">
                         {formatProductPriceLabel(activeBannerProduct)}
                       </span>
-                      <span className="text-xs bg-accent text-accent-foreground px-2.5 py-1 rounded-full">
+                      <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
                         {activeBannerProduct.category}
                       </span>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-1.5">
-                      <Link
-                        href={`/products/${activeBannerProduct.id}`}
-                        className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs sm:text-sm font-semibold hover:bg-primary/90 transition"
-                      >
-                        Get it now
-                      </Link>
-                      <Link
-                        href={`/products/${activeBannerProduct.id}`}
-                        className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs sm:text-sm font-medium text-foreground hover:bg-accent transition"
-                      >
-                        See details
-                      </Link>
-                    </div>
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <ProductWishlistButton
-                        product={activeBannerProduct}
-                        customerId={customerId}
-                        savedWishlistItemId={wishlistByProductId[activeBannerProduct.id] ?? null}
-                        onUpdate={handleWishlistChange}
-                        className="h-8 w-8"
-                      />
-                      <span className="text-[11px] text-muted-foreground">Save to wishlist</span>
-                    </div>
-
-                    <p className="hidden md:block text-[11px] text-muted-foreground">
-                      Quality parts. Easy returns. Secure checkout.
-                    </p>
                   </div>
 
-                  <div className="md:col-span-8 order-1 md:order-2">
-                    {/* Frame matches 1600×450 promo assets (32∶9) */}
-                    <div className="relative aspect-[1600/450] w-full overflow-hidden rounded-xl border border-border bg-muted/30">
-                      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-black/10 via-transparent to-black/5" />
-                      <ProductImage
-                        src={activeBannerItem?.bannerUrl || activeBannerProduct.image}
-                        alt={activeBannerProduct.name}
-                        fill
-                        className={`object-cover transition-opacity duration-500 ease-in-out ${bannerFading ? 'opacity-0' : 'opacity-100'
-                          }`}
-                        sizes="(max-width: 768px) 100vw, 66vw"
-                        priority={activeBannerIndex === 0}
-                      />
-                    </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:gap-3">
+                    <Link
+                      href={`/products/${activeBannerProduct.id}`}
+                      className="inline-flex flex-1 items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 sm:flex-none"
+                    >
+                      Shop now
+                    </Link>
+                    <Link
+                      href={`/products/${activeBannerProduct.id}`}
+                      className="inline-flex flex-1 items-center justify-center rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-accent sm:flex-none"
+                    >
+                      View details
+                    </Link>
+                    <ProductWishlistButton
+                      product={activeBannerProduct}
+                      customerId={customerId}
+                      savedWishlistItemId={wishlistByProductId[activeBannerProduct.id] ?? null}
+                      onUpdate={handleWishlistChange}
+                      className="h-10 w-10 shrink-0 border border-border bg-background"
+                    />
                   </div>
                 </div>
 
                 {bannerItems.length > 1 ? (
-                  <div className="mt-2 md:mt-2.5 flex items-center justify-between gap-2">
-                    <p className="text-[11px] text-muted-foreground">
-                      Banner {activeBannerIndex + 1} of {bannerItems.length}
+                  <div className="flex items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-4 py-3 sm:px-6">
+                    <p className="text-xs text-muted-foreground">
+                      Promotion {activeBannerIndex + 1} of {bannerItems.length}
                     </p>
                     <div className="flex items-center gap-1.5">
                       {bannerItems.map((item, index) => (
@@ -737,9 +940,13 @@ export function HomePageClient({
                           key={item.id}
                           type="button"
                           onClick={() => setActiveBannerIndex(index)}
-                          aria-label={`Show banner ${index + 1}`}
-                          className={`h-2.5 rounded-full transition ${index === activeBannerIndex ? 'w-6 bg-primary' : 'w-2 bg-muted-foreground/40 hover:bg-muted-foreground/70'
-                            }`}
+                          aria-label={`Show promotion ${index + 1}`}
+                          className={cn(
+                            'h-1.5 rounded-full transition-all',
+                            index === activeBannerIndex
+                              ? 'w-8 bg-primary'
+                              : 'w-4 bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                          )}
                         />
                       ))}
                     </div>
@@ -750,15 +957,16 @@ export function HomePageClient({
           </div>
         </section>
 
-        {/* Search and Filter Section — compact rail + searchable overflow */}
-        <section className="border-b border-border bg-card py-4 md:py-5">
+        {/* Category navigation */}
+        <section className="sticky top-0 z-20 border-b border-border/70 bg-background/95 py-3.5 shadow-sm backdrop-blur-md md:py-4">
           <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <div className="flex shrink-0 items-center gap-2">
-                <p className="text-sm font-semibold tracking-tight text-foreground">Shop by category</p>
+                <LayoutGrid className="h-4 w-4 text-primary" aria-hidden />
+                <p className="text-sm font-semibold text-foreground">Browse categories</p>
                 {categoryCatalog.length > 0 ? (
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {categoryCatalog.length} in catalog
+                  <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline">
+                    {categoryCatalog.length}
                   </span>
                 ) : null}
               </div>
@@ -766,11 +974,11 @@ export function HomePageClient({
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <div
-                    className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-6 bg-gradient-to-r from-card to-transparent sm:w-8"
+                    className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-6 bg-gradient-to-r from-background/95 to-transparent sm:w-8"
                     aria-hidden
                   />
                   <div
-                    className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-6 bg-gradient-to-l from-card to-transparent sm:w-8"
+                    className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-6 bg-gradient-to-l from-background/95 to-transparent sm:w-8"
                     aria-hidden
                   />
                   <div
@@ -786,10 +994,12 @@ export function HomePageClient({
                         role="tab"
                         aria-selected={selectedCategory === category}
                         onClick={() => setSelectedCategory(category)}
-                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${selectedCategory === category
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:bg-accent hover:text-accent-foreground'
-                          }`}
+                        className={cn(
+                          'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all',
+                          selectedCategory === category
+                            ? 'bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20'
+                            : 'border border-border/80 bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground',
+                        )}
                       >
                         {formatCategoryLabel(category)}
                       </button>
@@ -873,217 +1083,215 @@ export function HomePageClient({
           </div>
         </section>
 
-        {/* Trust and deal strip */}
-        <section className="border-b border-border bg-background/70">
-          <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-              <div className="md:col-span-8 flex flex-wrap items-center gap-2">
-                {TRUST_BADGES.map((badge) => (
-                  <span
-                    key={badge}
-                    className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground"
-                  >
-                    {badge}
-                  </span>
-                ))}
-              </div>
-              <div className="md:col-span-4 flex items-center justify-start md:justify-end">
-                <Link
-                  href="/buyer/services"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                >
-                  Book a Service Now
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
+        {/* Trust strip */}
+        <section className="border-b border-border/60 bg-muted/20">
+          <div className="mx-auto w-full max-w-none px-2 py-3.5 sm:px-2.5 md:px-3">
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 sm:justify-start">
+              {TRUST_BADGES.map(({ icon: Icon, label }) => (
+                <span key={label} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  {label}
+                </span>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Amazon-like discovery sections */}
-        <section className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-10">
+        {/* Product discovery */}
+        <section className="mx-auto w-full max-w-none px-2 py-8 sm:px-2.5 md:px-3 md:py-12">
           {loading ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Loading products...</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+              <p className="mt-4 text-sm font-medium text-foreground">Loading your personalized feed…</p>
+              <p className="mt-1 text-xs text-muted-foreground">Curating products and recommendations</p>
             </div>
           ) : displayedProducts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg">
+            <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
+              <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/60" aria-hidden />
+              <p className="mt-4 text-lg font-semibold text-foreground">
                 {selectedCategory === 'all' && !searchQuery.trim()
-                  ? 'No products available in the recommendation feed yet.'
-                  : 'No products found matching your search.'}
+                  ? 'No products in your feed yet'
+                  : 'No matching products found'}
               </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {selectedCategory === 'all' && !searchQuery.trim()
+                  ? 'Check back soon — new inventory is added regularly.'
+                  : 'Try a different category or adjust your search.'}
+              </p>
+              {selectedCategory !== 'all' ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('all')}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                >
+                  Browse all products
+                </button>
+              ) : null}
             </div>
           ) : (
-            <div className="space-y-10">
-              <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-lg md:text-xl font-semibold">Budget Deals Under Control</h2>
-                  <p className="text-xs text-muted-foreground">Low-price picks from your current recommendation feed</p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                  {dealProducts.slice(0, 4).map((product, di) => (
-                    <CompactProductTile
-                      key={`deal-${product.id}`}
-                      product={product}
-                      customerId={customerId}
-                      wishlistItemId={wishlistByProductId[product.id] ?? null}
-                      onWishlistChange={handleWishlistChange}
-                      imagePriority={di < 2}
-                    />
-                  ))}
-                </div>
-              </section>
-
-              <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <div className="rounded-2xl border border-border bg-card p-3 sm:p-4 lg:col-span-8">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Sparkles className="h-4 w-4" />
-                    <p className="text-xs uppercase tracking-wide font-semibold">Smart Picks</p>
-                  </div>
-                  <h2 className="mt-2 text-2xl md:text-3xl font-bold">
-                    {selectedCategory !== 'all' ? selectedCategory : 'Top Deals & Essentials'}
-                  </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Showing {displayedProducts.length} curated product{displayedProducts.length !== 1 ? 's' : ''} for this feed.
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                    {visibleProducts.slice(0, 6).map((product, ti) => (
-                      <CompactProductTile
-                        key={`tile-${product.id}`}
-                        product={product}
-                        customerId={customerId}
-                        wishlistItemId={wishlistByProductId[product.id] ?? null}
-                        onWishlistChange={handleWishlistChange}
-                        imagePriority={ti < 3}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border bg-card p-3 sm:p-4 lg:col-span-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Wrench className="h-4 w-4" />
-                    <p className="text-xs uppercase tracking-wide font-semibold">Services Near You</p>
-                  </div>
-                  <h3 className="mt-2 text-xl font-bold">Book Car Services Fast</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Categories below follow your recommendation feed — jump in where your shopping suggests you’ll need
-                    help next.
-                  </p>
-                  <div className="mt-4 space-y-2">
-                    {feedOrderedServiceCategories.slice(0, 5).map((serviceCategory) => (
-                      <Link
-                        key={`service-feature-${serviceCategory.id}`}
-                        href={`/buyer/services?sc=${encodeURIComponent(serviceCategory.id)}&quick=1`}
-                        className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-accent/40 transition"
-                      >
-                        <span className="truncate">
-                          {serviceCategory.emoji} {serviceCategory.title}
-                        </span>
-                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
+            <div className="space-y-14 md:space-y-16">
               {isDefaultHomeFeed ? (
-                <div className="space-y-10">
-                  {smartCollections.map((collection) => (
-                    <section key={collection.id} className="rounded-2xl border border-border bg-card p-3 sm:p-4">
-                      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <h3 className="text-xl md:text-2xl font-semibold">
-                            {collection.serviceEmoji} {collection.title}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">{collection.subtitle}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => scrollRow(collection.id, 'left')}
-                            className="h-9 w-9 rounded-full border border-border bg-background text-foreground hover:bg-accent transition"
-                            aria-label={`Scroll ${collection.title} left`}
-                          >
-                            ←
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => scrollRow(collection.id, 'right')}
-                            className="h-9 w-9 rounded-full border border-border bg-background text-foreground hover:bg-accent transition"
-                            aria-label={`Scroll ${collection.title} right`}
-                          >
-                            →
-                          </button>
-                        </div>
+                <>
+                  {/* —— Products —— */}
+                  <div className="space-y-10 md:space-y-12">
+                    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                      <div className="border-b border-border/60 bg-gradient-to-r from-primary/[0.05] to-transparent px-5 py-5 sm:px-6">
+                        <SectionHeader
+                          eyebrow="Shop"
+                          title="Recommended for you"
+                          description="Personalized picks from verified vendors — add to cart or save for later."
+                        />
                       </div>
-
-                      <div className="mb-4 rounded-xl border border-border bg-background/80 p-3">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <ShieldCheck className="h-4 w-4 text-primary" />
-                          Pair products with trusted service requests
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Try: {collection.serviceTopOptions.join(' • ')}
-                        </p>
-                        <Link
-                          href={
-                            collection.id === 'recommended-products'
-                              ? '/buyer/services'
-                              : `/buyer/services?sc=${encodeURIComponent(collection.id)}&quick=1`
-                          }
-                          className="mt-2 inline-flex items-center text-xs font-semibold text-primary hover:underline"
-                        >
-                          Request this kind of service
-                        </Link>
-                      </div>
-
-                      <div
-                        ref={(node) => {
-                          rowRefs.current[collection.id] = node;
-                        }}
-                        className="flex flex-nowrap gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
-                      >
-                        {collection.products.map((product, ci) => (
-                          <div key={`${collection.id}-${product.id}`} className="w-[82vw] sm:w-[300px] md:w-[320px] flex-none snap-start">
-                            <CompactProductTile
-                              product={product}
-                              customerId={customerId}
-                              wishlistItemId={wishlistByProductId[product.id] ?? null}
-                              onWishlistChange={handleWishlistChange}
-                              imagePriority={collection.id === smartCollections[0]?.id && ci < 2}
-                            />
-                          </div>
+                      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 sm:gap-4 sm:p-6 lg:grid-cols-4">
+                        {featuredProducts.slice(0, 8).map((product, index) => (
+                          <CompactProductTile
+                            key={`featured-${product.id}`}
+                            product={product}
+                            customerId={customerId}
+                            wishlistItemId={wishlistByProductId[product.id] ?? null}
+                            onWishlistChange={handleWishlistChange}
+                            imagePriority={index < 4}
+                          />
                         ))}
                       </div>
                     </section>
-                  ))}
-                  <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
-                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                      <h2 className="text-lg md:text-xl font-semibold">More for you</h2>
-                      <p className="text-xs text-muted-foreground">
-                        Showing products from your feed by department — {visibleProducts.length} of{' '}
-                        {filteredProducts.length} in view
-                      </p>
+
+                    {popularCategories.length > 0 ? (
+                      <section>
+                        <SectionHeader
+                          eyebrow="Categories"
+                          title="Shop by category"
+                          description="Jump straight into the departments most relevant to your feed."
+                          className="mb-5 px-1"
+                        />
+                        <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
+                          {popularCategories.map(({ name, count }) => (
+                            <CategoryQuickLink key={name} category={name} productCount={count} />
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                      <div className="border-b border-border/60 bg-gradient-to-r from-primary/[0.06] to-transparent px-5 py-5 sm:px-6">
+                        <SectionHeader
+                          eyebrow="Best value"
+                          title="Deals on essentials"
+                          description="Quality parts at competitive prices from your feed."
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:gap-4 sm:p-6">
+                        {dealProducts.slice(0, 4).map((product, di) => (
+                          <CompactProductTile
+                            key={`deal-${product.id}`}
+                            product={product}
+                            customerId={customerId}
+                            wishlistItemId={wishlistByProductId[product.id] ?? null}
+                            onWishlistChange={handleWishlistChange}
+                            imagePriority={di < 2}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+
+                  {/* —— Services —— */}
+                  <section className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-muted/40 via-card to-card shadow-sm">
+                    <div className="border-b border-border/60 px-5 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 text-primary">
+                            <Wrench className="h-4 w-4" aria-hidden />
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em]">Services</p>
+                          </div>
+                          <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                            Book workshop & roadside services
+                          </h2>
+                          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                            Install the parts you buy, fix issues fast, or schedule routine maintenance — matched to what you&apos;re shopping for.
+                          </p>
+                        </div>
+                        <Link
+                          href="/buyer/services"
+                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                        >
+                          View all services
+                          <ArrowRight className="h-4 w-4" aria-hidden />
+                        </Link>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-8">
+                    <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:gap-4 sm:p-6 lg:grid-cols-3">
+                      {featuredServices.map((serviceCategory) => (
+                        <ServiceCategoryCard key={serviceCategory.id} category={serviceCategory} />
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* —— Discover more products —— */}
+                  <div className="space-y-10 md:space-y-12">
+                    <SectionHeader
+                      eyebrow="Discover"
+                      title="Collections picked for you"
+                      description="Curated product rows based on your browsing and shopping patterns."
+                      className="px-1"
+                    />
+
+                    {smartCollections.map((collection, collectionIndex) => (
+                      <ProductRowSection
+                        key={collection.id}
+                        sectionId={collection.id}
+                        eyebrow="Collection"
+                        title={`${collection.serviceEmoji} ${collection.title}`}
+                        description={collection.subtitle}
+                        products={collection.products}
+                        customerId={customerId}
+                        wishlistByProductId={wishlistByProductId}
+                        onWishlistChange={handleWishlistChange}
+                        onScroll={scrollRow}
+                        registerRowRef={registerRowRef}
+                        imagePriorityCount={collectionIndex === 0 ? 2 : 0}
+                        headerAction={
+                          <Link
+                            href={
+                              collection.id === 'recommended-products'
+                                ? '/buyer/services'
+                                : `/buyer/services?sc=${encodeURIComponent(collection.id)}&quick=1`
+                            }
+                            className="hidden items-center gap-1 text-xs font-semibold text-primary hover:underline sm:inline-flex"
+                          >
+                            Book service
+                            <ArrowRight className="h-3 w-3" aria-hidden />
+                          </Link>
+                        }
+                      />
+                    ))}
+
+                    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                      <div className="border-b border-border/60 px-5 py-5 sm:px-6">
+                        <SectionHeader
+                          eyebrow="Departments"
+                          title="Browse by department"
+                          description={`${visibleProducts.length} of ${filteredProducts.length} products in your feed.`}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-6 p-4 sm:gap-8 sm:p-6">
                       {moreForYouLayout.map((block, blockIndex) => {
                         if (block.kind === 'multi') {
                           const section = block.section;
                           return (
                             <div
                               key={section.title}
-                              className="rounded-xl border border-border bg-background/60 p-3 sm:p-4 lg:w-full lg:basis-full"
+                              className="rounded-xl border border-border/60 bg-muted/10 p-4 sm:p-5"
                             >
                               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                                <h3 className="text-base font-semibold text-foreground">{section.title}</h3>
+                                <h3 className="text-base font-semibold tracking-tight text-foreground">{section.title}</h3>
                                 {section.title !== MORE_FOR_YOU_OTHER_LABEL ? (
                                   <Link
                                     href={`/category/products/${encodeURIComponent(section.title)}`}
-                                    className="text-xs font-semibold text-primary hover:underline"
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                                   >
                                     See all
+                                    <ArrowRight className="h-3 w-3" aria-hidden />
                                   </Link>
                                 ) : null}
                               </div>
@@ -1115,16 +1323,17 @@ export function HomePageClient({
                             {block.sections.map((section, si) => (
                               <div
                                 key={`${blockIndex}-${si}-${section.title}`}
-                                className="rounded-xl border border-border bg-background/60 p-3 sm:p-4 lg:flex-1 lg:min-w-0"
+                                className="rounded-xl border border-border/60 bg-muted/10 p-4 sm:p-5 lg:min-w-0 lg:flex-1"
                               >
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                                  <h3 className="text-base font-semibold text-foreground">{section.title}</h3>
+                                  <h3 className="text-base font-semibold tracking-tight text-foreground">{section.title}</h3>
                                   {section.title !== MORE_FOR_YOU_OTHER_LABEL ? (
                                     <Link
                                       href={`/category/products/${encodeURIComponent(section.title)}`}
-                                      className="text-xs font-semibold text-primary hover:underline"
+                                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                                     >
                                       See all
+                                      <ArrowRight className="h-3 w-3" aria-hidden />
                                     </Link>
                                   ) : null}
                                 </div>
@@ -1151,23 +1360,61 @@ export function HomePageClient({
                       })}
                     </div>
                     <div ref={sentinelRef} className="h-1 w-full" />
-                  </section>
-                </div>
+                    {infiniteLoading ? (
+                      <p className="pb-4 text-center text-xs text-muted-foreground">Loading more products…</p>
+                    ) : null}
+                    </section>
+                  </div>
+                </>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                    {visibleProducts.map((product, vi) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        customerId={customerId}
-                        wishlistItemId={wishlistByProductId[product.id] ?? null}
-                        onWishlistChange={handleWishlistChange}
-                        imagePriority={vi < 4}
-                      />
-                    ))}
+                  <div className="overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-6">
+                    <SectionHeader
+                      eyebrow="Shop"
+                      title={selectedCategory !== 'all' ? formatCategoryLabel(selectedCategory) : 'Matching products'}
+                      description={`${displayedProducts.length} result${displayedProducts.length !== 1 ? 's' : ''} in this view`}
+                      className="mb-6"
+                    />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {visibleProducts.map((product, vi) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          customerId={customerId}
+                          wishlistItemId={wishlistByProductId[product.id] ?? null}
+                          onWishlistChange={handleWishlistChange}
+                          imagePriority={vi < 4}
+                        />
+                      ))}
+                    </div>
                   </div>
                   <div ref={sentinelRef} className="h-1 w-full" />
+                  {infiniteLoading ? (
+                    <p className="text-center text-xs text-muted-foreground">Loading more products…</p>
+                  ) : null}
+
+                  <section className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-r from-primary/[0.06] to-transparent p-5 sm:p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Wrench className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div>
+                          <h3 className="text-base font-semibold text-foreground">Need installation or repair?</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Book a trusted service to go with the parts you&apos;re browsing.
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        href="/buyer/services"
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                      >
+                        Browse services
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </Link>
+                    </div>
+                  </section>
                 </>
               )}
             </div>

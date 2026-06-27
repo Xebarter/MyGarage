@@ -22,9 +22,10 @@ export default async function Home() {
       fallback={
         <>
           <Header />
-          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-2 bg-background px-2 sm:px-2.5 md:px-3 text-center">
+          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-3 bg-background px-2 sm:px-2.5 md:px-3 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
             <p className="text-sm font-medium text-foreground">Loading storefront…</p>
-            <p className="text-xs text-muted-foreground">Preparing products and filters.</p>
+            <p className="text-xs text-muted-foreground">Preparing products and recommendations.</p>
           </main>
           <Footer />
         </>

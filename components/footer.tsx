@@ -1,146 +1,207 @@
 import Link from 'next/link';
+import Image from 'next/image';
+import {
+  Clock,
+  CreditCard,
+  Headphones,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  Truck,
+} from 'lucide-react';
+
+const trustHighlights = [
+  { icon: ShieldCheck, label: 'Verified vendors' },
+  { icon: CreditCard, label: 'Secure payments' },
+  { icon: Truck, label: 'Fast dispatch' },
+  { icon: Headphones, label: 'Support 7 days' },
+] as const;
+
+const shopLinks = [
+  { href: '/', label: 'Browse Products' },
+  { href: '/services', label: 'Book Services' },
+  { href: '/cart', label: 'View Cart' },
+  { href: '/checkout', label: 'Secure Checkout' },
+];
+
+const customerCareLinks = [
+  { href: '/contact-us', label: 'Contact Us' },
+  { href: '/faq', label: 'Help Center' },
+  { href: '/refund-policy', label: 'Returns & Refunds' },
+  { href: '/order-confirmation', label: 'Order Confirmation' },
+];
+
+const accountLinks = [
+  { href: '/buyer', label: 'My Account' },
+  { href: '/buyer/orders', label: 'Track Orders' },
+  { href: '/buyer/wishlist', label: 'Wishlist' },
+  { href: '/buyer/addresses', label: 'Saved Addresses' },
+];
+
+const legalLinks = [
+  { href: '/privacy-policy', label: 'Privacy Policy' },
+  { href: '/terms-and-conditions', label: 'Terms & Conditions' },
+  { href: '/refund-policy', label: 'Refund Policy' },
+];
+
+const socialLinks = [
+  {
+    href: 'https://www.facebook.com/',
+    label: 'Facebook',
+    icon: (
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    ),
+  },
+  {
+    href: 'https://www.instagram.com/',
+    label: 'Instagram',
+    icon: (
+      <>
+        <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+      </>
+    ),
+  },
+  {
+    href: 'https://x.com/',
+    label: 'X',
+    icon: <path d="M4 4l6.5 8.5L4 20h2.5l5-6.5L16 20h4l-6.8-9.2L19.5 4H17l-4.6 6L8.5 4H4z" />,
+  },
+] as const;
+
+function FooterLinkColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: readonly { href: string; label: string }[];
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      <ul className="mt-4 space-y-3">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
-  const quickLinks = [
-    { href: '/', label: 'Browse Products' },
-    { href: '/services', label: 'Book Services' },
-    { href: '/cart', label: 'View Cart' },
-    { href: '/checkout', label: 'Secure Checkout' },
-  ];
-
-  const customerCareLinks = [
-    { href: '/contact-us', label: 'Contact Us' },
-    { href: '/faq', label: 'Help Center' },
-    { href: '/refund-policy', label: 'Returns & Refunds' },
-    { href: '/order-confirmation', label: 'Order Confirmation' },
-  ];
-
-  const accountLinks = [
-    { href: '/buyer', label: 'My Account' },
-    { href: '/buyer/orders', label: 'Track Orders' },
-    { href: '/buyer/wishlist', label: 'Wishlist' },
-    { href: '/buyer/addresses', label: 'Saved Addresses' },
-  ];
-
-  const legalLinks = [
-    { href: '/privacy-policy', label: 'Privacy Policy' },
-    { href: '/terms-and-conditions', label: 'Terms and Conditions' },
-    { href: '/refund-policy', label: 'Refund Policy' },
-  ];
 
   return (
-    <footer className="mt-16 border-t border-border bg-gradient-to-b from-background to-muted/20">
-      <div className="mx-auto w-full max-w-none px-2 py-12 sm:px-2.5 md:px-3">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <p className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              MyGarage
-            </p>
-            <h3 className="mt-4 text-xl font-bold text-foreground">Quality automotive parts and services, delivered reliably.</h3>
-            <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-              MyGarage helps drivers, workshops, and fleets find trusted parts faster with fitment-focused support,
-              secure checkout, and dependable delivery.
-            </p>
-            <div className="mt-5 grid max-w-md grid-cols-2 gap-3 text-xs text-muted-foreground">
-              <p className="rounded-md border border-border bg-background/70 px-3 py-2">Verified vendors</p>
-              <p className="rounded-md border border-border bg-background/70 px-3 py-2">Secure payments</p>
-              <p className="rounded-md border border-border bg-background/70 px-3 py-2">Fast dispatch</p>
-              <p className="rounded-md border border-border bg-background/70 px-3 py-2">Support 7 days</p>
+    <footer className="mt-16 border-t border-border bg-card">
+      <div className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto grid w-full max-w-none grid-cols-2 gap-4 px-2 py-5 sm:px-2.5 md:grid-cols-4 md:px-3 md:py-6">
+          {trustHighlights.map(({ icon: Icon, label }) => (
+            <div key={label} className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" aria-hidden />
+              </span>
+              <span className="text-sm font-medium text-foreground">{label}</span>
             </div>
-            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <a href="tel:+256783676313" className="rounded-md border border-border px-3 py-1.5 hover:bg-accent hover:text-accent-foreground">
-                +256 783 676 313
-              </a>
-              <a href="mailto:support@mygarage.ug" className="rounded-md border border-border px-3 py-1.5 hover:bg-accent hover:text-accent-foreground">
-                support@mygarage.ug
-              </a>
-            </div>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">Shop</h3>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              {quickLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="transition hover:text-foreground">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+      <div className="mx-auto w-full max-w-none px-2 py-12 sm:px-2.5 md:px-3 md:py-14">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-12 lg:gap-8">
+          <div className="lg:col-span-4">
+            <Link href="/" className="inline-flex items-center gap-2.5">
+              <Image
+                src="/icon0.svg"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
+              <span className="text-xl font-bold tracking-tight text-foreground">MyGarage</span>
+            </Link>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              Quality automotive parts and services for drivers, workshops, and fleets — with
+              fitment-focused support, secure checkout, and dependable delivery across Uganda.
+            </p>
+
+            <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
+              <li>
+                <a
+                  href="tel:+256783676313"
+                  className="inline-flex items-center gap-2.5 transition-colors hover:text-primary"
+                >
+                  <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  +256 783 676 313
+                </a>
+              </li>
+              <li>
+                <a
+                  href="mailto:support@mygarage.ug"
+                  className="inline-flex items-center gap-2.5 transition-colors hover:text-primary"
+                >
+                  <Mail className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  support@mygarage.ug
+                </a>
+              </li>
+              <li className="inline-flex items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <span>Kampala, Uganda</span>
+              </li>
+              <li className="inline-flex items-start gap-2.5">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <span>Open daily · 8:00 AM – 8:00 PM EAT</span>
+              </li>
             </ul>
           </div>
 
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">Customer Care</h3>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              {customerCareLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="transition hover:text-foreground">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">Account</h3>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              {accountLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="transition hover:text-foreground">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">Legal</h3>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              {legalLinks.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="transition hover:text-foreground">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="grid grid-cols-2 gap-8 sm:col-span-1 sm:grid-cols-2 lg:col-span-8 lg:grid-cols-4">
+            <FooterLinkColumn title="Shop" links={shopLinks} />
+            <FooterLinkColumn title="Customer Care" links={customerCareLinks} />
+            <FooterLinkColumn title="Account" links={accountLinks} />
+            <FooterLinkColumn title="Legal" links={legalLinks} />
           </div>
         </div>
+      </div>
 
-        <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-border pt-6 text-sm text-muted-foreground md:flex-row md:items-center">
-          <div className="space-y-1">
-            <p>© {currentYear} MyGarage. All rights reserved.</p>
-            <p className="text-xs">Open daily: 8:00 AM - 8:00 PM EAT | Kampala, Uganda</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm">
-            <a
-              href="https://www.facebook.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition hover:text-foreground"
-            >
-              Facebook
-            </a>
-            <a
-              href="https://www.instagram.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition hover:text-foreground"
-            >
-              Instagram
-            </a>
-            <a
-              href="https://x.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition hover:text-foreground"
-            >
-              X (Twitter)
-            </a>
+      <div className="border-t border-border/60 bg-muted/20">
+        <div className="mx-auto flex w-full max-w-none flex-col gap-4 px-2 py-5 sm:px-2.5 md:flex-row md:items-center md:justify-between md:px-3">
+          <p className="text-sm text-muted-foreground">
+            © {currentYear} MyGarage. All rights reserved.
+          </p>
+
+          <div className="flex items-center gap-2">
+            {socialLinks.map((social) => (
+              <a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={social.label}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                  aria-hidden
+                >
+                  {social.icon}
+                </svg>
+              </a>
+            ))}
           </div>
         </div>
       </div>
