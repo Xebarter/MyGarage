@@ -172,6 +172,21 @@ function AuthForm() {
   }, [role, nextPath, router, supabase.auth]);
 
   const hasAdminAccess = async () => {
+    await supabase.auth.refreshSession();
+
+    try {
+      const res = await fetch('/api/auth/admin-access', { cache: 'no-store', credentials: 'include' });
+      if (res.ok) {
+        const data = (await res.json()) as { allowed?: boolean };
+        if (data.allowed) {
+          await supabase.auth.refreshSession();
+          return true;
+        }
+      }
+    } catch {
+      /* fall through to client metadata check */
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();

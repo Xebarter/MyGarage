@@ -2,6 +2,7 @@ import type { Product, ProductInsert } from "@/lib/db";
 import { PRODUCT_SEED_ROWS } from "@/lib/data/product-seed";
 import { parseProductVariantsRow, parseVariantOptions } from "@/lib/product-variants";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatFetchError, isTransientFetchError } from "@/lib/supabase/fetch-errors";
 import { removeListingImagesForProductFields } from "@/lib/supabase/listing-image-storage";
 
 type ProductRow = {
@@ -117,11 +118,26 @@ function insertPayload(product: ProductInsert, id: string) {
 
 async function ensureSeedIfEmpty(): Promise<void> {
   const supabase = createAdminClient();
-  const { count, error: countError } = await supabase
-    .from("products")
-    .select("*", { count: "exact", head: true });
+  let count: number | null = null;
+  let countError: { message: string } | null = null;
+
+  try {
+    const result = await supabase.from("products").select("*", { count: "exact", head: true });
+    count = result.count;
+    countError = result.error;
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase products count skipped (network): ${formatFetchError(error)}`);
+      return;
+    }
+    throw error;
+  }
 
   if (countError) {
+    if (isTransientFetchError(countError)) {
+      console.warn(`Supabase products count skipped (network): ${countError.message}`);
+      return;
+    }
     throw new Error(`Supabase products count failed: ${countError.message}`);
   }
 
@@ -135,32 +151,58 @@ async function ensureSeedIfEmpty(): Promise<void> {
   }
 }
 
+async function queryProducts() {
+  const supabase = createAdminClient();
+  return supabase.from("products").select("*").order("created_at", { ascending: true });
+}
+
 export async function listProducts(): Promise<Product[]> {
   await ensureSeedIfEmpty();
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: true });
 
-  if (error) {
-    throw new Error(`Supabase list products failed: ${error.message}`);
+  try {
+    const { data, error } = await queryProducts();
+
+    if (error) {
+      if (isTransientFetchError(error)) {
+        console.warn(`Supabase list products skipped (network): ${error.message}`);
+        return [];
+      }
+      throw new Error(`Supabase list products failed: ${error.message}`);
+    }
+
+    return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase list products skipped (network): ${formatFetchError(error)}`);
+      return [];
+    }
+    throw error;
   }
-
-  return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];
 }
 
 export async function getProductById(id: string): Promise<Product | undefined> {
   await ensureSeedIfEmpty();
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
 
-  if (error) {
-    throw new Error(`Supabase get product failed: ${error.message}`);
+    if (error) {
+      if (isTransientFetchError(error)) {
+        console.warn(`Supabase get product skipped (network): ${error.message}`);
+        return undefined;
+      }
+      throw new Error(`Supabase get product failed: ${error.message}`);
+    }
+
+    if (!data) return undefined;
+    return rowToProduct(data as ProductRow);
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase get product skipped (network): ${formatFetchError(error)}`);
+      return undefined;
+    }
+    throw error;
   }
-
-  if (!data) return undefined;
-  return rowToProduct(data as ProductRow);
 }
 
 /** Batch-resolve listing images for wishlist and similar UIs (one round-trip). */

@@ -1,13 +1,11 @@
 import type { User } from '@supabase/supabase-js';
 
-/** Matches auth page gating: users who may open the admin dashboard. */
-export function userHasAdminPortalAccess(user: User): boolean {
-  const appRole = String(user.app_metadata?.role ?? '').toLowerCase();
-  const appRoles = Array.isArray(user.app_metadata?.roles)
-    ? (user.app_metadata.roles as unknown[]).map((entry) => String(entry).toLowerCase())
-    : [];
-  return appRole === 'admin' || appRoles.includes('admin');
-}
+export {
+  isAdminEmailAllowlisted,
+  metadataGrantsAdmin,
+  userHasAdminAccess,
+  userHasAdminPortalAccess,
+} from '@/lib/auth-admin-shared';
 
 function pickString(...candidates: unknown[]): string | null {
   for (const c of candidates) {

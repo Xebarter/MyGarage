@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { userHasAdminAccess } from "@/lib/auth-admin-shared";
+
 const protectedPrefixes = ["/buyer", "/vendor", "/services"];
 const adminPrefix = "/admin";
 
@@ -113,12 +115,7 @@ export async function middleware(request: NextRequest) {
 
   const isAdminPath = pathname === adminPrefix || pathname.startsWith(`${adminPrefix}/`);
 
-  const appRole = String(user?.app_metadata?.role ?? "").toLowerCase();
-  const appRoles = Array.isArray(user?.app_metadata?.roles)
-    ? (user?.app_metadata?.roles as unknown[])
-        .map((role) => String(role).toLowerCase())
-    : [];
-  const isAdminUser = appRole === "admin" || appRoles.includes("admin");
+  const isAdminUser = userHasAdminAccess(user);
 
   if (!user && isProtectedPath(pathname)) {
     const redirectUrl = request.nextUrl.clone();

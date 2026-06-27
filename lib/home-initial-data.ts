@@ -8,28 +8,38 @@ export type HomePromoBanner = {
 };
 
 export async function loadHomePromoBanners(): Promise<HomePromoBanner[]> {
-  const items = await getPromoCarouselItems();
-  const active = items
-    .filter((i) => i.active && Boolean(i.bannerUrl?.trim?.() ?? i.bannerUrl))
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  const limit = active.slice(0, 8);
+  try {
+    const items = await getPromoCarouselItems();
+    const active = items
+      .filter((i) => i.active && Boolean(i.bannerUrl?.trim?.() ?? i.bannerUrl))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const limit = active.slice(0, 8);
 
-  const resolved = await Promise.all(
-    limit.map(async (item) => {
-      const product = (await getProduct(item.productId)) as Product | undefined;
-      return product
-        ? {
-            id: item.id,
-            product,
-            bannerUrl: item.bannerUrl,
-          }
-        : null;
-    }),
-  );
+    const resolved = await Promise.all(
+      limit.map(async (item) => {
+        const product = (await getProduct(item.productId)) as Product | undefined;
+        return product
+          ? {
+              id: item.id,
+              product,
+              bannerUrl: item.bannerUrl,
+            }
+          : null;
+      }),
+    );
 
-  return resolved.filter((x): x is HomePromoBanner => x != null);
+    return resolved.filter((x): x is HomePromoBanner => x != null);
+  } catch (error) {
+    console.warn("loadHomePromoBanners skipped:", error);
+    return [];
+  }
 }
 
 export async function loadHomeInitialProducts(limit = 300) {
-  return getHomeFeed(undefined, limit, { forceRefresh: false });
+  try {
+    return await getHomeFeed(undefined, limit, { forceRefresh: false });
+  } catch (error) {
+    console.warn("loadHomeInitialProducts skipped:", error);
+    return [];
+  }
 }

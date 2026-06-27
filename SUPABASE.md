@@ -46,10 +46,35 @@ Admin access for `/admin` is **sign-in only**. Users cannot self-signup as admin
 After a user signs up normally, run this in Supabase SQL Editor to grant admin:
 
 ```sql
+-- 1) Confirm the account exists and inspect current metadata
+select id, email, raw_app_meta_data, last_sign_in_at
+from auth.users
+where lower(email) = lower('your@email.com');
+
+-- 2) Grant admin (run only after step 1 returns a row)
 update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
-where email = 'admin@example.com';
+set raw_app_meta_data =
+  coalesce(raw_app_meta_data, '{}'::jsonb)
+  || '{"role":"admin","roles":["admin"]}'::jsonb
+where lower(email) = lower('your@email.com');
+
+-- 3) Verify
+select id, email, raw_app_meta_data->>'role' as role, raw_app_meta_data->'roles' as roles
+from auth.users
+where lower(email) = lower('your@email.com');
 ```
+
+Then **sign out**, open `/auth?role=admin&next=/admin`, and sign in again.
+
+**Env allowlist (fastest for local/dev):** add to `.env` and restart the dev server:
+
+```env
+ADMIN_EMAILS=sebenock027@gmail.com
+```
+
+Comma-separate multiple admins. This works even before SQL metadata is applied.
+
+**Dashboard alternative:** Authentication → Users → select the user → **App metadata** → `{"role":"admin","roles":["admin"]}` → Save.
 
 To remove admin role:
 
