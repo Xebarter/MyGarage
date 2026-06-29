@@ -325,6 +325,11 @@ function buildAllCatalogPicks(): CatalogPick[] {
   return all
 }
 
+/** All catalog rows (cached). */
+export function getAllCatalogPicks(): CatalogPick[] {
+  return buildAllCatalogPicks()
+}
+
 /** Top-level departments (sidebar roots) for the product form. */
 export function getDepartmentTitles(): string[] {
   return sidebarCategories.map((r) => r.title)

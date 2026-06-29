@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   Plus,
@@ -40,12 +40,12 @@ import {
 import { cn } from "@/lib/utils";
 import type { Product, ProductVariant, ProductVariantOption, Vendor } from "@/lib/db";
 import {
-  decodeCatalogPick,
   encodeCatalogPick,
   findCatalogPickMatch,
-  getCatalogPicksForDepartment,
-  getDepartmentTitles,
+  type CatalogPick,
 } from "@/data/sidebar-categories";
+import { findBestCatalogPick } from "@/lib/catalog-part-match";
+import { CatalogPartPicker } from "@/components/admin/catalog-part-picker";
 import {
   aggregateVariantList,
   cartesianSelections,
@@ -112,30 +112,30 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
   const [catalogPickValue, setCatalogPickValue] = useState("");
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [pickFilter, setPickFilter] = useState("");
+  const catalogTouchedRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [variantOptions, setVariantOptions] = useState<ProductVariantOption[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
 
-  const departmentTitles = useMemo(() => getDepartmentTitles(), []);
+  const applyCatalogPick = useCallback((pick: CatalogPick) => {
+    setCatalogDepartment(pick.department);
+    setCatalogPickValue(encodeCatalogPick(pick));
+    setFormData((prev) => ({
+      ...prev,
+      category: pick.category,
+      subcategory: pick.subcategory,
+    }));
+    setPickFilter(pick.label);
+  }, []);
 
-  const departmentPicks = useMemo(
-    () => (catalogDepartment ? getCatalogPicksForDepartment(catalogDepartment) : []),
-    [catalogDepartment],
-  );
-
-  const filteredDepartmentPicks = useMemo(() => {
-    const q = pickFilter.trim().toLowerCase();
-    if (!q) return departmentPicks;
-    return departmentPicks.filter(
-      (p) =>
-        p.label.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.subcategory.toLowerCase().includes(q),
-    );
-  }, [departmentPicks, pickFilter]);
+  const clearCatalogPick = useCallback(() => {
+    setCatalogPickValue("");
+    setFormData((prev) => ({ ...prev, category: "", subcategory: "" }));
+  }, []);
 
   useEffect(() => {
+    catalogTouchedRef.current = Boolean(product?.id);
     const matchedPick = product
       ? findCatalogPickMatch(product.category ?? "", product.subcategory ?? "")
       : null;
@@ -143,13 +143,14 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
       Boolean(product?.category?.trim()) && Boolean(product) && matchedPick === null;
 
     setUseCustomCategory(legacyCustom);
-    setPickFilter("");
     if (matchedPick) {
       setCatalogDepartment(matchedPick.department);
       setCatalogPickValue(encodeCatalogPick(matchedPick));
+      setPickFilter(matchedPick.label);
     } else {
       setCatalogDepartment("");
       setCatalogPickValue("");
+      setPickFilter("");
     }
 
     const primary =
@@ -232,6 +233,26 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
     setVariants(nextVariants);
     setFormError(null);
   }, [product, vendorId]);
+
+  useEffect(() => {
+    if (useCustomCategory || catalogTouchedRef.current) return;
+    const name = formData.name.trim();
+    if (name.length < 4) return;
+
+    const timer = window.setTimeout(() => {
+      if (catalogTouchedRef.current || catalogPickValue) return;
+      const best = findBestCatalogPick(name, { minScore: 56, minLead: 12 });
+      if (best) {
+        applyCatalogPick(best);
+        return;
+      }
+      if (!pickFilter.trim()) {
+        setPickFilter(name);
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [formData.name, useCustomCategory, catalogPickValue, pickFilter, applyCatalogPick]);
 
   const workingOptions = useMemo((): ProductVariantOption[] => {
     return variantOptions
@@ -901,98 +922,28 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="product-department">1. Department</Label>
-                        <select
-                          id="product-department"
-                          required
-                          value={catalogDepartment}
-                          onChange={(e) => {
-                            const d = e.target.value;
-                            setCatalogDepartment(d);
-                            setCatalogPickValue("");
-                            setFormData((prev) => ({ ...prev, category: "", subcategory: "" }));
-                            setPickFilter("");
-                          }}
-                          className={selectTriggerClass}
-                        >
-                          <option value="">Choose an area…</option>
-                          {departmentTitles.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="part-type-filter">Narrow the list</Label>
-                        <Input
-                          id="part-type-filter"
-                          value={pickFilter}
-                          onChange={(e) => setPickFilter(e.target.value)}
-                          placeholder="Type to filter…"
-                          disabled={!catalogDepartment}
-                          aria-describedby="part-type-filter-hint"
-                        />
-                        <p id="part-type-filter-hint" className="text-xs text-muted-foreground">
-                          Optional. Filters part types under the department you picked.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="product-part-type">2. Part type (sets category &amp; sub-area)</Label>
-                      <select
-                        id="product-part-type"
-                        required
-                        value={catalogPickValue}
-                        disabled={!catalogDepartment}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          setCatalogPickValue(raw);
-                          const decoded = decodeCatalogPick(raw);
-                          if (!decoded) return;
-                          setFormData((prev) => ({
-                            ...prev,
-                            category: decoded.category,
-                            subcategory: decoded.subcategory,
-                          }));
-                        }}
-                        className={selectTriggerClass}
-                      >
-                        <option value="">
-                          {catalogDepartment ? "Choose the closest catalog match…" : "Select a department first"}
-                        </option>
-                        {filteredDepartmentPicks.map((p) => (
-                          <option key={`${p.department}-${encodeCatalogPick(p)}`} value={encodeCatalogPick(p)}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                      {catalogDepartment && filteredDepartmentPicks.length === 0 ? (
-                        <p className="text-xs text-amber-800 dark:text-amber-200">
-                          No part types match that filter. Clear the filter box or pick another department.
-                        </p>
-                      ) : null}
-                      {formData.category ? (
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">Listing category:</span> {formData.category}
-                          {formData.subcategory ? (
-                            <>
-                              {" "}
-                              · <span className="font-medium text-foreground">Sub-area:</span> {formData.subcategory}
-                            </>
-                          ) : null}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Matches the public parts menu so buyers land on your product when they browse or use category
-                          links.
-                        </p>
-                      )}
-                    </div>
-                  </>
+                  <CatalogPartPicker
+                    department={catalogDepartment}
+                    pickValue={catalogPickValue}
+                    searchQuery={pickFilter}
+                    category={formData.category}
+                    subcategory={formData.subcategory}
+                    productName={formData.name}
+                    onDepartmentChange={setCatalogDepartment}
+                    onPickChange={(pick, encoded) => {
+                      setCatalogPickValue(encoded);
+                      setFormData((prev) => ({
+                        ...prev,
+                        category: pick.category,
+                        subcategory: pick.subcategory,
+                      }));
+                    }}
+                    onClearPick={clearCatalogPick}
+                    onSearchQueryChange={setPickFilter}
+                    onCatalogTouched={() => {
+                      catalogTouchedRef.current = true;
+                    }}
+                  />
                 )}
               </div>
               <div className="space-y-2">
