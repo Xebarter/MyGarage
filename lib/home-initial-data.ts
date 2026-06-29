@@ -1,5 +1,6 @@
 import { getHomeFeed, getProduct, getPromoCarouselItems } from "@/lib/db";
 import type { Product } from "@/lib/db";
+import { buildCategoryFeedPage, pickFeaturedProducts } from "@/lib/home-category-feed";
 
 export type HomePromoBanner = {
   id: string;
@@ -42,4 +43,18 @@ export async function loadHomeInitialProducts(limit = 300) {
     console.warn("loadHomeInitialProducts skipped:", error);
     return [];
   }
+}
+
+export async function loadHomeCategoryFeedInitial(products?: Product[]) {
+  try {
+    const catalog = products ?? (await loadHomeInitialProducts(400));
+    return buildCategoryFeedPage(catalog, { offset: 0, limit: 3, perCategory: 5 });
+  } catch (error) {
+    console.warn("loadHomeCategoryFeedInitial skipped:", error);
+    return { sections: [], hasMore: false, nextOffset: 0, totalCategories: 0 };
+  }
+}
+
+export function loadHomeFeaturedProducts(products: Product[]) {
+  return pickFeaturedProducts(products, 60);
 }

@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import { HomePageClient } from '@/components/home-page-client';
-import { loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
+import { loadHomeCategoryFeedInitial, loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
 import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 
 /** Fresh-enough storefront HTML without paying full dynamic TTFB on every request */
@@ -12,9 +12,10 @@ export const revalidate = 120;
 export const metadata = buildPageMetadata(STATIC_PAGE_SEO['/']);
 
 export default async function Home() {
-  const [initialProducts, initialPromoBanners] = await Promise.all([
-    loadHomeInitialProducts(300),
+  const initialProducts = await loadHomeInitialProducts(300);
+  const [initialPromoBanners, initialCategoryFeed] = await Promise.all([
     loadHomePromoBanners(),
+    loadHomeCategoryFeedInitial(initialProducts),
   ]);
 
   return (
@@ -31,7 +32,13 @@ export default async function Home() {
         </>
       }
     >
-      <HomePageClient initialProducts={initialProducts} initialPromoBanners={initialPromoBanners} />
+      <HomePageClient
+        initialProducts={initialProducts}
+        initialPromoBanners={initialPromoBanners}
+        initialCategorySections={initialCategoryFeed.sections}
+        initialCategoryHasMore={initialCategoryFeed.hasMore}
+        initialCategoryNextOffset={initialCategoryFeed.nextOffset}
+      />
     </Suspense>
   );
 }
