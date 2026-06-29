@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ShoppingBag, Wrench, X } from 'lucide-react';
 
 import { CategoryInfiniteFeed } from '@/components/home/category-infinite-feed';
 import { CategoryProductCard } from '@/components/home/category-product-card';
-import { FeaturedPicksSection, MoreFeaturedSection } from '@/components/home/featured-picks-section';
+import { FeaturedPicksSection } from '@/components/home/featured-picks-section';
 import { MarketplaceActionStrip } from '@/components/home/marketplace-action-strip';
 import { PromoBannerSection } from '@/components/home/promo-banner-section';
 import { Footer } from '@/components/footer';
@@ -91,63 +91,7 @@ export function HomePageClient({
   const [categories, setCategories] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(24);
   const [infiniteLoading, setInfiniteLoading] = useState(false);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [wishlistByProductId, setWishlistByProductId] = useState<Record<string, string>>({});
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  const refreshWishlist = useCallback(async (cid: string) => {
-    try {
-      const res = await fetch(`/api/buyer/wishlist?customerId=${encodeURIComponent(cid)}`);
-      if (!res.ok) {
-        setWishlistByProductId({});
-        return;
-      }
-      const data = (await res.json()) as Array<{ id?: string; productId?: string }>;
-      const map: Record<string, string> = {};
-      for (const item of Array.isArray(data) ? data : []) {
-        if (item.productId && item.id) map[item.productId] = item.id;
-      }
-      setWishlistByProductId(map);
-    } catch {
-      setWishlistByProductId({});
-    }
-  }, []);
-
-  const handleWishlistChange = useCallback((next: { productId: string; wishlistItemId: string | null }) => {
-    setWishlistByProductId((prev) => {
-      const copy = { ...prev };
-      if (next.wishlistItemId) copy[next.productId] = next.wishlistItemId;
-      else delete copy[next.productId];
-      return copy;
-    });
-  }, []);
-
-  useEffect(() => {
-    void (async () => {
-      const localId = typeof window !== 'undefined' ? localStorage.getItem('currentBuyerId') || '' : '';
-      const email =
-        typeof window !== 'undefined' ? (localStorage.getItem('currentBuyerEmail') || '').trim() : '';
-      let resolved = localId;
-      try {
-        if (!resolved && email) {
-          const r = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
-          if (r.ok) {
-            const c = (await r.json()) as { id?: string };
-            if (c?.id) {
-              resolved = c.id;
-              localStorage.setItem('currentBuyerId', resolved);
-            }
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-      const nextId = resolved || null;
-      setCustomerId(nextId);
-      if (nextId) await refreshWishlist(nextId);
-      else setWishlistByProductId({});
-    })();
-  }, [refreshWishlist]);
 
   useEffect(() => {
     void fetchProducts();
@@ -246,9 +190,7 @@ export function HomePageClient({
   const isDefaultHomeFeed = selectedCategory === 'all' && !searchQuery.trim();
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  const featuredProducts = useMemo(() => pickFeaturedProducts(products, 60), [products]);
-  const heroFeatured = featuredProducts.slice(0, 5);
-  const moreFeatured = featuredProducts.length > 5 ? featuredProducts.slice(5) : [];
+  const heroFeatured = useMemo(() => pickFeaturedProducts(products, 5), [products]);
 
   const categoryCatalog = useMemo(() => {
     const set = new Set<string>();
@@ -293,7 +235,7 @@ export function HomePageClient({
           showCategoryBrowser={showCategoryBrowser}
         />
 
-        <div className="mx-auto w-full max-w-[1500px] space-y-8 px-2 py-6 sm:px-2.5 md:space-y-10 md:px-3 md:py-8">
+        <div className="mx-auto w-full max-w-[1500px] space-y-6 px-2 py-5 sm:px-2.5 md:space-y-8 md:px-3 md:py-6">
           {selectedCategory !== 'all' || searchQuery.trim() ? (
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Showing results for</span>
@@ -324,15 +266,9 @@ export function HomePageClient({
               <p className="mt-4 text-sm font-medium text-foreground">Loading marketplace…</p>
             </div>
           ) : isDefaultHomeFeed ? (
-            <div className="space-y-8 md:space-y-10">
+            <div className="space-y-6 md:space-y-8">
               <FeaturedPicksSection products={heroFeatured} />
-              <PromoBannerSection
-                banners={initialPromoBanners}
-                customerId={customerId}
-                wishlistByProductId={wishlistByProductId}
-                onWishlistChange={handleWishlistChange}
-              />
-              <MoreFeaturedSection products={moreFeatured} />
+              <PromoBannerSection banners={initialPromoBanners} />
               <CategoryInfiniteFeed
                 initialSections={initialCategorySections}
                 initialHasMore={initialCategoryHasMore}

@@ -370,11 +370,17 @@ export function resolveDepartmentForProductCategory(category: string): string | 
   return null
 }
 
-/** All catalog rows under one department, sorted by label. */
+/** All catalog rows under one department; alphabetical, with "Others" last. */
 export function getCatalogPicksForDepartment(departmentTitle: string): CatalogPick[] {
   return buildAllCatalogPicks()
     .filter((p) => p.department === departmentTitle)
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((a, b) => {
+      const aOthers = a.category === 'Others'
+      const bOthers = b.category === 'Others'
+      if (aOthers && !bOthers) return 1
+      if (!aOthers && bOthers) return -1
+      return a.label.localeCompare(b.label)
+    })
 }
 
 export function encodeCatalogPick(p: Pick<CatalogPick, 'subcategory' | 'category'>): string {

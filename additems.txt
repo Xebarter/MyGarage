@@ -1,82 +1,377 @@
-SOUTHCARAVAN HOME PAGE OUTLINE (/)
-===================================
+# MYGARAGE HOMEPAGE REDESIGN SPECIFICATION (/)
 
-The home page is a marketplace-first landing experience at route `/`. It is wrapped by the public app shell (Header, Marketplace Action Strip, Footer) and renders product discovery content in a single scrollable column (max width ~1500px).
+Redesign the MyGarage homepage into a premium automotive marketplace experience focused on helping customers quickly discover, compare, and purchase vehicle spare parts, accessories, and automotive services.
 
----
+The homepage should feel like a modern, high-trust automotive marketplace where users immediately begin searching, browsing, and exploring products.
 
-1. GLOBAL SHELL (AppShell — wraps all public pages including home)
+Primary objectives:
 
-   A. Header (sticky on desktop)
-      - Left: workspace menu (dashboard consoles only), categories sidebar toggle (hamburger), SouthCaravan logo + wordmark
-      - Center/right: search bar, “Post RFQ” button, messages link, currency selector, cart button, profile menu (sign-in/join or signed-in avatar)
-      - Mobile: compact top bar with logo, search, cart, profile; secondary row for key actions
-      - Categories sidebar (AddItemsSidebar): opens on menu hover/click for browsing taxonomy
+* Encourage purchases
+* Improve product discovery
+* Make finding car parts fast and simple
+* Build trust through clear product, supplier, and compatibility information
+* Maximize product visibility without clutter or empty layouts
 
-   B. Marketplace Action Strip (home page only, sticky below header on md+)
-      - Quick links: Categories, Featured, Services, Post RFQ
-      - Horizontally scrollable category pills (up to 14 visible) linking to `/categories?category=…`
-      - “+N” overflow and “All” search open a category command dialog
+Design direction:
 
-   C. Footer
-      - Brand block: logo, site description, social links (LinkedIn, Twitter, Facebook)
-      - Link columns: Explore (Marketplace, FAQ), Company (About, Blog, Careers, Contact), Legal (Privacy, Terms, Cookies, Compliance)
-      - Contact row: email, phone, office address (Kampala, Uganda)
-      - Copyright bar with Privacy, Terms, Contact links
+* Premium
+* Compact
+* Professional
+* Marketplace-first
+* Conversion-focused
+
+The homepage uses a single scroll experience with a centered content area (max width ~1500px).
 
 ---
 
-2. MAIN CONTENT (app/page.tsx)
+1. HOMEPAGE STRUCTURE
 
-   A. Featured Picks Card (hero product block)
-      - Card header: “Featured picks” with link to `/featured`
-      - Layout: 2-column grid on md+
-        • Left (spotlight): large image, “Spotlight” badge, product name, category badge, price — links to product detail
-        • Right: 2×2 grid of up to 4 additional featured products (image, name, category, price)
-      - Data: first 5 featured products (or fallback landing products if none featured)
+The homepage contains four main sections:
 
-   B. Sponsored / Product Ad Banner Section
-      - Rotating promo banner carousel (up to 5 sponsored items, auto-rotates every ~7.5s)
-      - Each slide: “Featured ad” + “Verified suppliers” badges, product name, headline, price, category pill, CTA buttons (“View product”, “See details”), large banner image
-      - Dot indicators and “Banner X of Y” when multiple items
-      - Empty state: “Sponsored placements — No sponsored placements are available right now.”
+1. Featured automotive products
+2. Sponsored deals / promotions
+3. Smart category product discovery feed
+4. Infinite product browsing feed
 
-   C. More Featured (conditional)
-      - Shown only when more than 5 featured products exist
-      - Section title “More featured” with “View all” link to `/featured`
-      - Responsive product grid (up to 12 cards) using CategoryProductCard
+The experience must prioritize products and shopping actions over marketing content.
 
-   D. Category Infinite Feed (infinite scroll)
-      - Initial server load: 3 category sections, 5 products per section
-      - Each section: bordered card with category title (links to filtered categories page), “All” link, horizontal product row
-      - Products rendered as CategoryProductCard (image, featured badge, name, price, supplier label; supports products and services)
-      - Loads more via IntersectionObserver → `/api/landing/products` (3 categories per page)
-      - States: loading spinner, error card, empty message, “End of list” when exhausted
+Avoid:
 
----
+* Large hero banners
+* Excessive explanatory text
+* Generic landing page content
+* Empty whitespace caused by low product counts
 
-3. PRODUCT CARD PATTERN (used throughout home)
+Focus on:
 
-   CategoryProductCard:
-   - Square image (or placeholder icon)
-   - Optional “Featured” or “Service” badge
-   - Product name (2-line clamp), price with currency conversion, supplier/subcategory line
-   - Links to `/product/{id}` or service href
+* Products
+* Prices
+* Vehicle compatibility
+* Suppliers
+* Fast discovery
 
 ---
 
-4. DATA & SEO
+# SECTION A: FEATURED AUTOMOTIVE PRODUCTS
 
-   - Server-fetched: featured products (up to 60), sponsored items, initial category feed sections
-   - Fallback: if no featured products, uses general landing products for hero
-   - Metadata: site home title, default description, brand/Uganda/B2B keywords
-   - HomePageJsonLd structured data injected for search engines
+Purpose:
+Immediately surface high-demand and high-value automotive products.
+
+Layout:
+
+Desktop:
+
+A premium split layout:
+
+Main spotlight product:
+
+* Large product image
+* Featured badge
+* Product name
+* Vehicle compatibility / model fit
+* Category
+* Price
+* Supplier name
+* View Product CTA
+
+Supporting products:
+
+Up to 4 smaller featured product cards:
+
+* Product image
+* Product name
+* Category
+* Price
+
+Data rule:
+
+* Use first 5 featured products
+* If none exist, fallback to popular marketplace products
+
+Design requirements:
+
+* High-quality product imagery
+* Minimal text
+* Strong visual hierarchy
+* Premium card styling
 
 ---
 
-5. VISUAL / LAYOUT NOTES
+# SECTION B: SPONSORED DEALS / PROMOTIONS
 
-   - Full-page min-height background
-   - Top section uses productPageInsetClassName padding; content centered in max-w-[1500px]
-   - Marketplace-focused (not a traditional marketing hero with stats/testimonials)
-   - Primary user flows: browse featured → view product, browse by category, post RFQ, search, cart/checkout
+Purpose:
+Showcase sponsored supplier listings and promotional products.
+
+Layout:
+
+Compact horizontal carousel.
+
+Each slide includes:
+
+* Product image or banner
+* Sponsored badge
+* Verified supplier badge
+* Product name
+* Vehicle compatibility
+* Category
+* Price
+* Short promotional message
+
+Actions:
+
+* View Product
+* See Details
+
+Behavior:
+
+* Auto-rotating carousel
+* Navigation indicators
+* Fully responsive
+
+Empty state:
+
+If no sponsored content exists, show a subtle message only.
+
+Do NOT create large empty placeholders.
+
+---
+
+# SECTION C: SMART MARKETPLACE PRODUCT FEED
+
+This is the core shopping experience of the homepage.
+
+Products are organized by automotive categories.
+
+Each category section includes:
+
+* Category title
+* View all link
+* Product grid or horizontal row of product cards
+
+Example categories:
+
+* Engine Parts
+* Brake System
+* Suspension
+* Electrical Parts
+* Body Parts
+* Interior Accessories
+* Tyres & Wheels
+* Batteries
+* Lubricants
+* Garage Services
+
+---
+
+# SMART CATEGORY GROUPING & LAYOUT OPTIMIZATION (IMPORTANT)
+
+The layout must intelligently combine categories based on available products.
+
+Rules:
+
+* Do not force every category into its own full-width row
+* Categories with fewer than 3 products should share horizontal space with other small categories
+* Multiple small categories can appear side-by-side on desktop
+* Larger categories may span full width when needed
+* Maintain clear category labels above each group
+
+Example:
+
+Instead of:
+
+Brake System
+(2 products → wasted space)
+
+Electrical Parts
+(2 products → wasted space)
+
+Display:
+
+Brake System        Electrical Parts
+[Product][Product]   [Product][Product]
+
+Goal:
+
+* Eliminate empty-looking sections
+* Maximize visible products per screen
+* Maintain category clarity without wasting space
+
+Desktop:
+
+* Use flexible grid/masonry-like layout
+
+Mobile:
+
+* Stack categories vertically for readability
+
+---
+
+# SECTION D: INFINITE PRODUCT DISCOVERY FEED
+
+Purpose:
+Provide continuous browsing of automotive products.
+
+Initial load:
+
+* 3 categories
+* 5 products per category
+
+Dynamic loading:
+
+* Load additional categories/products when user reaches page bottom
+* Use Intersection Observer or equivalent lazy loading
+
+States:
+
+Loading:
+
+* Minimal spinner or skeleton loader
+
+Error:
+
+* Retry option
+
+Empty:
+
+* "No products available"
+
+End of feed:
+
+* "You have reached the end"
+
+---
+
+# PRODUCT CARD DESIGN SYSTEM
+
+All product cards must follow a consistent premium automotive design.
+
+Each card includes:
+
+* Square product image
+* Badge (Featured / New / Service / Verified)
+* Product name
+* Vehicle compatibility (if applicable)
+* Price
+* Supplier name
+
+Optional actions:
+
+* Add to cart
+* Request quote
+
+Design principles:
+
+* Compact
+* Clean
+* High trust
+* Easy comparison
+
+Avoid:
+
+* Long descriptions
+* Oversized layouts
+* Excessive text
+
+Cards should support fast decision-making:
+View → Compare → Purchase
+
+---
+
+# DATA REQUIREMENTS
+
+Homepage dynamically loads:
+
+* Featured products
+* Sponsored listings
+* Categories
+* Initial product feed
+
+Fallback behavior:
+
+If featured products are missing:
+
+* Use popular marketplace products instead
+
+---
+
+# SEO REQUIREMENTS
+
+Homepage metadata:
+
+Title:
+"MyGarage - Buy Car Spare Parts and Automotive Services"
+
+Description:
+A trusted automotive marketplace for spare parts, accessories, and garage services.
+
+Keywords:
+
+* Car spare parts Uganda
+* Auto parts marketplace
+* Vehicle accessories
+* Garage services
+
+Structured data:
+
+* Product schema
+* Marketplace schema
+* Automotive business schema
+
+---
+
+# VISUAL DESIGN GUIDELINES
+
+Overall feel:
+
+Premium automotive marketplace focused on trust and efficiency.
+
+Design should communicate:
+
+* Reliability
+* Quality
+* Convenience
+* Speed of discovery
+
+Avoid:
+
+* Traditional landing page sections
+* Marketing-heavy content
+* Large empty layouts
+
+Prioritize:
+
+* Product visibility
+* Pricing clarity
+* Compatibility information
+* Supplier trust
+* Fast browsing
+
+---
+
+# FINAL USER JOURNEY (UNCHANGED)
+
+Search vehicle/part
+
+↓
+
+Discover products
+
+↓
+
+Compare options
+
+↓
+
+View details
+
+↓
+
+Add to cart OR request part
+
+↓
+
+Purchase
+
+---
+
+This flow must remain unchanged and must not be redesigned or altered.

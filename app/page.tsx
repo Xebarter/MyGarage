@@ -3,7 +3,9 @@ import { Suspense } from 'react';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import { HomePageClient } from '@/components/home-page-client';
+import { JsonLdScript } from '@/components/seo/json-ld-script';
 import { loadHomeCategoryFeedInitial, loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
+import { homePageJsonLd } from '@/lib/seo/json-ld';
 import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 
 /** Fresh-enough storefront HTML without paying full dynamic TTFB on every request */
@@ -19,7 +21,9 @@ export default async function Home() {
   ]);
 
   return (
-    <Suspense
+    <>
+      <JsonLdScript data={homePageJsonLd(initialProducts)} />
+      <Suspense
       fallback={
         <>
           <Header />
@@ -40,5 +44,6 @@ export default async function Home() {
         initialCategoryNextOffset={initialCategoryFeed.nextOffset}
       />
     </Suspense>
+    </>
   );
 }
