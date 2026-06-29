@@ -156,6 +156,7 @@ export const sidebarCategories: SidebarCategoryNode[] = [
       { title: 'Fenders' },
       { title: 'Tailgates / Liftgates' },
       { title: 'Body Trim & Mouldings' },
+      { title: 'Others' },
     ],
   },
   {
