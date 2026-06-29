@@ -325,6 +325,13 @@ function buildAllCatalogPicks(): CatalogPick[] {
   return all
 }
 
+/** Top-level groups directly under a department (for custom part placement). */
+export function getDepartmentTopGroups(departmentTitle: string): string[] {
+  const root = sidebarCategories.find((r) => r.title === departmentTitle)
+  if (!root?.children?.length) return []
+  return root.children.map((c) => c.title).filter(Boolean)
+}
+
 /** All catalog rows (cached). */
 export function getAllCatalogPicks(): CatalogPick[] {
   return buildAllCatalogPicks()

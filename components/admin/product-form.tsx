@@ -134,6 +134,25 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
     setFormData((prev) => ({ ...prev, category: "", subcategory: "" }));
   }, []);
 
+  const applyCustomPartType = useCallback(
+    (args: { department: string; partTypeName: string; subcategory: string }) => {
+      catalogTouchedRef.current = true;
+      setCatalogDepartment(args.department);
+      setCatalogPickValue("");
+      setFormData((prev) => ({
+        ...prev,
+        category: args.partTypeName.trim(),
+        subcategory: args.subcategory.trim(),
+      }));
+      setPickFilter(args.partTypeName.trim());
+    },
+    [],
+  );
+
+  const isCustomPartType = Boolean(
+    !useCustomCategory && catalogDepartment && formData.category.trim() && !catalogPickValue,
+  );
+
   useEffect(() => {
     catalogTouchedRef.current = Boolean(product?.id);
     const matchedPick = product
@@ -359,7 +378,7 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
     if (!formData.description.trim()) missing.push("Description");
     if (!useCustomCategory) {
       if (!catalogDepartment.trim()) missing.push("Department");
-      if (!catalogPickValue.trim()) missing.push("Part type");
+      if (!catalogPickValue.trim() && !formData.category.trim()) missing.push("Part type");
     } else if (!formData.category.trim()) {
       missing.push("Category");
     }
@@ -929,6 +948,7 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
                     category={formData.category}
                     subcategory={formData.subcategory}
                     productName={formData.name}
+                    isCustomPart={isCustomPartType}
                     onDepartmentChange={setCatalogDepartment}
                     onPickChange={(pick, encoded) => {
                       setCatalogPickValue(encoded);
@@ -940,6 +960,7 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
                     }}
                     onClearPick={clearCatalogPick}
                     onSearchQueryChange={setPickFilter}
+                    onApplyCustomPart={applyCustomPartType}
                     onCatalogTouched={() => {
                       catalogTouchedRef.current = true;
                     }}
