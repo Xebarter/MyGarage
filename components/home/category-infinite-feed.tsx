@@ -1,132 +1,45 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { CategoryProductCard } from '@/components/home/category-product-card';
-import type { CategoryFeedGroup, CategoryFeedSection } from '@/lib/home-category-feed';
-import { groupCategorySections } from '@/lib/home-category-feed';
-import { formatCategoryLabel } from '@/lib/home-product-display';
+import type { CategoryFeedSection } from '@/lib/home-category-feed';
 
-function CategoryProductRow({
-  section,
-  compact = false,
-}: {
-  section: CategoryFeedSection;
-  compact?: boolean;
-}) {
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const useHorizontalScroll = section.products.length > 3;
+function formatCategoryLabel(category: string): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
 
-  const scroll = (direction: 'left' | 'right') => {
-    const row = rowRef.current;
-    if (!row) return;
-    const distance = Math.max(240, Math.floor(row.clientWidth * 0.8));
-    row.scrollBy({ left: direction === 'right' ? distance : -distance, behavior: 'smooth' });
-  };
+function CategoryFeedRow({ section }: { section: CategoryFeedSection }) {
+  const products = section.products.slice(0, 5);
 
   return (
-    <div className="min-w-0">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-5 py-4 sm:px-6">
         <Link
           href={`/category/products/${encodeURIComponent(section.category)}`}
-          className="truncate text-sm font-bold text-foreground transition hover:text-primary sm:text-base"
+          className="min-w-0 text-lg font-bold tracking-tight text-foreground transition hover:text-primary"
         >
           {formatCategoryLabel(section.category)}
         </Link>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Link
-            href={`/category/products/${encodeURIComponent(section.category)}`}
-            className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary hover:underline"
-          >
-            View all
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-          {useHorizontalScroll ? (
-            <>
-              <button
-                type="button"
-                onClick={() => scroll('left')}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background transition hover:bg-muted"
-                aria-label={`Scroll ${section.category} left`}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={() => scroll('right')}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background transition hover:bg-muted"
-                aria-label={`Scroll ${section.category} right`}
-              >
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      {useHorizontalScroll ? (
-        <div
-          ref={rowRef}
-          className="flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin] sm:gap-3"
+        <Link
+          href={`/category/products/${encodeURIComponent(section.category)}`}
+          className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
         >
-          {section.products.map((product, index) => (
-            <CategoryProductCard
-              key={product.id}
-              product={product}
-              imagePriority={index < 2}
-              compact={compact}
-              className="w-[9.5rem] shrink-0 sm:w-[10.5rem]"
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
-          {section.products.map((product, index) => (
-            <CategoryProductCard key={product.id} product={product} imagePriority={index < 2} compact={compact} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CategoryFeedGroupBlock({ group }: { group: CategoryFeedGroup }) {
-  const isPaired = group.sections.length > 1;
-
-  if (!isPaired) {
-    return (
-      <div className="rounded-xl border border-border/70 bg-card p-3 shadow-sm sm:p-4">
-        <CategoryProductRow section={group.sections[0]!} />
+          All
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </div>
-    );
-  }
 
-  return (
-    <div className="grid gap-3 md:grid-cols-2 md:gap-4">
-      {group.sections.map((section) => (
-        <div key={section.category} className="rounded-xl border border-border/70 bg-card p-3 shadow-sm sm:p-4">
-          <CategoryProductRow section={section} compact />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function SmartCategoryFeed({ sections }: { sections: CategoryFeedSection[] }) {
-  const groups = useMemo(() => groupCategorySections(sections), [sections]);
-
-  if (sections.length === 0) return null;
-
-  return (
-    <section aria-label="Shop by category" className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">Shop by category</h2>
-      </div>
-      <div className="space-y-3">
-        {groups.map((group) => (
-          <CategoryFeedGroupBlock key={group.sections.map((s) => s.category).join('|')} group={group} />
+      <div className="grid grid-cols-2 gap-3 p-4 sm:gap-4 sm:p-6 lg:grid-cols-5">
+        {products.map((product, index) => (
+          <CategoryProductCard
+            key={product.id}
+            product={product}
+            imagePriority={index < 2}
+            className={index >= 4 ? 'hidden lg:flex' : undefined}
+          />
         ))}
       </div>
     </section>
@@ -149,22 +62,14 @@ export function CategoryInfiniteFeed({
   const [error, setError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const incrementalSections = useMemo(() => {
-    const initialKeys = new Set(initialSections.map((s) => s.category));
-    return sections.filter((s) => !initialKeys.has(s.category));
-  }, [sections, initialSections]);
-
-  const incrementalGroups = useMemo(
-    () => groupCategorySections(incrementalSections),
-    [incrementalSections],
-  );
-
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/landing/products?offset=${nextOffset}&limit=3&perCategory=5`);
+      const res = await fetch(
+        `/api/landing/products?offset=${nextOffset}&limit=3&perCategory=5`,
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to load more');
@@ -186,7 +91,7 @@ export function CategoryInfiniteFeed({
       setNextOffset(typeof data.nextOffset === 'number' ? data.nextOffset : nextOffset);
     } catch (e) {
       console.error('Category feed load more failed:', e);
-      setError('Could not load more products.');
+      setError('Could not load more categories. Scroll to try again.');
     } finally {
       setLoading(false);
     }
@@ -209,52 +114,36 @@ export function CategoryInfiniteFeed({
 
   if (sections.length === 0) {
     return (
-      <section className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center">
-        <p className="text-sm font-medium text-foreground">No products available</p>
+      <section className="rounded-2xl border border-dashed border-border/70 bg-muted/15 px-5 py-12 text-center">
+        <p className="text-sm font-semibold text-foreground">No category sections yet</p>
+        <p className="mt-2 text-sm text-muted-foreground">Products will appear here as vendors list inventory.</p>
       </section>
     );
   }
 
   return (
     <div className="space-y-6">
-      <SmartCategoryFeed sections={initialSections} />
-
-      {incrementalSections.length > 0 ? (
-        <section aria-label="Discover more products" className="space-y-3">
-          <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">Discover more</h2>
-          <div className="space-y-3">
-            {incrementalGroups.map((group) => (
-              <CategoryFeedGroupBlock key={group.sections.map((s) => s.category).join('|')} group={group} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {sections.map((section) => (
+        <CategoryFeedRow key={section.category} section={section} />
+      ))}
 
       <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Loading…
+          Loading more categories…
         </div>
       ) : null}
 
       {error ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 text-center">
-          <p className="text-sm text-destructive">{error}</p>
-          <button
-            type="button"
-            onClick={() => void loadMore()}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted"
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden />
-            Retry
-          </button>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive">
+          {error}
         </div>
       ) : null}
 
       {!hasMore && sections.length > 0 ? (
-        <p className="pb-2 text-center text-xs text-muted-foreground">You have reached the end</p>
+        <p className="pb-2 text-center text-xs text-muted-foreground">End of list</p>
       ) : null}
     </div>
   );

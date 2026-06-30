@@ -215,17 +215,10 @@ export function buildProductMetadata(product: Product): Metadata {
 
 export const STATIC_PAGE_SEO: Record<string, PageSeoInput> = {
   '/': {
-    title: 'MyGarage - Buy Car Spare Parts and Automotive Services',
-    description:
-      'A trusted automotive marketplace for spare parts, accessories, and garage services.',
+    title: 'Car Parts, Accessories & Services in Uganda',
+    description: DEFAULT_DESCRIPTION,
     path: '/',
-    keywords: [
-      'Car spare parts Uganda',
-      'Auto parts marketplace',
-      'Vehicle accessories',
-      'Garage services',
-      ...SITE_KEYWORDS,
-    ],
+    keywords: [...SITE_KEYWORDS],
   },
   '/faq': {
     title: 'Help Center & FAQs',

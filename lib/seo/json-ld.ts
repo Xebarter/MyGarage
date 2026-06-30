@@ -221,40 +221,6 @@ export function localBusinessJsonLd(): JsonLd {
   };
 }
 
-export function homePageJsonLd(products: Product[]): JsonLd[] {
-  const featured = products.filter((p) => p.featured).slice(0, 12);
-  const showcase = featured.length > 0 ? featured : products.slice(0, 12);
-
-  return [
-    {
-      '@context': 'https://schema.org',
-      '@type': 'ItemList',
-      name: `${SITE_NAME} — Automotive Marketplace`,
-      description:
-        'Browse car spare parts, vehicle accessories, and garage services from verified suppliers in Uganda.',
-      url: getSiteUrl(),
-      numberOfItems: showcase.length,
-      itemListElement: showcase.map((product, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: productJsonLd(product),
-      })),
-    },
-    {
-      '@context': 'https://schema.org',
-      '@type': 'Store',
-      '@id': `${getSiteUrl()}/#marketplace`,
-      name: SITE_NAME,
-      description: 'Automotive parts and services marketplace in Uganda.',
-      url: getSiteUrl(),
-      image: absoluteUrl('/web-app-manifest-512x512.png'),
-      priceRange: '$$',
-      areaServed: 'UG',
-      parentOrganization: { '@id': ORG_ID },
-    },
-  ];
-}
-
 export function globalSiteJsonLd(): JsonLd[] {
   return [organizationJsonLd(), websiteJsonLd(), localBusinessJsonLd()];
 }

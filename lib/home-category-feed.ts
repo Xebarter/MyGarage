@@ -5,38 +5,6 @@ export type CategoryFeedSection = {
   products: Product[];
 };
 
-/** Desktop layout group — small categories share a row. */
-export type CategoryFeedGroup = {
-  sections: CategoryFeedSection[];
-};
-
-const SMALL_CATEGORY_THRESHOLD = 3;
-
-export function groupCategorySections(sections: CategoryFeedSection[]): CategoryFeedGroup[] {
-  const groups: CategoryFeedGroup[] = [];
-  let smallBatch: CategoryFeedSection[] = [];
-
-  const flushSmallBatch = () => {
-    if (smallBatch.length === 0) return;
-    groups.push({ sections: [...smallBatch] });
-    smallBatch = [];
-  };
-
-  for (const section of sections) {
-    if (section.products.length >= SMALL_CATEGORY_THRESHOLD) {
-      flushSmallBatch();
-      groups.push({ sections: [section] });
-      continue;
-    }
-
-    smallBatch.push(section);
-    if (smallBatch.length >= 2) flushSmallBatch();
-  }
-
-  flushSmallBatch();
-  return groups;
-}
-
 export type CategoryFeedPage = {
   sections: CategoryFeedSection[];
   hasMore: boolean;
