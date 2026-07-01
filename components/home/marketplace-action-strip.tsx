@@ -1,8 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { LayoutGrid, Sparkles, Wrench, Siren } from 'lucide-react';
-
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -19,13 +16,6 @@ function formatCategoryLabel(category: string): string {
   if (category === 'all') return 'All';
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
-
-const QUICK_LINKS = [
-  { href: '#browse-categories', label: 'Categories', icon: LayoutGrid },
-  { href: '#featured-picks', label: 'Featured', icon: Sparkles },
-  { href: '/buyer/services', label: 'Services', icon: Wrench },
-  { href: '/buyer/services', label: 'SOS', icon: Siren, accent: true },
-] as const;
 
 export function MarketplaceActionStrip({
   chipCategories,
@@ -49,30 +39,7 @@ export function MarketplaceActionStrip({
       className="sticky top-0 z-20 border-b border-border/70 bg-background/95 py-3 shadow-sm backdrop-blur-md md:top-16"
     >
       <div className="mx-auto w-full max-w-[1500px] px-2 sm:px-2.5 md:px-3">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {QUICK_LINKS.map((link) => {
-              const Icon = link.icon;
-              const isAccent = 'accent' in link && link.accent;
-              return (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                    isAccent
-                      ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'border border-border/80 bg-card text-foreground hover:border-primary/30 hover:text-primary',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {link.label}
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => onSelectCategory('all')}
@@ -121,7 +88,6 @@ export function MarketplaceActionStrip({
                 onSelectCategory={onSelectCategory}
               />
             ) : null}
-          </div>
         </div>
       </div>
     </section>

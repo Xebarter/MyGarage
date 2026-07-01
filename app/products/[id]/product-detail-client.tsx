@@ -14,7 +14,7 @@ import type { Product, ProductVariant, ProductVariantOption } from '@/lib/db';
 import { findVariantForSelections, getVariantPriceBounds } from '@/lib/product-variants';
 import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Package, ShoppingCart, Truck, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 
 function initialVariantState(product: Product): {
   selectedVariantId: string | null;
@@ -434,30 +434,6 @@ export function ProductDetailClient({ initialProduct }: { initialProduct: Produc
                     your current selection.
                   </p>
                 ) : null}
-              </div>
-
-              <div className="mb-8 grid gap-3 rounded-xl border border-border/80 bg-muted/30 p-4 sm:grid-cols-3 sm:gap-2 sm:p-4">
-                <div className="flex gap-3 sm:flex-col sm:gap-1.5">
-                  <Truck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Shipping</p>
-                    <p className="text-xs text-muted-foreground">Free over UGX 50</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 sm:flex-col sm:gap-1.5">
-                  <Shield className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Warranty</p>
-                    <p className="text-xs text-muted-foreground">2-year coverage</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 sm:flex-col sm:gap-1.5">
-                  <Package className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Delivery</p>
-                    <p className="text-xs text-muted-foreground">1–3 business days</p>
-                  </div>
-                </div>
               </div>
 
               <div className="space-y-4">
