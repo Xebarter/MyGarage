@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const shippingAddress = String(body?.shippingAddress ?? "").trim();
     const successRedirect = typeof body?.successRedirect === "string" ? body.successRedirect : undefined;
     const failureRedirect = typeof body?.failureRedirect === "string" ? body.failureRedirect : undefined;
+    const platform = String(body?.platform ?? "").trim().toLowerCase();
 
     if (items.length === 0) {
       return NextResponse.json({ error: "At least one checkout item is required" }, { status: 400 });
@@ -205,10 +206,19 @@ export async function POST(req: NextRequest) {
     if (methodWhitelist) purchasePayload.payment_method_whitelist = methodWhitelist;
 
     purchasePayload.success_redirect =
-      successRedirect || getPaytotaSuccessRedirectUrl({ checkoutId });
+      successRedirect ||
+      (platform === "mobile"
+        ? `mygarage://checkout/complete?checkoutId=${encodeURIComponent(checkoutId)}`
+        : getPaytotaSuccessRedirectUrl({ checkoutId }));
     purchasePayload.failure_redirect =
-      failureRedirect || getPaytotaFailureRedirectUrl({ checkoutId });
-    purchasePayload.cancel_redirect = getPaytotaCancelRedirectUrl({ checkoutId });
+      failureRedirect ||
+      (platform === "mobile"
+        ? `mygarage://checkout/failed?checkoutId=${encodeURIComponent(checkoutId)}`
+        : getPaytotaFailureRedirectUrl({ checkoutId }));
+    purchasePayload.cancel_redirect =
+      platform === "mobile"
+        ? `mygarage://checkout/failed?checkoutId=${encodeURIComponent(checkoutId)}&cancelled=1`
+        : getPaytotaCancelRedirectUrl({ checkoutId });
 
     let purchase: Awaited<ReturnType<typeof createPurchase>>;
     try {

@@ -1,4 +1,4 @@
-import { getBuyerServiceRequestForCustomer, getVendor } from '@/lib/db';
+import { getBuyerServiceRequestForCustomer, getVendor, countProviderCompletedServiceJobs } from '@/lib/db';
 import { listAssignmentsForRequest } from '@/lib/supabase/service-dispatch-repo';
 import { processStaleOffersBestEffort } from '@/lib/service-dispatch';
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,12 +24,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       request.providerId != null && request.providerId !== ''
         ? await getVendor(request.providerId)
         : undefined;
+    const completedJobs =
+      provider != null ? await countProviderCompletedServiceJobs(provider.id) : 0;
     return NextResponse.json({
       request,
       assignments,
       providerContact:
         provider != null
-          ? { id: provider.id, name: provider.name, phone: provider.phone ?? '' }
+          ? {
+              id: provider.id,
+              name: provider.name,
+              businessName: provider.name,
+              phone: provider.phone ?? '',
+              rating: provider.rating,
+              completedJobs,
+              address: provider.address ?? '',
+              vehicleLabel:
+                provider.serviceOfferings.length > 0
+                  ? `${provider.serviceOfferings[0]} · mobile service`
+                  : 'Service vehicle · on the way',
+            }
           : null,
     });
   } catch (error) {

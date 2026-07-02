@@ -1,377 +1,403 @@
-# MYGARAGE HOMEPAGE REDESIGN SPECIFICATION (/)
+MOBILE APP — SERVICES PAGE PREMIUM UI/UX REDESIGN SPECIFICATION
+==============================================================
 
-Redesign the MyGarage homepage into a premium automotive marketplace experience focused on helping customers quickly discover, compare, and purchase vehicle spare parts, accessories, and automotive services.
+Goal
+----
+Redesign the Services page of MyGarage into a premium automotive service marketplace experience. The page should feel trustworthy, fast, and easy to use — similar to a modern booking platform.
 
-The homepage should feel like a modern, high-trust automotive marketplace where users immediately begin searching, browsing, and exploring products.
+Prioritize:
+- Fast service discovery
+- Clear urgency hierarchy
+- Minimal cognitive load
+- Premium automotive feel
+- Excellent mobile usability
 
-Primary objectives:
+Do NOT use gradients anywhere. Use only solid colors, clean surfaces, and professional spacing.
 
-* Encourage purchases
-* Improve product discovery
-* Make finding car parts fast and simple
-* Build trust through clear product, supplier, and compatibility information
-* Maximize product visibility without clutter or empty layouts
 
-Design direction:
-
-* Premium
-* Compact
-* Professional
-* Marketplace-first
-* Conversion-focused
-
-The homepage uses a single scroll experience with a centered content area (max width ~1500px).
-
----
-
-1. HOMEPAGE STRUCTURE
-
-The homepage contains four main sections:
-
-1. Featured automotive products
-2. Sponsored deals / promotions
-3. Smart category product discovery feed
-4. Infinite product browsing feed
-
-The experience must prioritize products and shopping actions over marketing content.
+Overall Visual Direction
+------------------------
+The design should feel like a professional automotive app.
 
 Avoid:
+- Excessive decoration
+- Large empty spaces
+- Overly colorful interfaces
+- Cartoon-like styling
+- Gradient backgrounds
 
-* Large hero banners
-* Excessive explanatory text
-* Generic landing page content
-* Empty whitespace caused by low product counts
+Use:
+- Clean white/slate surfaces
+- Strong typography hierarchy
+- Rounded modern cards
+- Subtle shadows
+- Clear category prioritization
+- High-quality spacing
 
-Focus on:
+The user should immediately understand:
+"What service do I need and how quickly can I get it?"
 
-* Products
-* Prices
-* Vehicle compatibility
-* Suppliers
-* Fast discovery
 
----
+PAGE STRUCTURE
+==============
 
-# SECTION A: FEATURED AUTOMOTIVE PRODUCTS
 
-Purpose:
-Immediately surface high-demand and high-value automotive products.
+1. TOP HEADER / INTRO AREA
+--------------------------
 
-Layout:
-
-Desktop:
-
-A premium split layout:
-
-Main spotlight product:
-
-* Large product image
-* Featured badge
-* Product name
-* Vehicle compatibility / model fit
-* Category
-* Price
-* Supplier name
-* View Product CTA
-
-Supporting products:
-
-Up to 4 smaller featured product cards:
-
-* Product image
-* Product name
-* Category
-* Price
-
-Data rule:
-
-* Use first 5 featured products
-* If none exist, fallback to popular marketplace products
-
-Design requirements:
-
-* High-quality product imagery
-* Minimal text
-* Strong visual hierarchy
-* Premium card styling
-
----
-
-# SECTION B: SPONSORED DEALS / PROMOTIONS
-
-Purpose:
-Showcase sponsored supplier listings and promotional products.
+Replace the large hero card with a more compact premium welcome section.
 
 Layout:
 
-Compact horizontal carousel.
+Left:
+- Small circular wrench/car icon container
+- Solid light blue background
+- Blue icon
 
-Each slide includes:
+Right:
+Small label:
+"SERVICES"
 
-* Product image or banner
-* Sponsored badge
-* Verified supplier badge
-* Product name
-* Vehicle compatibility
-* Category
-* Price
-* Short promotional message
+Main heading:
+"Find the right help for your car"
 
-Actions:
+Supporting text:
+"Book repairs, maintenance, recovery, and automotive services from trusted providers."
 
-* View Product
-* See Details
+Keep this section compact. Do not consume too much vertical space.
 
-Behavior:
 
-* Auto-rotating carousel
-* Navigation indicators
-* Fully responsive
+2. SMART SEARCH
+---------------
 
-Empty state:
+Place search immediately after the intro.
 
-If no sponsored content exists, show a subtle message only.
+Design:
+- Full width
+- Height: 48-52px
+- Rounded 14px
+- Soft border
+- Search icon left
 
-Do NOT create large empty placeholders.
+Placeholder:
 
----
+"Search services, repairs, or car problems"
 
-# SECTION C: SMART MARKETPLACE PRODUCT FEED
+Examples:
+"flat tyre"
+"engine problem"
+"oil change"
 
-This is the core shopping experience of the homepage.
 
-Products are organized by automotive categories.
+When searching:
+- Hide quick access
+- Hide priority filters
+- Show result count immediately
 
-Each category section includes:
 
-* Category title
-* View all link
-* Product grid or horizontal row of product cards
+3. QUICK SERVICE ACTIONS
+------------------------
 
-Example categories:
-
-* Engine Parts
-* Brake System
-* Suspension
-* Electrical Parts
-* Body Parts
-* Interior Accessories
-* Tyres & Wheels
-* Batteries
-* Lubricants
-* Garage Services
-
----
-
-# SMART CATEGORY GROUPING & LAYOUT OPTIMIZATION (IMPORTANT)
-
-The layout must intelligently combine categories based on available products.
-
-Rules:
-
-* Do not force every category into its own full-width row
-* Categories with fewer than 3 products should share horizontal space with other small categories
-* Multiple small categories can appear side-by-side on desktop
-* Larger categories may span full width when needed
-* Maintain clear category labels above each group
-
-Example:
-
-Instead of:
-
-Brake System
-(2 products → wasted space)
-
-Electrical Parts
-(2 products → wasted space)
+Replace horizontal chips with a more useful quick-action grid.
 
 Display:
 
-Brake System        Electrical Parts
-[Product][Product]   [Product][Product]
+2 columns
 
-Goal:
+Cards:
+- Height around 70px
+- Rounded 14px
+- White background
+- Subtle border
 
-* Eliminate empty-looking sections
-* Maximize visible products per screen
-* Maintain category clarity without wasting space
+Examples:
 
-Desktop:
+🚨 Emergency
+Get help now
 
-* Use flexible grid/masonry-like layout
+🔧 Repair
+Fix my car
 
-Mobile:
+🔋 Battery & Tyres
+Common issues
 
-* Stack categories vertically for readability
+⛽ Fuel
+Delivery help
 
----
 
-# SECTION D: INFINITE PRODUCT DISCOVERY FEED
+Each card should feel tappable.
 
-Purpose:
-Provide continuous browsing of automotive products.
+Do not use emojis as the only visual element. Use icons where possible.
 
-Initial load:
 
-* 3 categories
-* 5 products per category
+4. SERVICE PRIORITY FILTER
+---------------------------
 
-Dynamic loading:
+Create a compact filter row.
 
-* Load additional categories/products when user reaches page bottom
-* Use Intersection Observer or equivalent lazy loading
+Three selectable pills:
 
-States:
+🔴 Urgent
+🟢 Common
+🔵 Optional
 
-Loading:
 
-* Minimal spinner or skeleton loader
+Style:
+- Solid indicator dot
+- Neutral background
+- Border
+- Active state changes border color
 
-Error:
+Do not make these visually dominant.
 
-* Retry option
 
-Empty:
+5. SERVICE CATALOG HEADER
+--------------------------
 
-* "No products available"
+Header:
 
-End of feed:
+Left:
+"Automotive Services"
 
-* "You have reached the end"
+Right:
+"13 categories"
 
----
 
-# PRODUCT CARD DESIGN SYSTEM
+Add a small sorting/filter button:
 
-All product cards must follow a consistent premium automotive design.
+"Filter"
 
-Each card includes:
+with a filter icon.
 
-* Square product image
-* Badge (Featured / New / Service / Verified)
-* Product name
-* Vehicle compatibility (if applicable)
-* Price
-* Supplier name
+This allows future expansion.
 
-Optional actions:
 
-* Add to cart
-* Request quote
+6. SERVICE CATEGORY GRID
+=========================
 
-Design principles:
+Main focus of the page.
 
-* Compact
-* Clean
-* High trust
-* Easy comparison
+Use:
 
-Avoid:
+2-column grid on mobile.
 
-* Long descriptions
-* Oversized layouts
-* Excessive text
+Cards should feel like premium marketplace cards.
 
-Cards should support fast decision-making:
-View → Compare → Purchase
 
----
+Category Card Design
+--------------------
 
-# DATA REQUIREMENTS
+Card:
 
-Homepage dynamically loads:
+Height:
+Around 190-220px
 
-* Featured products
-* Sponsored listings
-* Categories
-* Initial product feed
+Border radius:
+18px
 
-Fallback behavior:
+Background:
+White
 
-If featured products are missing:
+Border:
+Very subtle
 
-* Use popular marketplace products instead
 
----
+Structure:
 
-# SEO REQUIREMENTS
 
-Homepage metadata:
+TOP ICON AREA
+-------------
+
+Height:
+75px
+
+Background:
+Solid category tint color.
+
+Example:
+
+Emergency:
+Light red
+
+Repair:
+Light green
+
+Optional:
+Light blue
+
+
+Center:
+Rounded icon container
+
+48x48
+
+White background
+
+Category icon inside.
+
+
+BODY
+----
 
 Title:
-"MyGarage - Buy Car Spare Parts and Automotive Services"
+
+Example:
+
+"Emergency Help"
+
+Font:
+15-16px
+Bold
+
 
 Description:
-A trusted automotive marketplace for spare parts, accessories, and garage services.
 
-Keywords:
+Example:
 
-* Car spare parts Uganda
-* Auto parts marketplace
-* Vehicle accessories
-* Garage services
+"24/7 roadside assistance and towing"
 
-Structured data:
+Maximum:
+2 lines
 
-* Product schema
-* Marketplace schema
-* Automotive business schema
 
----
+Footer:
 
-# VISUAL DESIGN GUIDELINES
 
-Overall feel:
+Left:
 
-Premium automotive marketplace focused on trust and efficiency.
+Priority badge:
 
-Design should communicate:
+● URGENT
 
-* Reliability
-* Quality
-* Convenience
-* Speed of discovery
+or
 
-Avoid:
+● COMMON
 
-* Traditional landing page sections
-* Marketing-heavy content
-* Large empty layouts
 
-Prioritize:
+Right:
 
-* Product visibility
-* Pricing clarity
-* Compatibility information
-* Supplier trust
-* Fast browsing
+Circular arrow button
 
----
+28px
 
-# FINAL USER JOURNEY (UNCHANGED)
+Solid background tint
 
-Search vehicle/part
+Arrow icon
 
-↓
 
-Discover products
+ACCENT SYSTEM
+=============
 
-↓
+Each category has a left-side priority indicator.
 
-Compare options
+Urgent:
+Red
 
-↓
+Common:
+Green
 
-View details
+Optional:
+Blue
 
-↓
 
-Add to cart OR request part
+Use only solid colors.
 
-↓
+No gradients.
 
-Purchase
 
----
+CATEGORY ORDER
+==============
 
-This flow must remain unchanged and must not be redesigned or altered.
+Keep:
+
+1. Emergency Help
+2. Fix My Car
+3. Service My Car
+4. Tyres & Battery
+5. Car Wash & Cleaning
+6. Body Repair & Painting
+7. Air Conditioning & Cooling
+8. Security & Tracking
+9. Documents & Insurance
+10. Drivers & Transport
+11. Fuel & Delivery
+12. Rent or Buy a Car
+13. Upgrade My Car
+
+
+INTERACTION DESIGN
+==================
+
+Cards:
+- Slight scale down when pressed
+- Smooth animation
+- Clear touch feedback
+
+
+Navigation:
+Tap card →
+/service/[categoryId]
+
+
+SEARCH EXPERIENCE
+=================
+
+While searching:
+
+Show:
+
+"Search results"
+
+Example:
+
+"4 services found"
+
+
+Results should update instantly.
+
+
+EMPTY STATE
+===========
+
+If nothing is found:
+
+Centered card:
+
+Icon:
+Search icon
+
+Title:
+"No services found"
+
+Text:
+"Try searching for towing, oil change, battery, or insurance."
+
+Button:
+
+"Clear search"
+
+
+BOTTOM NAVIGATION
+=================
+
+Keep existing bottom navigation:
+
+Home
+Shop
+Services(active)
+Cart
+Profile
+
+
+Final Experience
+================
+
+The final page should feel like a premium automotive service marketplace.
+
+It should encourage users to immediately choose a service.
+
+The user should not feel like they are browsing a menu.
+
+They should feel like:
+
+"MyGarage can solve my car problem quickly."

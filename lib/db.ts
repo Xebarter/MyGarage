@@ -562,6 +562,8 @@ export const deleteBuyerSupportTicket = async (id: string) => buyerSupportTicket
 export const getBuyerServiceRequests = async (customerId: string) => buyerServicesRepo.listBuyerServiceRequests(customerId);
 export const getBuyerServiceRequestForCustomer = async (id: string, customerId: string) =>
   buyerServicesRepo.getBuyerServiceRequestByIdForCustomer(id, customerId);
+export const countProviderCompletedServiceJobs = async (providerId: string) =>
+  buyerServicesRepo.countCompletedJobsForProvider(providerId);
 export const getAllBuyerServiceRequests = async () => buyerServicesRepo.listAllBuyerServiceRequests();
 export const createBuyerServiceRequest = async (payload: buyerServicesRepo.BuyerServiceRequestInsert) => {
   return buyerServicesRepo.insertBuyerServiceRequest(payload);

@@ -335,6 +335,19 @@ export async function assignProviderToUnassignedServiceRequest(
   return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);
 }
 
+export async function countCompletedJobsForProvider(providerId: string): Promise<number> {
+  const supabase = createAdminClient();
+  const { count, error } = await supabase
+    .from("buyer_service_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("provider_id", providerId)
+    .eq("status", "completed");
+  if (error) {
+    throw new Error(`Supabase count provider completed jobs failed: ${error.message}`);
+  }
+  return count ?? 0;
+}
+
 export async function listBuyerProviderRatings(customerId: string): Promise<BuyerProviderRating[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase

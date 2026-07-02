@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { BuyerServiceQuickRequestDialog } from '@/components/buyer/buyer-service-quick-request-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
@@ -13,11 +14,16 @@ import {
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
-  Circle,
+  ChevronRight,
+  Clock3,
   CreditCard,
   History,
+  MapPin,
   RefreshCw,
-  Timer,
+  Search,
+  Sparkles,
+  Wrench,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -208,6 +214,61 @@ const PAY_CONTACT_NAME_KEY = 'servicePaymentContactName';
 const PAY_CONTACT_EMAIL_KEY = 'servicePaymentContactEmail';
 const PAY_CONTACT_PHONE_KEY = 'servicePaymentContactPhone';
 
+const CATEGORY_CARD_ACCENTS = [
+  { ring: 'ring-rose-500/20', icon: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  { ring: 'ring-sky-500/20', icon: 'bg-sky-500/10 text-sky-800 dark:text-sky-300' },
+  { ring: 'ring-emerald-500/20', icon: 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400' },
+  { ring: 'ring-amber-500/20', icon: 'bg-amber-500/10 text-amber-900 dark:text-amber-400' },
+  { ring: 'ring-violet-500/20', icon: 'bg-violet-500/10 text-violet-800 dark:text-violet-300' },
+  { ring: 'ring-teal-500/20', icon: 'bg-teal-500/10 text-teal-800 dark:text-teal-300' },
+] as const;
+
+function ServiceProgressTimeline({ status }: { status: BuyerServiceRequest['status'] }) {
+  const steps = [
+    { id: 'accepted', label: 'Request accepted', short: 'Accepted', done: status !== 'pending' },
+    {
+      id: 'enroute',
+      label: 'Provider en route',
+      short: 'En route',
+      done: status === 'in_progress' || status === 'completed',
+    },
+    { id: 'done', label: 'Service completed', short: 'Completed', done: status === 'completed' },
+    { id: 'paid', label: 'Payment confirmed', short: 'Paid', done: status === 'completed' },
+  ] as const;
+
+  return (
+    <ol className="grid gap-3 sm:grid-cols-2 sm:gap-2 xl:grid-cols-4">
+      {steps.map((step, index) => (
+        <li
+          key={step.id}
+          className={cn(
+            'relative flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-3',
+            step.done && 'border-primary/25 bg-primary/[0.04]',
+          )}
+        >
+          <span
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+              step.done
+                ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
+                : 'bg-muted text-muted-foreground ring-1 ring-border/80',
+            )}
+            aria-hidden
+          >
+            {step.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+          </span>
+          <div className="min-w-0 pt-0.5">
+            <p className={cn('text-sm font-semibold leading-snug', step.done ? 'text-foreground' : 'text-muted-foreground')}>
+              <span className="sm:hidden">{step.short}</span>
+              <span className="hidden sm:inline">{step.label}</span>
+            </p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 const providerDirectory: ServiceProviderProfile[] = [
   {
     id: 'sp-1',
@@ -267,6 +328,7 @@ function BuyerServicesPageInner() {
   const [payContactPhone, setPayContactPhone] = useState('');
   const [sessionReady, setSessionReady] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [categorySearch, setCategorySearch] = useState('');
 
   useEffect(() => {
     void bootstrap();
@@ -364,6 +426,16 @@ function BuyerServicesPageInner() {
   );
 
   const suggestedServices = useMemo(() => selectedCategoryMeta?.services || [], [selectedCategoryMeta]);
+  const filteredCategories = useMemo(() => {
+    const query = categorySearch.trim().toLowerCase();
+    if (!query) return userServiceCategories;
+    return userServiceCategories.filter(
+      (category) =>
+        category.title.toLowerCase().includes(query) ||
+        category.useWhen.toLowerCase().includes(query) ||
+        category.services.some((service) => service.toLowerCase().includes(query)),
+    );
+  }, [categorySearch]);
   const resolvedLocation = useMemo(
     () => (useDetectedLocation ? detectedLocation.trim() : manualLocation.trim()),
     [useDetectedLocation, detectedLocation, manualLocation]
@@ -731,251 +803,346 @@ function BuyerServicesPageInner() {
     void submitRequest();
   };
 
-  const renderStep = (label: string, shortLabel: string, done: boolean) => (
-    <div className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-background/70 px-2.5 py-2 sm:min-h-12 sm:px-3">
-      {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" /> : <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />}
-      <p className={`text-xs sm:text-sm ${done ? 'text-foreground' : 'text-muted-foreground'}`}>
-        <span className="sm:hidden">{shortLabel}</span>
-        <span className="hidden sm:inline">{label}</span>
-      </p>
-    </div>
-  );
+  const openCategoryRequest = (categoryTitle: string) => {
+    setSelectedCategory(categoryTitle);
+    serviceAutofillSuppressed.current = true;
+    setSelectedService('');
+    setQuickRequestUiStep('service');
+    setIsQuickRequestDialogOpen(true);
+  };
+
+  const openQuickRequestFlow = () => {
+    if (!selectedCategory) {
+      document.getElementById('quick-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    serviceAutofillSuppressed.current = true;
+    setSelectedService('');
+    setQuickRequestUiStep('service');
+    setIsQuickRequestDialogOpen(true);
+  };
+
+  const requestStatCards = [
+    { label: 'Pending', value: requestStats.pending, icon: Clock3, hint: 'Awaiting match' },
+    { label: 'Active', value: requestStats.active, icon: Wrench, hint: 'In progress' },
+    { label: 'Completed', value: requestStats.completed, icon: CheckCircle2, hint: 'Finished' },
+  ] as const;
 
   return (
-    <div className="min-h-full bg-background px-3 pb-24 pt-2 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/20 sm:p-5 sm:pb-6 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-3 sm:space-y-6">
-        <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm sm:rounded-2xl sm:p-6 md:p-8">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">Services</h1>
-              <p className="mt-0.5 text-xs text-muted-foreground sm:mt-1 sm:text-sm">
-                <span className="sm:hidden">Request help · track status</span>
-                <span className="hidden sm:inline">Pick a category, confirm location, and submit in under a minute.</span>
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-1.5 text-center text-[10px] tabular-nums sm:grid sm:grid-cols-3 sm:gap-2 sm:text-xs md:min-w-[240px]">
-              {(
-                [
-                  { label: 'Pending', value: requestStats.pending },
-                  { label: 'Active', value: requestStats.active },
-                  { label: 'Done', value: requestStats.completed },
-                ] as const
-              ).map((stat) => (
-                <div
-                  key={stat.label}
-                  className="min-w-[2.75rem] rounded-md border border-border/70 bg-muted/30 px-2 py-1.5 sm:min-w-0 sm:p-3"
-                >
-                  <p className="text-muted-foreground">{stat.label}</p>
-                  <p className="mt-0.5 text-sm font-semibold sm:mt-1 sm:text-lg">{stat.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          {sessionReady && identityMode !== 'buyer' ? (
-            <p className="mt-3 text-xs text-muted-foreground sm:text-sm">
-              <Link
-                href="/auth?role=buyer&next=%2Fbuyer%2Fservices%3FopenQuick%3D1"
-                className="font-medium text-primary underline-offset-4 hover:underline"
+    <div className="min-h-full bg-background px-3 pb-[max(5.75rem,env(safe-area-inset-bottom))] pt-1 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/25 sm:px-5 sm:pb-8 sm:pt-3 md:p-8">
+      <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+        <header className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-card to-card p-4 shadow-sm ring-1 ring-black/[0.03] dark:from-primary/20 dark:ring-white/[0.04] sm:p-6">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-primary/10 blur-2xl" aria-hidden />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm sm:h-14 sm:w-14 sm:rounded-2xl"
+                aria-hidden
               >
-                Sign in
-              </Link>
-              <span className="hidden sm:inline"> or create a buyer account to submit requests and track live.</span>
-              <span className="sm:hidden"> to submit & track.</span>
-            </p>
-          ) : null}
-        </div>
+                <Wrench className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-primary sm:text-xs">Services</p>
+                <h1 className="mt-0.5 text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl md:text-3xl">
+                  Book automotive help
+                </h1>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  Pick a category and location.
+                </p>
+                {sessionReady && identityMode !== 'buyer' ? (
+                  <p className="mt-2.5 text-xs text-muted-foreground sm:text-sm">
+                    <Link
+                      href="/auth?role=buyer&next=%2Fbuyer%2Fservices%3FopenQuick%3D1"
+                      className="font-semibold text-primary underline-offset-4 hover:underline"
+                    >
+                      Sign in
+                    </Link>
+                    <span> to track requests.</span>
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {identityMode === 'buyer' ? (
+              <div
+                className={cn(
+                  '-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-0.5',
+                  'snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  'sm:mx-0 sm:grid sm:min-w-[280px] sm:grid-cols-3 sm:gap-2 sm:overflow-visible sm:px-0',
+                )}
+              >
+                {requestStatCards.map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div
+                      key={stat.label}
+                      className="min-w-[6.5rem] shrink-0 snap-start rounded-xl border border-border/70 bg-background/80 p-3 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03] sm:min-w-0"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Icon className="h-3.5 w-3.5" aria-hidden />
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-foreground">{stat.value}</p>
+                      <p className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">{stat.hint}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </header>
 
         {activeServiceRequest ? (
-          <Card className="rounded-xl border-border/70 p-3 shadow-sm sm:rounded-2xl sm:p-6 md:p-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
+          <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]">
+            <div className="border-b border-border/60 bg-muted/20 px-4 py-3.5 sm:px-6 sm:py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <Badge
                     variant="outline"
-                    className={cn('border text-[10px] sm:text-xs', serviceStatusPresentation(activeServiceRequest.status).badgeClass)}
+                    className={cn(
+                      'border text-[10px] sm:text-xs',
+                      serviceStatusPresentation(activeServiceRequest.status).badgeClass,
+                    )}
                   >
                     {serviceStatusPresentation(activeServiceRequest.status).label}
                   </Badge>
+                  <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground sm:text-2xl">
+                    {activeServiceRequest.service}
+                  </h2>
+                  <p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground sm:text-sm">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="line-clamp-2">
+                      {activeServiceRequest.category}
+                      <span className="text-muted-foreground/50"> · </span>
+                      {activeServiceRequest.location}
+                    </span>
+                  </p>
                 </div>
-                <h2 className="mt-2 text-lg font-semibold tracking-tight sm:text-2xl">{activeServiceRequest.service}</h2>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
-                  {activeServiceRequest.category}
-                  <span className="mx-1 text-muted-foreground/50">·</span>
-                  {activeServiceRequest.location}
-                </p>
-              </div>
-              <div className="shrink-0 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs sm:rounded-xl sm:p-3 sm:text-sm">
-                <p className="font-medium">{activeServiceProvider?.name || 'Provider'}</p>
-                <p className="text-muted-foreground">
-                  {activeServiceProvider
-                    ? `${activeServiceProvider.rating.toFixed(1)}★`
-                    : 'Matching…'}
-                </p>
+                <div className="shrink-0 rounded-xl border border-border/70 bg-card px-3.5 py-2.5 text-xs shadow-sm sm:text-sm">
+                  <p className="font-semibold text-foreground">{activeServiceProvider?.name || 'Matching provider'}</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {activeServiceProvider ? `${activeServiceProvider.rating.toFixed(1)}★ rating` : 'We will notify you shortly'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden">
-              {renderStep('Request accepted', 'Accepted', activeServiceRequest.status !== 'pending')}
-              {renderStep(
-                'Provider heading to location',
-                'En route',
-                activeServiceRequest.status === 'in_progress' || activeServiceRequest.status === 'completed',
-              )}
-              {renderStep('Service completed', 'Done', activeServiceRequest.status === 'completed')}
-              {renderStep('Payment confirmed', 'Paid', activeServiceRequest.status === 'completed')}
-            </div>
+            <div className="space-y-4 p-4 sm:p-6">
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Progress</p>
+                <ServiceProgressTimeline status={activeServiceRequest.status} />
+              </div>
 
-            {paymentSummary ? (
-              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3 sm:mt-5 sm:p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-medium">
-                    <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
-                    Payment
-                  </p>
-                  <p className="text-sm font-bold tabular-nums text-foreground sm:hidden">
-                    UGX {paymentSummary.total.toLocaleString()}
-                  </p>
-                </div>
-                <div className="mt-2 hidden gap-2 text-sm sm:grid md:grid-cols-3">
-                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">
-                    Service: UGX {paymentSummary.base.toLocaleString()}
-                  </p>
-                  <p className="rounded-lg border border-border/60 bg-background px-3 py-2">
-                    Platform: UGX {paymentSummary.platformFee.toLocaleString()}
-                  </p>
-                  <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 font-semibold">
-                    Total: UGX {paymentSummary.total.toLocaleString()}
-                  </p>
-                </div>
-                <div className="mt-3 space-y-2 rounded-lg border border-border/60 bg-background/80 p-3 sm:space-y-3 sm:rounded-xl">
-                  <p className="text-xs font-medium text-muted-foreground sm:font-semibold sm:uppercase sm:tracking-wide">
-                    Checkout contact
-                  </p>
-                  <p className="hidden text-xs text-muted-foreground sm:block">Used only for Paytota checkout.</p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <input
-                      value={payContactName}
-                      onChange={(e) => setPayContactName(e.target.value)}
-                      onBlur={persistPayContact}
-                      placeholder="Full name"
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      autoComplete="name"
-                    />
-                    <input
-                      type="email"
-                      value={payContactEmail}
-                      onChange={(e) => setPayContactEmail(e.target.value)}
-                      onBlur={persistPayContact}
-                      placeholder="Email"
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      autoComplete="email"
-                    />
-                    <input
-                      type="tel"
-                      value={payContactPhone}
-                      onChange={(e) => setPayContactPhone(e.target.value)}
-                      onBlur={persistPayContact}
-                      placeholder="Mobile (e.g. 07… or 256…)"
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      autoComplete="tel"
-                    />
+              {paymentSummary ? (
+                <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <CreditCard className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                      Payment summary
+                    </p>
+                    <p className="text-base font-bold tabular-nums text-foreground">
+                      UGX {paymentSummary.total.toLocaleString()}
+                    </p>
                   </div>
-                </div>
-                <div className="mt-3">
-                  <button
+                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3 sm:text-sm">
+                    <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                      <p className="text-muted-foreground">Service</p>
+                      <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.base.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                      <p className="text-muted-foreground">Platform fee</p>
+                      <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.platformFee.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+                      <p className="text-primary/80">Total due</p>
+                      <p className="mt-0.5 font-bold tabular-nums text-foreground">
+                        UGX {paymentSummary.total.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-background/90 p-3.5 sm:p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checkout contact</p>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <input
+                        value={payContactName}
+                        onChange={(e) => setPayContactName(e.target.value)}
+                        onBlur={persistPayContact}
+                        placeholder="Full name"
+                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        autoComplete="name"
+                      />
+                      <input
+                        type="email"
+                        value={payContactEmail}
+                        onChange={(e) => setPayContactEmail(e.target.value)}
+                        onBlur={persistPayContact}
+                        placeholder="Email"
+                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        autoComplete="email"
+                      />
+                      <input
+                        type="tel"
+                        value={payContactPhone}
+                        onChange={(e) => setPayContactPhone(e.target.value)}
+                        onBlur={persistPayContact}
+                        placeholder="Mobile (07… or 256…)"
+                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        autoComplete="tel"
+                      />
+                    </div>
+                  </div>
+                  <Button
                     type="button"
                     onClick={payForActiveService}
                     disabled={paying || !canPayForService}
-                    className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                    className="mt-4 min-h-11 w-full sm:w-auto"
                   >
-                    {paying ? 'Redirecting…' : 'Pay now'}
-                  </button>
+                    {paying ? 'Redirecting to checkout…' : 'Pay now'}
+                  </Button>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {identityMode === 'buyer' ? (
-              <div className="mt-4 grid grid-cols-3 gap-1.5 sm:mt-5 sm:gap-2 md:grid-cols-3">
-                <Link
-                  href="/buyer/orders"
-                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
-                >
-                  Orders
-                </Link>
-                <Link
-                  href="/buyer/support"
-                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
-                >
-                  Support
-                </Link>
-                <Link
-                  href="/buyer/addresses"
-                  className="rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-medium hover:bg-muted/40 sm:px-3 sm:py-2.5 sm:text-sm"
-                >
-                  Locations
-                </Link>
-              </div>
-            ) : (
-              <p className="mt-4 text-xs text-muted-foreground sm:mt-5 sm:text-sm">
-                <Link href="/auth?role=buyer&next=/buyer" className="font-medium text-primary underline-offset-4 hover:underline">
-                  Sign in
-                </Link>
-                <span className="hidden sm:inline"> or create a buyer account to sync requests across devices.</span>
-                <span className="sm:hidden"> to sync across devices.</span>
-              </p>
-            )}
+              {identityMode === 'buyer' ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { href: '/buyer/orders', label: 'Orders' },
+                      { href: '/buyer/support', label: 'Support' },
+                      { href: '/buyer/addresses', label: 'Locations' },
+                    ] as const
+                  ).map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="flex min-h-11 items-center justify-center rounded-xl border border-border/70 bg-background px-2 text-center text-xs font-medium transition hover:bg-muted/40 sm:text-sm"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  <Link href="/auth?role=buyer&next=/buyer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                    Sign in
+                  </Link>
+                  <span className="hidden sm:inline"> to sync requests across devices.</span>
+                  <span className="sm:hidden"> to sync across devices.</span>
+                </p>
+              )}
+            </div>
           </Card>
         ) : (
-          <Card id="quick-request" className="scroll-mt-24 rounded-xl border-border/70 p-3 shadow-sm sm:rounded-2xl sm:p-6">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold tracking-tight sm:text-lg">New request</h2>
-              <p className="inline-flex items-center gap-1 text-[10px] text-muted-foreground sm:text-xs">
-                <Timer className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden />
-                2 steps
-              </p>
+          <section
+            id="quick-request"
+            className="scroll-mt-24 rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
+            aria-labelledby="new-request-heading"
+          >
+            <div className="border-b border-border/60 px-4 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="new-request-heading" className="text-base font-bold tracking-tight sm:text-lg">
+                    What do you need?
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                    Choose a category below.
+                  </p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary sm:text-xs">
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                  2 steps
+                </span>
+              </div>
+              <div className="relative mt-4">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  type="search"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  placeholder="Search services (e.g. towing, oil change…)"
+                  className="min-h-11 rounded-xl border-border/80 bg-background pl-9 pr-9 text-sm"
+                  aria-label="Search service categories"
+                />
+                {categorySearch ? (
+                  <button
+                    type="button"
+                    onClick={() => setCategorySearch('')}
+                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-2">
-              {userServiceCategories.slice(0, 8).map((category) => {
-                const isActive = selectedCategory === category.title;
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory(category.title);
-                      serviceAutofillSuppressed.current = true;
-                      setSelectedService('');
-                      setQuickRequestUiStep('service');
-                      setIsQuickRequestDialogOpen(true);
-                    }}
-                    className={cn(
-                      'min-h-[3.25rem] rounded-xl border px-2.5 py-2.5 text-left transition sm:min-h-[4.5rem] sm:px-3 sm:py-3',
-                      isActive ? 'border-primary bg-primary/10' : 'border-border/70 bg-background hover:bg-muted/40',
-                    )}
-                  >
-                    <p className="text-xs font-medium leading-snug sm:text-sm">
-                      <span className="mr-1" aria-hidden>
-                        {category.emoji}
-                      </span>
-                      {category.title}
-                    </p>
-                    <p className="mt-1 hidden line-clamp-2 text-xs text-muted-foreground sm:block">{category.useWhen}</p>
-                  </button>
-                );
-              })}
+            <div className="p-3 sm:p-4">
+              {filteredCategories.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/80 bg-muted/15 px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-foreground">No categories match your search</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setCategorySearch('')}>
+                    Clear search
+                  </Button>
+                </div>
+              ) : (
+                <ul className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                  {filteredCategories.map((category, index) => {
+                    const isActive = selectedCategory === category.title;
+                    const accent = CATEGORY_CARD_ACCENTS[index % CATEGORY_CARD_ACCENTS.length];
+                    return (
+                      <li key={category.id}>
+                        <button
+                          type="button"
+                          onClick={() => openCategoryRequest(category.title)}
+                          className={cn(
+                            'group flex h-full min-h-[7.5rem] w-full flex-col gap-2 rounded-xl border p-2.5 text-left transition active:scale-[0.99] sm:min-h-[4.25rem] sm:flex-row sm:items-center sm:gap-3 sm:p-3',
+                            'ring-1 ring-transparent',
+                            isActive
+                              ? 'border-primary bg-primary/[0.06] ring-primary/20'
+                              : cn('border-border/70 bg-background hover:border-border hover:bg-muted/30', accent.ring),
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] sm:h-11 sm:w-11 sm:text-xl',
+                              accent.icon,
+                            )}
+                            aria-hidden
+                          >
+                            {category.emoji}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block line-clamp-3 text-xs font-semibold leading-snug text-foreground sm:line-clamp-2 sm:text-sm">
+                              {category.title}
+                            </span>
+                            <span className="mt-0.5 block line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:line-clamp-1 sm:text-xs">
+                              {category.useWhen}
+                            </span>
+                          </span>
+                          <ChevronRight
+                            className="hidden h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground sm:block"
+                            aria-hidden
+                          />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-            <p className="mt-3 text-center text-[11px] text-muted-foreground sm:hidden">Tap a category to continue</p>
-          </Card>
+          </section>
         )}
 
-        <Card className="overflow-hidden rounded-xl border-border/70 shadow-sm sm:rounded-2xl">
-          <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-3 sm:px-6 sm:py-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <History className="h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" aria-hidden />
+        <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]">
+          <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3.5 sm:px-6 sm:py-4">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <History className="h-4 w-4" aria-hidden />
+              </span>
               <div className="min-w-0">
-                <h2 className="text-base font-semibold tracking-tight sm:text-lg">History</h2>
-                <p className="hidden text-sm text-muted-foreground sm:block">Newest first · open jobs at the top</p>
+                <h2 className="text-base font-bold tracking-tight sm:text-lg">Your requests</h2>
+                <p className="hidden text-xs text-muted-foreground sm:block">Open jobs appear first · tap to track live</p>
               </div>
             </div>
             {identityMode === 'buyer' && customerId ? (
@@ -983,7 +1150,7 @@ function BuyerServicesPageInner() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 gap-1.5 px-2.5 sm:h-9 sm:px-3"
+                className="h-9 shrink-0 gap-1.5"
                 disabled={requestsLoading}
                 onClick={() => void loadServiceData(customerId)}
               >
@@ -993,30 +1160,28 @@ function BuyerServicesPageInner() {
             ) : null}
           </div>
 
-          <div className="p-3 sm:p-6">
+          <div className="p-3 sm:p-5">
             {sessionReady && identityMode !== 'buyer' ? (
-              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-8 text-center sm:py-10">
-                <p className="text-sm font-medium text-foreground">Sign in to view history</p>
-                <Button asChild className="mt-4" size="sm">
-                  <Link href="/auth?role=buyer&next=%2Fbuyer%2Fservices">Continue</Link>
+              <div className="rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-10 text-center sm:py-12">
+                <p className="text-sm font-semibold text-foreground">Sign in to view your request history</p>
+                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">Track providers, payments, and past jobs in one place.</p>
+                <Button asChild className="mt-4 min-h-11" size="sm">
+                  <Link href="/auth?role=buyer&next=%2Fbuyer%2Fservices">Continue with account</Link>
                 </Button>
               </div>
             ) : requestsLoading && requests.length === 0 ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="animate-pulse rounded-xl border border-border/50 bg-muted/30 p-4 sm:p-5"
-                  >
+                  <div key={i} className="animate-pulse rounded-xl border border-border/50 bg-muted/25 p-4 sm:p-5">
                     <div className="h-4 w-1/3 max-w-[200px] rounded bg-muted" />
                     <div className="mt-3 h-3 w-2/3 max-w-md rounded bg-muted" />
-                    <div className="mt-4 h-9 w-28 rounded-lg bg-muted" />
+                    <div className="mt-4 h-10 w-32 rounded-lg bg-muted" />
                   </div>
                 ))}
               </div>
             ) : (
               <Tabs value={historyTab} onValueChange={(v) => setHistoryTab(v as ServiceHistoryTab)} className="gap-3 sm:gap-4">
-                <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg bg-muted/50 p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:w-auto sm:flex-wrap sm:rounded-xl [&::-webkit-scrollbar]:hidden">
+                <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/40 p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:w-auto sm:flex-wrap [&::-webkit-scrollbar]:hidden">
                   {(
                     [
                       { value: 'all' as const, label: 'All', short: 'All' },
@@ -1028,11 +1193,13 @@ function BuyerServicesPageInner() {
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
-                      className="shrink-0 rounded-md px-2.5 py-1.5 text-xs sm:rounded-lg sm:px-3 sm:py-2 sm:text-sm"
+                      className="shrink-0 rounded-lg px-3 py-2 text-xs data-[state=active]:shadow-sm sm:text-sm"
                     >
                       <span className="sm:hidden">{tab.short}</span>
                       <span className="hidden sm:inline">{tab.label}</span>
-                      <span className="ml-1 tabular-nums text-muted-foreground">{historyCounts[tab.value]}</span>
+                      <span className="ml-1.5 rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:text-xs">
+                        {historyCounts[tab.value]}
+                      </span>
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -1040,90 +1207,91 @@ function BuyerServicesPageInner() {
                 {(['all', 'open', 'completed', 'cancelled'] as const).map((tab) => {
                   const tabItems = buildServiceHistoryList(requests, tab);
                   return (
-                  <TabsContent key={tab} value={tab} className="mt-0 outline-none">
-                    {tabItems.length === 0 ? (
-                      <div className="rounded-xl border border-border/60 bg-muted/10 px-4 py-10 text-center sm:py-12">
-                        <p className="text-sm font-medium text-foreground">
-                          {tab === 'all'
-                            ? 'No requests yet'
-                            : tab === 'open'
-                              ? 'Nothing open'
-                              : tab === 'completed'
-                                ? 'None completed'
-                                : 'None cancelled'}
-                        </p>
-                        {tab === 'all' ? (
-                          <Button asChild variant="outline" className="mt-4" size="sm">
-                            <Link href="#quick-request">New request</Link>
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <ul className="space-y-3 p-0">
-                        {tabItems.map((request) => {
-                          const pres = serviceStatusPresentation(request.status);
-                          const when = formatHistoryWhen(request.createdAt);
-                          return (
-                            <li key={request.id}>
-                              <div
-                                className={cn(
-                                  'group rounded-lg border border-border/70 bg-card/50 transition hover:border-border hover:bg-card',
-                                  'border-l-[3px] px-3 py-3 sm:rounded-xl sm:px-4 sm:py-4',
-                                  pres.borderClass,
-                                )}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0 flex-1 space-y-1">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <Badge
-                                        variant="outline"
-                                        className={cn('h-5 px-1.5 text-[10px] sm:h-auto sm:px-2 sm:text-xs', pres.badgeClass)}
-                                      >
-                                        {pres.label}
-                                      </Badge>
-                                      <time
-                                        className="text-[10px] text-muted-foreground sm:text-xs"
-                                        dateTime={request.createdAt}
-                                        title={when.full}
-                                      >
-                                        {when.primary}
-                                      </time>
+                    <TabsContent key={tab} value={tab} className="mt-0 outline-none">
+                      {tabItems.length === 0 ? (
+                        <div className="rounded-2xl border border-border/60 bg-muted/10 px-4 py-12 text-center">
+                          <p className="text-sm font-semibold text-foreground">
+                            {tab === 'all'
+                              ? 'No requests yet'
+                              : tab === 'open'
+                                ? 'Nothing in progress'
+                                : tab === 'completed'
+                                  ? 'No completed jobs'
+                                  : 'No cancelled requests'}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                            {tab === 'all' ? 'Book your first service above — it only takes a minute.' : 'Try another filter.'}
+                          </p>
+                          {tab === 'all' && !activeServiceRequest ? (
+                            <Button asChild variant="outline" className="mt-4 min-h-11" size="sm">
+                              <Link href="#quick-request">Browse categories</Link>
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <ul className="space-y-2.5 p-0">
+                          {tabItems.map((request) => {
+                            const pres = serviceStatusPresentation(request.status);
+                            const when = formatHistoryWhen(request.createdAt);
+                            return (
+                              <li key={request.id}>
+                                <div
+                                  className={cn(
+                                    'group rounded-xl border border-border/70 bg-card transition active:scale-[0.995]',
+                                    'border-l-[3px] p-3.5 sm:p-4',
+                                    pres.borderClass,
+                                  )}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge
+                                          variant="outline"
+                                          className={cn('h-6 px-2 text-[10px] sm:text-xs', pres.badgeClass)}
+                                        >
+                                          {pres.label}
+                                        </Badge>
+                                        <time
+                                          className="text-[10px] text-muted-foreground sm:text-xs"
+                                          dateTime={request.createdAt}
+                                          title={when.full}
+                                        >
+                                          {when.primary}
+                                        </time>
+                                      </div>
+                                      <h3 className="line-clamp-2 text-sm font-bold leading-snug text-foreground sm:text-base">
+                                        {request.service}
+                                      </h3>
+                                      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground" title={request.location}>
+                                        {request.category || 'General'}
+                                        <span className="text-muted-foreground/50"> · </span>
+                                        {request.location}
+                                      </p>
                                     </div>
-                                    <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground sm:text-base">
-                                      {request.service}
-                                    </h3>
-                                    <p className="line-clamp-1 text-xs text-muted-foreground" title={request.location}>
-                                      {request.category || 'General'}
-                                      <span className="text-muted-foreground/60"> · </span>
-                                      {request.location}
-                                    </p>
-                                  </div>
-                                  {identityMode === 'buyer' ? (
-                                    <Button
-                                      asChild
-                                      size="sm"
-                                      variant="secondary"
-                                      className="h-8 shrink-0 gap-0 px-2.5 sm:h-9 sm:gap-1.5 sm:px-3"
-                                    >
-                                      <Link
-                                        href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
-                                        aria-label={request.status === 'completed' ? 'View details' : 'Track request'}
+                                    {identityMode === 'buyer' ? (
+                                      <Button
+                                        asChild
+                                        size="sm"
+                                        variant={request.status === 'completed' ? 'outline' : 'default'}
+                                        className="h-10 shrink-0 gap-1 px-3"
                                       >
-                                        <span className="hidden sm:inline">
-                                          {request.status === 'completed' ? 'Details' : 'Track'}
-                                        </span>
-                                        <ArrowUpRight className="h-4 w-4 sm:ms-1 sm:h-3.5 sm:w-3.5" aria-hidden />
-                                      </Link>
-                                    </Button>
-                                  ) : null}
+                                        <Link
+                                          href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
+                                          aria-label={request.status === 'completed' ? 'View details' : 'Track request'}
+                                        >
+                                          <span>{request.status === 'completed' ? 'Details' : 'Track'}</span>
+                                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                                        </Link>
+                                      </Button>
+                                    ) : null}
+                                  </div>
                                 </div>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </TabsContent>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </TabsContent>
                   );
                 })}
               </Tabs>
@@ -1131,27 +1299,21 @@ function BuyerServicesPageInner() {
           </div>
         </Card>
       </div>
+
       {!activeServiceRequest ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/80 bg-background/95 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-md sm:hidden">
           <button
             type="button"
-            onClick={() => {
-              if (!selectedCategory) {
-                document.getElementById('quick-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                return;
-              }
-              serviceAutofillSuppressed.current = true;
-              setSelectedService('');
-              setQuickRequestUiStep('service');
-              setIsQuickRequestDialogOpen(true);
-            }}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            onClick={openQuickRequestFlow}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition active:scale-[0.99] hover:bg-primary/90"
           >
-            {selectedCategory ? 'Continue' : 'Choose category'}
+            <Wrench className="h-4 w-4" aria-hidden />
+            {selectedCategory ? 'Continue request' : 'Request a service'}
             <ArrowRight className="h-4 w-4" aria-hidden />
           </button>
         </div>
       ) : null}
+
       <BuyerServiceQuickRequestDialog
         open={isQuickRequestDialogOpen}
         onOpenChange={setIsQuickRequestDialogOpen}
@@ -1196,7 +1358,13 @@ export default function BuyerServicesPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[40vh] bg-background p-8 text-center text-sm text-muted-foreground">Loading services…</div>
+        <div className="min-h-[50vh] bg-background px-3 py-8 sm:p-8">
+          <div className="mx-auto max-w-6xl space-y-5">
+            <div className="h-36 animate-pulse rounded-2xl bg-muted/50" />
+            <div className="h-64 animate-pulse rounded-2xl bg-muted/40" />
+            <div className="h-48 animate-pulse rounded-2xl bg-muted/30" />
+          </div>
+        </div>
       }
     >
       <BuyerServicesPageInner />
