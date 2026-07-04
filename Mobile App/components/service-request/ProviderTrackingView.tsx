@@ -1,15 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Linking,
-  Pressable,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Easing, Linking, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DraggableBottomSheet } from '@/components/service-request/DraggableBottomSheet';
@@ -55,6 +46,7 @@ export function ProviderTrackingView({
   onDone,
 }: ProviderTrackingViewProps) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
   const fade = useRef(new Animated.Value(1)).current;
@@ -161,7 +153,7 @@ export function ProviderTrackingView({
   const statusDotOpacity = statusPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] });
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <View style={[styles.screen, { width, height, backgroundColor: colors.background }]}>
       <LiveTrackingMap
         destination={destination}
         providerTarget={liveProvider}
@@ -170,6 +162,9 @@ export function ProviderTrackingView({
         statusLabel={phaseHeadline(phase)}
         showRoute={showRoute}
         topInset={insets.top + 44}
+        locationLabel={request.location}
+        mapHeight={height}
+        mapWidth={width}
       />
 
       <DraggableBottomSheet backgroundColor={colors.card} borderColor={colors.border} expandedHeight={500}>

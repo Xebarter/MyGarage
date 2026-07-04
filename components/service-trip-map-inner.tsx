@@ -4,7 +4,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from 'next-themes';
 import { fetchOsrmRoute } from '@/lib/maps/osrm-route';
+import {
+  buildCurvedRouteCoordinates,
+  getRideTileUrl,
+  pickupMarkerHtml,
+  providerMarkerHtml,
+  radarMarkerHtml,
+  RIDE_MAP_LEAFLET_CSS,
+  ROUTE_CASING_COLOR,
+  ROUTE_CORE_COLOR,
+  ROUTE_SHADOW_COLOR,
+  toLatLngTuple,
+  type MapPoint,
+} from '@/lib/maps/ride-map-utils';
 import { cn } from '@/lib/utils';
 
 function fixLeafletIcons() {
@@ -13,34 +27,45 @@ function fixLeafletIcons() {
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    shadowUrl: 'https://unpkg.com/leaflet/dist/images/marker-shadow.png',
   });
 }
 
-function FitView({ latLngs }: { latLngs: [number, number][] }) {
+function FitView({ latLngs, zoomSingle = 16 }: { latLngs: [number, number][]; zoomSingle?: number }) {
   const map = useMap();
   useEffect(() => {
     if (latLngs.length === 0) return;
     if (latLngs.length === 1) {
-      map.setView(latLngs[0], 15);
+      map.setView(latLngs[0], zoomSingle, { animate: true });
       return;
     }
     const b = L.latLngBounds(latLngs);
-    map.fitBounds(b, { padding: [48, 48], maxZoom: 16 });
-  }, [map, latLngs]);
+    map.fitBounds(b, { padding: [56, 56], maxZoom: 16, animate: true });
+  }, [map, latLngs, zoomSingle]);
   return null;
 }
 
-function makeMarkerIcon(color: string) {
+function makeDivIcon(html: string, size: [number, number], anchor: [number, number]) {
   return L.divIcon({
-    className: 'service-trip-marker',
-    html: `<div style="width:18px;height:18px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    className: 'ride-map-marker-icon',
+    html,
+    iconSize: size,
+    iconAnchor: anchor,
   });
 }
 
-export type TripMapPoint = { lat: number; lng: number };
+export type TripMapPoint = MapPoint;
+
+export type ServiceTripMapInnerProps = {
+  destination: TripMapPoint | null;
+  provider: TripMapPoint | null;
+  className?: string;
+  providerLabel?: string;
+  destinationLabel?: string;
+  destinationAddress?: string;
+  mode?: 'tracking' | 'searching' | 'auto';
+  minHeight?: string;
+};
 
 export function ServiceTripMapInner({
   destination,
@@ -48,47 +73,69 @@ export function ServiceTripMapInner({
   className,
   providerLabel = 'Provider',
   destinationLabel = 'Customer',
-}: {
-  destination: TripMapPoint | null;
-  provider: TripMapPoint | null;
-  className?: string;
-  providerLabel?: string;
-  destinationLabel?: string;
-}) {
-  const [route, setRoute] = useState<[number, number][]>([]);
+  destinationAddress,
+  mode = 'auto',
+  minHeight = 'min(48vh,420px)',
+}: ServiceTripMapInnerProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const [osrmRoute, setOsrmRoute] = useState<[number, number][]>([]);
+  const [geocodedDest, setGeocodedDest] = useState<TripMapPoint | null>(null);
   const [iconsReady, setIconsReady] = useState(false);
-  const [markerIcons, setMarkerIcons] = useState<{ provider: L.DivIcon; destination: L.DivIcon } | null>(null);
 
   useEffect(() => {
     fixLeafletIcons();
-    setMarkerIcons({ provider: makeMarkerIcon('#2563eb'), destination: makeMarkerIcon('#16a34a') });
     setIconsReady(true);
   }, []);
 
-  const providerLL = provider ? ([provider.lat, provider.lng] as [number, number]) : null;
-  const destLL = destination ? ([destination.lat, destination.lng] as [number, number]) : null;
+  const resolvedDestination = destination ?? geocodedDest;
 
   useEffect(() => {
-    if (!provider || !destination) {
-      setRoute([]);
+    if (destination || !destinationAddress?.trim() || destinationAddress.trim().length < 3) {
+      setGeocodedDest(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/geocode?q=${encodeURIComponent(destinationAddress.trim())}`)
+      .then((res) => res.json())
+      .then((json: { lat?: number | null; lng?: number | null }) => {
+        if (cancelled || json.lat == null || json.lng == null) return;
+        setGeocodedDest({ lat: json.lat, lng: json.lng });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [destination, destinationAddress]);
+
+  const providerLL = provider ? toLatLngTuple(provider) : null;
+  const destLL = resolvedDestination ? toLatLngTuple(resolvedDestination) : null;
+
+  const isSearching =
+    mode === 'searching' || (mode === 'auto' && Boolean(destLL) && !providerLL);
+
+  useEffect(() => {
+    if (!provider || !resolvedDestination || isSearching) {
+      setOsrmRoute([]);
       return;
     }
     let cancelled = false;
     void fetchOsrmRoute(
       { lng: provider.lng, lat: provider.lat },
-      { lng: destination.lng, lat: destination.lat },
+      { lng: resolvedDestination.lng, lat: resolvedDestination.lat },
     ).then((coords) => {
-      if (cancelled || !coords?.length) {
-        if (!cancelled) setRoute([]);
+      if (cancelled) return;
+      if (coords?.length) {
+        setOsrmRoute(coords.map((c) => [c[1], c[0]] as [number, number]));
         return;
       }
-      const latLngs = coords.map((c) => [c[1], c[0]] as [number, number]);
-      if (!cancelled) setRoute(latLngs);
+      const curved = buildCurvedRouteCoordinates(provider, resolvedDestination, 42);
+      setOsrmRoute(curved.map(toLatLngTuple));
     });
     return () => {
       cancelled = true;
     };
-  }, [provider?.lat, provider?.lng, destination?.lat, destination?.lng]);
+  }, [provider?.lat, provider?.lng, resolvedDestination?.lat, resolvedDestination?.lng, isSearching]);
 
   const center = useMemo((): [number, number] => {
     if (providerLL) return providerLL;
@@ -103,13 +150,23 @@ export function ServiceTripMapInner({
     return pts;
   }, [providerLL, destLL]);
 
-  if (!destination && !provider) {
+  const markerIcons = useMemo(() => {
+    const accent = ROUTE_CORE_COLOR;
+    return {
+      pickup: makeDivIcon(pickupMarkerHtml(accent), [48, 64], [24, 60]),
+      provider: makeDivIcon(providerMarkerHtml(accent), [54, 54], [27, 27]),
+      radar: makeDivIcon(radarMarkerHtml(accent), [120, 120], [60, 72]),
+    };
+  }, []);
+
+  if (!resolvedDestination && !provider) {
     return (
       <div
         className={cn(
-          'flex min-h-[240px] items-center justify-center rounded-2xl border border-border/60 bg-muted/40 text-sm text-muted-foreground',
+          'flex items-center justify-center rounded-2xl border border-border/60 bg-muted/30 text-sm text-muted-foreground',
           className,
         )}
+        style={{ minHeight }}
       >
         Map will appear when location is available.
       </div>
@@ -117,34 +174,80 @@ export function ServiceTripMapInner({
   }
 
   if (!iconsReady) {
-    return <div className={cn('min-h-[280px] w-full rounded-2xl bg-muted/30', className)} />;
+    return <div className={cn('w-full rounded-2xl bg-muted/30', className)} style={{ minHeight }} />;
   }
 
+  const tileUrl = getRideTileUrl(isDark);
+
   return (
-    <MapContainer
-      center={center}
-      zoom={13}
-      className={cn('z-0 h-full min-h-[min(45vh,380px)] w-full rounded-2xl [&_.leaflet-control-attribution]:text-[10px]', className)}
-      scrollWheelZoom
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    <div className={cn('relative overflow-hidden rounded-2xl', className)} style={{ minHeight }}>
+      <style dangerouslySetInnerHTML={{ __html: RIDE_MAP_LEAFLET_CSS }} />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-[500] h-16 bg-gradient-to-b from-background/80 to-transparent"
+        aria-hidden
       />
-      <FitView latLngs={fitPoints.length ? fitPoints : [center]} />
-      {route.length > 1 ? (
-        <Polyline positions={route} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.88 }} />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[500] h-20 bg-gradient-to-t from-background/90 to-transparent"
+        aria-hidden
+      />
+
+      <MapContainer
+        center={center}
+        zoom={isSearching ? 16 : 14}
+        className={cn(
+          'z-0 h-full w-full',
+          '[&_.leaflet-control-attribution]:text-[9px] [&_.leaflet-control-attribution]:opacity-60',
+          '[&_.leaflet-control-zoom]:hidden',
+        )}
+        style={{ minHeight, height: '100%' }}
+        scrollWheelZoom
+      >
+        <TileLayer attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap' url={tileUrl} />
+        <FitView latLngs={fitPoints.length ? fitPoints : [center]} zoomSingle={isSearching ? 16 : 15} />
+
+        {osrmRoute.length > 1 && !isSearching ? (
+          <>
+            <Polyline
+              positions={osrmRoute}
+              pathOptions={{ color: ROUTE_CASING_COLOR, weight: 11, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }}
+            />
+            <Polyline
+              positions={osrmRoute}
+              pathOptions={{ color: ROUTE_SHADOW_COLOR, weight: 8, opacity: 0.35, lineCap: 'round', lineJoin: 'round' }}
+            />
+            <Polyline
+              positions={osrmRoute}
+              pathOptions={{ color: ROUTE_CORE_COLOR, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
+            />
+          </>
+        ) : null}
+
+        {destLL ? (
+          <Marker
+            position={destLL}
+            icon={isSearching ? markerIcons.radar : markerIcons.pickup}
+            zIndexOffset={isSearching ? 1000 : 800}
+          >
+            {!isSearching ? <Popup className="text-sm font-medium">{destinationLabel}</Popup> : null}
+          </Marker>
+        ) : null}
+
+        {providerLL && !isSearching ? (
+          <Marker position={providerLL} icon={markerIcons.provider} zIndexOffset={900}>
+            <Popup className="text-sm font-medium">{providerLabel}</Popup>
+          </Marker>
+        ) : null}
+      </MapContainer>
+
+      {isSearching ? (
+        <div className="pointer-events-none absolute left-4 top-4 z-[600] flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-semibold shadow-md backdrop-blur-sm">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+          Scanning for providers
+        </div>
       ) : null}
-      {providerLL && markerIcons ? (
-        <Marker position={providerLL} icon={markerIcons.provider}>
-          <Popup>{providerLabel}</Popup>
-        </Marker>
-      ) : null}
-      {destLL && markerIcons ? (
-        <Marker position={destLL} icon={markerIcons.destination}>
-          <Popup>{destinationLabel}</Popup>
-        </Marker>
-      ) : null}
-    </MapContainer>
+    </div>
   );
 }

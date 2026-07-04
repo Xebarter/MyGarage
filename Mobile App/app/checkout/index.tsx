@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -23,13 +21,14 @@ import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { createPaytotaCheckout } from '@/lib/api';
 import { setLastCheckoutId } from '@/lib/checkout-storage';
+import {
+  buildCheckoutFailedParams,
+  openPaytotaPaymentSession,
+} from '@/lib/payment-return';
 import { formatCurrency } from '@/lib/format';
 import type { CartItem } from '@/types';
 
-WebBrowser.maybeCompleteAuthSession();
-
 const TAX_RATE = 0.08;
-const PAYMENT_RETURN_URL = 'mygarage://';
 
 const PREMIUM = {
   bg: '#0B1220',
@@ -137,37 +136,33 @@ export default function CheckoutScreen() {
       await setLastCheckoutId(payment.checkoutId);
 
       if (payment.checkoutUrl) {
-        const result = await WebBrowser.openAuthSessionAsync(payment.checkoutUrl, PAYMENT_RETURN_URL);
-        if (result.type === 'success' && result.url) {
-          const { path, queryParams } = Linking.parse(result.url);
-          const returnedCheckoutId =
-            typeof queryParams?.checkoutId === 'string' ? queryParams.checkoutId : payment.checkoutId;
+        const session = await openPaytotaPaymentSession(
+          payment.checkoutUrl,
+          payment.checkoutId,
+          payment.paymentReturnUrl,
+        );
 
-          if (path === 'checkout/complete') {
-            clearCart();
-            router.replace({
-              pathname: '/checkout/complete',
-              params: { checkoutId: returnedCheckoutId },
-            });
-            return;
-          }
-
-          if (path === 'checkout/failed') {
-            router.replace({
-              pathname: '/checkout/failed',
-              params: {
-                checkoutId: returnedCheckoutId,
-                cancelled: queryParams?.cancelled === '1' ? '1' : undefined,
-              },
-            });
-            return;
-          }
+        if (session?.kind === 'success') {
+          clearCart();
+          router.replace({
+            pathname: '/checkout/complete',
+            params: { checkoutId: session.checkoutId },
+          });
+          return;
         }
 
-        if (result.type === 'cancel' || result.type === 'dismiss') {
+        if (session?.kind === 'failed') {
           router.replace({
             pathname: '/checkout/failed',
-            params: { checkoutId: payment.checkoutId, cancelled: '1' },
+            params: buildCheckoutFailedParams(session.checkoutId, session.cancelled),
+          });
+          return;
+        }
+
+        if (session?.kind === 'dismissed') {
+          router.replace({
+            pathname: '/checkout/failed',
+            params: buildCheckoutFailedParams(session.checkoutId, true),
           });
           return;
         }

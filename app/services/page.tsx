@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RangeSelector } from '@/components/analytics/range-selector';
+import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
 
 type ProviderRequest = {
   id: string;
@@ -82,7 +83,40 @@ const defaultReviews: ProviderReview[] = [
     createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
 ];
-const CHART_COLORS = ['#3b82f6', '#f59e0b', '#10b981'];
+type DispatchRequestRow = {
+  id: string;
+  service: string;
+  category?: string;
+  location: string;
+  status: string;
+  buyer_contact_phone: string | null;
+  buyer_contact_name: string | null;
+  destination_lat?: number | null;
+  destination_lng?: number | null;
+  provider_lat?: number | null;
+  provider_lng?: number | null;
+};
+
+function mapCoordsFromRow(row: DispatchRequestRow): {
+  destination: TripMapPoint | null;
+  provider: TripMapPoint | null;
+} {
+  const destination =
+    row.destination_lat != null &&
+    row.destination_lng != null &&
+    Number.isFinite(Number(row.destination_lat)) &&
+    Number.isFinite(Number(row.destination_lng))
+      ? { lat: Number(row.destination_lat), lng: Number(row.destination_lng) }
+      : null;
+  const provider =
+    row.provider_lat != null &&
+    row.provider_lng != null &&
+    Number.isFinite(Number(row.provider_lat)) &&
+    Number.isFinite(Number(row.provider_lng))
+      ? { lat: Number(row.provider_lat), lng: Number(row.provider_lng) }
+      : null;
+  return { destination, provider };
+}
 
 export default function ServiceProviderDashboardPage() {
   const router = useRouter();
@@ -102,28 +136,17 @@ export default function ServiceProviderDashboardPage() {
   const [vendorId, setVendorId] = useState('');
   const [liveOffer, setLiveOffer] = useState<{
     assignment: { id: string; requestId: string; assignedAt: string };
-    request: {
-      id: string;
-      service: string;
-      category: string;
-      location: string;
-      status: string;
-      buyer_contact_phone: string | null;
-      buyer_contact_name: string | null;
-    };
+    request: DispatchRequestRow & { category: string };
   } | null>(null);
-  const [liveJob, setLiveJob] = useState<{
-    id: string;
-    service: string;
-    location: string;
-    status: string;
-    buyer_contact_phone: string | null;
-    buyer_contact_name: string | null;
-    accepted_at: string | null;
-    arrived_at: string | null;
-    started_at: string | null;
-    completed_at: string | null;
-  } | null>(null);
+  const [liveJob, setLiveJob] = useState<
+    | (DispatchRequestRow & {
+        accepted_at: string | null;
+        arrived_at: string | null;
+        started_at: string | null;
+        completed_at: string | null;
+      })
+    | null
+  >(null);
   const [dispatchBusy, setDispatchBusy] = useState(false);
   const [dispatchActionError, setDispatchActionError] = useState<string | null>(null);
 
@@ -159,28 +182,14 @@ export default function ServiceProviderDashboardPage() {
     const json = (await res.json()) as {
       offer: {
         assignment: { id: string; requestId: string; assignedAt: string };
-        request: {
-          id: string;
-          service: string;
-          category: string;
-          location: string;
-          status: string;
-          buyer_contact_phone: string | null;
-          buyer_contact_name: string | null;
-        };
+        request: DispatchRequestRow & { category: string };
       } | null;
-      activeJob: {
-        id: string;
-        service: string;
-        location: string;
-        status: string;
-        buyer_contact_phone: string | null;
-        buyer_contact_name: string | null;
+      activeJob: (DispatchRequestRow & {
         accepted_at: string | null;
         arrived_at: string | null;
         started_at: string | null;
         completed_at: string | null;
-      } | null;
+      }) | null;
     };
     setLiveOffer(json.offer);
     setLiveJob(json.activeJob);
@@ -455,6 +464,16 @@ export default function ServiceProviderDashboardPage() {
                     Decline
                   </button>
                 </div>
+                <div className="mt-4 overflow-hidden rounded-xl border border-border/70 shadow-md">
+                  <ServiceTripMap
+                    destination={mapCoordsFromRow(liveOffer.request).destination}
+                    destinationAddress={liveOffer.request.location}
+                    provider={null}
+                    mode="searching"
+                    destinationLabel="Buyer pickup"
+                    minHeight="min(36vh,280px)"
+                  />
+                </div>
               </div>
             ) : liveJob ? (
               <div className="rounded-xl border border-border/80 bg-background/90 p-4">
@@ -501,6 +520,22 @@ export default function ServiceProviderDashboardPage() {
                   >
                     Mark completed
                   </button>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-xl border border-border/70 shadow-md">
+                  {(() => {
+                    const { destination, provider } = mapCoordsFromRow(liveJob);
+                    return (
+                      <ServiceTripMap
+                        destination={destination}
+                        destinationAddress={destination ? undefined : liveJob.location}
+                        provider={provider}
+                        mode="auto"
+                        providerLabel="You"
+                        destinationLabel="Buyer"
+                        minHeight="min(36vh,280px)"
+                      />
+                    );
+                  })()}
                 </div>
               </div>
             ) : (

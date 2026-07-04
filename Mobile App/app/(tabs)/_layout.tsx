@@ -12,7 +12,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      initialRouteName="shop"
+      initialRouteName="services"
       screenOptions={{
         tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.tabIconDefault,
@@ -32,19 +32,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="shop"
-        options={{
-          title: 'Shop',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="services"
         options={{
           title: 'Services',
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="construct" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="shop"
+        options={{
+          title: 'Shop',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

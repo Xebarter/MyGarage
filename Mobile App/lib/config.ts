@@ -32,6 +32,8 @@ export const config = {
   apiUrl: resolveApiUrl(),
   supabaseUrl: readEnv('EXPO_PUBLIC_SUPABASE_URL') ?? '',
   supabaseAnonKey: readEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY') ?? '',
+  googleMapsApiKey:
+    readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY') ?? readEnv('GOOGLE_MAPS_API_KEY') ?? '',
   appName: 'MyGarage',
   tagline: 'Car parts & automotive services in Uganda',
 };

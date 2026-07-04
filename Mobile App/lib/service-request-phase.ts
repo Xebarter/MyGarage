@@ -161,13 +161,29 @@ export function isValidPoint(point: { lat: number | null; lng: number | null } |
 
 /** Interpolate points along a route for a smoother polyline. */
 export function buildRouteCoordinates(from: GeoPoint, to: GeoPoint, segments = 24): GeoPoint[] {
+  return buildCurvedRouteCoordinates(from, to, segments);
+}
+
+/** Curved route (quadratic bezier) for a more natural map path. */
+export function buildCurvedRouteCoordinates(from: GeoPoint, to: GeoPoint, segments = 32): GeoPoint[] {
+  const midLat = (from.lat + to.lat) / 2;
+  const midLng = (from.lng + to.lng) / 2;
+  const dLat = to.lat - from.lat;
+  const dLng = to.lng - from.lng;
+  const dist = Math.sqrt(dLat * dLat + dLng * dLng) || 0.001;
+  const curveStrength = Math.min(0.28, dist * 0.35);
+  const control = {
+    lat: midLat + (-dLng / dist) * curveStrength,
+    lng: midLng + (dLat / dist) * curveStrength,
+  };
+
   const coords: GeoPoint[] = [];
   for (let i = 0; i <= segments; i += 1) {
     const t = i / segments;
-    const ease = 1 - (1 - t) ** 2;
+    const inv = 1 - t;
     coords.push({
-      lat: from.lat + (to.lat - from.lat) * ease,
-      lng: from.lng + (to.lng - from.lng) * ease,
+      lat: inv * inv * from.lat + 2 * inv * t * control.lat + t * t * to.lat,
+      lng: inv * inv * from.lng + 2 * inv * t * control.lng + t * t * to.lng,
     });
   }
   return coords;

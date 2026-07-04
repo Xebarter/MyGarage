@@ -97,14 +97,26 @@ export async function PATCH(req: NextRequest) {
           {
             error:
               'You already have an active job. Complete it or wait for the buyer to cancel before accepting another.',
+            code: 'ACTIVE_JOB',
+            activeJobId: busy.id,
           },
           { status: 409 },
         );
       }
       const updated = await vendorAcceptServiceRequest(id, vendorId);
       if (!updated) {
+        const latest = await getBuyerServiceRequestById(id);
+        if (
+          latest?.providerId === vendorId &&
+          (latest.status === 'matched' || latest.status === 'in_progress')
+        ) {
+          return NextResponse.json(latest);
+        }
         return NextResponse.json(
-          { error: 'Cannot accept this job (it may be assigned to another provider).' },
+          {
+            error: 'Cannot accept this job (it may already be assigned to another provider).',
+            code: 'ALREADY_TAKEN',
+          },
           { status: 409 },
         );
       }

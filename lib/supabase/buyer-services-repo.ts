@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getActiveFulfillmentRequestForVendor } from "@/lib/supabase/service-dispatch-repo";
+import {
+  getActiveFulfillmentRequestForVendor,
+  listAssignmentsForRequest,
+  updateAssignmentResponse,
+} from "@/lib/supabase/service-dispatch-repo";
 
 export interface BuyerServiceRequest {
   id: string;
@@ -275,7 +279,16 @@ export async function updateBuyerServiceRequestStatusById(
 export async function vendorAcceptServiceRequest(id: string, providerId: string): Promise<BuyerServiceRequest | null> {
   const existing = await getBuyerServiceRequestById(id);
   if (!existing) return null;
+
+  if (
+    existing.providerId === providerId &&
+    (existing.status === "matched" || existing.status === "in_progress")
+  ) {
+    return existing;
+  }
+
   if (existing.providerId && existing.providerId !== providerId) return null;
+  if (existing.status !== "pending") return null;
 
   const busyElsewhere = await getActiveFulfillmentRequestForVendor(providerId);
   if (busyElsewhere != null && busyElsewhere.id !== id) return null;
@@ -290,12 +303,36 @@ export async function vendorAcceptServiceRequest(id: string, providerId: string)
       accepted_at: now,
     })
     .eq("id", id)
+    .eq("status", "pending")
+    .or(`provider_id.is.null,provider_id.eq.${providerId}`)
     .select("*")
     .maybeSingle();
   if (error) {
     throw new Error(`Supabase vendor accept service request failed: ${error.message}`);
   }
-  if (!data) return null;
+  if (!data) {
+    const again = await getBuyerServiceRequestById(id);
+    if (
+      again?.providerId === providerId &&
+      (again.status === "matched" || again.status === "in_progress")
+    ) {
+      return again;
+    }
+    return null;
+  }
+
+  const assignments = await listAssignmentsForRequest(id);
+  await Promise.all(
+    assignments
+      .filter((assignment) => assignment.response === "pending")
+      .map((assignment) =>
+        updateAssignmentResponse(
+          assignment.id,
+          assignment.provider_id === providerId ? "accepted" : "declined",
+        ),
+      ),
+  );
+
   return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);
 }
 

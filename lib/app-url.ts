@@ -34,6 +34,33 @@ export function getPaytotaCancelRedirectUrl(extra?: Record<string, string>): str
   return withQueryParams(base, extra);
 }
 
+/** HTTPS callbacks Paytota accepts for mobile app checkout (deep-link handled client-side). */
+export function getPaytotaMobileReturnUrl(extra: Record<string, string>): string {
+  const base = `${getPublicAppBaseUrl()}/payments/mobile-return`;
+  return withQueryParams(base, { mobile: "1", ...extra });
+}
+
+/** OAuth redirect for the native app (Supabase → web bridge → mygarage:// deep link). */
+export function getMobileAuthCallbackUrl(): string {
+  return `${getPublicAppBaseUrl()}/auth/mobile-callback`;
+}
+
+export function getPaytotaMobileReturnUrlPrefix(): string {
+  return `${getPublicAppBaseUrl()}/payments`;
+}
+
+export function getPaytotaMobileSuccessRedirectUrl(extra?: Record<string, string>): string {
+  return getPaytotaMobileReturnUrl({ status: "success", ...extra });
+}
+
+export function getPaytotaMobileFailureRedirectUrl(extra?: Record<string, string>): string {
+  return getPaytotaMobileReturnUrl({ status: "failure", ...extra });
+}
+
+export function getPaytotaMobileCancelRedirectUrl(extra?: Record<string, string>): string {
+  return getPaytotaMobileReturnUrl({ status: "cancel", cancelled: "1", ...extra });
+}
+
 /** Full webhook URL for PAYTOTA dashboard (configure manually). */
 export function getPaytotaWebhookUrl(): string {
   const path = (process.env.PAYTOTA_WEBHOOK_PATH || "/api/paytota/webhook").trim() || "/api/paytota/webhook";

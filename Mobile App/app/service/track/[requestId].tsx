@@ -1,11 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Alert, LayoutAnimation } from 'react-native';
+import { Alert, LayoutAnimation, View } from 'react-native';
 
 import { ProviderTrackingView } from '@/components/service-request/ProviderTrackingView';
 import { SearchingProviderView } from '@/components/service-request/SearchingProviderView';
+import { ServiceMapShell } from '@/components/service-request/ServiceMapShell';
 import { EmptyState } from '@/components/EmptyState';
-import { LoadingView } from '@/components/LoadingView';
 import { useAuth } from '@/contexts/AuthContext';
 import { useServiceRequestDetail } from '@/hooks/useServiceRequestDetail';
 import {
@@ -79,6 +79,19 @@ export default function ServiceTrackScreen() {
     prevPhaseRef.current = phase;
   }, [phase, reload]);
 
+  const destination = useMemo(() => {
+    if (!data?.request) return null;
+    if (
+      isValidPoint({
+        lat: data.request.destinationLat ?? null,
+        lng: data.request.destinationLng ?? null,
+      })
+    ) {
+      return { lat: data.request.destinationLat!, lng: data.request.destinationLng! };
+    }
+    return null;
+  }, [data?.request]);
+
   const handleCancel = useCallback(() => {
     Alert.alert('Cancel request?', 'You can request another service anytime.', [
       { text: 'Keep waiting', style: 'cancel' },
@@ -103,7 +116,14 @@ export default function ServiceTrackScreen() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <LoadingView label="Loading your request" />
+        <ServiceMapShell>
+          <SearchingProviderView
+            serviceName="Your service"
+            location="Locating your pickup point..."
+            destination={null}
+            onCancel={handleCancel}
+          />
+        </ServiceMapShell>
       </>
     );
   }
@@ -125,22 +145,25 @@ export default function ServiceTrackScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !isSearching }} />
-      {isSearching ? (
-        <SearchingProviderView
-          serviceName={data.request.service}
-          location={data.request.location}
-          onCancel={handleCancel}
-        />
-      ) : (
-        <ProviderTrackingView
-          request={data.request}
-          provider={data.providerContact}
-          phase={phase}
-          requestId={requestId}
-          onCancel={handleCancel}
-          onDone={handleDone}
-        />
-      )}
+      <ServiceMapShell>
+        {isSearching ? (
+          <SearchingProviderView
+            serviceName={data.request.service}
+            location={data.request.location}
+            destination={destination}
+            onCancel={handleCancel}
+          />
+        ) : (
+          <ProviderTrackingView
+            request={data.request}
+            provider={data.providerContact}
+            phase={phase}
+            requestId={requestId}
+            onCancel={handleCancel}
+            onDone={handleDone}
+          />
+        )}
+      </ServiceMapShell>
     </>
   );
 }

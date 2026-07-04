@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 
 import Colors from '@/constants/Colors';
 import { getCategoryCardAccent } from '@/constants/ServiceCategoryAccents';
+import { getPriorityPalette } from '@/constants/ServicePriorities';
 import { useColorScheme } from '@/components/useColorScheme';
 import { formatServiceCategoryTitle, formatServiceHint } from '@/lib/format';
 import type { ServiceCategory } from '@/types';
@@ -21,18 +22,15 @@ export function ServiceCategoryCard({
 }: ServiceCategoryCardProps) {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-
   const accent = getCategoryCardAccent(accentIndex, scheme);
+  const priority = getPriorityPalette(category.priority, scheme);
 
   const title = formatServiceCategoryTitle(category.title);
   const hint = formatServiceHint(category.useWhen);
-
   const serviceCount = category.services.length;
 
   const { fontScale } = useWindowDimensions();
   const scaled = fontScale > 1.15;
-
-  const accentColor = accent.ring;
 
   return (
     <View style={[styles.wrapper, { width }]}>
@@ -43,90 +41,106 @@ export function ServiceCategoryCard({
           style={({ pressed }) => [
             styles.card,
             {
-              backgroundColor: accent.iconBg,
-              borderColor: accentColor,
-              opacity: pressed ? 0.96 : 1,
-              transform: [{ scale: pressed ? 0.985 : 1 }],
+              borderColor: accent.glassBorder,
+              opacity: pressed ? 0.92 : 1,
+              transform: [{ scale: pressed ? 0.978 : 1 }],
             },
+            Platform.select({
+              ios: {
+                shadowColor: '#0F172A',
+                shadowOpacity: scheme === 'dark' ? 0.22 : 0.08,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 10,
+              },
+              default: {},
+            }),
           ]}
         >
-          {/* Accent Top Bar - Subtle & Professional */}
+          <View style={[styles.glassBase, { backgroundColor: accent.glassBg }]} />
+
+          <View pointerEvents="none" style={[styles.glassSheen, { backgroundColor: accent.sheen }]} />
           <View
-            style={[
-              styles.accentBar,
-              {
-                backgroundColor: accentColor,
-              },
-            ]}
+            pointerEvents="none"
+            style={[styles.accentStrip, { backgroundColor: accent.accent }]}
           />
 
-          {/* Icon */}
-          <View
-            style={[
-              styles.iconContainer,
-              {
-                backgroundColor: accent.iconBg,
-                borderColor: accentColor + '55',
-              },
-            ]}
-          >
-            <Text
+          <View style={styles.cardBody}>
+            <View
               style={[
-                styles.emoji,
-                scaled && styles.emojiScaled,
-              ]}
-            >
-              {category.emoji}
-            </Text>
-          </View>
-
-          {/* Content */}
-          <View style={styles.content}>
-            <Text
-              numberOfLines={2}
-              style={[
-                styles.title,
+                styles.priorityPill,
                 {
-                  color: colors.text,
+                  backgroundColor: scheme === 'dark' ? 'rgba(15,23,42,0.45)' : 'rgba(255,255,255,0.55)',
+                  borderColor: accent.ring,
                 },
-                scaled && styles.titleScaled,
               ]}
             >
-              {title}
-            </Text>
+              <View style={[styles.priorityDot, { backgroundColor: priority.accent }]} />
+              <Text style={[styles.priorityText, { color: priority.accent }]}>{priority.label}</Text>
+            </View>
 
-            <Text
-              numberOfLines={3}
+            <View
               style={[
-                styles.description,
+                styles.iconGlass,
                 {
-                  color: colors.textMuted,
+                  backgroundColor: accent.iconBg,
+                  borderColor: accent.ring,
                 },
-                scaled && styles.descriptionScaled,
               ]}
             >
-              {hint}
-            </Text>
+              <View
+                pointerEvents="none"
+                style={[styles.iconGlassSheen, { backgroundColor: accent.sheen }]}
+              />
+              <Text style={[styles.emoji, scaled && styles.emojiScaled]}>{category.emoji}</Text>
+            </View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <View style={styles.serviceCount}>
-                <Text style={[styles.countText, { color: accentColor }]}>
-                  {serviceCount}
+            <View style={styles.content}>
+              <Text
+                numberOfLines={2}
+                style={[styles.title, { color: colors.text }, scaled && styles.titleScaled]}
+              >
+                {title}
+              </Text>
+
+              <Text
+                numberOfLines={2}
+                style={[
+                  styles.description,
+                  { color: colors.textMuted },
+                  scaled && styles.descriptionScaled,
+                ]}
+              >
+                {hint}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.footerGlass,
+                {
+                  backgroundColor:
+                    scheme === 'dark' ? 'rgba(15,23,42,0.38)' : 'rgba(255,255,255,0.48)',
+                  borderColor: accent.ring,
+                },
+              ]}
+            >
+              <View style={styles.footerLeft}>
+                <View style={[styles.countDot, { backgroundColor: accent.accent }]} />
+                <Text style={[styles.countText, { color: colors.text }]}>
+                  {serviceCount} service{serviceCount === 1 ? '' : 's'}
                 </Text>
-                <Text style={[styles.countLabel, { color: colors.textMuted }]}>services</Text>
               </View>
 
               <View
                 style={[
                   styles.arrowButton,
                   {
-                    backgroundColor: colors.card,
-                    borderColor: accentColor + '55',
+                    backgroundColor: accent.accent,
+                    borderColor: accent.ring,
                   },
                 ]}
               >
-                <Ionicons name="arrow-forward" size={16} color={accentColor} />
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
               </View>
             </View>
           </View>
@@ -138,116 +152,172 @@ export function ServiceCategoryCard({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
 
   card: {
-    minHeight: 218,
+    minHeight: 204,
     borderRadius: 20,
     borderWidth: 1,
-    padding: 16,
     overflow: 'hidden',
     position: 'relative',
 
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
+      ios: {},
       android: {
-        elevation: 6,
+        elevation: 3,
       },
     }),
   },
 
-  accentBar: {
+  glassBase: {
+    ...StyleSheet.absoluteFill,
+  },
+
+  glassSheen: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
-    top: 0,
-    height: 6,
+    height: '32%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
 
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+  accentStrip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    zIndex: 1,
+  },
+
+  cardBody: {
+    flex: 1,
+    padding: 14,
+    paddingTop: 16,
+    gap: 10,
+    zIndex: 2,
+  },
+
+  priorityPill: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+
+  priorityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  priorityText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+
+  iconGlass: {
+    width: 54,
+    height: 54,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
+    borderWidth: 1,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+
+  iconGlassSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    borderTopLeftRadius: 17,
+    borderTopRightRadius: 17,
   },
 
   emoji: {
-    fontSize: 32,
+    fontSize: 26,
   },
 
   emojiScaled: {
-    fontSize: 34,
+    fontSize: 28,
   },
 
   content: {
     flex: 1,
-    justifyContent: 'space-between',
+    gap: 4,
+    paddingRight: 2,
   },
 
   title: {
-    fontSize: 16.5,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '700',
     letterSpacing: -0.2,
-    marginBottom: 8,
+    paddingRight: 58,
   },
 
   titleScaled: {
-    fontSize: 17.5,
+    fontSize: 16,
   },
 
   description: {
-    fontSize: 13,
-    lineHeight: 18.5,
-    marginBottom: 16,
-    flex: 1,
+    fontSize: 12.5,
+    lineHeight: 17,
   },
 
   descriptionScaled: {
-    fontSize: 13.5,
+    fontSize: 13,
   },
 
-  footer: {
+  footerGlass: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 2,
   },
 
-  serviceCount: {
+  footerLeft: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 3,
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  countDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
 
   countText: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-
-  countLabel: {
-    fontSize: 11.5,
-    fontWeight: '500',
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   arrowButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
 });

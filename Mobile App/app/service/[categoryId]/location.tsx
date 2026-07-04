@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -21,15 +22,15 @@ import { getCategoryTheme } from '@/constants/ServiceCategoryThemes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getServiceCategoryById } from '@/data/services-catalog';
+import { useAddressSuggestions } from '@/hooks/useAddressSuggestions';
 import { useServiceLocation } from '@/hooks/useServiceLocation';
-import { createBuyerServiceRequest, fetchBuyerServiceRequestDetail } from '@/lib/api';
-import { formatServiceCategoryTitle } from '@/lib/format';
+import { canResolveSuggestion, getAddressSuggestionIcon } from '@/lib/addressSuggestions';
 import {
-  getActiveServiceRequestId,
-  isTerminalServiceRequestStatus,
-  savePendingServiceRequest,
-  setActiveServiceRequestId,
-} from '@/lib/service-request-storage';
+  fetchAddressPlaceDetails,
+  type AddressSuggestion,
+} from '@/lib/api';
+import { formatServiceCategoryTitle } from '@/lib/format';
+import { savePendingServiceRequest } from '@/lib/service-request-storage';
 
 const CARD_SHADOW = Platform.select({
   ios: {
@@ -110,14 +111,108 @@ export default function ServiceLocationScreen() {
     placeLabel,
     manualLocation,
     setManualLocation,
+    selectManualAddress,
     detectCurrentLocation,
+    refreshBiasOrigin,
     resolvedLocation,
     coords,
+    biasOrigin,
     canSubmitLocation,
   } = useServiceLocation();
 
-  const [submitting, setSubmitting] = useState(false);
+  const [addressFocused, setAddressFocused] = useState(false);
+  const [placesSessionToken, setPlacesSessionToken] = useState(() => Crypto.randomUUID());
+  const [resolvingSuggestionId, setResolvingSuggestionId] = useState<string | null>(null);
+
+  const refreshPlacesSession = useCallback(() => {
+    setPlacesSessionToken(Crypto.randomUUID());
+  }, []);
+
+  const showAddressSuggestions = !useDetectedLocation && addressFocused;
+  const suggestionOrigin = biasOrigin ?? coords ?? undefined;
+  const { suggestions, loading: suggestionsLoading } = useAddressSuggestions(
+    manualLocation,
+    showAddressSuggestions,
+    {
+      sessionToken: placesSessionToken,
+      origin: suggestionOrigin,
+      limit: 8,
+    },
+  );
+
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const autoNavigatedRef = useRef(false);
+
+  const navigateToRequesting = useCallback(
+    (locationLabel: string, point?: { lat: number; lng: number } | null) => {
+      if (autoNavigatedRef.current || !category || !serviceName) return;
+      autoNavigatedRef.current = true;
+
+      if (!user || !profile?.customer.id) {
+        void savePendingServiceRequest({
+          categoryId: category.id,
+          category: category.title,
+          service: serviceName,
+          location: locationLabel,
+          ...(point ? { destinationLat: point.lat, destinationLng: point.lng } : {}),
+        }).then(() => router.push('/(auth)/login'));
+        return;
+      }
+
+      router.replace({
+        pathname: '/service/requesting',
+        params: {
+          categoryId: category.id,
+          category: category.title,
+          service: serviceName,
+          location: locationLabel,
+          ...(point
+            ? { lat: String(point.lat), lng: String(point.lng) }
+            : biasOrigin
+              ? { lat: String(biasOrigin.lat), lng: String(biasOrigin.lng) }
+              : {}),
+        },
+      });
+    },
+    [biasOrigin, category, profile?.customer.id, router, serviceName, user],
+  );
+
+  useEffect(() => {
+    if (!useDetectedLocation || locationStatus !== 'ready' || !placeLabel.trim() || !coords) return;
+    navigateToRequesting(placeLabel.trim(), coords);
+  }, [coords, locationStatus, navigateToRequesting, placeLabel, useDetectedLocation]);
+
+  const handleSelectSuggestion = async (item: AddressSuggestion) => {
+    if (!canResolveSuggestion(item)) return;
+
+    setAddressFocused(false);
+    setResolvingSuggestionId(item.id);
+
+    try {
+      let finalLabel = item.label;
+      let finalCoords: { lat: number; lng: number } | null =
+        item.lat != null && item.lng != null ? { lat: item.lat, lng: item.lng } : null;
+
+      if (item.placeId) {
+        const place = await fetchAddressPlaceDetails(item.placeId, placesSessionToken);
+        finalLabel = place.label;
+        finalCoords = { lat: place.lat, lng: place.lng };
+        selectManualAddress(place.label, place.lat, place.lng);
+      } else if (finalCoords) {
+        selectManualAddress(item.label, finalCoords.lat, finalCoords.lng);
+      }
+      refreshPlacesSession();
+      navigateToRequesting(finalLabel, finalCoords);
+    } catch {
+      if (item.lat != null && item.lng != null) {
+        selectManualAddress(item.label, item.lat, item.lng);
+        refreshPlacesSession();
+        navigateToRequesting(item.label, { lat: item.lat, lng: item.lng });
+      }
+    } finally {
+      setResolvingSuggestionId(null);
+    }
+  };
 
   if (!category || !isValidService || !theme) {
     return <EmptyState title="Service not found" message="Go back and choose a service again." />;
@@ -126,49 +221,7 @@ export default function ServiceLocationScreen() {
   const handleSubmit = async () => {
     setSubmitError(null);
     if (!canSubmitLocation || !resolvedLocation) return;
-
-    if (!user || !profile?.customer.id) {
-      await savePendingServiceRequest({
-        categoryId: category.id,
-        category: category.title,
-        service: serviceName,
-        location: resolvedLocation,
-        ...(coords ? { destinationLat: coords.lat, destinationLng: coords.lng } : {}),
-      });
-      router.push('/(auth)/login');
-      return;
-    }
-
-    const existingActiveId = await getActiveServiceRequestId();
-    if (existingActiveId) {
-      try {
-        const existing = await fetchBuyerServiceRequestDetail(existingActiveId, profile.customer.id);
-        if (!isTerminalServiceRequestStatus(existing.request.status)) {
-          router.replace(`/service/track/${existingActiveId}`);
-          return;
-        }
-      } catch {
-        // Continue with a new request if the previous active id is stale.
-      }
-    }
-
-    setSubmitting(true);
-    try {
-      const created = await createBuyerServiceRequest({
-        customerId: profile.customer.id,
-        category: category.title,
-        service: serviceName,
-        location: resolvedLocation,
-        ...(coords ? { destinationLat: coords.lat, destinationLng: coords.lng } : {}),
-      });
-
-      await setActiveServiceRequestId(created.id);
-      router.replace(`/service/track/${created.id}`);
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Could not submit your request.');
-    } finally {
-      setSubmitting(false);
-    }
+    navigateToRequesting(resolvedLocation, coords);
   };
 
   return (
@@ -204,28 +257,6 @@ export default function ServiceLocationScreen() {
 
           <View style={[styles.segment, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable
-              onPress={() => setUseDetectedLocation(true)}
-              style={[
-                styles.segmentBtn,
-                useDetectedLocation && [
-                  styles.segmentBtnActive,
-                  { backgroundColor: colors.background, borderColor: theme.accent + '44' },
-                ],
-              ]}>
-              <Ionicons
-                name="navigate"
-                size={18}
-                color={useDetectedLocation ? theme.accent : colors.textMuted}
-              />
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: useDetectedLocation ? colors.text : colors.textMuted },
-                ]}>
-                Use GPS
-              </Text>
-            </Pressable>
-            <Pressable
               onPress={() => setUseDetectedLocation(false)}
               style={[
                 styles.segmentBtn,
@@ -245,6 +276,28 @@ export default function ServiceLocationScreen() {
                   { color: !useDetectedLocation ? colors.text : colors.textMuted },
                 ]}>
                 Type address
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setUseDetectedLocation(true)}
+              style={[
+                styles.segmentBtn,
+                useDetectedLocation && [
+                  styles.segmentBtnActive,
+                  { backgroundColor: colors.background, borderColor: theme.accent + '44' },
+                ],
+              ]}>
+              <Ionicons
+                name="navigate"
+                size={18}
+                color={useDetectedLocation ? theme.accent : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: useDetectedLocation ? colors.text : colors.textMuted },
+                ]}>
+                Use GPS
               </Text>
             </Pressable>
           </View>
@@ -267,22 +320,116 @@ export default function ServiceLocationScreen() {
                 { backgroundColor: colors.card, borderColor: colors.border },
               ]}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Area or address</Text>
-              <TextInput
-                value={manualLocation}
-                onChangeText={setManualLocation}
-                placeholder="e.g. Ntinda, near Capital Shoppers"
-                placeholderTextColor={colors.textMuted}
-                style={[
-                  styles.input,
-                  {
-                    color: colors.text,
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                  },
-                ]}
-                multiline
-                textAlignVertical="top"
-              />
+              <View style={styles.inputWrap}>
+                <TextInput
+                  value={manualLocation}
+                  onChangeText={setManualLocation}
+                  onFocus={() => {
+                    setAddressFocused(true);
+                    refreshPlacesSession();
+                    void refreshBiasOrigin(true);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setAddressFocused(false), 150);
+                  }}
+                  placeholder="Search for a building, street, or area"
+                  placeholderTextColor={colors.textMuted}
+                  style={[
+                    styles.input,
+                    {
+                      color: colors.text,
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  returnKeyType="search"
+                  editable={!resolvingSuggestionId}
+                />
+                {resolvingSuggestionId ? (
+                  <View style={styles.inputSpinner}>
+                    <ActivityIndicator size="small" color={theme.accent} />
+                  </View>
+                ) : null}
+              </View>
+              {showAddressSuggestions && manualLocation.trim().length >= 2 ? (
+                <View
+                  style={[
+                    styles.suggestions,
+                    { borderColor: colors.border, backgroundColor: colors.background },
+                  ]}>
+                  {suggestionsLoading ? (
+                    <View style={styles.suggestionLoading}>
+                      <ActivityIndicator size="small" color={theme.accent} />
+                      <Text style={[styles.suggestionLoadingText, { color: colors.textMuted }]}>
+                        Searching nearby places...
+                      </Text>
+                    </View>
+                  ) : suggestions.length > 0 ? (
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      style={styles.suggestionsList}
+                      showsVerticalScrollIndicator={false}>
+                      {suggestions.map((item, index) => {
+                        const resolving = resolvingSuggestionId === item.id;
+                        return (
+                          <Pressable
+                            key={item.id}
+                            onPressIn={() => {
+                              void handleSelectSuggestion(item);
+                            }}
+                            disabled={Boolean(resolvingSuggestionId)}
+                            style={({ pressed }) => [
+                              styles.suggestionItem,
+                              index < suggestions.length - 1 && {
+                                borderBottomWidth: StyleSheet.hairlineWidth,
+                                borderBottomColor: colors.border,
+                              },
+                              pressed && { backgroundColor: colors.card },
+                            ]}>
+                            <View
+                              style={[
+                                styles.suggestionIconWrap,
+                                { backgroundColor: theme.accent + '14' },
+                              ]}>
+                              <Ionicons
+                                name={getAddressSuggestionIcon(item.types)}
+                                size={18}
+                                color={theme.accent}
+                              />
+                            </View>
+                            <View style={styles.suggestionCopy}>
+                              <Text
+                                style={[styles.suggestionTitle, { color: colors.text }]}
+                                numberOfLines={1}>
+                                {item.title}
+                              </Text>
+                              {item.subtitle ? (
+                                <Text
+                                  style={[styles.suggestionSubtitle, { color: colors.textMuted }]}
+                                  numberOfLines={1}>
+                                  {item.subtitle}
+                                </Text>
+                              ) : null}
+                            </View>
+                            {resolving ? (
+                              <ActivityIndicator size="small" color={theme.accent} />
+                            ) : (
+                              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  ) : (
+                    <Text style={[styles.suggestionEmpty, { color: colors.textMuted }]}>
+                      No places found. Try a nearby landmark or street name.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
             </View>
           )}
         </ScrollView>
@@ -314,26 +461,23 @@ export default function ServiceLocationScreen() {
                 : 'Enter your area or address to continue.'}
             </Text>
           ) : null}
-          <Pressable
-            onPress={() => void handleSubmit()}
-            disabled={!canSubmitLocation || submitting}
-            style={({ pressed }) => [
-              styles.submitBtn,
-              {
-                backgroundColor: canSubmitLocation ? theme.accent : colors.border,
-                opacity: pressed && canSubmitLocation ? 0.92 : 1,
-              },
-            ]}>
-            {submitting ? (
-              <ActivityIndicator color={theme.onAccent} />
-            ) : (
+          {!useDetectedLocation ? (
+            <Pressable
+              onPress={() => void handleSubmit()}
+              disabled={!canSubmitLocation}
+              style={({ pressed }) => [
+                styles.submitBtn,
+                {
+                  backgroundColor: canSubmitLocation ? theme.accent : colors.border,
+                  opacity: pressed && canSubmitLocation ? 0.92 : 1,
+                },
+              ]}>
               <View style={styles.submitBtnContent}>
-                <Ionicons name="send" size={17} color={theme.onAccent} />
-                <Text style={[styles.submitText, { color: theme.onAccent }]}>Request Service</Text>
                 <Ionicons name="arrow-forward" size={17} color={theme.onAccent} />
+                <Text style={[styles.submitText, { color: theme.onAccent }]}>Continue</Text>
               </View>
-            )}
-          </Pressable>
+            </Pressable>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </>
@@ -458,13 +602,78 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   input: {
-    minHeight: 96,
+    minHeight: 48,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    paddingRight: 42,
     fontSize: 15,
     lineHeight: 22,
+  },
+  inputWrap: {
+    position: 'relative',
+  },
+  inputSpinner: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  suggestions: {
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  suggestionsList: {
+    maxHeight: 280,
+  },
+  suggestionLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  suggestionLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  suggestionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  suggestionTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  suggestionSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+  suggestionEmpty: {
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   footer: {
     position: 'absolute',

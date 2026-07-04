@@ -221,4 +221,5 @@ export type PaytotaCheckoutResponse = {
   checkoutId: string;
   paymentReference: string;
   checkoutUrl: string;
+  paymentReturnUrl?: string;
 };

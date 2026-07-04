@@ -23,6 +23,15 @@ Edit `.env`:
 | `EXPO_PUBLIC_SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` in the web app |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Same as `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the web app |
 
+On the **Next.js server** (repo root `.env`), set `GOOGLE_MAPS_API_KEY` with these APIs enabled in [Google Cloud Console](https://console.cloud.google.com/apis/library):
+
+- **Places API**
+- **Places API (New)**
+
+Restart the Next.js server after adding the key. In the app network tab, `/api/geocode/suggestions` should return `"provider": "google"`. If you see `"provider": "osm"`, Google is not being used (missing key, APIs not enabled, or billing not set up).
+
+Allow **location access** when typing an address so results are ranked near you (like Uber/SafeBoda), not only near Kampala.
+
 Install and start:
 
 ```bash

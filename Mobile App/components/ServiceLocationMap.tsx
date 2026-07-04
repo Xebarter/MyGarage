@@ -6,12 +6,18 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 
+import { PickupPinMarker } from '@/components/maps/RideMapMarkers';
+import { WebMapView } from '@/components/maps/WebMapView';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { shouldUseWebMapFallback } from '@/lib/mapRuntime';
+import { getMapProvider } from '@/lib/maps';
+import { getRideMapStyle } from '@/lib/mapStyles';
 import type { LocationStatus } from '@/hooks/useServiceLocation';
 
 type ServiceLocationMapProps = {
@@ -26,16 +32,6 @@ type ServiceLocationMapProps = {
 
 const MAP_HEIGHT = 240;
 
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#255763' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283d6a' }] },
-];
-
 export function ServiceLocationMap({
   coords,
   placeLabel,
@@ -47,6 +43,7 @@ export function ServiceLocationMap({
 }: ServiceLocationMapProps) {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
+  const { width: screenWidth } = useWindowDimensions();
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
@@ -72,6 +69,7 @@ export function ServiceLocationMap({
           : 'Waiting for GPS';
 
   const showMap = coords && locationStatus === 'ready';
+  const useWebMap = shouldUseWebMapFallback();
 
   return (
     <View
@@ -84,10 +82,20 @@ export function ServiceLocationMap({
       ]}>
       <View style={styles.mapShell}>
         {showMap ? (
-          <MapView
+          useWebMap ? (
+            <WebMapView
+              width={screenWidth - 2}
+              height={MAP_HEIGHT}
+              center={{ lat: coords.lat, lng: coords.lng }}
+              zoom={16}
+              markers={[{ lat: coords.lat, lng: coords.lng, color: accentColor, kind: 'pickup' }]}
+              scheme={scheme}
+            />
+          ) : (
+            <MapView
             ref={mapRef}
             style={styles.map}
-            provider={PROVIDER_DEFAULT}
+            provider={getMapProvider()}
             initialRegion={{
               latitude: coords.lat,
               longitude: coords.lng,
@@ -100,21 +108,17 @@ export function ServiceLocationMap({
             toolbarEnabled={false}
             rotateEnabled={false}
             pitchEnabled={false}
-            customMapStyle={scheme === 'dark' && Platform.OS === 'android' ? DARK_MAP_STYLE : undefined}
+            showsPointsOfInterest={false}
+            customMapStyle={Platform.OS === 'android' ? getRideMapStyle(scheme) : undefined}
             userInterfaceStyle={scheme}>
             <Marker
               coordinate={{ latitude: coords.lat, longitude: coords.lng }}
-              anchor={{ x: 0.5, y: 1 }}
+              anchor={{ x: 0.5, y: 0.92 }}
               tracksViewChanges={false}>
-              <View style={styles.markerWrap}>
-                <View style={[styles.markerBubble, { backgroundColor: accentColor }]}>
-                  <Ionicons name="car" size={16} color="#FFFFFF" />
-                </View>
-                <View style={[styles.markerStem, { backgroundColor: accentColor }]} />
-                <View style={[styles.markerDot, { backgroundColor: accentColor }]} />
-              </View>
+              <PickupPinMarker accentColor={accentColor} />
             </Marker>
           </MapView>
+          )
         ) : (
           <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
             {locationStatus === 'detecting' ? (
@@ -346,37 +350,5 @@ const styles = StyleSheet.create({
   accuracy: {
     fontSize: 11,
     fontWeight: '500',
-  },
-  markerWrap: {
-    alignItems: 'center',
-  },
-  markerBubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: { elevation: 4 },
-    }),
-  },
-  markerStem: {
-    width: 3,
-    height: 10,
-    marginTop: -1,
-  },
-  markerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: -1,
   },
 });

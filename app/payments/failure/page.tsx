@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { MobileAppPaymentReturn, shouldReturnToMobileApp } from '@/components/payments/mobile-app-return';
 import { XCircle } from 'lucide-react';
 
 export default function PaymentFailurePage() {
@@ -17,6 +18,21 @@ export default function PaymentFailurePage() {
     });
     setParams(next);
   }, []);
+
+  const returnToApp = shouldReturnToMobileApp(new URLSearchParams(params));
+
+  if (returnToApp) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <XCircle className="mx-auto mb-4 h-12 w-12 text-destructive" />
+          <h1 className="mb-2 text-2xl font-bold text-foreground">Payment did not complete</h1>
+          <p className="text-sm text-muted-foreground">Returning you to the MyGarage app…</p>
+          <MobileAppPaymentReturn status="failure" checkoutId={params.checkoutId} />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>

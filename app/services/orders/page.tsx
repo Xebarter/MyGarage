@@ -26,6 +26,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { ServiceTripMap } from '@/components/service-trip-map';
 
 interface ServiceRequest {
   id: string;
@@ -97,6 +98,7 @@ export default function ServiceOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [vendorId, setVendorId] = useState('');
   const [emergencyOrder, setEmergencyOrder] = useState<ServiceRequest | null>(null);
   const [emergencyExtraCount, setEmergencyExtraCount] = useState(0);
   const [pulseOrderId, setPulseOrderId] = useState<string | null>(null);
@@ -156,6 +158,21 @@ export default function ServiceOrdersPage() {
   }, []);
 
   useEffect(() => {
+    void (async () => {
+      let id = typeof window !== 'undefined' ? localStorage.getItem('currentVendorId')?.trim() ?? '' : '';
+      if (!id) {
+        const { data } = await createClient().auth.getUser();
+        const uid = data.user?.id?.trim() ?? '';
+        if (uid) {
+          id = uid;
+          localStorage.setItem('currentVendorId', uid);
+        }
+      }
+      setVendorId(id);
+    })();
+  }, []);
+
+  useEffect(() => {
     void fetchRequests();
   }, [fetchRequests]);
 
@@ -198,27 +215,39 @@ export default function ServiceOrdersPage() {
   }, [emergencyOrder]);
 
   const updateRequestStatus = async (id: string, status: ServiceRequest['status']) => {
-    let vendorId = typeof window !== 'undefined' ? localStorage.getItem('currentVendorId')?.trim() ?? '' : '';
-    if (!vendorId) {
-      const { data } = await createClient().auth.getUser();
-      const uid = data.user?.id?.trim() ?? '';
-      if (uid) {
-        vendorId = uid;
-        localStorage.setItem('currentVendorId', uid);
+    let resolvedVendorId = vendorId.trim();
+    if (!resolvedVendorId) {
+      resolvedVendorId = typeof window !== 'undefined' ? localStorage.getItem('currentVendorId')?.trim() ?? '' : '';
+      if (!resolvedVendorId) {
+        const { data } = await createClient().auth.getUser();
+        const uid = data.user?.id?.trim() ?? '';
+        if (uid) {
+          resolvedVendorId = uid;
+          localStorage.setItem('currentVendorId', uid);
+          setVendorId(uid);
+        }
       }
     }
-    if (!vendorId) return;
+    if (!resolvedVendorId) return;
     try {
       setSavingId(id);
       setActionMessage(null);
       const response = await fetch('/api/vendor/service-requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, vendorId }),
+        body: JSON.stringify({ id, status, vendorId: resolvedVendorId }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+          activeJobId?: string;
+        };
         if (body.error) setActionMessage(body.error);
+        void fetchRequests({ silent: true });
+        if (body.code === 'ACTIVE_JOB' && body.activeJobId) {
+          router.push(`/services/orders/trip/${encodeURIComponent(body.activeJobId)}`);
+        }
         return;
       }
       const updated = (await response.json()) as ServiceRequest;
@@ -285,8 +314,25 @@ export default function ServiceOrdersPage() {
   }, [requests, statusFilter, normalizedQuery]);
 
   const activeRequest = useMemo(
-    () => requests.find((request) => request.status === 'matched' || request.status === 'in_progress'),
-    [requests]
+    () =>
+      requests.find(
+        (request) =>
+          (request.status === 'matched' || request.status === 'in_progress') &&
+          (!vendorId || request.providerId === vendorId),
+      ),
+    [requests, vendorId],
+  );
+
+  const vendorHasActiveJob = activeRequest != null;
+
+  const canAcceptRequest = useCallback(
+    (request: ServiceRequest) => {
+      if (request.status !== 'pending') return false;
+      if (request.providerId && request.providerId !== vendorId) return false;
+      if (vendorHasActiveJob && activeRequest?.id !== request.id) return false;
+      return true;
+    },
+    [activeRequest?.id, vendorHasActiveJob, vendorId],
   );
 
   const stats = useMemo(() => {
@@ -393,7 +439,7 @@ export default function ServiceOrdersPage() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 className="h-12 w-full gap-2 rounded-xl text-base font-semibold shadow-md sm:flex-1 sm:text-sm"
-                disabled={savingId === emergencyOrder.id}
+                disabled={savingId === emergencyOrder.id || !canAcceptRequest(emergencyOrder)}
                 onClick={() => updateRequestStatus(emergencyOrder.id, 'matched')}
               >
                 Accept now
@@ -445,6 +491,12 @@ export default function ServiceOrdersPage() {
           </div>
         ) : null}
 
+        {vendorHasActiveJob ? (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+            You have an active job in progress. Complete it before accepting another request.
+          </div>
+        ) : null}
+
         {activeRequest ? (
           <Card className="overflow-hidden rounded-2xl border-primary/35 bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-sm md:p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Live job</p>
@@ -475,13 +527,38 @@ export default function ServiceOrdersPage() {
                 </Button>
                 <Button
                   className="h-11 w-full rounded-xl sm:w-auto"
-                  disabled={activeRequest.status === 'completed' || savingId === activeRequest.id}
+                  disabled={activeRequest.status !== 'in_progress' || savingId === activeRequest.id}
                   onClick={() => updateRequestStatus(activeRequest.id, 'completed')}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Complete
                 </Button>
               </div>
+            </div>
+            <div className="mt-4 overflow-hidden rounded-xl border border-border/60 shadow-md">
+              <ServiceTripMap
+                destination={
+                  activeRequest.destinationLat != null &&
+                  activeRequest.destinationLng != null &&
+                  Number.isFinite(activeRequest.destinationLat) &&
+                  Number.isFinite(activeRequest.destinationLng)
+                    ? { lat: activeRequest.destinationLat, lng: activeRequest.destinationLng }
+                    : null
+                }
+                destinationAddress={activeRequest.location}
+                provider={
+                  activeRequest.providerLat != null &&
+                  activeRequest.providerLng != null &&
+                  Number.isFinite(activeRequest.providerLat) &&
+                  Number.isFinite(activeRequest.providerLng)
+                    ? { lat: activeRequest.providerLat, lng: activeRequest.providerLng }
+                    : null
+                }
+                mode="auto"
+                providerLabel="You"
+                destinationLabel="Buyer"
+                minHeight="min(32vh,260px)"
+              />
             </div>
           </Card>
         ) : null}
@@ -612,7 +689,7 @@ export default function ServiceOrdersPage() {
                         <Button
                           variant="secondary"
                           className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
-                          disabled={request.status !== 'pending' || savingId === request.id}
+                          disabled={!canAcceptRequest(request) || savingId === request.id}
                           onClick={() => updateRequestStatus(request.id, 'matched')}
                         >
                           Accept
@@ -620,14 +697,22 @@ export default function ServiceOrdersPage() {
                         <Button
                           variant="outline"
                           className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
-                          disabled={request.status !== 'matched' || savingId === request.id}
+                          disabled={
+                            request.status !== 'matched' ||
+                            savingId === request.id ||
+                            (request.providerId != null && request.providerId !== vendorId)
+                          }
                           onClick={() => updateRequestStatus(request.id, 'in_progress')}
                         >
                           Start work
                         </Button>
                         <Button
                           className="h-11 w-full rounded-xl sm:h-10 sm:w-auto"
-                          disabled={request.status === 'completed' || savingId === request.id}
+                          disabled={
+                            request.status !== 'in_progress' ||
+                            savingId === request.id ||
+                            (request.providerId != null && request.providerId !== vendorId)
+                          }
                           onClick={() => updateRequestStatus(request.id, 'completed')}
                         >
                           Complete

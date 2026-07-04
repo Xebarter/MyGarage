@@ -6,6 +6,10 @@ import { createCustomer, getCustomerByEmail } from "@/lib/db";
 import {
   getPaytotaCancelRedirectUrl,
   getPaytotaFailureRedirectUrl,
+  getPaytotaMobileCancelRedirectUrl,
+  getPaytotaMobileFailureRedirectUrl,
+  getPaytotaMobileSuccessRedirectUrl,
+  getPaytotaMobileReturnUrlPrefix,
   getPaytotaSuccessRedirectUrl,
 } from "@/lib/app-url";
 import {
@@ -208,16 +212,16 @@ export async function POST(req: NextRequest) {
     purchasePayload.success_redirect =
       successRedirect ||
       (platform === "mobile"
-        ? `mygarage://checkout/complete?checkoutId=${encodeURIComponent(checkoutId)}`
+        ? getPaytotaMobileSuccessRedirectUrl({ checkoutId })
         : getPaytotaSuccessRedirectUrl({ checkoutId }));
     purchasePayload.failure_redirect =
       failureRedirect ||
       (platform === "mobile"
-        ? `mygarage://checkout/failed?checkoutId=${encodeURIComponent(checkoutId)}`
+        ? getPaytotaMobileFailureRedirectUrl({ checkoutId })
         : getPaytotaFailureRedirectUrl({ checkoutId }));
     purchasePayload.cancel_redirect =
       platform === "mobile"
-        ? `mygarage://checkout/failed?checkoutId=${encodeURIComponent(checkoutId)}&cancelled=1`
+        ? getPaytotaMobileCancelRedirectUrl({ checkoutId })
         : getPaytotaCancelRedirectUrl({ checkoutId });
 
     let purchase: Awaited<ReturnType<typeof createPurchase>>;
@@ -273,6 +277,9 @@ export async function POST(req: NextRequest) {
         checkoutId,
         paymentReference: providerReference,
         checkoutUrl,
+        ...(platform === "mobile"
+          ? { paymentReturnUrl: getPaytotaMobileReturnUrlPrefix() }
+          : {}),
       },
       { status: 201 },
     );

@@ -56,14 +56,16 @@ function RootStack() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          contentStyle: { backgroundColor: 'transparent' },
+          contentStyle: { flex: 1, backgroundColor: 'transparent' },
           headerShadowVisible: false,
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ title: 'Sign in', presentation: 'modal' }} />
+        <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
         <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
         <Stack.Screen name="service/[categoryId]" options={{ title: 'Book service' }} />
         <Stack.Screen name="service/complete-pending" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="service/requesting" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="service/track/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="checkout" options={{ headerShown: false }} />
         <Stack.Screen name="orders/index" options={{ title: 'My orders' }} />

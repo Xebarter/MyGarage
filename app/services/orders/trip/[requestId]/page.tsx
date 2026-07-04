@@ -238,12 +238,15 @@ export default function ProviderTripPage() {
             </p>
           </Card>
 
-          <div className="overflow-hidden rounded-2xl border border-border/70 shadow-md">
+          <div className="overflow-hidden rounded-2xl border border-border/70 shadow-lg shadow-black/[0.04] dark:shadow-black/20">
             <ServiceTripMap
               destination={destinationPoint}
+              destinationAddress={destinationPoint ? undefined : request.location}
               provider={providerOnMap}
+              mode="auto"
               providerLabel="You (provider)"
               destinationLabel={`${request.buyerContactName || 'Customer'} — drop-off`}
+              minHeight="min(52vh,440px)"
             />
             {geocoding ? (
               <p className="border-t border-border/60 bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">

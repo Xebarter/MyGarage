@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 
-/** Legacy home route — storefront lives on the Shop tab. */
+/** Default home route — opens on the Services tab. */
 export default function TabsIndexRedirect() {
-  return <Redirect href="/(tabs)/shop" />;
+  return <Redirect href="/(tabs)/services" />;
 }

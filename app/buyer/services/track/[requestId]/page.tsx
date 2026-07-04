@@ -189,7 +189,7 @@ export default function ServiceTrackPage() {
 
   useEffect(() => {
     const r = data?.request;
-    if (!r || (r.status !== 'matched' && r.status !== 'in_progress')) return;
+    if (!r) return;
     const hasStored =
       r.destinationLat != null &&
       r.destinationLng != null &&
@@ -456,23 +456,32 @@ export default function ServiceTrackPage() {
                   </div>
                 </div>
 
-                {(data.request.status === 'matched' || data.request.status === 'in_progress') ? (
+                {(destinationOnMap || data.request.location) &&
+                (data.request.status === 'pending' ||
+                  data.request.status === 'matched' ||
+                  data.request.status === 'in_progress') ? (
                   <>
                     <Separator className="my-5 bg-border/60" />
                     <div>
-                      <h2 className="text-lg font-semibold tracking-tight">Live on the map</h2>
+                      <h2 className="text-lg font-semibold tracking-tight">
+                        {data.request.status === 'pending' ? 'Your pickup on the map' : 'Live on the map'}
+                      </h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        See your provider moving toward you — same view they use to reach your pin (SafeBoda-style tracking).
+                        {data.request.status === 'pending'
+                          ? 'We are matching you with a nearby professional — your pin is where help will meet you.'
+                          : 'See your provider moving toward you — same view they use to reach your pin.'}
                       </p>
-                      <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 shadow-sm">
+                      <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 shadow-lg shadow-black/[0.04] dark:shadow-black/25">
                         <ServiceTripMap
                           destination={destinationOnMap}
+                          destinationAddress={destinationOnMap ? undefined : data.request.location}
                           provider={providerOnMap}
+                          mode={data.request.status === 'pending' ? 'searching' : 'auto'}
                           providerLabel="Your provider"
                           destinationLabel="Your location"
                         />
                       </div>
-                      {data.providerContact?.phone ? (
+                      {data.request.status !== 'pending' && data.providerContact?.phone ? (
                         <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border/50 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider</p>
@@ -488,11 +497,11 @@ export default function ServiceTrackPage() {
                             </a>
                           </Button>
                         </div>
-                      ) : (
+                      ) : data.request.status !== 'pending' ? (
                         <p className="mt-3 text-sm text-muted-foreground">
                           Provider contact details will show here when your vendor profile is linked to this job.
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   </>
                 ) : null}

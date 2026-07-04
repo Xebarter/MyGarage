@@ -119,6 +119,67 @@ export async function fetchSearchSuggestions(query: string): Promise<SearchSugge
   return request<SearchSuggestionsResponse>(`/api/search/suggestions?${search.toString()}`);
 }
 
+export type AddressSuggestion = {
+  id: string;
+  title: string;
+  subtitle: string;
+  label: string;
+  placeId?: string;
+  lat?: number;
+  lng?: number;
+  types?: string[];
+};
+
+export type AddressPlaceDetails = {
+  label: string;
+  lat: number;
+  lng: number;
+};
+
+export type FetchAddressSuggestionsOptions = {
+  sessionToken?: string;
+  origin?: { lat: number; lng: number };
+  limit?: number;
+};
+
+export async function fetchAddressSuggestions(
+  query: string,
+  options: FetchAddressSuggestionsOptions = {},
+): Promise<AddressSuggestion[]> {
+  const search = new URLSearchParams({ q: query, limit: String(options.limit ?? 6) });
+  if (options.sessionToken) search.set('sessionToken', options.sessionToken);
+  if (options.origin) {
+    search.set('lat', String(options.origin.lat));
+    search.set('lng', String(options.origin.lng));
+  }
+  const data = await request<{ suggestions?: AddressSuggestion[]; provider?: 'google' | 'osm' }>(
+    `/api/geocode/suggestions?${search.toString()}`,
+  );
+  return Array.isArray(data.suggestions) ? data.suggestions : [];
+}
+
+export async function fetchAddressPlaceDetails(
+  placeId: string,
+  sessionToken?: string,
+): Promise<AddressPlaceDetails> {
+  const search = new URLSearchParams({ placeId });
+  if (sessionToken) search.set('sessionToken', sessionToken);
+  return request<AddressPlaceDetails>(`/api/geocode/place?${search.toString()}`);
+}
+
+export async function fetchGeocodeLocation(
+  query: string,
+): Promise<{ lat: number; lng: number; label: string | null } | null> {
+  const search = new URLSearchParams({ q: query });
+  const data = await request<{ lat: number | null; lng: number | null; label?: string | null }>(
+    `/api/geocode?${search.toString()}`,
+  );
+  if (data.lat == null || data.lng == null || !Number.isFinite(data.lat) || !Number.isFinite(data.lng)) {
+    return null;
+  }
+  return { lat: data.lat, lng: data.lng, label: data.label ?? null };
+}
+
 export type AddItemsCategoryNode = {
   title: string;
   children?: AddItemsCategoryNode[];

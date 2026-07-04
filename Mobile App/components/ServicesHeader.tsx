@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter, type Href } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { QUICK_SERVICE_ACTIONS } from '@/constants/ServiceCategoryMeta';
 import {
@@ -47,6 +47,7 @@ export function ServicesHeader({
   const quickLinks = QUICK_SERVICE_ACTIONS.map((action) => ({
     id: action.categoryId,
     label: action.title,
+    subtitle: action.subtitle,
     icon: action.icon,
     href: `/service/${action.categoryId}`,
   }));
@@ -54,6 +55,7 @@ export function ServicesHeader({
   const priorityLinks = priorityLegend.map((item) => ({
     id: item.priority,
     label: getPriorityPalette(item.priority, scheme).label,
+    description: item.description,
     priority: item.priority,
     accent: getPriorityPalette(item.priority, scheme).accent,
     active: priorityFilter === item.priority,
@@ -79,13 +81,17 @@ export function ServicesHeader({
         <View style={styles.iconRow}>
           <Pressable
             onPress={() => router.push('/(tabs)/profile')}
-            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}>
+            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile">
             <Ionicons name="person-outline" size={20} color={PREMIUM.text} />
             <Text style={styles.iconLabel}>{greetingName}</Text>
           </Pressable>
           <Pressable
             onPress={onOpenCart}
-            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}>
+            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Cart, ${cartCount} items`}>
             <View>
               <Ionicons name="cart-outline" size={20} color={PREMIUM.text} />
               {cartCount > 0 ? (
@@ -101,7 +107,9 @@ export function ServicesHeader({
 
       <Pressable
         style={({ pressed }) => [styles.locationCard, pressed && styles.locationCardPressed]}
-        onPress={() => router.push('/(tabs)/profile')}>
+        onPress={() => router.push('/(tabs)/profile')}
+        accessibilityRole="button"
+        accessibilityLabel={`Service location: ${serviceLine}`}>
         <View style={styles.locationIconWrap}>
           <Ionicons name="location" size={14} color={PREMIUM.copper} />
         </View>
@@ -127,7 +135,17 @@ export function ServicesHeader({
             style={styles.searchInput}
             returnKeyType="search"
             clearButtonMode="while-editing"
+            accessibilityLabel="Search services"
           />
+          {query.length > 0 ? (
+            <Pressable
+              onPress={() => onQueryChange('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </Pressable>
+          ) : null}
         </View>
         <Pressable
           onPress={() => onQueryChange(query)}
@@ -141,56 +159,66 @@ export function ServicesHeader({
         </Pressable>
       </View>
 
-      {!isSearching ? (
-        <View style={styles.toolsSection}>
-          <View style={styles.quickRow}>
-            {quickLinks.map((item) => (
-              <View key={item.id} style={styles.quickSlot}>
-                <Link href={item.href as Href} asChild>
-                  <Pressable
-                    style={({ pressed }) =>
-                      StyleSheet.flatten([styles.quickTile, pressed && styles.quickPillPressed])
-                    }>
-                    <View style={styles.quickTileInner}>
-                      <View style={styles.quickIconWrap}>
-                        <Ionicons name={item.icon} size={18} color={PREMIUM.accentSoft} />
-                      </View>
-                      <Text style={styles.quickTileText} numberOfLines={2}>
-                        {item.label}
-                      </Text>
-                    </View>
-                  </Pressable>
-                </Link>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.priorityRow}>
-            {priorityLinks.map((item) => (
-              <View key={item.id} style={styles.prioritySlot}>
-                <Pressable
-                  onPress={() => onPriorityFilterChange(item.active ? null : item.priority)}
-                  style={({ pressed }) => [
-                    styles.priorityPill,
-                    styles.spreadPill,
-                    item.active && [styles.priorityPillActive, { borderColor: item.accent }],
-                    pressed && styles.quickPillPressed,
-                  ]}>
-                  <View style={[styles.priorityDot, { backgroundColor: item.accent }]} />
-                  <Text
-                    style={[
-                      styles.priorityPillText,
-                      item.active && { color: PREMIUM.text, fontWeight: '800' },
-                    ]}
-                    numberOfLines={1}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
+      {isSearching ? (
+        <View style={styles.searchHint}>
+          <Ionicons name="information-circle-outline" size={14} color={PREMIUM.accentSoft} />
+          <Text style={styles.searchHintText}>Searching across all service categories</Text>
         </View>
       ) : null}
+
+      <View style={styles.toolsSection}>
+        <Text style={styles.sectionLabel}>Quick access</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickScroll}>
+          {quickLinks.map((item) => (
+            <Link key={item.id} href={item.href as Href} asChild>
+              <Pressable
+                style={({ pressed }) => [styles.quickTile, pressed && styles.quickPillPressed]}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label}. ${item.subtitle}`}>
+                <View style={styles.quickIconWrap}>
+                  <Ionicons name={item.icon} size={20} color={PREMIUM.accentSoft} />
+                </View>
+                <Text style={styles.quickTileText} numberOfLines={1}>
+                  {item.label}
+                </Text>
+                <Text style={styles.quickTileSub} numberOfLines={1}>
+                  {item.subtitle}
+                </Text>
+              </Pressable>
+            </Link>
+          ))}
+        </ScrollView>
+
+        <Text style={styles.sectionLabel}>Filter by urgency</Text>
+        <View style={styles.priorityRow}>
+          {priorityLinks.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => onPriorityFilterChange(item.active ? null : item.priority)}
+              style={({ pressed }) => [
+                styles.priorityPill,
+                item.active && [styles.priorityPillActive, { borderColor: item.accent }],
+                pressed && styles.quickPillPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: item.active }}
+              accessibilityLabel={`${item.label}. ${item.description}`}>
+              <View style={[styles.priorityDot, { backgroundColor: item.accent }]} />
+              <Text
+                style={[
+                  styles.priorityPillText,
+                  item.active && { color: PREMIUM.text, fontWeight: '800' },
+                ]}
+                numberOfLines={1}>
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -199,18 +227,18 @@ const styles = StyleSheet.create({
   shell: {
     marginHorizontal: -16,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingTop: 8,
+    paddingBottom: 18,
     gap: 12,
     backgroundColor: PREMIUM.bg,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
     shadowColor: '#042F2E',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.32,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    elevation: 14,
   },
   accentBar: {
     position: 'absolute',
@@ -391,76 +419,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  searchHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: -4,
+  },
+  searchHintText: {
+    color: PREMIUM.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   toolsSection: {
-    gap: 12,
+    gap: 10,
     paddingTop: 2,
   },
-  quickRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'space-between',
-    gap: 8,
+  sectionLabel: {
+    color: PREMIUM.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  quickSlot: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'stretch',
+  quickScroll: {
+    gap: 10,
+    paddingRight: 4,
   },
   quickTile: {
-    width: '100%',
+    width: 96,
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
-    borderRadius: 14,
-    paddingHorizontal: 6,
+    borderRadius: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     backgroundColor: PREMIUM.bgGlass,
-  },
-  quickTileInner: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 6,
   },
   quickIconWrap: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
     backgroundColor: SERVICES_TINT.iconBg,
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
   quickTileText: {
     color: PREMIUM.text,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     width: '100%',
     textAlign: 'center',
-    alignSelf: 'center',
-    lineHeight: 13,
+  },
+  quickTileSub: {
+    color: PREMIUM.textMuted,
+    fontSize: 9.5,
+    fontWeight: '500',
+    width: '100%',
+    textAlign: 'center',
   },
   priorityRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  prioritySlot: {
-    flex: 1,
-    minWidth: 0,
-  },
-  spreadPill: {
-    width: '100%',
-    justifyContent: 'center',
+    gap: 8,
   },
   quickPillPressed: {
     opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
   priorityPill: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -468,7 +498,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
     borderRadius: 14,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 11,
     backgroundColor: PREMIUM.bgGlass,
   },
@@ -482,7 +512,7 @@ const styles = StyleSheet.create({
   },
   priorityPillText: {
     color: PREMIUM.textMuted,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
   },
 });

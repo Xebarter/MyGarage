@@ -17,13 +17,61 @@ async function resolvePlaceLabel(latitude: number, longitude: number): Promise<s
 }
 
 export function useServiceLocation(autoDetect = true) {
-  const [useDetectedLocation, setUseDetectedLocation] = useState(true);
+  const [useDetectedLocation, setUseDetectedLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
   const [locationMessage, setLocationMessage] = useState('Detecting your current location...');
   const [locationAccuracyLabel, setLocationAccuracyLabel] = useState('');
   const [placeLabel, setPlaceLabel] = useState('');
   const [manualLocation, setManualLocation] = useState('');
+  const [manualCoords, setManualCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [biasOrigin, setBiasOrigin] = useState<{ lat: number; lng: number } | null>(null);
+
+  const refreshBiasOrigin = useCallback(async (requestPermission = false) => {
+    try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) return;
+
+      let granted = (await Location.getForegroundPermissionsAsync()).status === 'granted';
+      if (!granted && requestPermission) {
+        granted = (await Location.requestForegroundPermissionsAsync()).status === 'granted';
+      }
+      if (!granted) return;
+
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown?.coords) {
+        const { latitude, longitude } = lastKnown.coords;
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          setBiasOrigin({ lat: latitude, lng: longitude });
+          return;
+        }
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = position.coords;
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        setBiasOrigin({ lat: latitude, lng: longitude });
+      }
+    } catch {
+      // Suggestions fall back to Kampala-centered bias.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshBiasOrigin(false);
+  }, [refreshBiasOrigin]);
+
+  const updateManualLocation = useCallback((value: string) => {
+    setManualLocation(value);
+    setManualCoords(null);
+  }, []);
+
+  const selectManualAddress = useCallback((label: string, lat: number, lng: number) => {
+    setManualLocation(label);
+    setManualCoords({ lat, lng });
+  }, []);
 
   const detectCurrentLocation = useCallback(async () => {
     setLocationStatus('detecting');
@@ -86,6 +134,11 @@ export function useServiceLocation(autoDetect = true) {
     }
   }, [autoDetect, detectCurrentLocation, locationStatus, useDetectedLocation]);
 
+  const activeCoords = useMemo(
+    () => (useDetectedLocation ? coords : manualCoords),
+    [coords, manualCoords, useDetectedLocation],
+  );
+
   const resolvedLocation = useMemo(
     () => (useDetectedLocation ? placeLabel.trim() : manualLocation.trim()),
     [useDetectedLocation, manualLocation, placeLabel],
@@ -106,10 +159,13 @@ export function useServiceLocation(autoDetect = true) {
     locationAccuracyLabel,
     placeLabel,
     manualLocation,
-    setManualLocation,
+    setManualLocation: updateManualLocation,
+    selectManualAddress,
     detectCurrentLocation,
+    refreshBiasOrigin,
     resolvedLocation,
-    coords,
+    coords: activeCoords,
+    biasOrigin,
     canSubmitLocation,
   };
 }

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 
 const HORIZONTAL_PADDING = 16;
-const COLUMN_GAP = 8;
+const COLUMN_GAP = 12;
 
 export function useServicesGrid() {
   const { width: screenWidth } = useWindowDimensions();
