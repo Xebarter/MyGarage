@@ -118,6 +118,8 @@ function mapCoordsFromRow(row: DispatchRequestRow): {
   return { destination, provider };
 }
 
+const CHART_COLORS = ['#3b82f6', '#f59e0b', '#10b981'];
+
 export default function ServiceProviderDashboardPage() {
   const router = useRouter();
   const [tab] = useState(() => {
