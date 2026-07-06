@@ -102,7 +102,7 @@ export function ServiceLocationMap({
               latitudeDelta: 0.012,
               longitudeDelta: 0.012,
             }}
-            showsUserLocation
+            showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={false}
             toolbarEnabled={false}

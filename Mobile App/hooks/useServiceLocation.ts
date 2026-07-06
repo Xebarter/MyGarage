@@ -129,7 +129,7 @@ export function useServiceLocation(autoDetect = true) {
   }, []);
 
   useEffect(() => {
-    if (autoDetect && useDetectedLocation && locationStatus === 'idle') {
+    if (autoDetect && useDetectedLocation && (locationStatus === 'idle' || locationStatus === 'error')) {
       void detectCurrentLocation();
     }
   }, [autoDetect, detectCurrentLocation, locationStatus, useDetectedLocation]);

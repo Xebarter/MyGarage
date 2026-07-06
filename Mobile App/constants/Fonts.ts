@@ -1,23 +1,21 @@
 import type { TextStyle } from 'react-native';
 
-export const GOOGLE_SANS = {
-  regular: 'GoogleSans_400Regular',
-  medium: 'GoogleSans_500Medium',
-  semiBold: 'GoogleSans_600SemiBold',
-  bold: 'GoogleSans_700Bold',
+export const NUNITO = {
+  regular: 'Nunito_400Regular',
+  medium: 'Nunito_500Medium',
+  semiBold: 'Nunito_600SemiBold',
+  bold: 'Nunito_700Bold',
+  extraBold: 'Nunito_800ExtraBold',
 } as const;
 
-export function googleSansFamilyForWeight(fontWeight?: TextStyle['fontWeight']): string {
-  if (fontWeight === '500' || fontWeight === 500) return GOOGLE_SANS.medium;
-  if (fontWeight === '600' || fontWeight === 600) return GOOGLE_SANS.semiBold;
-  if (
-    fontWeight === '700' ||
-    fontWeight === 'bold' ||
-    fontWeight === 700 ||
-    fontWeight === '800' ||
-    fontWeight === 800
-  ) {
-    return GOOGLE_SANS.bold;
+export function nunitoFamilyForWeight(fontWeight?: TextStyle['fontWeight']): string {
+  if (fontWeight === '500' || fontWeight === 500) return NUNITO.medium;
+  if (fontWeight === '600' || fontWeight === 600) return NUNITO.semiBold;
+  if (fontWeight === '700' || fontWeight === 'bold' || fontWeight === 700) {
+    return NUNITO.bold;
   }
-  return GOOGLE_SANS.regular;
+  if (fontWeight === '800' || fontWeight === 800) {
+    return NUNITO.extraBold;
+  }
+  return NUNITO.regular;
 }

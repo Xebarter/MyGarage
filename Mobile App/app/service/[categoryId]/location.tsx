@@ -93,7 +93,7 @@ export default function ServiceLocationScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-  const { user, profile } = useAuth();
+  const { user, profile, configured } = useAuth();
 
   const category = categoryId ? getServiceCategoryById(categoryId) : undefined;
   const isValidService =
@@ -177,6 +177,14 @@ export default function ServiceLocationScreen() {
       autoNavigatedRef.current = true;
 
       if (!user || !profile?.customer.id) {
+        if (!configured) {
+          autoNavigatedRef.current = false;
+          setSubmitError(
+            'Sign-in is not available in this build. Reinstall the app after the developer uploads Supabase settings to EAS.',
+          );
+          return;
+        }
+
         void savePendingServiceRequest({
           categoryId: category.id,
           category: category.title,
@@ -202,13 +210,8 @@ export default function ServiceLocationScreen() {
         },
       });
     },
-    [biasOrigin, category, profile?.customer.id, router, serviceName, user],
+    [biasOrigin, category, configured, profile?.customer.id, router, serviceName, user],
   );
-
-  useEffect(() => {
-    if (!useDetectedLocation || locationStatus !== 'ready' || !placeLabel.trim() || !coords) return;
-    navigateToRequesting(placeLabel.trim(), coords);
-  }, [coords, locationStatus, navigateToRequesting, placeLabel, useDetectedLocation]);
 
   const handleSelectSuggestion = async (item: AddressSuggestion) => {
     if (!canResolveSuggestion(item)) return;
@@ -252,6 +255,12 @@ export default function ServiceLocationScreen() {
     if (!canSubmitLocation || !resolvedLocation) return;
     navigateToRequesting(resolvedLocation, coords);
   };
+
+  const enableGpsMode = useCallback(() => {
+    setSubmitError(null);
+    setUseDetectedLocation(true);
+    void detectCurrentLocation();
+  }, [detectCurrentLocation, setUseDetectedLocation]);
 
   const showSuggestionList =
     showAddressSuggestions && manualLocation.trim().length >= 2 && !suggestionsLoading && suggestions.length > 0;
@@ -314,7 +323,7 @@ export default function ServiceLocationScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setUseDetectedLocation(true)}
+              onPress={enableGpsMode}
               style={[
                 styles.segmentBtn,
                 useDetectedLocation && [
@@ -500,23 +509,21 @@ export default function ServiceLocationScreen() {
                 : 'Enter your area or address to continue.'}
             </Text>
           ) : null}
-          {!useDetectedLocation ? (
-            <Pressable
-              onPress={() => void handleSubmit()}
-              disabled={!canSubmitLocation}
-              style={({ pressed }) => [
-                styles.submitBtn,
-                {
-                  backgroundColor: canSubmitLocation ? theme.accent : colors.border,
-                  opacity: pressed && canSubmitLocation ? 0.92 : 1,
-                },
-              ]}>
-              <View style={styles.submitBtnContent}>
-                <Ionicons name="arrow-forward" size={17} color={theme.onAccent} />
-                <Text style={[styles.submitText, { color: theme.onAccent }]}>Continue</Text>
-              </View>
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={() => void handleSubmit()}
+            disabled={!canSubmitLocation}
+            style={({ pressed }) => [
+              styles.submitBtn,
+              {
+                backgroundColor: canSubmitLocation ? theme.accent : colors.border,
+                opacity: pressed && canSubmitLocation ? 0.92 : 1,
+              },
+            ]}>
+            <View style={styles.submitBtnContent}>
+              <Ionicons name="arrow-forward" size={17} color={theme.onAccent} />
+              <Text style={[styles.submitText, { color: theme.onAccent }]}>Continue</Text>
+            </View>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </>

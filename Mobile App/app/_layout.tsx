@@ -1,10 +1,11 @@
 import {
-  GoogleSans_400Regular,
-  GoogleSans_500Medium,
-  GoogleSans_600SemiBold,
-  GoogleSans_700Bold,
+  Nunito_400Regular,
+  Nunito_500Medium,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+  Nunito_800ExtraBold,
   useFonts,
-} from '@expo-google-fonts/google-sans';
+} from '@expo-google-fonts/nunito';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -17,7 +18,7 @@ import { CartProvider } from '@/contexts/CartContext';
 import { ActiveServiceRequestRestore } from '@/components/ActiveServiceRequestRestore';
 import { ServiceRequestLiveNavigation } from '@/components/ServiceRequestLiveNavigation';
 import { useColorScheme } from '@/components/useColorScheme';
-import { GOOGLE_SANS } from '@/constants/Fonts';
+import { NUNITO } from '@/constants/Fonts';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -25,10 +26,11 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    GoogleSans_400Regular,
-    GoogleSans_500Medium,
-    GoogleSans_600SemiBold,
-    GoogleSans_700Bold,
+    Nunito_400Regular,
+    Nunito_500Medium,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    Nunito_800ExtraBold,
   });
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function RootStack() {
         screenOptions={{
           contentStyle: { flex: 1, backgroundColor: 'transparent' },
           headerShadowVisible: false,
-          headerTitleStyle: { fontFamily: GOOGLE_SANS.bold },
+          headerTitleStyle: { fontFamily: NUNITO.bold },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ title: 'Sign in', presentation: 'modal' }} />

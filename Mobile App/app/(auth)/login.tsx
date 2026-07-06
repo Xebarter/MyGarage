@@ -94,10 +94,19 @@ export default function LoginScreen() {
           <View style={[styles.configLogoWrap, { backgroundColor: colors.primary + '12' }]}>
             <Image source={LOGO} style={styles.logo} resizeMode="contain" />
           </View>
-          <Text style={[styles.pageTitle, { color: colors.text }]}>Configuration required</Text>
+          <Text style={[styles.pageTitle, { color: colors.text }]}>Sign-in unavailable</Text>
           <Text style={[styles.pageHint, { color: colors.textMuted, textAlign: 'center' }]}>
-            Add Supabase credentials to <Text style={{ fontFamily: 'monospace' }}>.env</Text>
+            This app build is missing Supabase settings. If you installed a preview APK, ask the developer to run{' '}
+            <Text style={{ fontFamily: 'monospace' }}>eas env:push preview --path .env</Text> and rebuild.
           </Text>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [
+              styles.backBtn,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.9 : 1 },
+            ]}>
+            <Text style={styles.backBtnText}>Go back</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -502,5 +511,19 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  backBtn: {
+    marginTop: 8,
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+  },
+  backBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

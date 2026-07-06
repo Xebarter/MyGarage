@@ -9,13 +9,13 @@ import {
   TextStyle,
 } from 'react-native';
 
-import { GOOGLE_SANS, googleSansFamilyForWeight } from '@/constants/Fonts';
+import { NUNITO, nunitoFamilyForWeight } from '@/constants/Fonts';
 
-export function resolveGoogleSansStyle(style?: StyleProp<TextStyle>): TextStyle | undefined {
+export function resolveNunitoStyle(style?: StyleProp<TextStyle>): TextStyle | undefined {
   const flat = StyleSheet.flatten(style);
-  if (!flat) return { fontFamily: GOOGLE_SANS.regular };
+  if (!flat) return { fontFamily: NUNITO.regular };
 
-  if (flat.fontFamily?.startsWith('GoogleSans_')) {
+  if (flat.fontFamily?.startsWith('Nunito_')) {
     return flat;
   }
 
@@ -24,14 +24,14 @@ export function resolveGoogleSansStyle(style?: StyleProp<TextStyle>): TextStyle 
     return flat;
   }
 
-  const fontFamily = googleSansFamilyForWeight(flat.fontWeight);
+  const fontFamily = nunitoFamilyForWeight(flat.fontWeight);
   const { fontWeight: _fontWeight, ...rest } = flat;
   return { ...rest, fontFamily };
 }
 
 export function AppText(props: TextProps) {
   const { style, ...rest } = props;
-  return <RNText {...rest} style={resolveGoogleSansStyle(style)} />;
+  return <RNText {...rest} style={resolveNunitoStyle(style)} />;
 }
 
 export function AppTextInput(props: TextInputProps) {

@@ -3,9 +3,11 @@ import { Platform } from 'react-native';
 
 function readEnv(key: string): string | undefined {
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  const fromExtra = extra?.[key]?.trim();
-  const fromProcess = process.env[key]?.trim();
-  return fromProcess || fromExtra || undefined;
+  for (const value of [process.env[key], extra?.[key]]) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
 }
 
 function stripTrailingSlash(url: string): string {
