@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
+import { GOOGLE_SANS } from '@/constants/Fonts';
 import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
 
@@ -22,7 +23,8 @@ export default function TabLayout() {
         },
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontFamily: GOOGLE_SANS.bold },
+        tabBarLabelStyle: { fontFamily: GOOGLE_SANS.medium, fontSize: 11 },
         headerShadowVisible: false,
       }}>
       <Tabs.Screen

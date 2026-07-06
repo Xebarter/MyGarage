@@ -6,7 +6,7 @@ import { SearchingProviderView } from '@/components/service-request/SearchingPro
 import { ServiceMapShell } from '@/components/service-request/ServiceMapShell';
 import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
-import { createBuyerServiceRequest, fetchBuyerServiceRequestDetail } from '@/lib/api';
+import { createBuyerServiceRequest, fetchBuyerServiceRequestDetail, fetchBuyerVehicles } from '@/lib/api';
 import { isValidPoint } from '@/lib/service-request-phase';
 import {
   getActiveServiceRequestId,
@@ -73,12 +73,16 @@ export default function ServiceRequestingScreen() {
           }
         }
 
+        const vehicles = await fetchBuyerVehicles(profile.customer.id).catch(() => []);
+        const primaryVehicle = vehicles.find((v) => v.isPrimary) ?? vehicles[0];
+
         const created = await createBuyerServiceRequest({
           customerId: profile.customer.id,
           category,
           service: serviceName,
           location: location.trim(),
           ...(destination ? { destinationLat: destination.lat, destinationLng: destination.lng } : {}),
+          ...(primaryVehicle ? { vehicleId: primaryVehicle.id } : {}),
         });
 
         if (cancelled) return;

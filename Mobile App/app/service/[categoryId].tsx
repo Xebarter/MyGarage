@@ -6,17 +6,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
 import { getServiceCategoryMeta } from '@/constants/ServiceCategoryMeta';
-import { getCategoryTheme } from '@/constants/ServiceCategoryThemes';
+import {
+  getServicesPageBackground,
+  SERVICES_PREMIUM,
+  SERVICES_TINT,
+} from '@/constants/ServicesPremiumTheme';
 import { getPriorityPalette } from '@/constants/ServicePriorities';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getServiceCategoryById } from '@/data/services-catalog';
 import { formatServiceCategoryTitle, formatServiceHint } from '@/lib/format';
+
 const CARD_SHADOW = Platform.select({
   ios: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowColor: '#042F2E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
   },
   android: { elevation: 2 },
 });
@@ -27,6 +32,7 @@ export default function ServiceCategoryScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
+  const pageBackground = getServicesPageBackground(scheme);
 
   const category = categoryId ? getServiceCategoryById(categoryId) : undefined;
 
@@ -34,12 +40,12 @@ export default function ServiceCategoryScreen() {
     return <EmptyState title="Service category not found" />;
   }
 
-  const theme = getCategoryTheme(category.id, scheme);
   const meta = getServiceCategoryMeta(category.id);
   const priority = getPriorityPalette(category.priority, scheme);
   const title = formatServiceCategoryTitle(category.title);
   const hint = formatServiceHint(category.useWhen);
   const serviceCount = category.services.length;
+  const accent = scheme === 'dark' ? SERVICES_PREMIUM.accent : SERVICES_PREMIUM.accentDeep;
 
   const openServiceLocation = (service: string) => {
     router.push({
@@ -51,61 +57,49 @@ export default function ServiceCategoryScreen() {
   return (
     <>
       <Stack.Screen options={{ title }} />
-      <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <View style={[styles.screen, { backgroundColor: pageBackground }]}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}>
           <View
             style={[
               styles.hero,
-              {
-                backgroundColor: theme.accentMuted,
-                borderColor: theme.accent + '44',
-              },
+              CARD_SHADOW,
+              { backgroundColor: colors.card, borderColor: colors.border },
             ]}>
-            <View style={[styles.heroAccent, { backgroundColor: theme.accent }]} />
-            <View style={styles.heroBody}>
-              <View style={styles.heroTop}>
-                <View
-                  style={[
-                    styles.heroIcon,
-                    { backgroundColor: colors.card, borderColor: theme.accent + '55' },
-                  ]}>
-                  <Text style={styles.heroEmoji}>{category.emoji}</Text>
-                </View>
-                <View style={styles.heroTitleBlock}>
-                  <Text style={[styles.heroTitle, { color: colors.text }]}>{title}</Text>
-                  <View
-                    style={[
-                      styles.priorityBadge,
-                      { backgroundColor: colors.card + 'CC', borderColor: priority.accent + '44' },
-                    ]}>
-                    <View style={[styles.priorityDot, { backgroundColor: priority.accent }]} />
-                    <Text style={[styles.priorityText, { color: priority.accent }]}>
-                      {priority.label}
-                    </Text>
-                  </View>
-                </View>
+            <View style={styles.heroMain}>
+              <View style={[styles.heroIcon, { backgroundColor: SERVICES_TINT.iconBg }]}>
+                <Text style={styles.heroEmoji}>{category.emoji}</Text>
               </View>
-              <Text style={[styles.heroHint, { color: colors.textMuted }]}>{hint}</Text>
-              <View style={[styles.heroMetaChip, { backgroundColor: colors.card + 'CC' }]}>
-                <Ionicons name={meta.icon} size={14} color={theme.accent} />
+              <View style={styles.heroCopy}>
+                <Text style={[styles.heroTitle, { color: colors.text }]}>{title}</Text>
+                <Text style={[styles.heroHint, { color: colors.textMuted }]}>{hint}</Text>
+              </View>
+            </View>
+
+            <View style={[styles.heroMeta, { borderTopColor: colors.border }]}>
+              <View style={styles.heroMetaItem}>
+                <Ionicons name={meta.icon} size={15} color={accent} />
                 <Text style={[styles.heroMetaText, { color: colors.textMuted }]}>
-                  {serviceCount} services available
+                  {serviceCount} {serviceCount === 1 ? 'option' : 'options'}
                 </Text>
               </View>
+              <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
+              <Text style={[styles.heroMetaText, { color: colors.textMuted }]}>
+                {priority.label} priority
+              </Text>
             </View>
           </View>
 
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Available options</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Choose a service</Text>
             <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-              Tap a service to set your location
+              Select one to continue to location
             </Text>
           </View>
 
           <View style={styles.optionGrid}>
-            {category.services.map((service, index) => (
+            {category.services.map((service) => (
               <Pressable
                 key={service}
                 accessibilityRole="button"
@@ -116,27 +110,18 @@ export default function ServiceCategoryScreen() {
                   {
                     backgroundColor: colors.card,
                     borderColor: colors.border,
-                    opacity: pressed ? 0.94 : 1,
-                    transform: [{ scale: pressed ? 0.99 : 1 }],
+                    opacity: pressed ? 0.88 : 1,
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
                   },
                 ]}>
-                <View style={[styles.optionAccent, { backgroundColor: theme.accent }]} />
-                <View
-                  style={[
-                    styles.optionIndex,
-                    { backgroundColor: theme.accentMuted, borderColor: theme.accent + '35' },
-                  ]}>
-                  <Text style={[styles.optionIndexText, { color: theme.accent }]}>
-                    {String(index + 1).padStart(2, '0')}
-                  </Text>
+                <View style={[styles.optionIcon, { backgroundColor: SERVICES_TINT.trustBg }]}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={accent} />
                 </View>
-                <Text style={[styles.optionLabel, { color: colors.text }]}>{service}</Text>
-                <View
-                  style={[
-                    styles.optionChevron,
-                    { backgroundColor: theme.accentMuted, borderColor: theme.accent + '35' },
-                  ]}>
-                  <Ionicons name="chevron-forward" size={14} color={theme.accent} />
+                <Text style={[styles.optionLabel, { color: colors.text }]} numberOfLines={2}>
+                  {service}
+                </Text>
+                <View style={[styles.optionChevron, { backgroundColor: SERVICES_TINT.clearBg }]}>
+                  <Ionicons name="chevron-forward" size={16} color={accent} />
                 </View>
               </Pressable>
             ))}
@@ -146,158 +131,120 @@ export default function ServiceCategoryScreen() {
     </>
   );
 }
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
   content: {
     padding: 16,
-    gap: 14,
+    gap: 16,
   },
   hero: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 20,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 2 },
-    }),
   },
-  heroAccent: {
-    height: 4,
-  },
-  heroBody: {
-    padding: 16,
-    gap: 10,
-  },
-  heroTop: {
+  heroMain: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 14,
+    padding: 18,
   },
   heroIcon: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 16,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   heroEmoji: {
-    fontSize: 28,
+    fontSize: 26,
   },
-  heroTitleBlock: {
+  heroCopy: {
     flex: 1,
-    gap: 8,
+    gap: 6,
     minWidth: 0,
+    paddingTop: 2,
   },
   heroTitle: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
-    lineHeight: 24,
-    letterSpacing: -0.3,
+    lineHeight: 26,
+    letterSpacing: -0.35,
   },
   heroHint: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
+    fontWeight: '500',
   },
-  heroMetaChip: {
-    alignSelf: 'flex-start',
+  heroMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  heroMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
   heroMetaText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  priorityBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  priorityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '700',
+  metaDivider: {
+    width: 1,
+    height: 12,
   },
   sectionHeader: {
     paddingHorizontal: 2,
     gap: 4,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     letterSpacing: -0.2,
   },
   sectionHint: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
   },
   optionGrid: {
-    gap: 8,
+    gap: 10,
   },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+    minHeight: 68,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 13,
-    paddingRight: 14,
-    paddingLeft: 0,
-    overflow: 'hidden',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  optionAccent: {
-    width: 3,
-    alignSelf: 'stretch',
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
-  },
-  optionIndex: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  optionIndexText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
   optionLabel: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
     fontWeight: '600',
-    letterSpacing: -0.1,
+    letterSpacing: -0.15,
   },
   optionChevron: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

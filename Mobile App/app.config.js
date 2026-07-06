@@ -31,6 +31,11 @@ const googleMapsApiKey =
   process.env.GOOGLE_MAPS_API_KEY?.trim() ||
   '';
 
+const publicApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || '';
+const publicAppUrl = process.env.EXPO_PUBLIC_APP_URL?.trim() || '';
+const publicSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
+const publicSupabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
+
 const basePlugins = appJson.expo.plugins ?? [];
 const mapsPlugin = googleMapsApiKey
   ? [
@@ -66,6 +71,13 @@ module.exports = {
   },
   extra: {
     ...appJson.expo.extra,
+    EXPO_PUBLIC_API_URL: publicApiUrl,
+    EXPO_PUBLIC_APP_URL: publicAppUrl,
+    EXPO_PUBLIC_SUPABASE_URL: publicSupabaseUrl,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: publicSupabaseAnonKey,
     EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: googleMapsApiKey,
+    eas: {
+      projectId: 'b45adaea-4bda-4791-926e-08921a937e2f',
+    },
   },
 };

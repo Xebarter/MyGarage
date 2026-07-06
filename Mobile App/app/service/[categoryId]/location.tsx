@@ -142,6 +142,34 @@ export default function ServiceLocationScreen() {
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const autoNavigatedRef = useRef(false);
+  const suggestionScrollRef = useRef(false);
+  const suggestionScrollResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const markSuggestionScrollStart = useCallback(() => {
+    if (suggestionScrollResetTimer.current) {
+      clearTimeout(suggestionScrollResetTimer.current);
+      suggestionScrollResetTimer.current = null;
+    }
+    suggestionScrollRef.current = true;
+  }, []);
+
+  const markSuggestionScrollEnd = useCallback(() => {
+    if (suggestionScrollResetTimer.current) {
+      clearTimeout(suggestionScrollResetTimer.current);
+    }
+    suggestionScrollResetTimer.current = setTimeout(() => {
+      suggestionScrollRef.current = false;
+      suggestionScrollResetTimer.current = null;
+    }, 160);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (suggestionScrollResetTimer.current) {
+        clearTimeout(suggestionScrollResetTimer.current);
+      }
+    };
+  }, []);
 
   const navigateToRequesting = useCallback(
     (locationLabel: string, point?: { lat: number; lng: number } | null) => {
@@ -184,6 +212,7 @@ export default function ServiceLocationScreen() {
 
   const handleSelectSuggestion = async (item: AddressSuggestion) => {
     if (!canResolveSuggestion(item)) return;
+    if (suggestionScrollRef.current) return;
 
     setAddressFocused(false);
     setResolvingSuggestionId(item.id);
@@ -224,6 +253,10 @@ export default function ServiceLocationScreen() {
     navigateToRequesting(resolvedLocation, coords);
   };
 
+  const showSuggestionList =
+    showAddressSuggestions && manualLocation.trim().length >= 2 && !suggestionsLoading && suggestions.length > 0;
+  const lockParentScroll = showSuggestionList;
+
   return (
     <>
       <Stack.Screen options={{ title: 'Confirm location' }} />
@@ -232,7 +265,9 @@ export default function ServiceLocationScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps={showSuggestionList ? 'always' : 'handled'}
+          scrollEnabled={!lockParentScroll}
+          nestedScrollEnabled
           showsVerticalScrollIndicator={false}>
           <StepIndicator activeStep={2} />
 
@@ -330,7 +365,7 @@ export default function ServiceLocationScreen() {
                     void refreshBiasOrigin(true);
                   }}
                   onBlur={() => {
-                    setTimeout(() => setAddressFocused(false), 150);
+                    setTimeout(() => setAddressFocused(false), 200);
                   }}
                   placeholder="Search for a building, street, or area"
                   placeholderTextColor={colors.textMuted}
@@ -368,16 +403,20 @@ export default function ServiceLocationScreen() {
                     </View>
                   ) : suggestions.length > 0 ? (
                     <ScrollView
-                      keyboardShouldPersistTaps="handled"
+                      keyboardShouldPersistTaps="always"
                       nestedScrollEnabled
                       style={styles.suggestionsList}
-                      showsVerticalScrollIndicator={false}>
+                      showsVerticalScrollIndicator
+                      onScrollBeginDrag={markSuggestionScrollStart}
+                      onScrollEndDrag={markSuggestionScrollEnd}
+                      onMomentumScrollEnd={markSuggestionScrollEnd}>
                       {suggestions.map((item, index) => {
                         const resolving = resolvingSuggestionId === item.id;
                         return (
                           <Pressable
                             key={item.id}
-                            onPressIn={() => {
+                            delayPressIn={120}
+                            onPress={() => {
                               void handleSelectSuggestion(item);
                             }}
                             disabled={Boolean(resolvingSuggestionId)}

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LoadingView } from '@/components/LoadingView';
+import { ProfileControlCenter } from '@/components/profile/ProfileControlCenter';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -56,7 +57,6 @@ function formatMemberSince(iso: string): string {
 }
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
@@ -75,40 +75,6 @@ export default function ProfileScreen() {
 
   const customer = profile?.customer;
   const firstName = customer?.name?.trim().split(/\s+/)[0] ?? 'there';
-
-  const quickLinks = useMemo(
-    () => [
-      {
-        id: 'services',
-        label: 'Request a service',
-        hint: 'Roadside & garage help',
-        icon: 'construct-outline' as const,
-        onPress: () => router.push('/(tabs)/services'),
-      },
-      {
-        id: 'shop',
-        label: 'Browse shop',
-        hint: 'Parts & accessories',
-        icon: 'grid-outline' as const,
-        onPress: () => router.push('/(tabs)/shop'),
-      },
-      {
-        id: 'orders',
-        label: 'My orders',
-        hint: 'Track purchases',
-        icon: 'receipt-outline' as const,
-        onPress: () => router.push('/orders/index'),
-      },
-      {
-        id: 'cart',
-        label: 'View cart',
-        hint: 'Checkout when ready',
-        icon: 'cart-outline' as const,
-        onPress: () => router.push('/(tabs)/cart'),
-      },
-    ],
-    [router],
-  );
 
   const openPhoneEditor = () => {
     setPhoneDraft(customer?.phone ?? '');
@@ -180,7 +146,7 @@ export default function ProfileScreen() {
                 <StatCard label="Wishlist" value={String(profile.stats.wishlistItems)} icon="heart-outline" />
                 <StatCard
                   label="Services"
-                  value={String(profile.stats.openServiceRequests)}
+                  value={String(profile.stats.serviceRequests ?? 0)}
                   icon="car-outline"
                 />
               </View>
@@ -229,30 +195,9 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Shortcuts</Text>
-          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {quickLinks.map((link, index) => (
-              <View key={link.id}>
-                <Pressable
-                  onPress={link.onPress}
-                  style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}>
-                  <View style={[styles.linkIcon, { backgroundColor: colors.primary + '14' }]}>
-                    <Ionicons name={link.icon} size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.linkCopy}>
-                    <Text style={[styles.linkLabel, { color: colors.text }]}>{link.label}</Text>
-                    <Text style={[styles.linkHint, { color: colors.textMuted }]}>{link.hint}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                </Pressable>
-                {index < quickLinks.length - 1 ? (
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                ) : null}
-              </View>
-            ))}
-          </View>
-        </View>
+        {user && customer ? (
+          <ProfileControlCenter customerId={customer.id} onRefreshProfile={refreshProfile} />
+        ) : null}
 
         {user ? (
           <Pressable

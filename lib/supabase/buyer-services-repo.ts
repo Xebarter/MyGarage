@@ -13,6 +13,7 @@ export interface BuyerServiceRequest {
   location: string;
   status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
   providerId: string | null;
+  vehicleId: string | null;
   acceptedAt: Date | null;
   arrivedAt: Date | null;
   startedAt: Date | null;
@@ -45,6 +46,7 @@ type BuyerServiceRequestRow = {
   location: string;
   status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
   provider_id: string | null;
+  vehicle_id: string | null;
   accepted_at: string | null;
   arrived_at: string | null;
   started_at: string | null;
@@ -76,6 +78,7 @@ export type BuyerServiceRequestInsert = Omit<
   | "updatedAt"
   | "status"
   | "providerId"
+  | "vehicleId"
   | "acceptedAt"
   | "arrivedAt"
   | "startedAt"
@@ -90,6 +93,7 @@ export type BuyerServiceRequestInsert = Omit<
 > & {
   id?: string;
   status?: BuyerServiceRequest["status"];
+  vehicleId?: string | null;
   buyerContactPhone: string;
   buyerContactName: string;
   destinationLat?: number | null;
@@ -107,6 +111,7 @@ function rowToBuyerServiceRequest(row: BuyerServiceRequestRow): BuyerServiceRequ
     location: row.location,
     status: row.status,
     providerId: row.provider_id ?? null,
+    vehicleId: row.vehicle_id ?? null,
     acceptedAt: row.accepted_at ? new Date(row.accepted_at) : null,
     arrivedAt: row.arrived_at ? new Date(row.arrived_at) : null,
     startedAt: row.started_at ? new Date(row.started_at) : null,
@@ -172,6 +177,9 @@ export async function insertBuyerServiceRequest(request: BuyerServiceRequestInse
     buyer_contact_phone: request.buyerContactPhone,
     buyer_contact_name: request.buyerContactName,
   };
+  if (request.vehicleId) {
+    row.vehicle_id = request.vehicleId;
+  }
   if (request.destinationLat != null && request.destinationLng != null) {
     row.destination_lat = request.destinationLat;
     row.destination_lng = request.destinationLng;

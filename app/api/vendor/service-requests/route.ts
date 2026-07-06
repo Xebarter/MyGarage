@@ -7,6 +7,8 @@ import {
   updateBuyerServiceRequestStatus,
   vendorAcceptServiceRequest,
 } from '@/lib/db';
+import { recordGarageServiceCompletion } from '@/lib/garage-service';
+import { VEHICLE_STATUSES, type VehicleStatus } from '@/lib/garage';
 import { getActiveFulfillmentRequestForVendor } from '@/lib/supabase/service-dispatch-repo';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -146,6 +148,28 @@ export async function PATCH(req: NextRequest) {
     if (!updated) {
       return NextResponse.json({ error: 'Service request not found' }, { status: 404 });
     }
+
+    if (status === 'completed' && updated.vehicleId) {
+      const vehicleStatus = body.vehicleStatus as VehicleStatus | undefined;
+      const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+      let nextServiceDate: Date | null | undefined;
+      if (body.nextServiceDate === null) {
+        nextServiceDate = null;
+      } else if (body.nextServiceDate) {
+        const parsed = new Date(body.nextServiceDate as string);
+        if (!Number.isNaN(parsed.getTime())) nextServiceDate = parsed;
+      }
+
+      await recordGarageServiceCompletion({
+        serviceRequestId: id,
+        providerId: vendorId,
+        vehicleStatus:
+          vehicleStatus && VEHICLE_STATUSES.includes(vehicleStatus) ? vehicleStatus : 'no_active_issues',
+        nextServiceDate,
+        notes,
+      });
+    }
+
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: 'Failed to update service request' }, { status: 500 });

@@ -21,6 +21,7 @@ export type BuyerServiceRequestFullRow = {
   location: string;
   status: string;
   provider_id: string | null;
+  vehicle_id: string | null;
   accepted_at: string | null;
   arrived_at: string | null;
   started_at: string | null;

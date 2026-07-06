@@ -1,4 +1,6 @@
 import { assignProviderToUnassignedServiceRequest } from '@/lib/db';
+import { recordGarageServiceCompletion } from '@/lib/garage-service';
+import { VEHICLE_STATUSES, type VehicleStatus } from '@/lib/garage';
 import { advanceRequestStage } from '@/lib/service-dispatch';
 import { getBuyerServiceRequestFullRow } from '@/lib/supabase/service-dispatch-repo';
 import { NextRequest, NextResponse } from 'next/server';
@@ -39,6 +41,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid request state for this action' }, { status: 400 });
     }
     await advanceRequestStage(requestId, stage as 'arrived' | 'started' | 'completed');
+
+    if (stage === 'completed' && row.vehicle_id) {
+      const vehicleStatus = body.vehicleStatus as VehicleStatus | undefined;
+      const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+      let nextServiceDate: Date | null | undefined;
+      if (body.nextServiceDate === null) {
+        nextServiceDate = null;
+      } else if (body.nextServiceDate) {
+        const parsed = new Date(body.nextServiceDate as string);
+        if (!Number.isNaN(parsed.getTime())) nextServiceDate = parsed;
+      }
+
+      await recordGarageServiceCompletion({
+        serviceRequestId: requestId,
+        providerId: vendorId,
+        vehicleStatus:
+          vehicleStatus && VEHICLE_STATUSES.includes(vehicleStatus) ? vehicleStatus : 'no_active_issues',
+        nextServiceDate,
+        notes,
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('POST dispatch stage:', error);

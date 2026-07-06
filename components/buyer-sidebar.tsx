@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
+  Car,
   X,
   LayoutDashboard,
   ShoppingBag,
@@ -37,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/buyer/services', label: 'Services', icon: Wrench },
   { href: '/buyer/wishlist', label: 'Wishlist', icon: Heart },
   { href: '/buyer/addresses', label: 'Addresses', icon: MapPin },
+  { href: '/buyer/garage', label: 'My Garage', icon: Car },
   { href: '/buyer/profile', label: 'Profile', icon: User },
   { href: '/buyer/support', label: 'Support', icon: LifeBuoy },
 ];

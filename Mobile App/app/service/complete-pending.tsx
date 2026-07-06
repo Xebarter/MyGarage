@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/components/useColorScheme';
-import { createBuyerServiceRequest } from '@/lib/api';
+import { createBuyerServiceRequest, fetchBuyerVehicles } from '@/lib/api';
 import {
   clearPendingServiceRequest,
   getActiveServiceRequestId,
@@ -51,6 +51,11 @@ export default function CompletePendingServiceRequestScreen() {
       }
 
       try {
+        const vehicles = profile?.customer.id
+          ? await fetchBuyerVehicles(profile.customer.id).catch(() => [])
+          : [];
+        const primaryVehicle = vehicles.find((v) => v.isPrimary) ?? vehicles[0];
+
         const created = await createBuyerServiceRequest({
           customerId: profile.customer.id,
           category: pending.category,
@@ -59,6 +64,7 @@ export default function CompletePendingServiceRequestScreen() {
           ...(pending.destinationLat != null && pending.destinationLng != null
             ? { destinationLat: pending.destinationLat, destinationLng: pending.destinationLng }
             : {}),
+          ...(primaryVehicle ? { vehicleId: primaryVehicle.id } : {}),
         });
 
         await clearPendingServiceRequest();

@@ -4,6 +4,8 @@ import type {
   BuyerWishlistItem,
   BuyerServiceRequest,
   BuyerServiceRequestDetail,
+  BuyerVehicle,
+  BuyerControlCenterData,
   CategoryFeedPage,
   Order,
   PaytotaCheckoutResponse,
@@ -11,6 +13,7 @@ import type {
   Product,
   SearchSuggestionsResponse,
   ServiceProviderContact,
+  VehicleGarageDetail,
 } from '@/types';
 
 class ApiError extends Error {
@@ -360,6 +363,7 @@ export async function createBuyerServiceRequest(body: {
   location: string;
   destinationLat?: number;
   destinationLng?: number;
+  vehicleId?: string;
 }): Promise<BuyerServiceRequest> {
   return request<BuyerServiceRequest>('/api/buyer/service-requests', {
     method: 'POST',
@@ -389,6 +393,190 @@ export async function fetchBuyerServiceRequestDetail(
   return request<BuyerServiceRequestDetailResponse>(
     `/api/buyer/service-requests/${encodeURIComponent(requestId)}?${search.toString()}`,
   );
+}
+
+export async function fetchBuyerVehicles(customerId: string): Promise<BuyerVehicle[]> {
+  const search = new URLSearchParams({ customerId });
+  return request<BuyerVehicle[]>(`/api/buyer/vehicles?${search.toString()}`);
+}
+
+export async function createBuyerVehicle(body: {
+  customerId: string;
+  make: string;
+  model: string;
+  year: number;
+  licensePlate?: string | null;
+  imageUrl?: string | null;
+  nickname?: string | null;
+  isPrimary?: boolean;
+}): Promise<BuyerVehicle> {
+  return request<BuyerVehicle>('/api/buyer/vehicles', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateBuyerVehicle(
+  vehicleId: string,
+  body: Partial<{
+    customerId: string;
+    make: string;
+    model: string;
+    year: number;
+    licensePlate: string | null;
+    imageUrl: string | null;
+    nickname: string | null;
+    isPrimary: boolean;
+  }>,
+): Promise<BuyerVehicle> {
+  return request<BuyerVehicle>(`/api/buyer/vehicles/${encodeURIComponent(vehicleId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteBuyerVehicle(vehicleId: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/api/buyer/vehicles/${encodeURIComponent(vehicleId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchVehicleGarageDetail(
+  vehicleId: string,
+  params?: {
+    serviceType?: string;
+    providerId?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  },
+): Promise<VehicleGarageDetail> {
+  const search = new URLSearchParams();
+  if (params?.serviceType) search.set('serviceType', params.serviceType);
+  if (params?.providerId) search.set('providerId', params.providerId);
+  if (params?.status) search.set('status', params.status);
+  if (params?.sortBy) search.set('sortBy', params.sortBy);
+  if (params?.sortOrder) search.set('sortOrder', params.sortOrder);
+  const qs = search.toString();
+  return request<VehicleGarageDetail>(
+    `/api/buyer/vehicles/${encodeURIComponent(vehicleId)}/service-history${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export async function fetchBuyerControlCenter(customerId: string): Promise<BuyerControlCenterData> {
+  const search = new URLSearchParams({ customerId });
+  return request<BuyerControlCenterData>(`/api/buyer/control-center?${search.toString()}`);
+}
+
+export async function updateBuyerAccount(
+  customerId: string,
+  body: { preferredContactMethod?: string; accountStatus?: string },
+) {
+  return request(`/api/buyer/account`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customerId, ...body }),
+  });
+}
+
+export async function updateBuyerNotificationPreferences(
+  customerId: string,
+  body: Record<string, boolean>,
+) {
+  return request(`/api/buyer/notification-preferences`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customerId, ...body }),
+  });
+}
+
+export async function markBuyerNotificationsRead(
+  customerId: string,
+  opts: { notificationId?: string; markAll?: boolean },
+) {
+  return request(`/api/buyer/notifications`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customerId, ...opts }),
+  });
+}
+
+export async function updateBuyerAppPreferences(customerId: string, body: Record<string, unknown>) {
+  return request(`/api/buyer/preferences`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customerId, ...body }),
+  });
+}
+
+export async function createBuyerVehicleDocument(body: {
+  customerId: string;
+  vehicleId: string;
+  documentType: string;
+  name: string;
+  fileUrl?: string | null;
+  expiresAt?: string | null;
+}) {
+  return request('/api/buyer/vehicle-documents', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteBuyerVehicleDocument(documentId: string, customerId: string) {
+  const search = new URLSearchParams({ customerId });
+  return request(`/api/buyer/vehicle-documents/${encodeURIComponent(documentId)}?${search.toString()}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateServiceRecommendation(
+  id: string,
+  customerId: string,
+  status: 'approved' | 'rejected',
+) {
+  return request(`/api/buyer/service-recommendations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customerId, status }),
+  });
+}
+
+export async function fetchServiceRequestMessages(requestId: string, customerId: string) {
+  const search = new URLSearchParams({ customerId });
+  return request<Array<{ id: string; senderType: string; message: string; createdAt: string }>>(
+    `/api/buyer/service-requests/${encodeURIComponent(requestId)}/messages?${search.toString()}`,
+  );
+}
+
+export async function sendServiceRequestMessage(requestId: string, customerId: string, message: string) {
+  return request(`/api/buyer/service-requests/${encodeURIComponent(requestId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ customerId, message }),
+  });
+}
+
+export async function submitProviderRating(customerId: string, providerId: string, stars: number) {
+  return request('/api/buyer/provider-ratings', {
+    method: 'POST',
+    body: JSON.stringify({ customerId, providerId, stars }),
+  });
+}
+
+export async function deleteBuyerProfile(customerId: string) {
+  return request(`/api/buyer/profile/${encodeURIComponent(customerId)}`, { method: 'DELETE' });
+}
+
+export async function subscribeBuyerPlan(body: {
+  customerId: string;
+  planTier: string;
+  customerPhone?: string;
+  platform?: string;
+}) {
+  return request<{ subscription: unknown; checkoutUrl?: string | null; checkoutId?: string }>(
+    '/api/buyer/subscriptions',
+    { method: 'POST', body: JSON.stringify({ ...body, platform: body.platform ?? 'mobile' }) },
+  );
+}
+
+export async function cancelBuyerSubscription(customerId: string) {
+  const search = new URLSearchParams({ customerId });
+  return request(`/api/buyer/subscriptions?${search.toString()}`, { method: 'DELETE' });
 }
 
 export { ApiError };

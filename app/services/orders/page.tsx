@@ -27,6 +27,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ServiceTripMap } from '@/components/service-trip-map';
+import {
+  ProviderGarageCompletionDialog,
+  type GarageCompletionPayload,
+} from '@/components/provider-garage-completion-dialog';
 
 interface ServiceRequest {
   id: string;
@@ -44,6 +48,7 @@ interface ServiceRequest {
   providerLat?: number | null;
   providerLng?: number | null;
   providerId?: string | null;
+  vehicleId?: string | null;
 }
 
 const POLL_MS = 12_000;
@@ -103,6 +108,7 @@ export default function ServiceOrdersPage() {
   const [emergencyExtraCount, setEmergencyExtraCount] = useState(0);
   const [pulseOrderId, setPulseOrderId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [garageDialogRequest, setGarageDialogRequest] = useState<ServiceRequest | null>(null);
 
   const knownIdsRef = useRef<Set<string>>(new Set());
   const initialFetchDoneRef = useRef(false);
@@ -214,7 +220,11 @@ export default function ServiceOrdersPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [emergencyOrder]);
 
-  const updateRequestStatus = async (id: string, status: ServiceRequest['status']) => {
+  const updateRequestStatus = async (
+    id: string,
+    status: ServiceRequest['status'],
+    garage?: GarageCompletionPayload,
+  ) => {
     let resolvedVendorId = vendorId.trim();
     if (!resolvedVendorId) {
       resolvedVendorId = typeof window !== 'undefined' ? localStorage.getItem('currentVendorId')?.trim() ?? '' : '';
@@ -235,7 +245,18 @@ export default function ServiceOrdersPage() {
       const response = await fetch('/api/vendor/service-requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, vendorId: resolvedVendorId }),
+        body: JSON.stringify({
+          id,
+          status,
+          vendorId: resolvedVendorId,
+          ...(garage
+            ? {
+                vehicleStatus: garage.vehicleStatus,
+                nextServiceDate: garage.nextServiceDate,
+                notes: garage.notes,
+              }
+            : {}),
+        }),
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as {
@@ -259,11 +280,22 @@ export default function ServiceOrdersPage() {
       if (status === 'matched') {
         router.push(`/services/orders/trip/${encodeURIComponent(id)}`);
       }
+      if (garageDialogRequest?.id === id) {
+        setGarageDialogRequest(null);
+      }
     } catch (updateError) {
       console.error('Failed to update request status:', updateError);
     } finally {
       setSavingId(null);
     }
+  };
+
+  const requestCompletion = (request: ServiceRequest) => {
+    if (request.vehicleId) {
+      setGarageDialogRequest(request);
+      return;
+    }
+    void updateRequestStatus(request.id, 'completed');
   };
 
   const dismissEmergency = (remember: boolean) => {
@@ -528,7 +560,7 @@ export default function ServiceOrdersPage() {
                 <Button
                   className="h-11 w-full rounded-xl sm:w-auto"
                   disabled={activeRequest.status !== 'in_progress' || savingId === activeRequest.id}
-                  onClick={() => updateRequestStatus(activeRequest.id, 'completed')}
+                  onClick={() => requestCompletion(activeRequest)}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Complete
@@ -713,7 +745,7 @@ export default function ServiceOrdersPage() {
                             savingId === request.id ||
                             (request.providerId != null && request.providerId !== vendorId)
                           }
-                          onClick={() => updateRequestStatus(request.id, 'completed')}
+                          onClick={() => requestCompletion(request)}
                         >
                           Complete
                         </Button>
@@ -769,6 +801,18 @@ export default function ServiceOrdersPage() {
         </div>
       </div>
 
+      <ProviderGarageCompletionDialog
+        open={garageDialogRequest != null}
+        onOpenChange={(open) => {
+          if (!open) setGarageDialogRequest(null);
+        }}
+        saving={garageDialogRequest != null && savingId === garageDialogRequest.id}
+        vehicleLabel={garageDialogRequest?.service}
+        onConfirm={async (garage) => {
+          if (!garageDialogRequest) return;
+          await updateRequestStatus(garageDialogRequest.id, 'completed', garage);
+        }}
+      />
     </>
   );
 }

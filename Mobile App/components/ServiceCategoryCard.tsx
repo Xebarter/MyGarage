@@ -59,10 +59,6 @@ export function ServiceCategoryCard({
           <View style={[styles.glassBase, { backgroundColor: accent.glassBg }]} />
 
           <View pointerEvents="none" style={[styles.glassSheen, { backgroundColor: accent.sheen }]} />
-          <View
-            pointerEvents="none"
-            style={[styles.accentStrip, { backgroundColor: accent.accent }]}
-          />
 
           <View style={styles.cardBody}>
             <View
@@ -182,15 +178,6 @@ const styles = StyleSheet.create({
     height: '32%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-  },
-
-  accentStrip: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    zIndex: 1,
   },
 
   cardBody: {

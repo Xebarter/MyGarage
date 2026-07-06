@@ -8,6 +8,7 @@ import { CheckCircle2 } from 'lucide-react';
 
 export default function PaymentSuccessPage() {
   const [params, setParams] = useState<Record<string, string>>({});
+  const [subscriptionActivated, setSubscriptionActivated] = useState(false);
 
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
@@ -20,6 +21,18 @@ export default function PaymentSuccessPage() {
 
   const checkoutId = params.checkoutId;
   const servicePaymentId = params.servicePaymentId;
+  const isSubscription = params.kind === 'subscription';
+
+  useEffect(() => {
+    if (!checkoutId || !isSubscription || subscriptionActivated) return;
+    void fetch('/api/buyer/subscriptions/activate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkoutId }),
+    })
+      .then(() => setSubscriptionActivated(true))
+      .catch(() => undefined);
+  }, [checkoutId, isSubscription, subscriptionActivated]);
 
   return (
     <>
@@ -29,8 +42,9 @@ export default function PaymentSuccessPage() {
           <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-600" />
           <h1 className="mb-2 text-3xl font-bold text-foreground">Payment received</h1>
           <p className="text-muted-foreground">
-            Thank you. If you were paying for an order, we are confirming it now. You will receive updates by email when
-            fulfillment starts.
+            {isSubscription
+              ? 'Your membership is being activated. You can manage it from your profile.'
+              : 'Thank you. If you were paying for an order, we are confirming it now. You will receive updates by email when fulfillment starts.'}
           </p>
           {(checkoutId || servicePaymentId) && (
             <p className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-xs text-muted-foreground">
@@ -46,10 +60,10 @@ export default function PaymentSuccessPage() {
               Back to home
             </Link>
             <Link
-              href="/buyer/services"
+              href={isSubscription ? '/buyer/profile?tab=subscriptions' : '/buyer/services'}
               className="rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium hover:bg-muted/40"
             >
-              My services
+              {isSubscription ? 'View membership' : 'My services'}
             </Link>
           </div>
         </div>

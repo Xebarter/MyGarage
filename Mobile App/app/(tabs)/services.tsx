@@ -8,7 +8,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,7 +21,6 @@ import {
 } from '@/constants/ServicesPremiumTheme';
 import { getPriorityPalette } from '@/constants/ServicePriorities';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { userServiceCategories } from '@/data/services-catalog';
 import { useServicesGrid } from '@/hooks/useServicesGrid';
@@ -96,13 +94,13 @@ function ServicesGridSection({
       <View style={styles.gridSectionTop}>
         <View style={styles.gridSectionCopy}>
           <Text style={[styles.gridTitle, { color: colors.text }]}>
-            {isFiltered ? 'Results' : 'All categories'}
+            {isFiltered ? `${count} results` : 'Categories'}
           </Text>
-          <Text style={[styles.gridSubtitle, { color: colors.textMuted }]}>
-            {isFiltered
-              ? `${count} of ${total} categories match`
-              : `${total} service categories · tap to browse`}
-          </Text>
+          {isFiltered ? (
+            <Text style={[styles.gridSubtitle, { color: colors.textMuted }]}>
+              {count} of {total}
+            </Text>
+          ) : null}
         </View>
         {isFiltered ? (
           <Pressable
@@ -191,12 +189,10 @@ function ServicesTrustFooter() {
 
 export default function ServicesScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
   const pageBackground = getServicesPageBackground(scheme);
   const { profile } = useAuth();
-  const { itemCount } = useCart();
   const [query, setQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<ServicePriority | null>(null);
   const { width: screenWidth } = useWindowDimensions();
@@ -247,13 +243,9 @@ export default function ServicesScreen() {
             <ServicesHeader
               query={query}
               onQueryChange={setQuery}
-              isSearching={isSearching}
               priorityFilter={priorityFilter}
               onPriorityFilterChange={setPriorityFilter}
-              userName={profile?.customer.name}
               locationLabel={profile?.customer.address || profile?.customer.phone}
-              cartCount={itemCount}
-              onOpenCart={() => router.push('/(tabs)/cart')}
             />
             {categories.length > 0 ? (
               <ServicesGridSection

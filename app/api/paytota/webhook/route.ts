@@ -51,6 +51,18 @@ export async function POST(req: NextRequest) {
 
         if (tx?.checkout_id) {
           const checkoutId = tx.checkout_id;
+
+          const { data: checkoutSession, error: checkoutError } = await supabase
+            .from("checkout_sessions")
+            .select("checkout_type")
+            .eq("id", checkoutId)
+            .maybeSingle();
+          if (checkoutError) throw new Error(checkoutError.message);
+
+          if (checkoutSession?.checkout_type === "subscription") {
+            const { activateBuyerSubscriptionByCheckout } = await import("@/lib/db");
+            await activateBuyerSubscriptionByCheckout(checkoutId);
+          } else {
           // Deterministic order id prevents duplicate webhook deliveries from orphaning disbursements.
           const deterministicOrderId = `ord-${checkoutId}`;
 
@@ -85,6 +97,7 @@ export async function POST(req: NextRequest) {
           });
           if (disbError && !disbError.message.includes("null value")) {
             throw new Error(disbError.message);
+          }
           }
         }
       }

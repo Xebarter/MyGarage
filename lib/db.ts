@@ -8,7 +8,11 @@ import * as buyerAddressesRepo from "@/lib/supabase/buyer-addresses-repo";
 import * as buyerWishlistRepo from "@/lib/supabase/buyer-wishlist-repo";
 import * as buyerSupportTicketsRepo from "@/lib/supabase/buyer-support-tickets-repo";
 import * as buyerServicesRepo from "@/lib/supabase/buyer-services-repo";
+import * as buyerVehiclesRepo from "@/lib/supabase/buyer-vehicles-repo";
+import * as vehicleServiceHistoryRepo from "@/lib/supabase/vehicle-service-history-repo";
 import * as recommendationsRepo from "@/lib/supabase/recommendations-repo";
+import * as buyerControlCenterRepo from "@/lib/supabase/buyer-control-center-repo";
+import * as buyerSubscriptionsRepo from "@/lib/supabase/buyer-subscriptions-repo";
 
 /** One value within a variant axis (e.g. “4L”). */
 export type ProductVariantOptionValue = {
@@ -120,6 +124,7 @@ export type BuyerProfile = {
     addresses: number;
     supportTickets: number;
     serviceRequests: number;
+    vehicles: number;
   };
   defaultAddress: BuyerAddress | null;
 };
@@ -239,6 +244,8 @@ export type BuyerWishlistItem = buyerWishlistRepo.BuyerWishlistItem;
 export type BuyerSupportTicket = buyerSupportTicketsRepo.BuyerSupportTicket;
 export type BuyerServiceRequest = buyerServicesRepo.BuyerServiceRequest;
 export type BuyerProviderRating = buyerServicesRepo.BuyerProviderRating;
+export type BuyerVehicle = buyerVehiclesRepo.BuyerVehicle;
+export type VehicleServiceHistoryEntry = vehicleServiceHistoryRepo.VehicleServiceHistoryEntry;
 export type RecommendedProduct = recommendationsRepo.RecommendedProduct;
 
 const DEFAULT_TAX_RATE = 0.08;
@@ -472,11 +479,12 @@ export const getBuyerProfile = async (customerId: string): Promise<BuyerProfile 
   const customer = await customersRepo.getCustomerById(customerId);
   if (!customer) return null;
 
-  const [addresses, wishlist, tickets, serviceRequests] = await Promise.all([
+  const [addresses, wishlist, tickets, serviceRequests, vehicles] = await Promise.all([
     buyerAddressesRepo.listBuyerAddresses(customerId),
     buyerWishlistRepo.listBuyerWishlistItems(customerId),
     buyerSupportTicketsRepo.listBuyerSupportTickets(customerId),
     buyerServicesRepo.listBuyerServiceRequests(customerId),
+    buyerVehiclesRepo.listBuyerVehicles(customerId),
   ]);
 
   const defaultAddress =
@@ -489,6 +497,7 @@ export const getBuyerProfile = async (customerId: string): Promise<BuyerProfile 
       addresses: addresses.length,
       supportTickets: tickets.length,
       serviceRequests: serviceRequests.length,
+      vehicles: vehicles.length,
     },
     defaultAddress,
   };
@@ -537,6 +546,28 @@ export const updateBuyerAddress = async (id: string, updates: Partial<BuyerAddre
 };
 export const deleteBuyerAddress = async (id: string) => buyerAddressesRepo.deleteBuyerAddressById(id);
 
+// Buyer vehicles (My Garage)
+export const getBuyerVehicles = async (customerId: string) => buyerVehiclesRepo.listBuyerVehicles(customerId);
+export const getBuyerVehicle = async (id: string) => buyerVehiclesRepo.getBuyerVehicleById(id);
+export const createBuyerVehicle = async (payload: buyerVehiclesRepo.BuyerVehicleInsert) =>
+  buyerVehiclesRepo.insertBuyerVehicle(payload);
+export const updateBuyerVehicle = async (id: string, updates: Partial<BuyerVehicle>) =>
+  buyerVehiclesRepo.updateBuyerVehicleById(id, updates);
+export const deleteBuyerVehicle = async (id: string) => buyerVehiclesRepo.deleteBuyerVehicleById(id);
+export const updateBuyerVehicleStatusByProvider = async (
+  id: string,
+  update: buyerVehiclesRepo.BuyerVehicleProviderUpdate,
+) => buyerVehiclesRepo.updateBuyerVehicleStatusByProvider(id, update);
+
+// Vehicle service history
+export const getVehicleServiceHistory = async (
+  vehicleId: string,
+  filters?: vehicleServiceHistoryRepo.VehicleServiceHistoryFilters,
+) => vehicleServiceHistoryRepo.listVehicleServiceHistory(vehicleId, filters);
+export const createVehicleServiceHistoryEntry = async (
+  payload: vehicleServiceHistoryRepo.VehicleServiceHistoryInsert,
+) => vehicleServiceHistoryRepo.insertVehicleServiceHistory(payload);
+
 // Buyer wishlist
 export const getBuyerWishlistItems = async (customerId: string) => buyerWishlistRepo.listBuyerWishlistItems(customerId);
 export const createBuyerWishlistItem = async (payload: buyerWishlistRepo.BuyerWishlistInsert) => {
@@ -584,6 +615,70 @@ export const getBuyerProviderRatings = async (customerId: string) => buyerServic
 export const upsertBuyerProviderRating = async (payload: buyerServicesRepo.BuyerProviderRatingUpsert) => {
   return buyerServicesRepo.upsertBuyerProviderRating(payload);
 };
+
+// Buyer control center (profile hub)
+export const getBuyerControlCenter = async (customerId: string) =>
+  buyerControlCenterRepo.getBuyerControlCenter(customerId);
+export const getBuyerAccountDetails = async (customerId: string) =>
+  buyerControlCenterRepo.getBuyerAccountDetails(customerId);
+export const updateBuyerAccountDetails = async (
+  customerId: string,
+  patch: Parameters<typeof buyerControlCenterRepo.updateBuyerAccountDetails>[1],
+) => buyerControlCenterRepo.updateBuyerAccountDetails(customerId, patch);
+export const getBuyerNotificationPreferences = async (customerId: string) =>
+  buyerControlCenterRepo.getNotificationPreferences(customerId);
+export const updateBuyerNotificationPreferences = async (
+  customerId: string,
+  patch: Parameters<typeof buyerControlCenterRepo.upsertNotificationPreferences>[1],
+) => buyerControlCenterRepo.upsertNotificationPreferences(customerId, patch);
+export const listBuyerNotifications = async (customerId: string) =>
+  buyerControlCenterRepo.listBuyerNotifications(customerId);
+export const markBuyerNotificationRead = async (notificationId: string, customerId: string) =>
+  buyerControlCenterRepo.markNotificationRead(notificationId, customerId);
+export const markAllBuyerNotificationsRead = async (customerId: string) =>
+  buyerControlCenterRepo.markAllNotificationsRead(customerId);
+export const getBuyerAppPreferences = async (customerId: string) =>
+  buyerControlCenterRepo.getAppPreferences(customerId);
+export const updateBuyerAppPreferences = async (
+  customerId: string,
+  patch: Parameters<typeof buyerControlCenterRepo.upsertAppPreferences>[1],
+) => buyerControlCenterRepo.upsertAppPreferences(customerId, patch);
+export const listBuyerVehicleDocuments = async (customerId: string) =>
+  buyerControlCenterRepo.listBuyerVehicleDocuments(customerId);
+export const createBuyerVehicleDocument = async (payload: buyerControlCenterRepo.BuyerVehicleDocumentInsert) =>
+  buyerControlCenterRepo.insertBuyerVehicleDocument(payload);
+export const deleteBuyerVehicleDocument = async (id: string, customerId: string) =>
+  buyerControlCenterRepo.deleteBuyerVehicleDocument(id, customerId);
+export const listBuyerServiceRecommendations = async (customerId: string) =>
+  buyerControlCenterRepo.listServiceRecommendations(customerId);
+export const updateBuyerServiceRecommendationStatus = async (
+  id: string,
+  customerId: string,
+  status: Parameters<typeof buyerControlCenterRepo.updateRecommendationStatus>[2],
+) => buyerControlCenterRepo.updateRecommendationStatus(id, customerId, status);
+export const listBuyerPayments = async (customerId: string) =>
+  buyerControlCenterRepo.listBuyerPayments(customerId);
+export const getBuyerAnalytics = async (customerId: string) =>
+  buyerControlCenterRepo.getBuyerAnalytics(customerId);
+export const listServiceRequestMessages = async (requestId: string, customerId: string) =>
+  buyerControlCenterRepo.listServiceRequestMessages(requestId, customerId);
+export const sendServiceRequestMessage = async (requestId: string, customerId: string, message: string) =>
+  buyerControlCenterRepo.insertServiceRequestMessage(requestId, customerId, message);
+
+// Buyer subscriptions
+export const getActiveBuyerSubscription = async (customerId: string) =>
+  buyerSubscriptionsRepo.getActiveBuyerSubscription(customerId);
+export const listBuyerSubscriptionHistory = async (customerId: string) =>
+  buyerSubscriptionsRepo.listBuyerSubscriptionHistory(customerId);
+export const createPendingBuyerSubscription = async (
+  customerId: string,
+  planTier: Parameters<typeof buyerSubscriptionsRepo.createPendingSubscription>[1],
+  checkoutId?: string | null,
+) => buyerSubscriptionsRepo.createPendingSubscription(customerId, planTier, checkoutId);
+export const activateBuyerSubscriptionByCheckout = async (checkoutId: string) =>
+  buyerSubscriptionsRepo.activateSubscriptionByCheckout(checkoutId);
+export const cancelBuyerSubscription = async (customerId: string) =>
+  buyerSubscriptionsRepo.cancelBuyerSubscription(customerId);
 
 // Vendor operations
 export const getVendors = async () => {

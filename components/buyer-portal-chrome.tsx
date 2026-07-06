@@ -17,6 +17,7 @@ const BUYER_NAV_PAGES: { href: string; label: string }[] = [
   { href: '/buyer/services', label: 'Services' },
   { href: '/buyer/wishlist', label: 'Wishlist' },
   { href: '/buyer/addresses', label: 'Addresses' },
+  { href: '/buyer/garage', label: 'My Garage' },
   { href: '/buyer/profile', label: 'Profile' },
   { href: '/buyer/support', label: 'Support' },
 ];

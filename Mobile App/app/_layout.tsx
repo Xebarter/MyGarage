@@ -1,4 +1,10 @@
-import { useFonts } from 'expo-font';
+import {
+  GoogleSans_400Regular,
+  GoogleSans_500Medium,
+  GoogleSans_600SemiBold,
+  GoogleSans_700Bold,
+  useFonts,
+} from '@expo-google-fonts/google-sans';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -11,6 +17,7 @@ import { CartProvider } from '@/contexts/CartContext';
 import { ActiveServiceRequestRestore } from '@/components/ActiveServiceRequestRestore';
 import { ServiceRequestLiveNavigation } from '@/components/ServiceRequestLiveNavigation';
 import { useColorScheme } from '@/components/useColorScheme';
+import { GOOGLE_SANS } from '@/constants/Fonts';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -18,7 +25,10 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    GoogleSans_400Regular,
+    GoogleSans_500Medium,
+    GoogleSans_600SemiBold,
+    GoogleSans_700Bold,
   });
 
   useEffect(() => {
@@ -58,6 +68,7 @@ function RootStack() {
         screenOptions={{
           contentStyle: { flex: 1, backgroundColor: 'transparent' },
           headerShadowVisible: false,
+          headerTitleStyle: { fontFamily: GOOGLE_SANS.bold },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ title: 'Sign in', presentation: 'modal' }} />
@@ -70,6 +81,9 @@ function RootStack() {
         <Stack.Screen name="checkout" options={{ headerShown: false }} />
         <Stack.Screen name="orders/index" options={{ title: 'My orders' }} />
         <Stack.Screen name="orders/[id]" options={{ title: 'Order' }} />
+        <Stack.Screen name="garage/index" options={{ title: 'My Vehicles' }} />
+        <Stack.Screen name="garage/[id]" options={{ title: 'Vehicle' }} />
+        <Stack.Screen name="garage/add" options={{ title: 'Add vehicle' }} />
       </Stack>
     </>
   );
