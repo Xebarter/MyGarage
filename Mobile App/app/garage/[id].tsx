@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -22,19 +22,15 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { fetchVehicleGarageDetail } from '@/lib/api';
+import {
+  formatGarageDate,
+  isServiceDueSoon,
+  isServiceOverdue,
+  statusTone,
+  vehicleSubtitle,
+  vehicleTitle,
+} from '@/lib/garage-format';
 import type { BuyerVehicle, VehicleServiceHistoryEntry } from '@/types';
-
-function vehicleTitle(vehicle: BuyerVehicle) {
-  if (vehicle.nickname?.trim()) return vehicle.nickname.trim();
-  return `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
-}
-
-function formatDate(iso: string | null) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export default function GarageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -65,14 +61,11 @@ export default function GarageDetailScreen() {
     }
   }, [id, sortOrder]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const timer = setInterval(() => void load(true), 15000);
-    return () => clearInterval(timer);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const title = useMemo(() => (vehicle ? vehicleTitle(vehicle) : 'Vehicle'), [vehicle]);
 
@@ -85,6 +78,12 @@ export default function GarageDetailScreen() {
       </>
     );
   }
+
+  const tone = statusTone(vehicle.vehicleStatus);
+  const statusColor =
+    tone === 'active' ? colors.primary : tone === 'success' ? colors.success : colors.textMuted;
+  const dueSoon = isServiceDueSoon(vehicle.nextServiceDate);
+  const overdue = isServiceOverdue(vehicle.nextServiceDate);
 
   return (
     <>
@@ -102,36 +101,95 @@ export default function GarageDetailScreen() {
         }}
       />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load(true);
+            }}
+          />
+        }
         contentContainerStyle={[
           styles.content,
           { paddingBottom: insets.bottom + 24, backgroundColor: colors.background },
         ]}>
         <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.heroImage, { backgroundColor: colors.border }]}>
+          <View style={[styles.heroImage, { backgroundColor: colors.background, borderColor: colors.border }]}>
             {vehicle.imageUrl ? (
               <Image source={{ uri: vehicle.imageUrl }} style={styles.heroImageFill} />
             ) : (
               <Ionicons name="car-sport" size={48} color={colors.textMuted} />
             )}
           </View>
-          <Text style={[styles.heroTitle, { color: colors.text }]}>{title}</Text>
-          <Text style={[styles.heroSub, { color: colors.textMuted }]}>
-            {vehicle.year} {vehicle.make} {vehicle.model}
-            {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ''}
-          </Text>
-          <View style={styles.statsRow}>
-            <View style={[styles.statBox, { borderColor: colors.border }]}>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Status</Text>
-              <Text style={[styles.statValue, { color: colors.primary }]}>
+
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTitleRow}>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>{title}</Text>
+              {vehicle.isPrimary ? (
+                <View style={styles.primaryBadge}>
+                  <Ionicons name="star" size={12} color="#D97706" />
+                  <Text style={styles.primaryBadgeText}>Primary</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={[styles.heroSub, { color: colors.textMuted }]}>{vehicleSubtitle(vehicle)}</Text>
+          </View>
+
+          <View style={[styles.statusBanner, { backgroundColor: statusColor + '12', borderColor: statusColor + '30' }]}>
+            <Ionicons name="information-circle-outline" size={18} color={statusColor} />
+            <View style={styles.statusBannerCopy}>
+              <Text style={[styles.statusBannerTitle, { color: statusColor }]}>
                 {VEHICLE_STATUS_LABELS[vehicle.vehicleStatus]}
               </Text>
-              <Text style={[styles.statHint, { color: colors.textMuted }]}>Set by your last provider</Text>
+              <Text style={[styles.statusBannerHint, { color: colors.textMuted }]}>
+                {vehicle.statusUpdatedAt
+                  ? `Updated ${formatGarageDate(vehicle.statusUpdatedAt)} by your provider`
+                  : 'Status updates appear when your provider works on this vehicle'}
+              </Text>
             </View>
+          </View>
+
+          <View style={styles.statsRow}>
             <View style={[styles.statBox, { borderColor: colors.border }]}>
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>Next service</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{formatDate(vehicle.nextServiceDate)}</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  {
+                    color: overdue ? colors.destructive : dueSoon ? '#D97706' : colors.text,
+                  },
+                ]}>
+                {formatGarageDate(vehicle.nextServiceDate)}
+              </Text>
+              {vehicle.nextServiceDate ? (
+                <Text style={[styles.statHint, { color: colors.textMuted }]}>
+                  {overdue ? 'Overdue' : dueSoon ? 'Due within 30 days' : 'Scheduled maintenance'}
+                </Text>
+              ) : (
+                <Text style={[styles.statHint, { color: colors.textMuted }]}>Not scheduled</Text>
+              )}
             </View>
+            <View style={[styles.statBox, { borderColor: colors.border }]}>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Service records</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{history.length}</Text>
+              <Text style={[styles.statHint, { color: colors.textMuted }]}>Linked to this vehicle</Text>
+            </View>
+          </View>
+
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={() => router.push({ pathname: '/garage/add', params: { id: vehicle.id } })}
+              style={[styles.actionBtn, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Ionicons name="create-outline" size={18} color={colors.primary} />
+              <Text style={[styles.actionBtnText, { color: colors.text }]}>Edit vehicle</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/(tabs)/services')}
+              style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+              <Ionicons name="construct-outline" size={18} color="#fff" />
+              <Text style={[styles.actionBtnText, { color: '#fff' }]}>Book service</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -145,14 +203,23 @@ export default function GarageDetailScreen() {
         </View>
 
         {history.length === 0 ? (
-          <View style={[styles.emptyHistory, { borderColor: colors.border }]}>
-            <Text style={{ color: colors.textMuted, textAlign: 'center' }}>
-              No service records yet. Book a service linked to this vehicle to build your timeline.
+          <View style={[styles.emptyHistory, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Ionicons name="time-outline" size={28} color={colors.textMuted} />
+            <Text style={[styles.emptyHistoryTitle, { color: colors.text }]}>No service records yet</Text>
+            <Text style={{ color: colors.textMuted, textAlign: 'center', lineHeight: 20 }}>
+              Book a service and link it to this vehicle to build your maintenance timeline.
             </Text>
+            <Pressable
+              onPress={() => router.push('/(tabs)/services')}
+              style={[styles.emptyHistoryCta, { backgroundColor: colors.primary }]}>
+              <Text style={styles.emptyHistoryCtaText}>Request a service</Text>
+            </Pressable>
           </View>
         ) : (
           history.map((entry) => (
-            <View key={entry.id} style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              key={entry.id}
+              style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.historyTop}>
                 <Text style={[styles.historyTitle, { color: colors.text }]}>{entry.serviceName}</Text>
                 <View style={[styles.pill, { backgroundColor: colors.primary + '14' }]}>
@@ -162,7 +229,7 @@ export default function GarageDetailScreen() {
                 </View>
               </View>
               <Text style={[styles.historyMeta, { color: colors.textMuted }]}>
-                {SERVICE_HISTORY_TYPE_LABELS[entry.serviceType]} · {formatDate(entry.serviceDate)}
+                {SERVICE_HISTORY_TYPE_LABELS[entry.serviceType]} · {formatGarageDate(entry.serviceDate)}
               </Text>
               <Text style={[styles.historyProvider, { color: colors.text }]}>
                 Provider: {entry.providerName || '—'}
@@ -180,26 +247,70 @@ export default function GarageDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
-  heroCard: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 8 },
+  heroCard: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 14 },
   heroImage: {
-    height: 160,
+    height: 168,
     borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    marginBottom: 4,
   },
   heroImageFill: { width: '100%', height: '100%' },
-  heroTitle: { fontSize: 22, fontWeight: '800' },
-  heroSub: { fontSize: 14 },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  heroHeader: { gap: 4 },
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  heroTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
+  heroSub: { fontSize: 14, fontWeight: '500' },
+  primaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F59E0B18',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  primaryBadgeText: { fontSize: 11, fontWeight: '800', color: '#B45309' },
+  statusBanner: {
+    flexDirection: 'row',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'flex-start',
+  },
+  statusBannerCopy: { flex: 1, gap: 2 },
+  statusBannerTitle: { fontSize: 14, fontWeight: '800' },
+  statusBannerHint: { fontSize: 12, lineHeight: 17 },
+  statsRow: { flexDirection: 'row', gap: 10 },
   statBox: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
-  statLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  statValue: { fontSize: 14, fontWeight: '700' },
-  statHint: { fontSize: 10 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '800' },
-  emptyHistory: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: 20 },
+  statLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statValue: { fontSize: 15, fontWeight: '800' },
+  statHint: { fontSize: 10, lineHeight: 14 },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  actionBtnText: { fontSize: 14, fontWeight: '700' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  sectionTitle: { fontSize: 17, fontWeight: '800' },
+  emptyHistory: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyHistoryTitle: { fontSize: 16, fontWeight: '800', marginTop: 4 },
+  emptyHistoryCta: { marginTop: 8, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
+  emptyHistoryCtaText: { color: '#fff', fontWeight: '700' },
   historyCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
   historyTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' },
   historyTitle: { fontSize: 15, fontWeight: '700', flex: 1 },

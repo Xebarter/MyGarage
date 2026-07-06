@@ -1,40 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import Colors from '@/constants/Colors';
+import { SHOP_HEADER, SHOP_PREMIUM } from '@/constants/ShopPremiumTheme';
 import { ShopBrowseMenu } from '@/components/shop/ShopBrowseMenu';
 import { prefetchAddItemsCategories } from '@/lib/api';
 
 const LOGO = require('@/assets/images/logo-black.png');
 
-const PREMIUM = {
-  bg: '#0B1220',
-  bgElevated: '#121C2E',
-  bgGlass: 'rgba(255,255,255,0.06)',
-  borderGlass: 'rgba(255,255,255,0.12)',
-  borderGlow: 'rgba(59,130,246,0.45)',
-  text: '#F8FAFC',
-  textMuted: '#94A3B8',
-  accent: '#3B82F6',
-  accentSoft: '#60A5FA',
-  gold: '#FBBF24',
-};
+const PREMIUM = SHOP_PREMIUM;
 
 type ShopHeaderProps = {
   searchValue: string;
   onChangeSearch: (text: string) => void;
   onSubmitSearch?: () => void;
-  onOpenCart: () => void;
   onOpenFilters: () => void;
-  cartCount: number;
   locationLabel?: string;
-  userName?: string;
-  resultCount?: number;
-  sortLabel?: string;
-  categories?: string[];
   selectedCategory?: string | null;
   onSelectCategory?: (category: string | null) => void;
   dealsOnly?: boolean;
@@ -45,14 +30,8 @@ export function ShopHeader({
   searchValue,
   onChangeSearch,
   onSubmitSearch,
-  onOpenCart,
   onOpenFilters,
-  cartCount,
   locationLabel,
-  userName,
-  resultCount,
-  sortLabel = 'Featured',
-  categories = [],
   selectedCategory = null,
   onSelectCategory,
   dealsOnly = false,
@@ -60,171 +39,126 @@ export function ShopHeader({
 }: ShopHeaderProps) {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
-  const brandPrimary = Colors[scheme].primary;
+  const accent = Colors[scheme].primary;
   const [browseMenuOpen, setBrowseMenuOpen] = useState(false);
 
   useEffect(() => {
     void prefetchAddItemsCategories();
   }, []);
 
-  const openBrowseMenu = () => {
-    void prefetchAddItemsCategories();
-    setBrowseMenuOpen(true);
-  };
+  const deliveryLine = locationLabel?.trim() || 'Set delivery address in profile';
 
-  const deliveryLine = locationLabel?.trim() || 'Set your delivery address';
-  const greetingName = userName?.trim().split(' ')[0] || 'Guest';
-
-  const quickLinks: Array<{
-    id: string;
-    label: string;
-    icon?: keyof typeof Ionicons.glyphMap;
-    onPress?: () => void;
-    active?: boolean;
-  }> = [
-    { id: 'filters', label: 'Filters', icon: 'options-outline', onPress: onOpenFilters },
-    { id: 'sort', label: sortLabel, icon: 'swap-vertical-outline', onPress: onOpenFilters },
-    { id: 'deals', label: 'Deals', icon: 'pricetag-outline', onPress: onToggleDeals, active: dealsOnly },
-    ...categories.slice(0, 6).map((category) => ({
-      id: `cat-${category}`,
-      label: category,
-      onPress: () => onSelectCategory?.(category),
-      active: selectedCategory === category,
-    })),
+  const tools = [
+    {
+      id: 'categories',
+      label: 'Categories',
+      icon: 'grid-outline' as const,
+      active: false,
+      onPress: () => {
+        void prefetchAddItemsCategories();
+        setBrowseMenuOpen(true);
+      },
+    },
+    {
+      id: 'filters',
+      label: 'Filters',
+      icon: 'options-outline' as const,
+      active: false,
+      onPress: onOpenFilters,
+    },
+    {
+      id: 'deals',
+      label: 'Deals',
+      icon: 'pricetag-outline' as const,
+      active: dealsOnly,
+      onPress: onToggleDeals,
+    },
   ];
 
   return (
-    <View style={[styles.shell, { paddingTop: 10 }]}>
-      <View style={styles.ambientGlowTop} pointerEvents="none" />
-      <View style={styles.ambientGlowAccent} pointerEvents="none" />
+    <View style={styles.shellWrap}>
+      <LinearGradient
+        colors={[SHOP_HEADER.shellTop, SHOP_HEADER.shellBottom]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.shell, { paddingTop: 10 }]}>
+        <View style={[styles.glowPrimary, { backgroundColor: SHOP_HEADER.glowPrimary }]} pointerEvents="none" />
+        <View style={[styles.glowSecondary, { backgroundColor: SHOP_HEADER.glowSecondary }]} pointerEvents="none" />
 
       <View style={styles.topRow}>
-        <View style={styles.brandBlock}>
-          <View style={styles.brandRow}>
-            <Image source={LOGO} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brandName}>MyGarage</Text>
-          </View>
+        <View style={styles.brandRow}>
+          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brandName}>MyGarage</Text>
         </View>
-
-        <View style={styles.iconRow}>
-          <Pressable
-            onPress={() => router.push('/(tabs)/profile')}
-            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}>
-            <Ionicons name="person-outline" size={20} color={PREMIUM.text} />
-            <Text style={styles.iconLabel}>{greetingName}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onOpenCart}
-            style={({ pressed }) => [styles.iconChip, pressed && styles.iconChipPressed]}>
-            <View>
-              <Ionicons name="cart-outline" size={20} color={PREMIUM.text} />
-              {cartCount > 0 ? (
-                <View style={[styles.cartBadge, { backgroundColor: brandPrimary }]}>
-                  <Text style={styles.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.iconLabel}>Cart</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => router.push('/(tabs)/profile')}
+          hitSlop={8}
+          style={({ pressed }) => [styles.profileBtn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile">
+          <Ionicons name="person-outline" size={20} color={PREMIUM.textMuted} />
+        </Pressable>
       </View>
 
       <Pressable
-        style={({ pressed }) => [styles.deliveryCard, pressed && styles.deliveryCardPressed]}
-        onPress={() => router.push('/(tabs)/profile')}>
-        <View style={styles.deliveryIconWrap}>
-          <Ionicons name="navigate" size={14} color={PREMIUM.gold} />
-        </View>
-        <View style={styles.deliveryCopy}>
-          <Text style={styles.deliveryKicker}>Deliver to</Text>
-          <Text style={styles.deliveryLine} numberOfLines={1}>
-            <Text style={styles.deliveryStrong}>{greetingName}</Text>
-            {'  ·  '}
-            {deliveryLine}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={PREMIUM.textMuted} />
+        style={({ pressed }) => [styles.locationRow, pressed && styles.pressed]}
+        onPress={() => router.push('/(tabs)/profile')}
+        accessibilityRole="button"
+        accessibilityLabel={`Delivery address: ${deliveryLine}`}>
+        <Ionicons name="location-outline" size={15} color={PREMIUM.textMuted} />
+        <Text style={styles.locationLine} numberOfLines={1}>
+          {deliveryLine}
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color={PREMIUM.textMuted} />
       </Pressable>
 
-      <View style={styles.searchShell}>
-        <View style={styles.searchField}>
-          <Ionicons name="search-outline" size={18} color="#64748B" />
-          <TextInput
-            value={searchValue}
-            onChangeText={onChangeSearch}
-            placeholder="Search parts, brands, categories…"
-            placeholderTextColor="#94A3B8"
-            style={styles.searchInput}
-            returnKeyType="search"
-            onSubmitEditing={onSubmitSearch}
-            clearButtonMode="while-editing"
-          />
-        </View>
-        <Pressable
-          onPress={onSubmitSearch}
-          style={({ pressed }) => [
-            styles.searchBtn,
-            { backgroundColor: brandPrimary, opacity: pressed ? 0.88 : 1 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Search">
-          <Ionicons name="search" size={20} color="#fff" />
-        </Pressable>
+      <View style={styles.searchField}>
+        <Ionicons name="search-outline" size={18} color={PREMIUM.textMuted} />
+        <TextInput
+          value={searchValue}
+          onChangeText={onChangeSearch}
+          placeholder="Search parts and brands"
+          placeholderTextColor={PREMIUM.textMuted}
+          style={styles.searchInput}
+          returnKeyType="search"
+          onSubmitEditing={onSubmitSearch}
+          clearButtonMode="while-editing"
+          accessibilityLabel="Search shop"
+        />
+        {searchValue.length > 0 ? (
+          <Pressable
+            onPress={() => onChangeSearch('')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search">
+            <Ionicons name="close-circle" size={18} color={PREMIUM.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
 
-      <View style={styles.trustRow}>
-        <TrustPill icon="shield-checkmark-outline" label="Verified" />
-        <TrustPill icon="flash-outline" label="Fast delivery" />
-        <TrustPill icon="lock-closed-outline" label="Secure pay" />
-      </View>
-
-      <FlatList
+      <ScrollView
         horizontal
-        data={quickLinks}
-        keyExtractor={(item) => item.id}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickNav}
-        renderItem={({ item }) => {
-          const active = Boolean(item.active);
-          return (
-            <Pressable
-              onPress={item.onPress}
-              style={({ pressed }) => [
-                styles.quickPill,
-                active && [styles.quickPillActive, { borderColor: brandPrimary }],
-                pressed && styles.quickPillPressed,
-              ]}>
-              {item.icon ? (
-                <Ionicons name={item.icon} size={13} color={active ? brandPrimary : PREMIUM.textMuted} />
-              ) : null}
-              <Text
-                style={[styles.quickPillText, active && { color: brandPrimary, fontWeight: '800' }]}
-                numberOfLines={1}>
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
-
-      <View style={styles.headerFooter}>
-        <Pressable
-          onPress={openBrowseMenu}
-          style={({ pressed }) => [styles.categoriesBtn, pressed && styles.categoriesBtnPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Open categories menu">
-          <View style={styles.categoriesIcon}>
-            <Ionicons name="menu" size={18} color={PREMIUM.text} />
-          </View>
-          <Text style={styles.categoriesText} numberOfLines={1}>
-            Categories
-          </Text>
-        </Pressable>
-        <View style={[styles.resultsBadge, { borderColor: PREMIUM.borderGlass }]}>
-          <Text style={styles.resultsCount}>{resultCount ?? 0}</Text>
-          <Text style={styles.resultsHint}>items</Text>
-        </View>
-      </View>
+        contentContainerStyle={styles.toolsRow}>
+        {tools.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={item.onPress}
+            style={({ pressed }) => [
+              styles.toolPill,
+              item.active && { borderColor: accent, backgroundColor: 'rgba(59,130,246,0.12)' },
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: item.active }}
+            accessibilityLabel={item.label}>
+            <Ionicons name={item.icon} size={16} color={item.active ? accent : PREMIUM.text} />
+            <Text style={[styles.toolText, item.active && { color: PREMIUM.text, fontWeight: '700' }]}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       <ShopBrowseMenu
         visible={browseMenuOpen}
@@ -232,68 +166,48 @@ export function ShopHeader({
         onClose={() => setBrowseMenuOpen(false)}
         onSelectCategory={(category) => onSelectCategory?.(category)}
       />
-    </View>
-  );
-}
-
-function TrustPill({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
-  return (
-    <View style={styles.trustPill}>
-      <Ionicons name={icon} size={12} color={PREMIUM.accentSoft} />
-      <Text style={styles.trustText}>{label}</Text>
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shell: {
+  shellWrap: {
     marginHorizontal: -16,
+  },
+  shell: {
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 16,
     gap: 12,
-    backgroundColor: PREMIUM.bg,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 20,
-    elevation: 12,
   },
-  ambientGlowTop: {
+  glowPrimary: {
     position: 'absolute',
-    top: -80,
-    right: -40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(59,130,246,0.18)',
-  },
-  ambientGlowAccent: {
-    position: 'absolute',
-    top: 40,
-    left: -60,
+    top: -40,
+    right: -20,
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(96,165,250,0.1)',
+  },
+  glowSecondary: {
+    position: 'absolute',
+    top: 24,
+    left: -48,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
   },
   topRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-  },
-  brandBlock: {
-    flex: 1,
-    gap: 4,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
   },
   logo: {
     width: 36,
@@ -305,231 +219,67 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.4,
   },
-  iconRow: {
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PREMIUM.bgGlass,
+    borderWidth: 1,
+    borderColor: PREMIUM.borderGlass,
+  },
+  pressed: {
+    opacity: 0.8,
+  },
+  locationRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 8,
+    paddingVertical: 2,
   },
-  iconChip: {
-    alignItems: 'center',
-    gap: 4,
-    minWidth: 52,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: PREMIUM.bgGlass,
-    borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
-  },
-  iconChipPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.97 }],
-  },
-  iconLabel: {
-    color: PREMIUM.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -10,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: PREMIUM.bg,
-  },
-  cartBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  deliveryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: PREMIUM.bgGlass,
-    borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
-  },
-  deliveryCardPressed: {
-    opacity: 0.9,
-  },
-  deliveryIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(251,191,36,0.14)',
-  },
-  deliveryCopy: {
+  locationLine: {
     flex: 1,
-    gap: 2,
-  },
-  deliveryKicker: {
     color: PREMIUM.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
-  },
-  deliveryLine: {
-    color: PREMIUM.text,
     fontSize: 13,
     fontWeight: '500',
   },
-  deliveryStrong: {
-    color: '#fff',
-    fontWeight: '800',
-  },
-  searchShell: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
-  },
   searchField: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    minHeight: 48,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: PREMIUM.bgGlass,
+    borderWidth: 1,
+    borderColor: PREMIUM.borderGlass,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#0F172A',
+    color: PREMIUM.text,
     paddingVertical: 0,
     fontWeight: '500',
   },
-  searchBtn: {
-    width: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trustRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  toolsRow: {
     gap: 8,
+    paddingRight: 4,
   },
-  trustPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(59,130,246,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.18)',
-  },
-  trustText: {
-    color: PREMIUM.accentSoft,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  quickNav: {
-    gap: 8,
-    paddingRight: 8,
-  },
-  quickPill: {
+  toolPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    maxWidth: 168,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: PREMIUM.bgGlass,
   },
-  quickPillActive: {
-    backgroundColor: 'rgba(59,130,246,0.14)',
-  },
-  quickPillPressed: {
-    opacity: 0.85,
-  },
-  quickPillText: {
-    color: PREMIUM.text,
+  toolText: {
+    color: PREMIUM.textMuted,
     fontSize: 12,
     fontWeight: '600',
-  },
-  headerFooter: {
-    marginTop: 2,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: PREMIUM.borderGlass,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  categoriesBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    paddingVertical: 4,
-  },
-  categoriesBtnPressed: {
-    opacity: 0.8,
-  },
-  categoriesIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PREMIUM.bgElevated,
-    borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
-  },
-  categoriesText: {
-    color: PREMIUM.text,
-    fontSize: 14,
-    fontWeight: '700',
-    flexShrink: 1,
-    letterSpacing: -0.2,
-  },
-  resultsBadge: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 52,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: PREMIUM.bgGlass,
-    borderWidth: 1,
-  },
-  resultsCount: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-    lineHeight: 18,
-  },
-  resultsHint: {
-    color: PREMIUM.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 });

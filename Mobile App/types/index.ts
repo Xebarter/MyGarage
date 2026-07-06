@@ -200,6 +200,7 @@ export type BuyerControlCenterData = {
     status: string;
     currentPeriodEnd?: string | null;
     startedAt?: string | null;
+    cancelledAt?: string | null;
   } | null;
   subscriptionHistory?: Array<{
     id: string;

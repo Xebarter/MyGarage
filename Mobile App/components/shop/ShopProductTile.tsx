@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import Colors from '@/constants/Colors';
+import { getShopProductAccent, shopProductAccentIndex } from '@/constants/ShopProductAccents';
 import { useColorScheme } from '@/components/useColorScheme';
 import { formatCurrency, formatProductPrice } from '@/lib/format';
 import type { Product } from '@/types';
@@ -11,6 +12,7 @@ type ShopProductTileProps = {
   product: Product;
   width?: number | `${number}%`;
   compact?: boolean;
+  accentIndex?: number;
   wishlisted?: boolean;
   onToggleWishlist?: (product: Product) => void;
   onAddToCart?: (product: Product) => void;
@@ -20,16 +22,19 @@ export function ShopProductTile({
   product,
   width = '48%',
   compact = false,
+  accentIndex,
   wishlisted = false,
   onToggleWishlist,
   onAddToCart,
 }: ShopProductTileProps) {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
+  const accent = getShopProductAccent(accentIndex ?? shopProductAccentIndex(product.id), scheme);
   const hasDeal = product.compareAtPrice != null && product.compareAtPrice > product.price;
   const discountPercent = hasDeal
     ? Math.max(1, Math.round(((product.compareAtPrice! - product.price) / product.compareAtPrice!) * 100))
     : 0;
+  const chipBorder = accent.border;
 
   return (
     <Link href={`/product/${product.id}`} asChild>
@@ -39,13 +44,14 @@ export function ShopProductTile({
             styles.card,
             {
               width,
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              opacity: pressed ? 0.95 : 1,
+              backgroundColor: accent.bg,
+              borderColor: accent.border,
+              opacity: pressed ? 0.94 : 1,
+              transform: [{ scale: pressed ? 0.985 : 1 }],
             },
           ])
         }>
-        <View style={styles.imageWrap}>
+        <View style={[styles.imageWrap, { backgroundColor: accent.bg }]}>
           <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
           <View style={styles.overlayActions}>
             {hasDeal ? (
@@ -56,7 +62,9 @@ export function ShopProductTile({
               <View style={[styles.saleBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.saleText}>Featured</Text>
               </View>
-            ) : null}
+            ) : (
+              <View />
+            )}
             <Pressable
               onPress={(event) => {
                 event.preventDefault();
@@ -74,7 +82,7 @@ export function ShopProductTile({
           </View>
         </View>
 
-        <View style={[styles.body, compact && styles.bodyCompact]}>
+        <View style={[styles.body, compact && styles.bodyCompact, { backgroundColor: accent.bg }]}>
           <Text style={[styles.category, { color: colors.textMuted }]} numberOfLines={1}>
             {product.category || 'Auto part'}
           </Text>
@@ -90,17 +98,19 @@ export function ShopProductTile({
           <View style={styles.priceBlock}>
             <Text style={[styles.price, { color: colors.text }]}>{formatProductPrice(product)}</Text>
             {hasDeal ? (
-              <Text style={[styles.comparePrice, { color: colors.textMuted }]}>{formatCurrency(product.compareAtPrice!)}</Text>
+              <Text style={[styles.comparePrice, { color: colors.textMuted }]}>
+                {formatCurrency(product.compareAtPrice!)}
+              </Text>
             ) : null}
           </View>
 
           <View style={styles.bottomRow}>
             <View style={styles.metaPills}>
-              <View style={[styles.metaPill, { backgroundColor: colors.background }]}>
+              <View style={[styles.metaPill, { borderColor: chipBorder }]}>
                 <Ionicons name="star" size={12} color="#F59E0B" />
                 <Text style={[styles.metaText, { color: colors.text }]}>4.7</Text>
               </View>
-              <View style={[styles.metaPill, { backgroundColor: colors.background }]}>
+              <View style={[styles.metaPill, { borderColor: chipBorder }]}>
                 <Text style={[styles.metaText, { color: colors.text }]}>
                   {product.variants.length > 0 ? `${product.variants.length} options` : 'In stock'}
                 </Text>
@@ -133,7 +143,6 @@ const styles = StyleSheet.create({
   imageWrap: {
     position: 'relative',
     aspectRatio: 1,
-    backgroundColor: '#E2E8F0',
   },
   image: {
     width: '100%',
@@ -213,11 +222,13 @@ const styles = StyleSheet.create({
   metaPill: {
     alignSelf: 'flex-start',
     borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'transparent',
   },
   metaText: {
     fontSize: 11,

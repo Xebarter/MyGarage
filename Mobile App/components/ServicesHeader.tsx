@@ -1,15 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter, type Href } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { QUICK_SERVICE_ACTIONS } from '@/constants/ServiceCategoryMeta';
-import { SERVICES_PREMIUM } from '@/constants/ServicesPremiumTheme';
+import { SERVICES_HEADER, SERVICES_PREMIUM } from '@/constants/ServicesPremiumTheme';
 import { getPriorityPalette, priorityLegend } from '@/constants/ServicePriorities';
 import { useColorScheme } from '@/components/useColorScheme';
 import type { ServicePriority } from '@/types';
 
 const LOGO = require('@/assets/images/logo-black.png');
 const PREMIUM = SERVICES_PREMIUM;
+const HEADER = SERVICES_HEADER;
 
 type ServicesHeaderProps = {
   query: string;
@@ -46,114 +48,140 @@ export function ServicesHeader({
   }));
 
   return (
-    <View style={[styles.shell, { paddingTop: 10 }]}>
-      <View style={styles.topRow}>
-        <View style={styles.brandBlock}>
-          <View style={styles.brandRow}>
-            <Image source={LOGO} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brandName}>MyGarage</Text>
+    <View style={styles.shellWrap}>
+      <LinearGradient
+        colors={[HEADER.shellTop, HEADER.shellBottom]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.shell, { paddingTop: 10 }]}>
+        <View style={[styles.glowPrimary, { backgroundColor: HEADER.glowPrimary }]} pointerEvents="none" />
+        <View style={[styles.glowSecondary, { backgroundColor: HEADER.glowSecondary }]} pointerEvents="none" />
+
+        <View style={styles.topRow}>
+          <View style={styles.brandBlock}>
+            <View style={styles.brandRow}>
+              <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+              <Text style={styles.brandName}>MyGarage</Text>
+            </View>
           </View>
+
+          <Pressable
+            onPress={() => router.push('/(tabs)/profile')}
+            hitSlop={8}
+            style={({ pressed }) => [styles.profileBtn, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile">
+            <Ionicons name="person-outline" size={20} color={PREMIUM.textMuted} />
+          </Pressable>
         </View>
 
         <Pressable
+          style={({ pressed }) => [styles.locationRow, pressed && styles.pressed]}
           onPress={() => router.push('/(tabs)/profile')}
-          hitSlop={8}
-          style={({ pressed }) => [styles.profileBtn, pressed && styles.pressed]}
           accessibilityRole="button"
-          accessibilityLabel="Open profile">
-          <Ionicons name="person-outline" size={20} color={PREMIUM.textMuted} />
+          accessibilityLabel={`Service location: ${serviceLine}`}>
+          <Ionicons name="location-outline" size={15} color={PREMIUM.textMuted} />
+          <Text style={styles.locationLine} numberOfLines={1}>
+            {serviceLine}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={PREMIUM.textMuted} />
         </Pressable>
-      </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.locationRow, pressed && styles.pressed]}
-        onPress={() => router.push('/(tabs)/profile')}
-        accessibilityRole="button"
-        accessibilityLabel={`Service location: ${serviceLine}`}>
-        <Ionicons name="location-outline" size={15} color={PREMIUM.textMuted} />
-        <Text style={styles.locationLine} numberOfLines={1}>
-          {serviceLine}
-        </Text>
-        <Ionicons name="chevron-forward" size={14} color={PREMIUM.textMuted} />
-      </Pressable>
-
-      <View style={styles.searchField}>
-        <Ionicons name="search-outline" size={18} color={PREMIUM.textMuted} />
-        <TextInput
-          value={query}
-          onChangeText={onQueryChange}
-          placeholder="Search services"
-          placeholderTextColor={PREMIUM.textMuted}
-          style={styles.searchInput}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-          accessibilityLabel="Search services"
-        />
-        {query.length > 0 ? (
-          <Pressable
-            onPress={() => onQueryChange('')}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Clear search">
-            <Ionicons name="close-circle" size={18} color={PREMIUM.textMuted} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickScroll}>
-        {quickLinks.map((item) => (
-          <Link key={item.id} href={item.href as Href} asChild>
+        <View style={styles.searchField}>
+          <Ionicons name="search-outline" size={18} color={PREMIUM.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={onQueryChange}
+            placeholder="Search services"
+            placeholderTextColor={PREMIUM.textMuted}
+            style={styles.searchInput}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search services"
+          />
+          {query.length > 0 ? (
             <Pressable
-              style={({ pressed }) => [styles.quickTile, pressed && styles.pressed]}
+              onPress={() => onQueryChange('')}
+              hitSlop={8}
               accessibilityRole="button"
+              accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color={PREMIUM.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickScroll}>
+          {quickLinks.map((item) => (
+            <Link key={item.id} href={item.href as Href} asChild>
+              <Pressable
+                style={({ pressed }) => [styles.quickTile, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}>
+                <Ionicons name={item.icon} size={18} color={PREMIUM.text} />
+                <Text style={styles.quickTileText} numberOfLines={1}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            </Link>
+          ))}
+        </ScrollView>
+
+        <View style={styles.priorityRow}>
+          {priorityLinks.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => onPriorityFilterChange(item.active ? null : item.priority)}
+              style={({ pressed }) => [
+                styles.priorityPill,
+                item.active && styles.priorityPillActive,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: item.active }}
               accessibilityLabel={item.label}>
-              <Ionicons name={item.icon} size={18} color={PREMIUM.text} />
-              <Text style={styles.quickTileText} numberOfLines={1}>
+              <Text
+                style={[styles.priorityPillText, item.active && styles.priorityPillTextActive]}
+                numberOfLines={1}>
                 {item.label}
               </Text>
             </Pressable>
-          </Link>
-        ))}
-      </ScrollView>
-
-      <View style={styles.priorityRow}>
-        {priorityLinks.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => onPriorityFilterChange(item.active ? null : item.priority)}
-            style={({ pressed }) => [
-              styles.priorityPill,
-              item.active && styles.priorityPillActive,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: item.active }}
-            accessibilityLabel={item.label}>
-            <Text
-              style={[styles.priorityPillText, item.active && styles.priorityPillTextActive]}
-              numberOfLines={1}>
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+          ))}
+        </View>
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shell: {
+  shellWrap: {
     marginHorizontal: -16,
+  },
+  shell: {
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 12,
-    backgroundColor: PREMIUM.bg,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     overflow: 'hidden',
+  },
+  glowPrimary: {
+    position: 'absolute',
+    top: -40,
+    right: -20,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
+  glowSecondary: {
+    position: 'absolute',
+    top: 30,
+    left: -50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
   },
   topRow: {
     flexDirection: 'row',
@@ -185,9 +213,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: HEADER.bgGlass,
     borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
+    borderColor: HEADER.borderGlass,
   },
   pressed: {
     opacity: 0.8,
@@ -211,9 +239,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     minHeight: 44,
     borderRadius: 12,
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: HEADER.bgGlass,
     borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
+    borderColor: HEADER.borderGlass,
   },
   searchInput: {
     flex: 1,
@@ -231,11 +259,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
+    borderColor: HEADER.borderGlass,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: HEADER.bgGlass,
   },
   quickTileText: {
     color: PREMIUM.text,
@@ -252,11 +280,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: PREMIUM.borderGlass,
+    borderColor: HEADER.borderGlass,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 9,
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: HEADER.bgGlass,
   },
   priorityPillActive: {
     borderColor: PREMIUM.accent,

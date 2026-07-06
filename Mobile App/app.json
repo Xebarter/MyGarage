@@ -42,6 +42,13 @@
         {
           "locationWhenInUsePermission": "Allow MyGarage to use your location so service providers can find you."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MyGarage to access your photos so you can add vehicle pictures.",
+          "cameraPermission": "Allow MyGarage to use your camera to take vehicle photos."
+        }
       ]
     ],
     "experiments": {

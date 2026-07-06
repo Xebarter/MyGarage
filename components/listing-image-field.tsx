@@ -14,11 +14,12 @@ type ListingImageFieldProps = {
   onChange: (url: string) => void;
   disabled?: boolean;
   mode?: ListingImageMode;
+  uploadFn?: (file: File) => Promise<string>;
 };
 
 const PRODUCT_DEFAULT = "/products/default.jpg";
 
-export function ListingImageField({ value, onChange, disabled, mode = "product" }: ListingImageFieldProps) {
+export function ListingImageField({ value, onChange, disabled, mode = "product", uploadFn }: ListingImageFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -44,10 +45,12 @@ export function ListingImageField({ value, onChange, disabled, mode = "product" 
       setProgress(0);
       const ac = new AbortController();
       try {
-        const url = await uploadListingImage(file, {
-          signal: ac.signal,
-          onProgress: (p) => setProgress(p.percent),
-        });
+        const url = uploadFn
+          ? await uploadFn(file)
+          : await uploadListingImage(file, {
+              signal: ac.signal,
+              onProgress: (p) => setProgress(p.percent),
+            });
         onChange(url);
         setJustUploaded(true);
       } catch (e) {
@@ -56,7 +59,7 @@ export function ListingImageField({ value, onChange, disabled, mode = "product" 
         setUploading(false);
       }
     },
-    [disabled, onChange],
+    [disabled, onChange, uploadFn],
   );
 
   useEffect(() => {

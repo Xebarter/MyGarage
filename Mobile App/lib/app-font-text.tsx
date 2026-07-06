@@ -7,7 +7,7 @@ import {
   TextInputProps,
   TextProps,
   TextStyle,
-} from 'react-native';
+} from 'react-native-original';
 
 import { NUNITO, nunitoFamilyForWeight } from '@/constants/Fonts';
 

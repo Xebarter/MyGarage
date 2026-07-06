@@ -32,7 +32,7 @@ export default function ShopScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-  const { itemCount, addItem } = useCart();
+  const { addItem } = useCart();
   const { user, profile } = useAuth();
   const customerId = profile?.customer.id ?? '';
 
@@ -228,14 +228,8 @@ export default function ShopScreen() {
               searchValue={query}
               onChangeSearch={setQuery}
               onSubmitSearch={() => setSubmittedQuery(query)}
-              onOpenCart={() => router.push('/(tabs)/cart')}
               onOpenFilters={() => setShowFilters(true)}
-              cartCount={itemCount}
               locationLabel={profile?.customer.address}
-              userName={profile?.customer.name}
-              resultCount={filtered.length}
-              sortLabel={formatSortLabel(filters.sortBy)}
-              categories={categories}
               selectedCategory={filters.category}
               onSelectCategory={(category) => setFilters((prev) => ({ ...prev, category }))}
               dealsOnly={filters.dealsOnly}
@@ -300,11 +294,12 @@ export default function ShopScreen() {
                   keyExtractor={(item) => `deal-${item.id}`}
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.horizontalList}
-                  renderItem={({ item }) => (
+                  renderItem={({ item, index }) => (
                     <ShopProductTile
                       product={item}
                       width={190}
                       compact
+                      accentIndex={index}
                       wishlisted={wishlistIds.includes(item.id)}
                       onToggleWishlist={handleToggleWishlist}
                       onAddToCart={handleAddToCart}
@@ -327,6 +322,7 @@ export default function ShopScreen() {
             <ShopProductTile
               product={item}
               width="100%"
+              accentIndex={index}
               wishlisted={wishlistIds.includes(item.id)}
               onToggleWishlist={handleToggleWishlist}
               onAddToCart={handleAddToCart}

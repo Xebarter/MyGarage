@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { ListingImageField } from '@/components/listing-image-field';
+import { uploadVehicleImage } from '@/lib/upload-vehicle-image';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -378,8 +380,16 @@ export default function BuyerGaragePage() {
               <Input className="mt-2" value={form.nickname} onChange={(e) => setForm((p) => ({ ...p, nickname: e.target.value }))} placeholder="Family SUV" />
             </div>
             <div>
-              <label className="text-sm font-medium">Image URL (optional)</label>
-              <Input className="mt-2" value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} placeholder="https://..." />
+              <label className="text-sm font-medium">Photo (optional)</label>
+              <div className="mt-2">
+                <ListingImageField
+                  mode="service"
+                  value={form.imageUrl}
+                  onChange={(imageUrl) => setForm((p) => ({ ...p, imageUrl }))}
+                  uploadFn={uploadVehicleImage}
+                  disabled={saving}
+                />
+              </div>
             </div>
           </div>
           <label className="flex items-center gap-2 text-sm">

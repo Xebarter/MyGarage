@@ -26,6 +26,22 @@ Optional Firebase env vars (`NEXT_PUBLIC_FIREBASE_*`) are for Analytics only, no
 
 If you skip the SQL file, the app will still try to auto-seed the same six products **after** the table exists (first empty `products` table).
 
+### My Garage (buyer vehicles)
+
+Run these in order in the **SQL Editor** (or via `supabase db push` if you use the CLI):
+
+| Migration | Purpose |
+|-----------|---------|
+| `036_buyer_vehicles_garage.sql` | `buyer_vehicles` table, service history, `vehicle_id` on service requests |
+| `037_buyer_profile_control_center.sql` | Profile notifications, preferences, vehicle documents |
+| `038_buyer_subscriptions.sql` | Subscription tiers |
+| `039_subscription_checkout_line_items.sql` | Subscription checkout line items |
+| `040_vehicle_images_storage.sql` | `vehicle-images` storage bucket for uploaded vehicle photos |
+
+Vehicle photos are stored in Supabase Storage (`vehicle-images` bucket); the public URL is saved in `buyer_vehicles.image_url`. Uploads go through `/api/uploads/vehicle-image` using the service role (no client-side storage policy needed for writes).
+
+Listing/product images use migration `017_listing_images_storage.sql` (`listing-images` bucket).
+
 ## Code map
 
 | Area | Location |

@@ -25,6 +25,18 @@ export { ErrorBoundary } from 'expo-router';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AuthProvider>
+        <CartProvider>
+          <AppShell />
+        </CartProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function AppShell() {
   const [loaded, error] = useFonts({
     Nunito_400Regular,
     Nunito_500Medium,
@@ -48,15 +60,11 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AuthProvider>
-        <CartProvider>
-          <ActiveServiceRequestRestore />
-          <ServiceRequestLiveNavigation />
-          <RootStack />
-        </CartProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <>
+      <ActiveServiceRequestRestore />
+      <ServiceRequestLiveNavigation />
+      <RootStack />
+    </>
   );
 }
 
@@ -86,6 +94,7 @@ function RootStack() {
         <Stack.Screen name="garage/index" options={{ title: 'My Vehicles' }} />
         <Stack.Screen name="garage/[id]" options={{ title: 'Vehicle' }} />
         <Stack.Screen name="garage/add" options={{ title: 'Add vehicle' }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
       </Stack>
     </>
   );
