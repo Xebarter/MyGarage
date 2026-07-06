@@ -96,8 +96,8 @@ export default function LoginScreen() {
           </View>
           <Text style={[styles.pageTitle, { color: colors.text }]}>Sign-in unavailable</Text>
           <Text style={[styles.pageHint, { color: colors.textMuted, textAlign: 'center' }]}>
-            This app build is missing Supabase settings. If you installed a preview APK, ask the developer to run{' '}
-            <Text style={{ fontFamily: 'monospace' }}>eas env:push preview --path .env</Text> and rebuild.
+            This app build is missing Supabase settings. Add production environment variables on expo.dev, then rebuild with{' '}
+            <Text style={{ fontFamily: 'monospace' }}>eas build -p android --profile preview</Text>.
           </Text>
           <Pressable
             onPress={() => router.back()}

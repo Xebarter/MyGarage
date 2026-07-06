@@ -180,7 +180,7 @@ export default function ServiceLocationScreen() {
         if (!configured) {
           autoNavigatedRef.current = false;
           setSubmitError(
-            'Sign-in is not available in this build. Reinstall the app after the developer uploads Supabase settings to EAS.',
+            'Sign-in is not set up in this APK. Set production env vars on expo.dev, then rebuild: eas build -p android --profile preview.',
           );
           return;
         }

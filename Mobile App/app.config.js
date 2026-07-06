@@ -39,14 +39,14 @@ const publicSupabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() 
 if (!publicSupabaseUrl || !publicSupabaseAnonKey) {
   console.warn(
     '[MyGarage] EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY are missing at build time. ' +
-      'Sign-in will be disabled in this build. For EAS builds run: eas env:push preview --path .env',
+      'Sign-in will be disabled in this build. For EAS builds set production env vars on expo.dev, then rebuild.',
   );
 }
 
 if (!googleMapsApiKey) {
   console.warn(
     '[MyGarage] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is missing at build time. ' +
-      'Android will use WebView maps; native MapView may crash without this key. For EAS: eas env:push preview --path .env',
+      'Android will use WebView maps; native MapView may crash without this key. Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in EAS production env.',
   );
 }
 

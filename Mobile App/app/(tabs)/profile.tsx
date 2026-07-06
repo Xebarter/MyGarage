@@ -157,7 +157,7 @@ export default function ProfileScreen() {
               <Text style={styles.guestHint}>
                 {configured
                   ? 'Sign in to sync orders, wishlist, and service requests across devices.'
-                  : 'Add Supabase credentials to enable account sign-in.'}
+                  : 'This APK was built without Supabase settings. Set production env vars on expo.dev, then run a new eas build.'}
               </Text>
               {configured ? (
                 <Link href="/(auth)/login" asChild>
