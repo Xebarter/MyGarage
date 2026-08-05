@@ -92,8 +92,12 @@ class _SignInScreenState extends State<SignInScreen> {
                                   : () => context.read<AuthController>().signInWithGoogle(),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: Colors.white,
-                                foregroundColor: AppColors.textPrimary,
-                                side: const BorderSide(color: AppColors.border),
+                                foregroundColor: const Color(0xFF1F1F1F),
+                                side: const BorderSide(color: Color(0xFFDADCE0)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: auth.busy
                                   ? const SizedBox(
@@ -101,12 +105,19 @@ class _SignInScreenState extends State<SignInScreen> {
                                       height: 20,
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     )
-                                  : const Row(
+                                  : Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        GoogleLogo(size: 20),
-                                        SizedBox(width: 10),
-                                        Text('Continue with Google'),
+                                        const GoogleLogo(size: 22),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Continue with Google',
+                                          style: AppTheme.host(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF1F1F1F),
+                                          ),
+                                        ),
                                       ],
                                     ),
                             ),

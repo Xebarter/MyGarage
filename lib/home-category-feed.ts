@@ -61,3 +61,75 @@ export function pickFeaturedProducts(products: Product[], limit = 60): Product[]
   if (featured.length > 0) return featured.slice(0, limit);
   return products.slice(0, limit);
 }
+
+/** Desktop product-column capacity for home category strips. */
+export const HOME_FEED_COL_CAPACITY = 5;
+
+/** Phone / small tablet: at most two product cards per row. */
+export const HOME_FEED_MOBILE_COL_CAPACITY = 2;
+
+export type CategoryFeedPackCell = {
+  section: CategoryFeedSection;
+  /** Products shown (up to HOME_FEED_COL_CAPACITY from the feed). */
+  products: Product[];
+  /** Grid columns this cell occupies on the packed track. */
+  colSpan: number;
+};
+
+export type CategoryFeedPackedRow = {
+  /** Stable key for the packed row. */
+  key: string;
+  cells: CategoryFeedPackCell[];
+};
+
+/**
+ * First-fit pack sparse category sections into shared rows.
+ * Categories with product count ≥ capacity get a solo multi-row strip (all listed products kept).
+ * Smaller categories share a row until product slots fill capacity.
+ */
+export function packCategoryFeedSections(
+  sections: CategoryFeedSection[],
+  capacity: number = HOME_FEED_COL_CAPACITY,
+): CategoryFeedPackedRow[] {
+  const cap = Math.max(1, capacity);
+  const maxProducts = HOME_FEED_COL_CAPACITY;
+  const rows: CategoryFeedPackedRow[] = [];
+  let open: CategoryFeedPackCell[] = [];
+  let used = 0;
+
+  const flush = () => {
+    if (open.length === 0) return;
+    rows.push({
+      key: open.map((c) => c.section.category).join('|'),
+      cells: open,
+    });
+    open = [];
+    used = 0;
+  };
+
+  for (const section of sections) {
+    // Keep full feed slice (up to 5); capacity only controls packing, not list length.
+    const products = section.products.slice(0, maxProducts);
+    if (products.length === 0) continue;
+
+    // Enough products to fill (or exceed) the row track → exclusive strip.
+    if (products.length >= cap) {
+      flush();
+      rows.push({
+        key: section.category,
+        cells: [{ section, products, colSpan: cap }],
+      });
+      continue;
+    }
+
+    const n = products.length;
+    if (used + n > cap) {
+      flush();
+    }
+    open.push({ section, products, colSpan: n });
+    used += n;
+  }
+
+  flush();
+  return rows;
+}

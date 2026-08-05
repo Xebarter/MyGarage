@@ -40,11 +40,15 @@ class ListingsApi {
     );
   }
 
-  Future<void> delete({required String vendorId, required String listingId}) {
-    return _client.delete(
-      '/api/vendor/service-listings/$listingId',
-      query: {'vendorId': vendorId},
-      parser: (_) => null,
+  Future<void> delete({required String vendorId, required String listingId}) async {
+    // Prefer POST so apex→www 308 redirects cannot drop DELETE on some devices.
+    await _client.post(
+      '/api/vendor/service-listings/delete',
+      body: {
+        'vendorId': vendorId,
+        'id': listingId,
+      },
+      parser: (_) => true,
     );
   }
 }

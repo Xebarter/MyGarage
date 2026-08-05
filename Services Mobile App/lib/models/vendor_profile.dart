@@ -10,6 +10,7 @@ class VendorProfile {
     required this.vendorVerified,
     required this.servicesVerified,
     required this.serviceOfferings,
+    this.imageUrl,
   });
 
   final String id;
@@ -22,8 +23,11 @@ class VendorProfile {
   final bool vendorVerified;
   final bool servicesVerified;
   final List<String> serviceOfferings;
+  final String? imageUrl;
 
   factory VendorProfile.fromJson(Map<String, dynamic> json) {
+    final rawImage = json['imageUrl'] ?? json['image_url'];
+    final imageStr = rawImage?.toString().trim();
     return VendorProfile(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
@@ -38,6 +42,7 @@ class VendorProfile {
               ?.map((e) => e.toString())
               .toList() ??
           const [],
+      imageUrl: (imageStr != null && imageStr.isNotEmpty) ? imageStr : null,
     );
   }
 
@@ -45,6 +50,8 @@ class VendorProfile {
     String? name,
     String? phone,
     String? address,
+    String? imageUrl,
+    bool clearImageUrl = false,
   }) {
     return VendorProfile(
       id: id,
@@ -57,6 +64,7 @@ class VendorProfile {
       vendorVerified: vendorVerified,
       servicesVerified: servicesVerified,
       serviceOfferings: serviceOfferings,
+      imageUrl: clearImageUrl ? null : (imageUrl ?? this.imageUrl),
     );
   }
 }

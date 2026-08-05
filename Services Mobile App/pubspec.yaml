@@ -27,6 +27,9 @@ dependencies:
   vibration: ^3.2.0
   flutter_local_notifications: ^22.2.0
   permission_handler: ^13.0.0
+  image_picker: ^1.1.2
+  http_parser: ^4.0.2
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -54,4 +57,5 @@ flutter:
     - assets/images/app_logo.png
     - assets/images/logo_mark.png
     - assets/images/app_icon.png
+    - assets/images/google_g.svg
     - assets/sounds/job_offer_alarm.wav

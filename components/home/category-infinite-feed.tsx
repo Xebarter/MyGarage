@@ -1,49 +1,172 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 import { CategoryProductCard } from '@/components/home/category-product-card';
-import type { CategoryFeedSection } from '@/lib/home-category-feed';
+import {
+  HOME_FEED_COL_CAPACITY,
+  HOME_FEED_MOBILE_COL_CAPACITY,
+  packCategoryFeedSections,
+  type CategoryFeedPackCell,
+  type CategoryFeedPackedRow,
+  type CategoryFeedSection,
+} from '@/lib/home-category-feed';
+import { cn } from '@/lib/utils';
 
 function formatCategoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 
-function CategoryFeedRow({ section }: { section: CategoryFeedSection }) {
-  const products = section.products.slice(0, 5);
+/** Tailwind col-span classes for product-track packing (mobile 2 / desktop 5). */
+const COL_SPAN: Record<2 | 5, Record<number, string>> = {
+  2: {
+    1: 'col-span-1',
+    2: 'col-span-2',
+  },
+  5: {
+    1: 'col-span-1',
+    2: 'col-span-2',
+    3: 'col-span-3',
+    4: 'col-span-4',
+    5: 'col-span-5',
+  },
+};
+
+const TRACK_COLS: Record<2 | 5, string> = {
+  2: 'grid-cols-2',
+  5: 'grid-cols-5',
+};
+
+function SeeAllButton({
+  category,
+  narrow,
+}: {
+  category: string;
+  narrow: boolean;
+}) {
+  return (
+    <Link
+      href={`/category/products/${encodeURIComponent(category)}`}
+      aria-label={`See all ${formatCategoryLabel(category)}`}
+      className={cn(
+        'inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary',
+        narrow ? 'w-9 px-0' : 'gap-1.5 px-3',
+      )}
+    >
+      {narrow ? null : <span>See all</span>}
+      <ArrowRight className="h-4 w-4" aria-hidden />
+    </Link>
+  );
+}
+
+function CategoryHeader({
+  category,
+  narrow = false,
+}: {
+  category: string;
+  narrow?: boolean;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4 sm:gap-3">
+      <Link
+        href={`/category/products/${encodeURIComponent(category)}`}
+        className={cn(
+          'min-w-0 truncate font-bold tracking-tight text-foreground transition hover:text-primary',
+          narrow ? 'text-base sm:text-lg' : 'text-xl sm:text-2xl',
+        )}
+      >
+        {formatCategoryLabel(category)}
+      </Link>
+      <SeeAllButton category={category} narrow={narrow} />
+    </div>
+  );
+}
+
+function SoloCategoryRow({
+  cell,
+  cols,
+  imagePriority,
+}: {
+  cell: CategoryFeedPackCell;
+  cols: 2 | 5;
+  imagePriority: boolean;
+}) {
+  const gap = cols === 2 ? 'gap-3' : 'gap-5';
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Link
-          href={`/category/products/${encodeURIComponent(section.category)}`}
-          className="min-w-0 text-xl font-bold tracking-tight text-foreground transition hover:text-primary sm:text-2xl"
-        >
-          {formatCategoryLabel(section.category)}
-        </Link>
-        <Link
-          href={`/category/products/${encodeURIComponent(section.category)}`}
-          className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
-        >
-          See all
-          <ArrowRight className="h-4 w-4" aria-hidden />
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5 lg:gap-5">
-        {products.map((product, index) => (
+      <CategoryHeader category={cell.section.category} />
+      <div className={cn('grid', TRACK_COLS[cols], gap)}>
+        {cell.products.map((product, index) => (
           <CategoryProductCard
             key={product.id}
             product={product}
-            imagePriority={index < 2}
-            className={index >= 4 ? 'hidden lg:flex' : undefined}
+            imagePriority={imagePriority && index < 2}
           />
         ))}
       </div>
     </section>
   );
+}
+
+/**
+ * Sparse categories sharing one row.
+ * Products use a flat N-col track so every card is the same width as a solo strip card.
+ */
+function SharedCategoryRow({
+  row,
+  cols,
+}: {
+  row: CategoryFeedPackedRow;
+  cols: 2 | 5;
+}) {
+  const gap = cols === 2 ? 'gap-3' : 'gap-5';
+  const spans = COL_SPAN[cols];
+
+  return (
+    <section>
+      <div className={cn('mb-3 grid sm:mb-4', TRACK_COLS[cols], gap)}>
+        {row.cells.map((cell) => {
+          const narrow = cell.colSpan <= Math.max(1, Math.floor(cols / 2));
+          return (
+            <div
+              key={cell.section.category}
+              className={cn('min-w-0', spans[cell.colSpan] ?? 'col-span-1')}
+            >
+              <CategoryHeader category={cell.section.category} narrow={narrow || cols === 2} />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={cn('grid', TRACK_COLS[cols], gap)}>
+        {row.cells.flatMap((cell, cellIndex) =>
+          cell.products.map((product, index) => (
+            <CategoryProductCard
+              key={`${cell.section.category}-${product.id}`}
+              product={product}
+              imagePriority={cellIndex === 0 && index < 2}
+            />
+          )),
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PackedCategoryRow({
+  row,
+  cols,
+}: {
+  row: CategoryFeedPackedRow;
+  cols: 2 | 5;
+}) {
+  if (row.cells.length === 1) {
+    return <SoloCategoryRow cell={row.cells[0]!} cols={cols} imagePriority />;
+  }
+  return <SharedCategoryRow row={row} cols={cols} />;
 }
 
 export function CategoryInfiniteFeed({
@@ -61,6 +184,15 @@ export function CategoryInfiniteFeed({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const mobileRows = useMemo(
+    () => packCategoryFeedSections(sections, HOME_FEED_MOBILE_COL_CAPACITY),
+    [sections],
+  );
+  const desktopRows = useMemo(
+    () => packCategoryFeedSections(sections, HOME_FEED_COL_CAPACITY),
+    [sections],
+  );
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -122,10 +254,20 @@ export function CategoryInfiniteFeed({
   }
 
   return (
-    <div className="space-y-10 md:space-y-12">
-      {sections.map((section) => (
-        <CategoryFeedRow key={section.category} section={section} />
-      ))}
+    <div>
+      {/* Phones / small tablets: pack into 2-card rows */}
+      <div className="space-y-10 md:space-y-12 lg:hidden">
+        {mobileRows.map((row) => (
+          <PackedCategoryRow key={`m-${row.key}`} row={row} cols={2} />
+        ))}
+      </div>
+
+      {/* Large screens: pack into 5-card rows */}
+      <div className="hidden space-y-10 md:space-y-12 lg:block">
+        {desktopRows.map((row) => (
+          <PackedCategoryRow key={`d-${row.key}`} row={row} cols={5} />
+        ))}
+      </div>
 
       <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
 

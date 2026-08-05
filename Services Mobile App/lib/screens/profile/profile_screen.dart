@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/user_facing_error.dart';
 import '../../widgets/ui.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,7 +22,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _phone;
   late final TextEditingController _address;
   final _formKey = GlobalKey<FormState>();
+  final _picker = ImagePicker();
   bool _initialized = false;
+
+  /// Local file path for a newly picked photo not yet uploaded.
+  String? _pendingImagePath;
+  String? _pendingMime;
 
   @override
   void didChangeDependencies() {
@@ -39,22 +48,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final file = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (file == null || !mounted) return;
+      setState(() {
+        _pendingImagePath = file.path;
+        _pendingMime = file.mimeType ?? _mimeFromPath(file.path);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not open image picker.'))),
+      );
+    }
+  }
+
+  Future<void> _showImageSourceSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take a photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     try {
+      List<int>? avatarBytes;
+      String? filename;
+      var contentType = 'image/jpeg';
+      if (_pendingImagePath != null) {
+        final file = File(_pendingImagePath!);
+        avatarBytes = await file.readAsBytes();
+        filename = _pendingImagePath!.split(RegExp(r'[/\\]')).last;
+        contentType = _pendingMime ?? _mimeFromPath(_pendingImagePath!);
+      }
+
       await context.read<AuthController>().updateProfile(
             name: _name.text,
             phone: _phone.text,
             address: _address.text,
+            avatarBytes: avatarBytes,
+            avatarFilename: filename,
+            avatarContentType: contentType,
           );
       if (!mounted) return;
+      setState(() {
+        _pendingImagePath = null;
+        _pendingMime = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userFacingError(e, fallback: 'Could not save profile.'),
+          ),
+        ),
+      );
     }
+  }
+
+  String _mimeFromPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
   }
 
   @override
@@ -63,6 +159,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final vendor = auth.vendor;
     final email = vendor?.email ?? auth.user?.email ?? '';
     final initials = _initials(vendor?.name ?? email);
+    final remoteImage = vendor?.imageUrl;
+    final hasPending = _pendingImagePath != null;
 
     return PageScaffold(
       title: 'Profile',
@@ -72,23 +170,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
           GlassCard(
             child: Row(
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary.withOpacity(0.35),
-                        AppColors.primaryDeep.withOpacity(0.2),
-                      ],
-                    ),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.35)),
-                  ),
-                  child: Text(
-                    initials,
-                    style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
+                GestureDetector(
+                  onTap: auth.busy ? null : _showImageSourceSheet,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipOval(
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.primary.withOpacity(0.35),
+                                AppColors.primaryDeep.withOpacity(0.2),
+                              ],
+                            ),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                          ),
+                          child: hasPending
+                              ? Image.file(
+                                  File(_pendingImagePath!),
+                                  width: 72,
+                                  height: 72,
+                                  fit: BoxFit.cover,
+                                )
+                              : remoteImage != null
+                                  ? Image.network(
+                                      remoteImage,
+                                      width: 72,
+                                      height: 72,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Text(
+                                        initials,
+                                        style: AppTheme.host(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      initials,
+                                      style: AppTheme.host(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                        ),
+                      ),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.surface, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -102,6 +250,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(email, style: AppTheme.host(fontSize: 13, color: AppColors.textMuted)),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Tap photo to update',
+                        style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
+                      ),
                     ],
                   ),
                 ),

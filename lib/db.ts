@@ -174,6 +174,8 @@ export interface Vendor {
   address: string;
   rating: number;
   totalProducts: number;
+  /** Public URL for the provider/vendor profile photo. */
+  imageUrl?: string | null;
   /** True when the admin approved access to the vendor dashboard. */
   vendorVerified: boolean;
   /** True when the admin approved access to the service-provider dashboard. */

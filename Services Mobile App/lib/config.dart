@@ -3,15 +3,19 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   AppConfig._();
 
-  /// Production site serves the API on www; apex redirects break POST from Flutter.
+  /// Production site serves the API on www; apex redirects break some verbs from Flutter.
   static String normalizeApiUrl(String raw) {
     var url = raw.trim().replaceAll(RegExp(r'/+$'), '');
     if (url.isEmpty) return 'https://www.mygarage.ug';
-    // Apex and any host-only misconfig → canonical www (no 308 on POST).
     try {
       final uri = Uri.parse(url);
-      if (uri.host == 'mygarage.ug') {
-        url = uri.replace(host: 'www.mygarage.ug').toString().replaceAll(RegExp(r'/+$'), '');
+      final host = uri.host.toLowerCase();
+      // Apex (and accidental trailing-dot hosts) → canonical www.
+      if (host == 'mygarage.ug' || host == 'mygarage.ug.') {
+        url = uri
+            .replace(scheme: 'https', host: 'www.mygarage.ug')
+            .toString()
+            .replaceAll(RegExp(r'/+$'), '');
       }
     } catch (_) {
       /* keep url */

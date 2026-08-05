@@ -28,6 +28,12 @@
 	<string>MyGarage needs your location to share live progress with the customer during an active job.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>MyGarage needs your location to share live progress with the customer during an active job.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MyGarage needs photo library access so you can set your profile picture for customers.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>MyGarage needs camera access so you can take a profile photo for customers.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MyGarage may save photos when you update your provider profile.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

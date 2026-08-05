@@ -12,6 +12,7 @@ import '../../utils/format.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/connection_ui.dart';
 import '../../widgets/ui.dart';
+import 'catalog_services_picker_sheet.dart';
 import 'listing_editor_sheet.dart';
 
 class MyServicesScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   final _api = ListingsApi(ApiClient());
   List<ServiceListing> _listings = [];
   bool _loading = true;
+  bool _saving = false;
   String? _error;
   bool _offline = false;
 
@@ -64,9 +66,49 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     }
   }
 
-  Future<void> _edit([ServiceListing? existing]) async {
+  Future<void> _openCatalogPicker() async {
     final vendorId = context.read<AuthController>().vendorId;
-    if (vendorId == null) return;
+    if (vendorId == null || _saving) return;
+    final result = await showModalBottomSheet<CatalogPickerResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CatalogServicesPickerSheet(existing: _listings),
+    );
+    if (result == null || !mounted || result.isEmpty) return;
+
+    setState(() => _saving = true);
+    try {
+      if (result.toUpsert.isNotEmpty) {
+        await _api.upsert(vendorId: vendorId, listings: result.toUpsert);
+      }
+      for (final id in result.toDeleteIds) {
+        await _api.delete(vendorId: vendorId, listingId: id);
+      }
+      if (!mounted) return;
+      final added = result.toUpsert.length;
+      final removed = result.toDeleteIds.length;
+      final parts = <String>[
+        if (added > 0) '$added added',
+        if (removed > 0) '$removed removed',
+      ];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(parts.isEmpty ? 'Services updated' : 'Services updated · ${parts.join(', ')}')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not update services.'))),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _editOptions(ServiceListing existing) async {
+    final vendorId = context.read<AuthController>().vendorId;
+    if (vendorId == null || _saving) return;
     final draft = await showModalBottomSheet<ServiceListing>(
       context: context,
       isScrollControlled: true,
@@ -74,6 +116,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       builder: (_) => ListingEditorSheet(initial: existing),
     );
     if (draft == null || !mounted) return;
+    setState(() => _saving = true);
     try {
       await _api.upsert(vendorId: vendorId, listings: [draft]);
       await _load();
@@ -82,32 +125,37 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(userFacingError(e, fallback: 'Could not save service.'))),
       );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   Future<void> _delete(ServiceListing listing) async {
     final vendorId = context.read<AuthController>().vendorId;
-    if (vendorId == null) return;
+    if (vendorId == null || _saving) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete service?'),
-        content: Text('Remove “${listing.serviceName}”.'),
+        title: const Text('Remove service?'),
+        content: Text('Remove “${listing.serviceName}” from your offerings.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
         ],
       ),
     );
     if (ok != true) return;
+    setState(() => _saving = true);
     try {
       await _api.delete(vendorId: vendorId, listingId: listing.id);
       await _load();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(userFacingError(e, fallback: 'Could not delete service.'))),
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not remove service.'))),
       );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -120,9 +168,15 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       subtitle: _listings.isEmpty ? 'What you offer' : '$activeCount active listing${activeCount == 1 ? '' : 's'}',
       actions: [
         IconButton(
-          onPressed: () => _edit(),
-          icon: const Icon(Icons.add_rounded),
-          tooltip: 'Add',
+          onPressed: _saving ? null : _openCatalogPicker,
+          icon: _saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_rounded),
+          tooltip: 'Manage services',
         ),
       ],
       body: RefreshIndicator(
@@ -166,8 +220,8 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                                 subtitle: 'Add what you offer so customers and dispatch can find you.',
                                 icon: Icons.handyman_outlined,
                                 action: ElevatedButton(
-                                  onPressed: () => _edit(),
-                                  child: const Text('Add a service'),
+                                  onPressed: _saving ? null : _openCatalogPicker,
+                                  child: const Text('Choose services'),
                                 ),
                               ),
                             ],
@@ -188,11 +242,11 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary.withOpacity(0.9)),
+                                    Icon(Icons.touch_app_outlined, size: 18, color: AppColors.primary.withValues(alpha: 0.9)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'List prices help buyers compare. Keep them accurate for your area.',
+                                        'Tap + to select services you offer. Prices are set by MyGarage.',
                                         style: AppTheme.host(
                                           fontSize: 12.5,
                                           color: AppColors.primaryDeep,
@@ -203,6 +257,16 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                                   ],
                                 ),
                               ).animate().fadeIn(duration: 300.ms),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: _saving ? null : _openCatalogPicker,
+                                icon: const Icon(Icons.checklist_rounded, size: 18),
+                                label: const Text('Manage offerings'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(46),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                              ),
                               const SizedBox(height: 16),
                               ...List.generate(_listings.length, (i) {
                                 final item = _listings[i];
@@ -210,7 +274,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: _ServiceColorCard(
                                     listing: item,
-                                    onEdit: () => _edit(item),
+                                    onEdit: () => _editOptions(item),
                                     onDelete: () => _delete(item),
                                   )
                                       .animate()

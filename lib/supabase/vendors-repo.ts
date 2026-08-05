@@ -9,6 +9,7 @@ type VendorRow = {
   address: string;
   rating: number | string;
   total_products: number;
+  image_url?: string | null;
   service_offerings?: string[] | null;
   vendor_verified?: boolean | null;
   services_verified?: boolean | null;
@@ -23,6 +24,7 @@ function parseRating(value: number | string): number {
 
 function rowToVendor(row: VendorRow): Vendor {
   const offerings = row.service_offerings;
+  const imageUrl = row.image_url?.trim() || null;
   return {
     id: row.id,
     name: row.name,
@@ -31,6 +33,7 @@ function rowToVendor(row: VendorRow): Vendor {
     address: row.address ?? "",
     rating: parseRating(row.rating),
     totalProducts: Number(row.total_products) || 0,
+    imageUrl,
     vendorVerified: Boolean(row.vendor_verified),
     servicesVerified: Boolean(row.services_verified),
     serviceOfferings: Array.isArray(offerings) ? offerings.map(String) : [],
@@ -210,6 +213,9 @@ export async function updateVendorById(id: string, updates: Partial<Vendor>): Pr
   if (updates.address !== undefined) patch.address = updates.address;
   if (updates.rating !== undefined) patch.rating = updates.rating;
   if (updates.totalProducts !== undefined) patch.total_products = updates.totalProducts;
+  if (updates.imageUrl !== undefined) {
+    patch.image_url = updates.imageUrl?.trim() || null;
+  }
   if (updates.serviceOfferings !== undefined) patch.service_offerings = updates.serviceOfferings;
   if (updates.vendorVerified !== undefined) patch.vendor_verified = updates.vendorVerified;
   if (updates.servicesVerified !== undefined) patch.services_verified = updates.servicesVerified;

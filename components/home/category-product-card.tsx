@@ -46,14 +46,25 @@ export function CategoryProductCard({
           </span>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-1 px-3 py-3">
-        <p className="line-clamp-2 text-sm leading-snug text-foreground">{product.name}</p>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-3 pt-3">
+        <p className="line-clamp-2 min-h-[2.5rem] text-sm leading-snug text-foreground">{product.name}</p>
         <p className="text-base font-bold tabular-nums tracking-tight text-foreground">
           {formatProductPriceLabel(product)}
         </p>
         {supplierLine ? (
           <p className="line-clamp-1 text-xs text-muted-foreground">{supplierLine}</p>
-        ) : null}
+        ) : (
+          <span className="block h-4" aria-hidden />
+        )}
+
+        <span className="mt-auto inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background text-sm font-semibold text-foreground transition group-hover:border-primary/40 group-hover:bg-primary group-hover:text-primary-foreground">
+          View
+          <ArrowRight
+            className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
+            aria-hidden
+          />
+        </span>
       </div>
     </Link>
   );
@@ -105,7 +116,7 @@ export function FeaturedSpotlightCard({
               </span>
             ) : null}
           </div>
-          <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 transition group-hover:text-white">
+          <span className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md bg-white/15 px-3 text-sm font-semibold text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-foreground">
             View product
             <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
           </span>

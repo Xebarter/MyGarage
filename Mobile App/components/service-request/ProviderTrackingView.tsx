@@ -1,6 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Image,
+  Linking,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DraggableBottomSheet } from '@/components/service-request/DraggableBottomSheet';
@@ -199,7 +210,11 @@ export function ProviderTrackingView({
           {provider ? (
             <View style={[styles.providerCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <View style={[styles.avatar, { backgroundColor: colors.primary + '18' }]}>
-                <Text style={[styles.avatarText, { color: colors.primary }]}>{initials(provider.name)}</Text>
+                {provider.photoUrl ? (
+                  <Image source={{ uri: provider.photoUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={[styles.avatarText, { color: colors.primary }]}>{initials(provider.name)}</Text>
+                )}
               </View>
               <View style={styles.providerCopy}>
                 <Text style={[styles.businessName, { color: colors.text }]} numberOfLines={1}>
@@ -366,6 +381,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: { fontSize: 18, fontWeight: '800' },
   providerCopy: { flex: 1, gap: 3 },

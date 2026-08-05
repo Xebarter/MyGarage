@@ -3,47 +3,42 @@ import 'package:flutter/material.dart';
 import '../../api/api_client.dart';
 import '../../models/service_listing.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/service_accents.dart';
 import '../../utils/format.dart';
 
+/// Edit listing options only — select / toggle, no free typing.
 class ListingEditorSheet extends StatefulWidget {
-  const ListingEditorSheet({super.key, this.initial});
+  const ListingEditorSheet({super.key, required this.initial});
 
-  final ServiceListing? initial;
+  final ServiceListing initial;
 
   @override
   State<ListingEditorSheet> createState() => _ListingEditorSheetState();
 }
 
 class _ListingEditorSheetState extends State<ListingEditorSheet> {
-  late String _categoryId;
-  late String _serviceName;
-  late final TextEditingController _eta;
-  late final TextEditingController _description;
+  static const _etaPresets = [30, 45, 60, 90, 120];
+
+  final _client = ApiClient();
+  late int? _eta;
   late String _status;
   late bool _mobile;
   late bool _emergency;
-  final _formKey = GlobalKey<FormState>();
-
-  final ApiClient _client = ApiClient();
-  Map<String, double> _platformPrices = {};
+  double? _platformPrice;
   bool _pricesLoading = true;
 
   @override
   void initState() {
     super.initState();
     final i = widget.initial;
-    _categoryId = i?.categoryId ?? kServiceCategories.first.id;
-    final names = catalogServiceNamesFor(_categoryId);
-    _serviceName = i?.serviceName ?? (names.isNotEmpty ? names.first : '');
-    _eta = TextEditingController(text: i?.etaMinutes?.toString() ?? '');
-    _description = TextEditingController(text: i?.description ?? '');
-    _status = i?.status ?? 'active';
-    _mobile = i?.mobileAvailable ?? true;
-    _emergency = i?.emergency ?? false;
-    _loadPrices();
+    _eta = i.etaMinutes ?? 60;
+    _status = i.status;
+    _mobile = i.mobileAvailable;
+    _emergency = i.emergency;
+    _loadPrice();
   }
 
-  Future<void> _loadPrices() async {
+  Future<void> _loadPrice() async {
     try {
       final prices = await _client.get(
         '/api/services/catalog-prices',
@@ -62,45 +57,32 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
         },
       );
       if (!mounted) return;
+      final key = '${widget.initial.categoryId}::${widget.initial.serviceName.toLowerCase()}';
       setState(() {
-        _platformPrices = prices;
+        _platformPrice = prices[key] ?? widget.initial.priceUgx;
         _pricesLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _pricesLoading = false);
+      setState(() {
+        _platformPrice = widget.initial.priceUgx;
+        _pricesLoading = false;
+      });
     }
   }
 
-  double get _platformPrice {
-    final key = '$_categoryId::${_serviceName.toLowerCase()}';
-    final hit = _platformPrices[key];
-    if (hit != null) return hit;
-    // Fall back to existing listing amount while prices load.
-    return widget.initial?.priceUgx ?? 0;
-  }
-
-  @override
-  void dispose() {
-    _eta.dispose();
-    _description.dispose();
-    super.dispose();
-  }
-
   void _save() {
-    if (!_formKey.currentState!.validate()) return;
-    if (_serviceName.trim().isEmpty) return;
+    final i = widget.initial;
     Navigator.of(context).pop(
       ServiceListing(
-        id: widget.initial?.id ?? '',
-        vendorId: widget.initial?.vendorId ?? '',
-        categoryId: _categoryId,
-        serviceName: _serviceName.trim(),
-        // Server forces admin price; keep a local value for display.
-        priceUgx: _platformPrice,
+        id: i.id,
+        vendorId: i.vendorId,
+        categoryId: i.categoryId,
+        serviceName: i.serviceName,
+        priceUgx: _platformPrice ?? i.priceUgx,
         status: _status,
-        etaMinutes: int.tryParse(_eta.text.trim()),
-        description: _description.text.trim(),
+        etaMinutes: _eta,
+        description: i.description,
         mobileAvailable: _mobile,
         emergency: _emergency,
       ),
@@ -109,142 +91,298 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final nameOptions = catalogServiceNamesFor(_categoryId);
-    if (_serviceName.isNotEmpty && !nameOptions.contains(_serviceName) && nameOptions.isNotEmpty) {
-      // Keep free-text legacy names visible in the dropdown.
-    }
+    final i = widget.initial;
+    final accent = accentForCategory(i.categoryId, seed: i.serviceName.hashCode);
+    final bottom = MediaQuery.of(context).padding.bottom;
 
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        12,
-        24,
-        20 + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                widget.initial == null ? 'Add service' : 'Edit service',
-                style: AppTheme.host(fontSize: 22, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Prices are set by MyGarage admin and cannot be changed.',
-                style: AppTheme.host(fontSize: 13, color: AppColors.textMuted, height: 1.35),
-              ),
-              const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                value: _categoryId,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: [
-                  for (final c in kServiceCategories)
-                    DropdownMenuItem(value: c.id, child: Text(c.title)),
-                ],
-                onChanged: (v) {
-                  final next = v ?? _categoryId;
-                  final names = catalogServiceNamesFor(next);
-                  setState(() {
-                    _categoryId = next;
-                    if (!names.contains(_serviceName)) {
-                      _serviceName = names.isNotEmpty ? names.first : '';
-                    }
-                  });
-                },
-              ),
-              DropdownButtonFormField<String>(
-                value: nameOptions.contains(_serviceName)
-                    ? _serviceName
-                    : (_serviceName.isNotEmpty ? _serviceName : null),
-                decoration: const InputDecoration(labelText: 'Service'),
-                items: [
-                  if (_serviceName.isNotEmpty && !nameOptions.contains(_serviceName))
-                    DropdownMenuItem(value: _serviceName, child: Text(_serviceName)),
-                  for (final name in nameOptions)
-                    DropdownMenuItem(value: name, child: Text(name)),
-                ],
-                onChanged: (v) => setState(() => _serviceName = v ?? _serviceName),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + bottom),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.borderSoft,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
                 ),
-                child: Row(
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: accent.fill,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: accent.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.iconBg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(iconForCategory(i.categoryId), color: accent.accent, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          categoryTitle(i.categoryId),
+                          style: AppTheme.host(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: accent.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          i.serviceName,
+                          style: AppTheme.host(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Platform price',
+                          style: AppTheme.host(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _pricesLoading
+                              ? 'Loading…'
+                              : formatUgx(_platformPrice ?? i.priceUgx),
+                          style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 18,
+                    color: AppColors.textMuted.withValues(alpha: 0.9),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Typical arrival',
+              style: AppTheme.host(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final eta in _etaPresets)
+                  _SelectChip(
+                    label: '$eta min',
+                    selected: _eta == eta,
+                    color: accent.accent,
+                    onTap: () => setState(() => _eta = eta),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _ToggleCard(
+              icon: Icons.visibility_outlined,
+              title: 'Active',
+              subtitle: 'Shown to customers and dispatch',
+              value: _status == 'active',
+              accent: AppColors.success,
+              onChanged: (v) => setState(() => _status = v ? 'active' : 'paused'),
+            ),
+            const SizedBox(height: 10),
+            _ToggleCard(
+              icon: Icons.directions_car_outlined,
+              title: 'Mobile service',
+              subtitle: 'You can travel to the customer',
+              value: _mobile,
+              accent: accent.accent,
+              onChanged: (v) => setState(() => _mobile = v),
+            ),
+            const SizedBox(height: 10),
+            _ToggleCard(
+              icon: Icons.emergency_outlined,
+              title: 'Emergency ready',
+              subtitle: 'Available for urgent jobs',
+              value: _emergency,
+              accent: AppColors.danger,
+              onChanged: (v) => setState(() => _emergency = v),
+            ),
+            const SizedBox(height: 22),
+            ElevatedButton(
+              onPressed: _save,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Save options'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectChip extends StatelessWidget {
+  const _SelectChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.color,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? color : AppColors.background,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? color : AppColors.border,
+            ),
+          ),
+          child: Text(
+            label,
+            style: AppTheme.host(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToggleCard extends StatelessWidget {
+  const _ToggleCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: value ? accent.withValues(alpha: 0.06) : AppColors.background,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: value ? accent.withValues(alpha: 0.28) : AppColors.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: value ? accent.withValues(alpha: 0.12) : AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: value ? accent : AppColors.textMuted),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Platform price',
-                            style: AppTheme.host(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _pricesLoading ? 'Loading…' : formatUgx(_platformPrice),
-                            style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700),
-                          ),
-                        ],
+                    Text(
+                      title,
+                      style: AppTheme.host(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    Icon(Icons.lock_outline_rounded, size: 18, color: AppColors.textMuted.withValues(alpha: 0.9)),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.3),
+                    ),
                   ],
                 ),
               ),
-              TextFormField(
-                controller: _eta,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'ETA (minutes)'),
+              Switch.adaptive(
+                value: value,
+                activeTrackColor: accent.withValues(alpha: 0.45),
+                activeThumbColor: accent,
+                onChanged: onChanged,
               ),
-              TextFormField(
-                controller: _description,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Notes'),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Active', style: AppTheme.host(fontSize: 15)),
-                value: _status == 'active',
-                onChanged: (v) => setState(() => _status = v ? 'active' : 'paused'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Mobile available', style: AppTheme.host(fontSize: 15)),
-                value: _mobile,
-                onChanged: (v) => setState(() => _mobile = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Emergency', style: AppTheme.host(fontSize: 15)),
-                value: _emergency,
-                onChanged: (v) => setState(() => _emergency = v),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _save, child: const Text('Save')),
             ],
           ),
         ),

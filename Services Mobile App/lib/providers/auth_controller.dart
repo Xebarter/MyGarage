@@ -185,17 +185,34 @@ class AuthController extends ChangeNotifier {
     required String name,
     required String phone,
     required String address,
+    String? imageUrl,
+    List<int>? avatarBytes,
+    String? avatarFilename,
+    String avatarContentType = 'image/jpeg',
   }) async {
-    final id = vendorId;
-    if (id == null) return;
+    if (vendorId == null) return;
     busy = true;
     notifyListeners();
     try {
-      vendor = await _vendorApi.updateVendor(id, {
+      var resolvedImageUrl = imageUrl;
+      if (avatarBytes != null && avatarBytes.isNotEmpty) {
+        resolvedImageUrl = await _vendorApi.uploadAvatar(
+          bytes: avatarBytes,
+          filename: avatarFilename ?? 'avatar.jpg',
+          contentType: avatarContentType,
+        );
+      }
+
+      final body = <String, dynamic>{
         'name': name.trim(),
         'phone': phone.trim(),
         'address': address.trim(),
-      });
+      };
+      if (resolvedImageUrl != null) {
+        body['imageUrl'] = resolvedImageUrl;
+      }
+
+      vendor = await _vendorApi.updateProfile(body);
       errorMessage = null;
     } catch (e) {
       errorMessage = userFacingError(e, fallback: 'Could not save profile.');

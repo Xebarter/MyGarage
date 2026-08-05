@@ -39,6 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
               rating: provider.rating,
               completedJobs,
               address: provider.address ?? '',
+              photoUrl: provider.imageUrl ?? null,
               vehicleLabel:
                 provider.serviceOfferings.length > 0
                   ? `${provider.serviceOfferings[0]} · mobile service`
