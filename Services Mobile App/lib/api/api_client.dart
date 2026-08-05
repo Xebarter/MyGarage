@@ -39,13 +39,67 @@ class ApiClient {
     return headers;
   }
 
+  /// dart:io does not re-POST across 301/302/303; apex→www often uses 308 and still
+  /// breaks on some clients. Follow redirect targets ourselves for unsafe methods.
+  Future<http.Response> _sendWithRedirects(
+    String method,
+    Uri url, {
+    required Map<String, String> headers,
+    Object? body,
+    int maxRedirects = 5,
+  }) async {
+    var current = url;
+    List<int>? bodyBytes;
+    if (body is String) {
+      bodyBytes = utf8.encode(body);
+    } else if (body is List<int>) {
+      bodyBytes = body;
+    }
+
+    for (var i = 0; i <= maxRedirects; i++) {
+      final request = http.Request(method, current);
+      request.headers.addAll(headers);
+      if (bodyBytes != null) request.bodyBytes = bodyBytes;
+      request.followRedirects = false;
+
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+
+      final isRedirect = response.statusCode == 301 ||
+          response.statusCode == 302 ||
+          response.statusCode == 303 ||
+          response.statusCode == 307 ||
+          response.statusCode == 308;
+      if (!isRedirect) return response;
+
+      final location = response.headers['location'];
+      if (location == null || location.isEmpty) return response;
+
+      final next = current.resolve(location);
+      // Prefer www when the host bounces apex → www.
+      current = next.host == 'mygarage.ug'
+          ? next.replace(host: 'www.mygarage.ug')
+          : next;
+
+      // 303: method becomes GET and body dropped (standard).
+      if (response.statusCode == 303) {
+        return _sendWithRedirects('GET', current, headers: headers, body: null, maxRedirects: maxRedirects - i - 1);
+      }
+    }
+    throw ApiException('Too many redirects for $method $url');
+  }
+
   Future<T> get<T>(
     String path, {
     Map<String, String>? query,
     bool auth = false,
     T Function(dynamic json)? parser,
   }) async {
-    final res = await _client.get(_uri(path, query), headers: await _headers(auth: auth));
+    final res = await _sendWithRedirects(
+      'GET',
+      _uri(path, query),
+      headers: await _headers(auth: auth),
+    );
     return _decode(res, parser: parser);
   }
 
@@ -55,7 +109,8 @@ class ApiClient {
     bool auth = false,
     T Function(dynamic json)? parser,
   }) async {
-    final res = await _client.post(
+    final res = await _sendWithRedirects(
+      'POST',
       _uri(path),
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
@@ -69,7 +124,8 @@ class ApiClient {
     bool auth = false,
     T Function(dynamic json)? parser,
   }) async {
-    final res = await _client.put(
+    final res = await _sendWithRedirects(
+      'PUT',
       _uri(path),
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
@@ -83,7 +139,8 @@ class ApiClient {
     bool auth = false,
     T Function(dynamic json)? parser,
   }) async {
-    final res = await _client.patch(
+    final res = await _sendWithRedirects(
+      'PATCH',
       _uri(path),
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
@@ -97,7 +154,11 @@ class ApiClient {
     bool auth = false,
     T Function(dynamic json)? parser,
   }) async {
-    final res = await _client.delete(_uri(path, query), headers: await _headers(auth: auth));
+    final res = await _sendWithRedirects(
+      'DELETE',
+      _uri(path, query),
+      headers: await _headers(auth: auth),
+    );
     return _decode(res, parser: parser);
   }
 

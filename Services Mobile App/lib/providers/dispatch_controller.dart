@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../api/api_client.dart';
 import '../api/dispatch_api.dart';
 import '../models/service_request.dart';
+import '../services/job_alert_service.dart';
+import '../utils/user_facing_error.dart';
 
 class DispatchController extends ChangeNotifier {
   DispatchController({ApiClient? apiClient})
@@ -16,18 +17,27 @@ class DispatchController extends ChangeNotifier {
   Timer? _pollTimer;
   Timer? _locationTimer;
   String? _vendorId;
+  bool _refreshing = false;
 
   DispatchOffer? offer;
   ServiceRequest? activeJob;
   List<ServiceRequest> history = [];
   bool loading = false;
-  String? errorMessage;
+  /// Soft UI hint only — never raw exceptions / stack traces.
+  String? statusHint;
+  bool offline = false;
   String? _lastOfferId;
 
+
   void start(String vendorId) {
-    if (_vendorId == vendorId && _pollTimer != null) return;
+    if (_vendorId == vendorId && _pollTimer != null) {
+      // Still force a silent refresh after resume / re-auth.
+      unawaited(refresh(silent: true));
+      return;
+    }
     _vendorId = vendorId;
-    refresh();
+    unawaited(JobAlertService.instance.ensurePermissions());
+    unawaited(refresh());
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 12), (_) => refresh(silent: true));
   }
@@ -36,15 +46,27 @@ class DispatchController extends ChangeNotifier {
     _pollTimer?.cancel();
     _pollTimer = null;
     _stopLocationUpdates();
+    unawaited(JobAlertService.instance.stop());
+  }
+
+  /// Called when the app returns to the foreground.
+  Future<void> onAppResumed() async {
+    if (_vendorId == null) return;
+    await refresh(silent: true);
   }
 
   Future<void> refresh({bool silent = false}) async {
     final vendorId = _vendorId;
     if (vendorId == null) return;
+    if (_refreshing) return;
+    _refreshing = true;
+
     if (!silent) {
       loading = true;
+      statusHint = null;
       notifyListeners();
     }
+
     try {
       final state = await _api.getMe(vendorId);
       offer = state.offer;
@@ -52,10 +74,11 @@ class DispatchController extends ChangeNotifier {
 
       if (offer != null && offer!.assignmentId != _lastOfferId) {
         _lastOfferId = offer!.assignmentId;
-        unawaited(HapticFeedback.heavyImpact());
-        unawaited(SystemSound.play(SystemSoundType.alert));
+        unawaited(JobAlertService.instance.startForOffer(offer!));
+      } else if (offer == null && _lastOfferId != null) {
+        _lastOfferId = null;
+        unawaited(JobAlertService.instance.stop());
       }
-      if (offer == null) _lastOfferId = null;
 
       if (activeJob != null) {
         _ensureLocationUpdates();
@@ -63,19 +86,38 @@ class DispatchController extends ChangeNotifier {
         _stopLocationUpdates();
       }
 
-      final all = await _api.listRequests();
-      history = all.where((r) => r.providerId == vendorId).toList()
-        ..sort((a, b) {
-          final aT = a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bT = b.updatedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bT.compareTo(aT);
-        });
+      try {
+        final all = await _api.listRequests();
+        history = all.where((r) => r.providerId == vendorId).toList()
+          ..sort((a, b) {
+            final aT = a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bT = b.updatedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bT.compareTo(aT);
+          });
+      } catch (_) {
+        // Keep last known history if the secondary list call fails.
+      }
 
-      errorMessage = null;
+      offline = false;
+      statusHint = null;
     } catch (e) {
-      errorMessage = e.toString();
+      if (isTransientNetworkError(e)) {
+        offline = true;
+        statusHint = null; // Jobs UI shows OfflineBanner instead of exception text.
+      } else if (!silent) {
+        offline = false;
+        statusHint = userFacingError(
+          e,
+          fallback: 'Could not refresh jobs. Pull down to try again.',
+        );
+      }
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Dispatch refresh failed: $e');
+      }
     } finally {
       loading = false;
+      _refreshing = false;
       notifyListeners();
     }
   }

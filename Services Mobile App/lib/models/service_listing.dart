@@ -105,3 +105,101 @@ const kServiceCategories = <ServiceCategoryOption>[
   ServiceCategoryOption(id: 'rent-buy-car', title: 'Rent / Buy Car'),
   ServiceCategoryOption(id: 'upgrade-my-car', title: 'Upgrade My Car'),
 ];
+
+/// Catalog service names by category (must match web `userServiceCategories`).
+const kCatalogServicesByCategory = <String, List<String>>{
+  'emergency-help': [
+    'Towing (accident / breakdown)',
+    'Jump-start (dead battery)',
+    'Flat tyre change',
+    'Fuel delivery (ran out of fuel)',
+    "Car won't start (mobile mechanic)",
+    'Keys locked in car',
+    'Vehicle stuck (mud, ditch recovery)',
+  ],
+  'fix-my-car': [
+    'Engine problems (noise, overheating, smoke)',
+    'Brake problems (not stopping well)',
+    'Suspension issues (noise, rough ride)',
+    'Electrical issues (lights, battery draining)',
+    'AC not cooling',
+    'Gearbox / clutch issues',
+    'Exhaust problems',
+  ],
+  'service-my-car': [
+    'Oil change',
+    'Full service (minor / major)',
+    'Brake check',
+    'Tyre rotation / alignment',
+    'Battery check',
+    'General inspection',
+  ],
+  'tyres-battery': [
+    'Buy tyres',
+    'Fix puncture',
+    'Replace tyres',
+    'Wheel alignment',
+    'Battery replacement',
+    'Battery charging',
+  ],
+  'car-wash-cleaning': [
+    'Basic wash',
+    'Interior cleaning',
+    'Full detailing',
+    'Engine cleaning',
+    'Mobile car wash (come to me)',
+  ],
+  'body-repair-painting': [
+    'Dent removal',
+    'Scratch repair',
+    'Full painting',
+    'Bumper repair',
+    'Accident repair',
+  ],
+  'ac-cooling': [
+    'AC repair',
+    'AC gas refill',
+    'Car overheating',
+    'Radiator issues',
+  ],
+  'security-tracking': [
+    'Install car tracker',
+    'Install alarm',
+    'Anti-theft systems',
+    'Track my car',
+  ],
+  'documents-insurance': [
+    'Motor insurance',
+    'Renew insurance',
+    'Transfer ownership',
+    'Road license',
+    'Driving permit help',
+  ],
+  'drivers-transport': [
+    'Hire driver',
+    'Learn driving',
+    'Chauffeur services',
+  ],
+  'fuel-delivery': [
+    'Fuel delivery',
+    'Oil delivery',
+    'Battery delivery',
+  ],
+  'rent-buy-car': [
+    'Rent a car',
+    'Hire car with driver',
+    'Buy a car',
+    'Sell a car',
+  ],
+  'upgrade-my-car': [
+    'Install music system',
+    'Tint windows',
+    'Car wrapping',
+    'Interior upgrades',
+    'Lights upgrade',
+  ],
+};
+
+List<String> catalogServiceNamesFor(String categoryId) {
+  return List<String>.from(kCatalogServicesByCategory[categoryId] ?? const <String>[]);
+}

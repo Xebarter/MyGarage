@@ -4,9 +4,9 @@ Flutter mobile app for **MyGarage service providers** only. Buyers use the Expo 
 
 ## Features (v1)
 
-- Email/password sign-in (Supabase)
+- Email/password + Google sign-in (Supabase)
 - Verification gate until `servicesVerified`
-- Live job offers (accept / decline) with haptic alert
+- Live job offers with **loud looping alarm + vibration** and a full-screen intercept over other apps
 - Active trip: map, stage advances (arrived → started → completed), live location
 - Garage completion notes on job complete
 - My Services listings CRUD
@@ -49,7 +49,7 @@ GOOGLE_MAPS_API_KEY=your-maps-key
 | Android emulator | `http://10.0.2.2:3000` |
 | iOS simulator | `http://localhost:3000` |
 | Physical device | `http://YOUR_LAN_IP:3000` |
-| Production | `https://mygarage.ug` |
+| Production | `https://www.mygarage.ug` (use **www** — apex redirects break POST accept/decline) |
 
 ### Google Maps (Android)
 
@@ -74,6 +74,16 @@ flutter run -d chrome
 ```
 
 Sign in with Google or email. Use a provider account that has (or will get) `services_verified` in Supabase `vendors`.
+
+### Job offer alerts
+
+When an offer is assigned, the app:
+
+1. Plays a **looping loud alarm** (Android alarm audio stream) and a strong vibration pattern
+2. Shows a **full-screen Accept / Decline** intercept
+3. On Android, also posts a **full-screen intent notification** so it can appear over the lock screen and other apps while the process is still running
+
+Allow **Notifications** when prompted. For best results, enable **Display over other apps** for MyGarage Services in system settings (requested once by the app).
 
 ### Google sign-in (phone / APK)
 

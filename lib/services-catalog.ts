@@ -229,6 +229,8 @@ export const providerSignupServiceOptions = providerServiceGroups.flatMap((group
 
 const FALLBACK_DEFAULT_PRICE_UGX = 50000;
 
+export { FALLBACK_DEFAULT_PRICE_UGX };
+
 export function getCatalogServiceNames(category: UserServiceCategory): string[] {
   return category.services.map((s) => s.name);
 }

@@ -7,6 +7,7 @@ import 'app.dart';
 import 'config.dart';
 import 'providers/auth_controller.dart';
 import 'providers/dispatch_controller.dart';
+import 'services/job_alert_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,8 @@ Future<void> main() async {
   } catch (_) {
     // Allow running without .env when values are injected via --dart-define later.
   }
+
+  await JobAlertService.instance.init();
 
   if (AppConfig.isSupabaseConfigured) {
     await Supabase.initialize(

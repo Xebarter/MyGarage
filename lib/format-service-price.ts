@@ -14,13 +14,15 @@ export type ServicePriceRange = {
   providerCount: number;
 };
 
-/** Public list-price label: single amount, min–max range, or price on request. */
+/** Public list-price label from admin-controlled platform prices. */
 export function formatServicePriceRangeLabel(
   range: Pick<ServicePriceRange, 'minPriceUgx' | 'maxPriceUgx' | 'providerCount'> | null | undefined,
 ): string {
-  if (!range || range.providerCount <= 0) return 'Price on request';
+  if (!range) return 'Price on request';
   const min = Math.round(range.minPriceUgx);
   const max = Math.round(range.maxPriceUgx);
-  if (min === max || range.providerCount === 1) return formatUgxAmount(min);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return 'Price on request';
+  // Platform price is a single amount for all providers when admin owns pricing.
+  if (min === max || range.providerCount <= 1) return formatUgxAmount(min);
   return `${formatUgxAmount(min)} – ${formatUgxAmount(max).replace(/^UGX\s*/, '')}`;
 }

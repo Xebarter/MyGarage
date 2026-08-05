@@ -126,7 +126,7 @@ export default function ServiceCategoryScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Choose a service</Text>
             <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-              Prices show the range from providers listing each service
+              Job prices are set by MyGarage admin.
             </Text>
           </View>
 

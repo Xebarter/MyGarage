@@ -40,6 +40,10 @@ Run these in order in the **SQL Editor** (or via `supabase db push` if you use t
 | `041_vehicle_documents_storage.sql` | `vehicle-documents` storage bucket for PDFs and document images |
 | `042_vendor_service_listings.sql` | Provider service list prices + public min/max ranges |
 
+**Important:** If `/services/myservices` fails with “Could not find the table `public.vendor_service_listings`”, open **SQL Editor** and run `supabase/migrations/042_vendor_service_listings.sql`.  
+
+Until that migration is applied, the app still stores listings in the provider’s auth `app_metadata` so My Services keeps working.
+
 Vehicle photos are stored in Supabase Storage (`vehicle-images` bucket); the public URL is saved in `buyer_vehicles.image_url`. Uploads go through `/api/uploads/vehicle-image` using the service role (no client-side storage policy needed for writes).
 
 Vehicle documents (insurance, logbook, etc.) are stored in the `vehicle-documents` bucket; the public URL is saved in `buyer_vehicle_documents.file_url`. Uploads go through `/api/uploads/vehicle-document` (JPEG, PNG, WebP, GIF, or PDF, up to 10 MB).

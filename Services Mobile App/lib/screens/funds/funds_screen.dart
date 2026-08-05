@@ -8,6 +8,7 @@ import '../../models/funds.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../utils/user_facing_error.dart';
 import '../../widgets/ui.dart';
 import 'payout_prefs_sheet.dart';
 
@@ -47,8 +48,14 @@ class _FundsScreenState extends State<FundsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
-        _loading = false;
+        // Keep prior data if we have it (smooth after idle resume).
+        if (_data != null) {
+          _loading = false;
+          _error = null;
+        } else {
+          _error = userFacingError(e, fallback: 'Could not load funds right now.');
+          _loading = false;
+        }
       });
     }
   }
@@ -69,7 +76,9 @@ class _FundsScreenState extends State<FundsScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not save payout details.'))),
+      );
     }
   }
 
@@ -86,13 +95,15 @@ class _FundsScreenState extends State<FundsScreen> {
         onRefresh: _load,
         child: _loading
             ? ListView(children: const [SizedBox(height: 120), Center(child: CircularProgressIndicator())])
-            : _error != null
+            : _error != null && _data == null
                 ? ListView(
-                    padding: const EdgeInsets.all(24),
                     children: [
-                      Text(_error!, style: AppTheme.host(color: AppColors.danger)),
-                      const SizedBox(height: 16),
-                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                      EmptyState(
+                        title: 'Could not load funds',
+                        subtitle: _error,
+                        icon: Icons.payments_outlined,
+                        action: OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                      ),
                     ],
                   )
                 : ListView(

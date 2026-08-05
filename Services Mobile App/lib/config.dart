@@ -3,10 +3,26 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   AppConfig._();
 
+  /// Production site serves the API on www; apex redirects break POST from Flutter.
+  static String normalizeApiUrl(String raw) {
+    var url = raw.trim().replaceAll(RegExp(r'/+$'), '');
+    if (url.isEmpty) return 'https://www.mygarage.ug';
+    // Apex and any host-only misconfig → canonical www (no 308 on POST).
+    try {
+      final uri = Uri.parse(url);
+      if (uri.host == 'mygarage.ug') {
+        url = uri.replace(host: 'www.mygarage.ug').toString().replaceAll(RegExp(r'/+$'), '');
+      }
+    } catch (_) {
+      /* keep url */
+    }
+    return url;
+  }
+
   static String get apiUrl {
     final raw = dotenv.env['API_URL']?.trim();
-    if (raw == null || raw.isEmpty) return 'https://mygarage.ug';
-    return raw.replaceAll(RegExp(r'/+$'), '');
+    if (raw == null || raw.isEmpty) return 'https://www.mygarage.ug';
+    return normalizeApiUrl(raw);
   }
 
   static String get supabaseUrl => dotenv.env['SUPABASE_URL']?.trim() ?? '';
@@ -27,7 +43,7 @@ class AppConfig {
     final explicit = dotenv.env['AUTH_REDIRECT_URI']?.trim();
     if (explicit != null && explicit.isNotEmpty) {
       if (explicit.startsWith('http://') || explicit.startsWith('https://')) {
-        return explicit.replaceAll(RegExp(r'/+$'), '');
+        return normalizeApiUrl(explicit);
       }
     }
     return '$apiUrl/auth/services-mobile-callback';

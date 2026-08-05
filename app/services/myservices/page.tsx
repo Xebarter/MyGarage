@@ -35,7 +35,6 @@ import {
   ChevronLeft,
   Check,
   ArrowLeft,
-  RotateCcw,
 } from 'lucide-react';
 
 type ServiceStatus = 'active' | 'paused';
@@ -392,16 +391,12 @@ export default function ServiceProviderMyServicesPage() {
         window.alert('Service name is required.');
         return;
       }
-      const price = Number(formData.priceFrom);
-      if (!Number.isFinite(price) || price < 0) {
-        window.alert('Enter a valid price (UGX).');
-        return;
-      }
       const updated: ManagedService = {
         ...editingService,
         ...formData,
         name: formData.name.trim(),
-        priceFrom: price,
+        // Price is forced server-side; keep local display value only.
+        priceFrom: getServiceDefaultPrice(formData.name.trim(), formData.categoryId || editingService.categoryId),
       };
       const next = services.map((s) => (s.id === editingService.id ? updated : s));
       const saved = await saveListingsToApi(next);
@@ -415,14 +410,14 @@ export default function ServiceProviderMyServicesPage() {
     }
 
     const newServices: ManagedService[] = pickedServiceNames.map((name, index) => {
-      const price = Number(pickedPrices[name] ?? getServiceDefaultPrice(name, pickedCategory.id));
+      const price = getServiceDefaultPrice(name, pickedCategory.id);
       return {
         id: `svc-${Date.now()}-${index}`,
         ...formData,
         name,
         group: pickedCategory.title,
         categoryId: pickedCategory.id,
-        priceFrom: Number.isFinite(price) && price >= 0 ? price : getServiceDefaultPrice(name, pickedCategory.id),
+        priceFrom: price,
       };
     });
 
@@ -470,10 +465,6 @@ export default function ServiceProviderMyServicesPage() {
     );
     await saveListingsToApi(next);
   };
-
-  const editCatalogDefault = editingService
-    ? getServiceDefaultPrice(editingService.name, editingService.categoryId)
-    : null;
 
   const applyAd = async (scope: 'single' | 'all', service?: ManagedService) => {
     if (!vendorId) {
@@ -1061,7 +1052,7 @@ export default function ServiceProviderMyServicesPage() {
                             <span className="min-w-0 flex-1 leading-snug">
                               <span className="block">{name}</span>
                               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                                Default UGX {svc.defaultPriceUgx.toLocaleString('en-UG')}
+                                Platform price: UGX {svc.defaultPriceUgx.toLocaleString('en-UG')}
                               </span>
                             </span>
                           </button>
@@ -1143,84 +1134,39 @@ export default function ServiceProviderMyServicesPage() {
                 <Separator />
 
                 <section className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground">Pricing &amp; timing</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Platform price &amp; timing</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Job prices are set by MyGarage admin. You cannot change them — buyers always see the platform amount.
+                  </p>
 
                   {!editingService && pickedCategory ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {pickedServiceNames.map((name) => {
                         const catalogDefault = getServiceDefaultPrice(name, pickedCategory.id);
                         const value = pickedPrices[name] ?? catalogDefault;
                         return (
                           <div
                             key={name}
-                            className="rounded-lg border border-border/70 bg-card px-3 py-3"
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-3"
                           >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">{name}</p>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                  Catalog default: {formatUgxAmount(catalogDefault)}
-                                </p>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 gap-1 text-xs"
-                                onClick={() =>
-                                  setPickedPrices((prev) => ({ ...prev, [name]: catalogDefault }))
-                                }
-                              >
-                                <RotateCcw className="h-3 w-3" aria-hidden />
-                                Reset
-                              </Button>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground">{name}</p>
+                              <p className="text-xs text-muted-foreground">Platform price (admin)</p>
                             </div>
-                            <div className="mt-2 space-y-1.5">
-                              <Label htmlFor={`price-${name}`}>Your price (UGX)</Label>
-                              <Input
-                                id={`price-${name}`}
-                                type="number"
-                                min={0}
-                                value={value}
-                                onChange={(e) =>
-                                  setPickedPrices((prev) => ({
-                                    ...prev,
-                                    [name]: Number(e.target.value),
-                                  }))
-                                }
-                              />
-                            </div>
+                            <p className="text-sm font-semibold tabular-nums">{formatUgxAmount(value)}</p>
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <Label htmlFor="svc-price">Your price (UGX)</Label>
-                      <Input
-                        id="svc-price"
-                        type="number"
-                        min={0}
-                        value={formData.priceFrom}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, priceFrom: Number(e.target.value) }))
-                        }
-                      />
-                      {editCatalogDefault != null ? (
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span>Catalog default: {formatUgxAmount(editCatalogDefault)}</span>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                            onClick={() =>
-                              setFormData((prev) => ({ ...prev, priceFrom: editCatalogDefault }))
-                            }
-                          >
-                            <RotateCcw className="h-3 w-3" aria-hidden />
-                            Reset to default
-                          </button>
-                        </div>
-                      ) : null}
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                      <div>
+                        <p className="text-sm font-medium">Platform price</p>
+                        <p className="text-xs text-muted-foreground">Set by MyGarage admin</p>
+                      </div>
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatUgxAmount(formData.priceFrom)}
+                      </p>
                     </div>
                   )}
 

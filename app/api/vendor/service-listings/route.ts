@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(listings);
   } catch (error) {
     console.error('GET /api/vendor/service-listings failed:', error);
-    return NextResponse.json({ error: 'Failed to fetch service listings' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch service listings';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

@@ -91,7 +91,7 @@ export default function ServiceCategoryPage() {
               <div>
                 <h2 className="text-lg font-bold tracking-tight text-foreground">Services in this category</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Prices show the range offered by providers currently listing each service.
+                  Prices are set by MyGarage admin for each service.
                 </p>
               </div>
             </div>
