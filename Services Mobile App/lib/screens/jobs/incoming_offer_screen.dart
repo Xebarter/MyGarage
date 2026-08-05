@@ -60,10 +60,11 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
+              Color(0xFF0A1020),
+              Color(0xFF121A2E),
               Color(0xFF0B1220),
-              Color(0xFF111827),
-              Color(0xFF0F172A),
             ],
+            stops: [0.0, 0.55, 1.0],
           ),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
@@ -78,14 +79,14 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                   style: AppTheme.host(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                    letterSpacing: 1.4,
+                    color: const Color(0xFF93C5FD),
+                    letterSpacing: 1.6,
                   ),
                 ),
                 const Spacer(),
                 StatusPill(
                   label: '${_remaining.inSeconds}s left',
-                  color: urgent ? AppColors.danger : AppColors.warning,
+                  color: urgent ? AppColors.danger : const Color(0xFFFBBF24),
                 ),
               ],
             ),
@@ -94,22 +95,29 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                 value: progress,
-                minHeight: 6,
-                backgroundColor: AppColors.borderSoft,
-                color: urgent ? AppColors.danger : AppColors.primary,
+                minHeight: 5,
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                color: urgent ? AppColors.danger : const Color(0xFF60A5FA),
               ),
             ),
             const Spacer(flex: 2),
             Center(
               child: Container(
-                width: 96,
-                height: 96,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.14),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.45), width: 2),
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.16),
+                  border: Border.all(color: const Color(0xFF60A5FA).withValues(alpha: 0.55), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                      blurRadius: 28,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.work_rounded, size: 44, color: AppColors.primary),
+                child: const Icon(Icons.work_rounded, size: 44, color: Color(0xFF93C5FD)),
               )
                   .animate(onPlay: (c) => c.repeat(reverse: true))
                   .scale(
@@ -126,7 +134,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
               style: AppTheme.host(
                 fontSize: 30,
                 fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
+                letterSpacing: -0.55,
                 color: Colors.white,
               ),
             ).animate().fadeIn(duration: 280.ms).slideY(begin: 0.06),
@@ -135,7 +143,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
               Text(
                 req!.location,
                 textAlign: TextAlign.center,
-                style: AppTheme.host(fontSize: 16, color: AppColors.textSecondary, height: 1.45),
+                style: AppTheme.host(fontSize: 16, color: const Color(0xFF94A3B8), height: 1.45),
               ),
             ],
             if ((req?.buyerContactName ?? '').isNotEmpty) ...[
@@ -143,25 +151,31 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
               Text(
                 req!.buyerContactName,
                 textAlign: TextAlign.center,
-                style: AppTheme.host(fontSize: 14, color: AppColors.textMuted),
+                style: AppTheme.host(fontSize: 14, color: const Color(0xFF64748B)),
               ),
             ],
             const Spacer(flex: 3),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
-                backgroundColor: AppColors.primary,
+                backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => Navigator.of(context).pop('accept'),
-              child: const Text('Accept job'),
+              child: Text(
+                'Accept job',
+                style: AppTheme.host(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 foregroundColor: Colors.white70,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => Navigator.of(context).pop('decline'),
               child: const Text('Decline'),

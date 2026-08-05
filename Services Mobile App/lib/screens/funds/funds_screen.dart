@@ -107,30 +107,52 @@ class _FundsScreenState extends State<FundsScreen> {
                     ],
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
                     children: [
                       GlassCard(
                         highlight: true,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.account_balance_wallet_rounded,
+                                      color: AppColors.primary, size: 20),
+                                ),
+                                const Spacer(),
+                                const StatusPill(label: 'Live', color: AppColors.success),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
                             Text(
                               'Available balance',
-                              style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary),
+                              style: AppTheme.host(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
                             Text(
                               formatUgx(summary?.availableBalance ?? 0),
                               style: AppTheme.host(
-                                fontSize: 36,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -0.8,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.9,
+                                color: AppColors.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             Text(
                               'Net ${formatUgx(summary?.netEarnings ?? 0)}  ·  Paid ${formatUgx(summary?.paidOut ?? 0)}',
-                              style: AppTheme.host(fontSize: 13, color: AppColors.textMuted),
+                              style: AppTheme.host(fontSize: 13, color: AppColors.textMuted, height: 1.35),
                             ),
                           ],
                         ),

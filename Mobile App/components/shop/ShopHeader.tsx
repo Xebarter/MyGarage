@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -177,12 +177,12 @@ const styles = StyleSheet.create({
   },
   shell: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 12,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    paddingBottom: 18,
+    gap: 13,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E6EE',
+    borderBottomColor: '#E3E8F0',
     overflow: 'hidden',
   },
   glowPrimary: {
@@ -217,17 +217,17 @@ const styles = StyleSheet.create({
   },
   brandName: {
     color: PREMIUM.text,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.4,
+    fontSize: 23,
+    fontWeight: '800',
+    letterSpacing: -0.45,
   },
   profileBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F6F7F9',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
@@ -251,11 +251,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: '#F6F7F9',
+    minHeight: 50,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.04,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+      default: {},
+    }),
   },
   searchInput: {
     flex: 1,
@@ -276,8 +286,8 @@ const styles = StyleSheet.create({
     borderColor: PREMIUM.borderGlass,
     borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#F6F7F9',
+    paddingVertical: 9,
+    backgroundColor: '#FFFFFF',
   },
   toolText: {
     color: PREMIUM.textMuted,

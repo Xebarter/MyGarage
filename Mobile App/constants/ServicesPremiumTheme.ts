@@ -1,34 +1,38 @@
 /**
- * Light professional services/profile chrome — cool gray canvas, white surfaces, blue accent.
- * Matches the Services Flutter app aesthetic.
+ * Light professional services/profile chrome — cool canvas, white surfaces, blue accent.
+ * Aligned with AppTheme.
  */
+import { AppTheme } from '@/constants/AppTheme';
+
+const C = AppTheme.colors;
+
 export const SERVICES_PREMIUM = {
-  bg: '#F6F7F9',
-  bgElevated: '#FFFFFF',
-  bgGlass: '#FFFFFF',
-  borderGlass: '#E2E6EE',
-  borderGlow: 'rgba(37,99,235,0.28)',
-  text: '#0F172A',
-  textMuted: '#64748B',
-  accent: '#2563EB',
-  accentSoft: '#3B82F6',
-  accentDeep: '#1D4ED8',
-  copper: '#D97706',
+  bg: C.canvas,
+  bgElevated: C.surface,
+  bgGlass: C.surface,
+  borderGlass: C.border,
+  borderGlow: C.primaryBorder,
+  text: C.text,
+  textMuted: C.textSecondary,
+  accent: C.primary,
+  accentSoft: C.primarySoft,
+  accentDeep: C.primaryDeep,
+  copper: C.warning,
 };
 
-/** Services tab header shell — soft white with ambient blue glow. */
+/** Services tab header shell — soft white with ambient blue. */
 export const SERVICES_HEADER = {
-  shellTop: '#FFFFFF',
+  shellTop: C.surface,
   shellBottom: '#F8FAFC',
-  glowPrimary: 'rgba(191,219,254,0.55)',
-  glowSecondary: 'rgba(37,99,235,0.08)',
-  bgGlass: '#FFFFFF',
-  borderGlass: '#E2E6EE',
+  glowPrimary: C.glowBlue,
+  glowSecondary: C.glowSoft,
+  bgGlass: C.surface,
+  borderGlass: C.border,
 };
 
 export const SERVICES_SURFACE = {
-  light: '#F6F7F9',
-  dark: '#F6F7F9',
+  light: C.canvas,
+  dark: C.canvas,
 };
 
 export function getServicesPageBackground(_scheme: 'light' | 'dark') {
@@ -38,42 +42,42 @@ export function getServicesPageBackground(_scheme: 'light' | 'dark') {
 /** Profile header — same light family as Services. */
 export const PROFILE_PREMIUM = {
   light: {
-    shellTop: '#FFFFFF',
+    shellTop: C.surface,
     shellBottom: '#F8FAFC',
-    glowPrimary: 'rgba(191,219,254,0.55)',
-    glowSecondary: 'rgba(37,99,235,0.08)',
-    cardBg: '#FFFFFF',
-    cardBorder: '#E2E6EE',
-    statBg: '#F6F7F9',
-    statBorder: '#E2E6EE',
-    text: '#0F172A',
-    textMuted: '#64748B',
-    accent: '#2563EB',
-    accentSoft: '#3B82F6',
-    avatarBg: 'rgba(37,99,235,0.1)',
-    avatarBorder: 'rgba(37,99,235,0.28)',
-    menuBtnBg: '#FFFFFF',
-    menuBtnBorder: '#E2E6EE',
-    divider: '#EBEEF4',
+    glowPrimary: C.glowBlue,
+    glowSecondary: C.glowSoft,
+    cardBg: C.surface,
+    cardBorder: C.border,
+    statBg: C.surfaceMuted,
+    statBorder: C.border,
+    text: C.text,
+    textMuted: C.textSecondary,
+    accent: C.primary,
+    accentSoft: C.primarySoft,
+    avatarBg: C.primaryTint,
+    avatarBorder: C.primaryBorder,
+    menuBtnBg: C.surface,
+    menuBtnBorder: C.border,
+    divider: C.borderSoft,
   },
   dark: {
-    shellTop: '#FFFFFF',
+    shellTop: C.surface,
     shellBottom: '#F8FAFC',
-    glowPrimary: 'rgba(191,219,254,0.55)',
-    glowSecondary: 'rgba(37,99,235,0.08)',
-    cardBg: '#FFFFFF',
-    cardBorder: '#E2E6EE',
-    statBg: '#F6F7F9',
-    statBorder: '#E2E6EE',
-    text: '#0F172A',
-    textMuted: '#64748B',
-    accent: '#2563EB',
-    accentSoft: '#3B82F6',
-    avatarBg: 'rgba(37,99,235,0.1)',
-    avatarBorder: 'rgba(37,99,235,0.28)',
-    menuBtnBg: '#FFFFFF',
-    menuBtnBorder: '#E2E6EE',
-    divider: '#EBEEF4',
+    glowPrimary: C.glowBlue,
+    glowSecondary: C.glowSoft,
+    cardBg: C.surface,
+    cardBorder: C.border,
+    statBg: C.surfaceMuted,
+    statBorder: C.border,
+    text: C.text,
+    textMuted: C.textSecondary,
+    accent: C.primary,
+    accentSoft: C.primarySoft,
+    avatarBg: C.primaryTint,
+    avatarBorder: C.primaryBorder,
+    menuBtnBg: C.surface,
+    menuBtnBorder: C.border,
+    divider: C.borderSoft,
   },
 } as const;
 
@@ -86,12 +90,12 @@ export function getProfilePageBackground(scheme: 'light' | 'dark') {
 }
 
 export const SERVICES_TINT = {
-  trustBg: 'rgba(37,99,235,0.08)',
-  trustBorder: 'rgba(37,99,235,0.16)',
-  iconBg: 'rgba(37,99,235,0.1)',
-  activeBg: 'rgba(37,99,235,0.1)',
-  clearBg: 'rgba(37,99,235,0.08)',
-  glowTop: 'rgba(191,219,254,0.45)',
-  glowSide: 'rgba(37,99,235,0.08)',
-  locationBg: 'rgba(217,119,6,0.1)',
+  trustBg: C.primaryTint,
+  trustBorder: C.primaryBorder,
+  iconBg: C.primaryTint,
+  activeBg: C.primaryTint,
+  clearBg: C.primaryTint,
+  glowTop: C.glowBlue,
+  glowSide: C.glowSoft,
+  locationBg: 'rgba(217,119,6,0.10)',
 };

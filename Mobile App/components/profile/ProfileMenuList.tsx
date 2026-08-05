@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PROFILE_CARD_SHADOW } from '@/components/profile/profile-ui';
 import type { ProfileMenuItem } from '@/components/profile/profile-sections';
 import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/AppTheme';
 import { useColorScheme } from '@/components/useColorScheme';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -29,7 +30,7 @@ export function ProfileMenuList({ groups, onSelect, badgeForItem }: Props) {
       {groups.map((block, blockIndex) => (
         <View key={block.group} style={styles.block}>
           <View style={styles.blockHeader}>
-            <Text style={[styles.blockTitle, { color: colors.text }]}>{block.group}</Text>
+            <Text style={[styles.blockTitle, { color: colors.textMuted }]}>{block.group}</Text>
           </View>
           <View style={[styles.card, PROFILE_CARD_SHADOW, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {block.items.map((item, index) => {
@@ -45,7 +46,7 @@ export function ProfileMenuList({ groups, onSelect, badgeForItem }: Props) {
                     !isLast && { borderBottomColor: colors.border },
                     pressed && { backgroundColor: colors.background },
                   ]}>
-                  <View style={[styles.iconWrap, { backgroundColor: colors.primary + '10' }]}>
+                  <View style={[styles.iconWrap, { backgroundColor: AppTheme.colors.primaryTint }]}>
                     <Ionicons name={item.icon as IoniconName} size={19} color={colors.primary} />
                   </View>
                   <View style={styles.copy}>
@@ -79,33 +80,34 @@ const styles = StyleSheet.create({
   block: { gap: 10 },
   blockHeader: { paddingHorizontal: 2 },
   blockTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: -0.2,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
   },
   card: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: AppTheme.radius.lg,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
   iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
   copy: { flex: 1, gap: 2, minWidth: 0 },
-  label: { fontSize: 15, fontWeight: '600', letterSpacing: -0.15 },
-  description: { fontSize: 12, fontWeight: '500' },
+  label: { fontSize: 15, fontWeight: '700', letterSpacing: -0.15 },
+  description: { fontSize: 12.5, fontWeight: '500', lineHeight: 17 },
   chevronWrap: {
     width: 28,
     height: 28,
@@ -117,11 +119,11 @@ const styles = StyleSheet.create({
     minWidth: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#DC2626',
+    backgroundColor: AppTheme.colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 7,
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  spacer: { height: 2 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  spacer: { height: 4 },
 });

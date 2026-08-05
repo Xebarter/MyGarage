@@ -14,7 +14,7 @@ class PendingVerificationScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return AmbientBackground(
-      accent: AppColors.warning.withOpacity(0.25),
+      accent: AppColors.warning.withValues(alpha: 0.28),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
@@ -32,6 +32,7 @@ class PendingVerificationScreen extends StatelessWidget {
                 ),
                 const Spacer(),
                 GlassCard(
+                  highlight: true,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -39,12 +40,30 @@ class PendingVerificationScreen extends StatelessWidget {
                       const SizedBox(height: 18),
                       Text(
                         'Almost there',
-                        style: AppTheme.host(fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.4),
+                        style: AppTheme.host(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         'Your provider account is being reviewed. You’ll unlock jobs as soon as you’re approved.',
                         style: AppTheme.host(fontSize: 15, color: AppColors.textSecondary, height: 1.5),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningSoft.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(AppRadii.md),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.18)),
+                        ),
+                        child: Text(
+                          'This usually takes a short time. Keep the app installed — status updates here.',
+                          style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                        ),
                       ),
                       const SizedBox(height: 28),
                       OutlinedButton(

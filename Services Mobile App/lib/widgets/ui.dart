@@ -16,16 +16,35 @@ class AmbientBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const ColoredBox(color: AppColors.background),
-        Positioned(
-          top: -140,
-          right: -90,
-          child: _Blob(color: glow.withOpacity(0.55), size: 300),
+        // Layered wash: base + soft vertical depth
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFF7F9FC),
+                AppColors.background,
+                Color(0xFFEEF2F7),
+              ],
+              stops: [0.0, 0.45, 1.0],
+            ),
+          ),
         ),
         Positioned(
-          bottom: -160,
-          left: -110,
-          child: _Blob(color: AppColors.primary.withOpacity(0.10), size: 340),
+          top: -120,
+          right: -80,
+          child: _Blob(color: glow.withValues(alpha: 0.42), size: 320),
+        ),
+        Positioned(
+          top: 180,
+          left: -140,
+          child: _Blob(color: AppColors.primary.withValues(alpha: 0.06), size: 280),
+        ),
+        Positioned(
+          bottom: -140,
+          right: -60,
+          child: _Blob(color: AppColors.primaryDeep.withValues(alpha: 0.05), size: 300),
         ),
         child,
       ],
@@ -48,7 +67,7 @@ class _Blob extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
-            colors: [color, color.withOpacity(0)],
+            colors: [color, color.withValues(alpha: 0)],
           ),
         ),
       ),
@@ -73,26 +92,37 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = AnimatedContainer(
-      duration: 220.ms,
+      duration: 240.ms,
       curve: Curves.easeOutCubic,
       padding: padding,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        color: AppColors.surface.withValues(alpha: highlight ? 0.98 : 1),
         gradient: highlight
             ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.primary.withOpacity(0.08),
+                  AppColors.primary.withValues(alpha: 0.07),
+                  AppColors.surface,
                   AppColors.surface,
                 ],
+                stops: const [0.0, 0.4, 1.0],
               )
-            : null,
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.surface,
+                  AppColors.surfaceMuted.withValues(alpha: 0.55),
+                ],
+              ),
         border: Border.all(
-          color: highlight ? AppColors.primary.withOpacity(0.22) : AppColors.border,
+          color: highlight
+              ? AppColors.primary.withValues(alpha: 0.2)
+              : AppColors.border.withValues(alpha: 0.9),
         ),
-        boxShadow: AppTheme.softShadow,
+        boxShadow: highlight ? AppTheme.softShadow : AppTheme.cardShadow,
       ),
       child: child,
     );
@@ -123,8 +153,8 @@ class _PressableScaleState extends State<PressableScale> {
       onTapUp: (_) => setState(() => _pressed = false),
       onTap: widget.onTap,
       child: AnimatedScale(
-        scale: _pressed ? 0.985 : 1,
-        duration: 120.ms,
+        scale: _pressed ? 0.978 : 1,
+        duration: 140.ms,
         curve: Curves.easeOutCubic,
         child: widget.child,
       ),
@@ -153,21 +183,33 @@ class EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 64,
-            height: 64,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surface,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.1),
+                  AppColors.surface,
+                ],
+              ),
               border: Border.all(color: AppColors.border),
-              boxShadow: AppTheme.softShadow,
+              boxShadow: AppTheme.cardShadow,
             ),
-            child: Icon(icon, color: AppColors.textSecondary, size: 28),
+            child: Icon(icon, color: AppColors.primary, size: 30),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            style: AppTheme.host(
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 8),
@@ -183,7 +225,7 @@ class EmptyState extends StatelessWidget {
           ],
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: 420.ms).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }
 
@@ -209,18 +251,40 @@ class PageScaffold extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          titleSpacing: 20,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title),
-              if (subtitle != null)
+              Text(
+                title,
+                style: AppTheme.host(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.55,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  style: AppTheme.host(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                  style: AppTheme.host(
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
+              ],
             ],
           ),
-          actions: actions,
+          actions: actions
+              ?.map(
+                (a) => Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: a,
+                ),
+              )
+              .toList(),
         ),
         floatingActionButton: floatingActionButton,
         body: body,
@@ -256,7 +320,12 @@ class QuietRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: AppTheme.host(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                  style: AppTheme.host(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.15,
+                  ),
                 ),
                 if (subtitle != null && subtitle!.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -289,15 +358,26 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 28, bottom: 10),
-      child: Text(
-        label,
-        style: AppTheme.host(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textMuted,
-          letterSpacing: 0.8,
-        ),
+      padding: const EdgeInsets.only(top: 26, bottom: 12),
+      child: Row(
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: AppTheme.host(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textMuted,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.borderSoft,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -314,14 +394,52 @@ class StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.18)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Text(
         label,
-        style: AppTheme.host(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style: AppTheme.host(fontSize: 11, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.15),
       ),
     );
+  }
+}
+
+/// Compact icon action for app bars — soft circular hit target.
+class SoftIconButton extends StatelessWidget {
+  const SoftIconButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Material(
+      color: AppColors.surface.withValues(alpha: 0.9),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Icon(icon, size: 20, color: AppColors.textSecondary),
+        ),
+      ),
+    );
+    if (tooltip == null) return btn;
+    return Tooltip(message: tooltip!, child: btn);
   }
 }

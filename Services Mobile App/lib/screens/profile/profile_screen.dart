@@ -74,30 +74,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xxl)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose from gallery'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickImage(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take a photo'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.borderStrong,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.photo_library_outlined, color: AppColors.primary, size: 20),
+                  ),
+                  title: Text(
+                    'Choose from gallery',
+                    style: AppTheme.host(fontWeight: FontWeight.w600),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.photo_camera_outlined, color: AppColors.textSecondary, size: 20),
+                  ),
+                  title: Text(
+                    'Take a photo',
+                    style: AppTheme.host(fontWeight: FontWeight.w600),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -106,6 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final auth = context.read<AuthController>();
     try {
       List<int>? avatarBytes;
       String? filename;
@@ -117,14 +152,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         contentType = _pendingMime ?? _mimeFromPath(_pendingImagePath!);
       }
 
-      await context.read<AuthController>().updateProfile(
-            name: _name.text,
-            phone: _phone.text,
-            address: _address.text,
-            avatarBytes: avatarBytes,
-            avatarFilename: filename,
-            avatarContentType: contentType,
-          );
+      await auth.updateProfile(
+        name: _name.text,
+        phone: _phone.text,
+        address: _address.text,
+        avatarBytes: avatarBytes,
+        avatarFilename: filename,
+        avatarContentType: contentType,
+      );
       if (!mounted) return;
       setState(() {
         _pendingImagePath = null;
@@ -165,9 +200,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return PageScaffold(
       title: 'Profile',
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
         children: [
           GlassCard(
+            highlight: true,
             child: Row(
               children: [
                 GestureDetector(
@@ -177,36 +213,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       ClipOval(
                         child: Container(
-                          width: 72,
-                          height: 72,
+                          width: 76,
+                          height: 76,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                               colors: [
-                                AppColors.primary.withOpacity(0.35),
-                                AppColors.primaryDeep.withOpacity(0.2),
+                                AppColors.primary.withValues(alpha: 0.28),
+                                AppColors.primaryDeep.withValues(alpha: 0.14),
                               ],
                             ),
-                            border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.28), width: 1.5),
                           ),
                           child: hasPending
                               ? Image.file(
                                   File(_pendingImagePath!),
-                                  width: 72,
-                                  height: 72,
+                                  width: 76,
+                                  height: 76,
                                   fit: BoxFit.cover,
                                 )
                               : remoteImage != null
                                   ? Image.network(
                                       remoteImage,
-                                      width: 72,
-                                      height: 72,
+                                      width: 76,
+                                      height: 76,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Text(
                                         initials,
                                         style: AppTheme.host(
-                                          fontSize: 20,
+                                          fontSize: 22,
                                           fontWeight: FontWeight.w700,
                                           color: AppColors.primary,
                                         ),
@@ -215,7 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : Text(
                                       initials,
                                       style: AppTheme.host(
-                                        fontSize: 20,
+                                        fontSize: 22,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.primary,
                                       ),
@@ -232,8 +270,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: AppColors.primary,
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.surface, width: 2),
+                            boxShadow: AppTheme.cardShadow,
                           ),
-                          child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                          child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
                         ),
                       ),
                     ],
@@ -246,14 +285,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Text(
                         vendor?.name.isNotEmpty == true ? vendor!.name : 'Provider',
-                        style: AppTheme.host(fontSize: 20, fontWeight: FontWeight.w600),
+                        style: AppTheme.host(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(email, style: AppTheme.host(fontSize: 13, color: AppColors.textMuted)),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Tap photo to update',
-                        style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
+                      const SizedBox(height: 8),
+                      StatusPill(
+                        label: hasPending ? 'Photo ready to save' : 'Tap photo to update',
+                        color: hasPending ? AppColors.warning : AppColors.primary,
                       ),
                     ],
                   ),

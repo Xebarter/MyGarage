@@ -50,10 +50,10 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
     iconBg: Color(0xFFCFFAFE),
   ),
   'body-repair-painting': AccentPair(
-    accent: Color(0xFF7C3AED),
-    fill: Color(0xFFF5F3FF),
-    border: Color(0xFFDDD6FE),
-    iconBg: Color(0xFFEDE9FE),
+    accent: Color(0xFF475569),
+    fill: Color(0xFFF8FAFC),
+    border: Color(0xFFCBD5E1),
+    iconBg: Color(0xFFE2E8F0),
   ),
   'ac-cooling': AccentPair(
     accent: Color(0xFF0284C7),
@@ -62,10 +62,10 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
     iconBg: Color(0xFFE0F2FE),
   ),
   'security-tracking': AccentPair(
-    accent: Color(0xFF4F46E5),
-    fill: Color(0xFFEEF2FF),
-    border: Color(0xFFC7D2FE),
-    iconBg: Color(0xFFE0E7FF),
+    accent: Color(0xFF1E3A8A),
+    fill: Color(0xFFEFF6FF),
+    border: Color(0xFFBFDBFE),
+    iconBg: Color(0xFFDBEAFE),
   ),
   'documents-insurance': AccentPair(
     accent: Color(0xFF0F766E),
@@ -119,10 +119,10 @@ const _fallbackAccents = <AccentPair>[
     iconBg: Color(0xFFFEF3C7),
   ),
   AccentPair(
-    accent: Color(0xFF7C3AED),
-    fill: Color(0xFFF5F3FF),
-    border: Color(0xFFDDD6FE),
-    iconBg: Color(0xFFEDE9FE),
+    accent: Color(0xFF475569),
+    fill: Color(0xFFF8FAFC),
+    border: Color(0xFFCBD5E1),
+    iconBg: Color(0xFFE2E8F0),
   ),
   AccentPair(
     accent: Color(0xFF0891B2),

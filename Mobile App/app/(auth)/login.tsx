@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -16,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
+import { AppTheme, appShadow } from '@/constants/AppTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { isSupabaseConfigured } from '@/lib/config';
@@ -91,7 +93,7 @@ export default function LoginScreen() {
   if (!isSupabaseConfigured()) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <View style={[styles.configCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.configCard, appShadow('md'), { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.configLogoWrap, { backgroundColor: colors.primary + '12' }]}>
             <Image source={LOGO} style={styles.logo} resizeMode="contain" />
           </View>
@@ -115,18 +117,23 @@ export default function LoginScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: mode === 'signin' ? 'Sign in' : 'Create account' }} />
+      <Stack.Screen options={{ title: mode === 'signin' ? 'Sign in' : 'Create account', headerShadowVisible: false }} />
       <KeyboardAvoidingView
         style={[styles.page, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <LinearGradient
+          colors={['#EEF4FF', colors.background, colors.background]}
+          locations={[0, 0.35, 1]}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Hero */}
           <View style={styles.hero}>
             <View style={styles.brandRow}>
-              <View style={[styles.logoWrap, { backgroundColor: colors.primary + '12' }]}>
+              <View style={[styles.logoWrap, appShadow('sm'), { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Image source={LOGO} style={styles.logo} resizeMode="contain" />
               </View>
               <View>
@@ -137,20 +144,18 @@ export default function LoginScreen() {
 
             <View style={styles.heroCopy}>
               <Text style={[styles.pageTitle, { color: colors.text }]}>
-                {mode === 'signin' ? 'Sign in' : 'Create account'}
+                {mode === 'signin' ? 'Welcome back' : 'Create account'}
               </Text>
               <Text style={[styles.pageHint, { color: colors.textMuted }]}>
                 {mode === 'signin'
-                  ? 'Manage orders and service requests'
-                  : 'Track purchases and get help faster'}
+                  ? 'Sign in to manage orders and service requests'
+                  : 'Track purchases and get roadside help faster'}
               </Text>
             </View>
           </View>
 
-          {/* Auth Card */}
-          <View style={[styles.authCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {/* Mode Toggle */}
-            <View style={[styles.segment, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.authCard, appShadow('md'), { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.segment, { backgroundColor: AppTheme.colors.surfaceMuted, borderColor: colors.border }]}>
               {(['signin', 'signup'] as const).map((tab) => {
                 const active = mode === tab;
                 return (
@@ -170,14 +175,13 @@ export default function LoginScreen() {
               })}
             </View>
 
-            {/* Google Button */}
             <Pressable
               onPress={() => void handleGoogleSignIn()}
               disabled={busy}
               style={({ pressed }) => [
                 styles.googleBtn,
                 {
-                  backgroundColor: colors.background,
+                  backgroundColor: AppTheme.colors.surfaceMuted,
                   borderColor: colors.border,
                   opacity: busy ? 0.7 : pressed ? 0.9 : 1,
                 },
@@ -194,13 +198,12 @@ export default function LoginScreen() {
 
             <View style={styles.dividerRow}>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
+              <Text style={[styles.dividerText, { color: colors.textMuted }]}>or email</Text>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
-            {/* Form */}
             <View style={styles.form}>
-              {mode === 'signup' && (
+              {mode === 'signup' ? (
                 <InputRow
                   icon="person-outline"
                   colors={colors}
@@ -209,7 +212,7 @@ export default function LoginScreen() {
                   placeholder="Full name"
                   autoComplete="name"
                 />
-              )}
+              ) : null}
 
               <InputRow
                 icon="mail-outline"
@@ -237,12 +240,12 @@ export default function LoginScreen() {
                 }}
               />
 
-              {error && (
+              {error ? (
                 <View style={[styles.errorCard, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '22' }]}>
                   <Ionicons name="alert-circle" size={18} color={colors.destructive} />
                   <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
                 </View>
-              )}
+              ) : null}
 
               <Pressable
                 onPress={() => void handleSubmit()}
@@ -265,11 +268,10 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Footer */}
           <View style={styles.footerNote}>
             <Ionicons name="shield-checkmark-outline" size={16} color={colors.textMuted} />
             <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Secure sign-in • Protected by Supabase
+              Secure sign-in · Protected by encryption
             </Text>
           </View>
         </ScrollView>
@@ -306,7 +308,7 @@ function InputRow({
   };
 }) {
   return (
-    <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+    <View style={[styles.inputRow, { backgroundColor: AppTheme.colors.surfaceMuted, borderColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.textMuted} />
       <TextInput
         value={value}
@@ -316,7 +318,7 @@ function InputRow({
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
-        autoComplete={autoComplete as any}
+        autoComplete={autoComplete as never}
         style={[styles.input, { color: colors.text }]}
       />
       {rightAction ? (
@@ -342,7 +344,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: 36,
     paddingBottom: 40,
     gap: 28,
   },
@@ -384,15 +386,16 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
   logo: {
     width: 32,
     height: 32,
   },
   brandName: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.4,
+    fontSize: 23,
+    fontWeight: '800',
+    letterSpacing: -0.45,
   },
   brandTagline: {
     fontSize: 13,
@@ -402,15 +405,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  heroEyebrow: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
   pageTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: -0.6,
     textAlign: 'center',
   },
@@ -422,7 +419,7 @@ const styles = StyleSheet.create({
   },
   authCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: AppTheme.radius.xl,
     padding: 20,
     gap: 18,
     maxWidth: 420,
@@ -445,7 +442,7 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   googleBtn: {
     flexDirection: 'row',
@@ -463,7 +460,7 @@ const styles = StyleSheet.create({
   },
   googleBtnText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   dividerRow: {
     flexDirection: 'row',

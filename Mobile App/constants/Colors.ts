@@ -1,20 +1,22 @@
-/** MyGarage brand palette — light professional, aligned with Services app. */
-const primary = '#2563EB';
-const primarySoft = '#3B82F6';
+/** MyGarage brand palette — light professional buyer app. */
+import { AppTheme } from '@/constants/AppTheme';
+
+const primary = AppTheme.colors.primary;
+const primarySoft = AppTheme.colors.primarySoft;
 
 export default {
   light: {
-    text: '#0F172A',
-    textMuted: '#64748B',
-    background: '#F6F7F9',
-    card: '#FFFFFF',
-    border: '#E2E6EE',
+    text: AppTheme.colors.text,
+    textMuted: AppTheme.colors.textMuted,
+    background: AppTheme.colors.canvas,
+    card: AppTheme.colors.surface,
+    border: AppTheme.colors.border,
     tint: primary,
-    tabIconDefault: '#94A3B8',
+    tabIconDefault: AppTheme.colors.textMuted,
     tabIconSelected: primary,
     primary,
-    destructive: '#DC2626',
-    success: '#059669',
+    destructive: AppTheme.colors.danger,
+    success: AppTheme.colors.success,
   },
   /** Kept for typed scheme access; app is light-first. */
   dark: {

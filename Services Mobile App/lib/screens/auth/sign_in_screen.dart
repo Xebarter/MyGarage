@@ -54,10 +54,19 @@ class _SignInScreenState extends State<SignInScreen> {
                     children: [
                       const SizedBox(height: 28),
                       Center(
-                        child: Image.asset(
-                          'assets/images/logo_mark.png',
-                          height: 72,
-                          fit: BoxFit.contain,
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppColors.border),
+                            boxShadow: AppTheme.softShadow,
+                          ),
+                          child: Image.asset(
+                            'assets/images/logo_mark.png',
+                            height: 56,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       )
                           .animate()
@@ -68,21 +77,22 @@ class _SignInScreenState extends State<SignInScreen> {
                         AppConfig.appName,
                         textAlign: TextAlign.center,
                         style: AppTheme.host(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
-                          letterSpacing: -0.4,
+                          letterSpacing: -0.6,
                         ),
                       ).animate().fadeIn(delay: 80.ms, duration: 450.ms).slideY(begin: 0.08),
                       const SizedBox(height: 8),
                       Text(
                         'Service provider workspace',
                         textAlign: TextAlign.center,
-                        style: AppTheme.host(fontSize: 15, color: AppColors.textSecondary),
+                        style: AppTheme.host(fontSize: 15, color: AppColors.textSecondary, height: 1.4),
                       ).animate().fadeIn(delay: 140.ms, duration: 450.ms),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 36),
                       GlassCard(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(20),
+                        highlight: true,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

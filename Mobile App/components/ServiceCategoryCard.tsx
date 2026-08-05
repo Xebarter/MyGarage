@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import Colors from '@/constants/Colors';
+import { AppTheme, appShadow } from '@/constants/AppTheme';
 import { getCategoryCardAccent } from '@/constants/ServiceCategoryAccents';
 import { getPriorityPalette } from '@/constants/ServicePriorities';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -40,32 +41,24 @@ export function ServiceCategoryCard({
           accessibilityLabel={`${title}. ${hint}. ${serviceCount} services.`}
           style={({ pressed }) => [
             styles.card,
+            appShadow('md'),
             {
               borderColor: accent.glassBorder,
-              opacity: pressed ? 0.92 : 1,
-              transform: [{ scale: pressed ? 0.978 : 1 }],
+              opacity: pressed ? 0.94 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
             },
-            Platform.select({
-              ios: {
-                shadowColor: '#0F172A',
-                shadowOpacity: 0.06,
-                shadowOffset: { width: 0, height: 4 },
-                shadowRadius: 10,
-              },
-              default: {},
-            }),
           ]}
         >
           <View style={[styles.glassBase, { backgroundColor: accent.glassBg }]} />
-
           <View pointerEvents="none" style={[styles.glassSheen, { backgroundColor: accent.sheen }]} />
+          <View style={[styles.accentRail, { backgroundColor: accent.accent }]} pointerEvents="none" />
 
           <View style={styles.cardBody}>
             <View
               style={[
                 styles.priorityPill,
                 {
-                  backgroundColor: '#F6F7F9',
+                  backgroundColor: AppTheme.colors.surface,
                   borderColor: accent.ring,
                 },
               ]}
@@ -83,10 +76,6 @@ export function ServiceCategoryCard({
                 },
               ]}
             >
-              <View
-                pointerEvents="none"
-                style={[styles.iconGlassSheen, { backgroundColor: accent.sheen }]}
-              />
               <Text style={[styles.emoji, scaled && styles.emojiScaled]}>{category.emoji}</Text>
             </View>
 
@@ -114,8 +103,8 @@ export function ServiceCategoryCard({
               style={[
                 styles.footerGlass,
                 {
-                  backgroundColor: '#F6F7F9',
-                  borderColor: accent.ring,
+                  backgroundColor: AppTheme.colors.surface,
+                  borderColor: AppTheme.colors.borderSoft,
                 },
               ]}
             >
@@ -131,11 +120,10 @@ export function ServiceCategoryCard({
                   styles.arrowButton,
                   {
                     backgroundColor: accent.accent,
-                    borderColor: accent.ring,
                   },
                 ]}
               >
-                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </View>
             </View>
           </View>
@@ -151,22 +139,16 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    minHeight: 204,
-    borderRadius: 22,
+    minHeight: 210,
+    borderRadius: AppTheme.radius.xl,
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
-
-    ...Platform.select({
-      ios: {},
-      android: {
-        elevation: 2,
-      },
-    }),
+    backgroundColor: AppTheme.colors.surface,
   },
 
   glassBase: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
 
   glassSheen: {
@@ -174,16 +156,26 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '32%',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    height: '28%',
+  },
+
+  accentRail: {
+    position: 'absolute',
+    left: 0,
+    top: 18,
+    bottom: 18,
+    width: 3,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+    opacity: 0.9,
   },
 
   cardBody: {
     flex: 1,
-    padding: 14,
+    padding: 15,
     paddingTop: 16,
-    gap: 10,
+    paddingLeft: 16,
+    gap: 11,
     zIndex: 2,
   },
 
@@ -194,10 +186,10 @@ const styles = StyleSheet.create({
     zIndex: 3,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: AppTheme.radius.pill,
     borderWidth: 1,
   },
 
@@ -208,31 +200,19 @@ const styles = StyleSheet.create({
   },
 
   priorityText: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.25,
     textTransform: 'uppercase',
   },
 
   iconGlass: {
     width: 54,
     height: 54,
-    borderRadius: 17,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-
-  iconGlassSheen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    borderTopLeftRadius: 17,
-    borderTopRightRadius: 17,
   },
 
   emoji: {
@@ -245,15 +225,15 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-    gap: 4,
+    gap: 5,
     paddingRight: 2,
   },
 
   title: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 15.5,
+    lineHeight: 21,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: -0.25,
     paddingRight: 58,
   },
 
@@ -263,7 +243,7 @@ const styles = StyleSheet.create({
 
   description: {
     fontSize: 12.5,
-    lineHeight: 17,
+    lineHeight: 17.5,
   },
 
   descriptionScaled: {
@@ -274,8 +254,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     borderRadius: 14,
     borderWidth: 1,
     marginTop: 2,
@@ -284,7 +264,7 @@ const styles = StyleSheet.create({
   footerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
   },
 
   countDot: {
@@ -301,9 +281,17 @@ const styles = StyleSheet.create({
   arrowButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.12,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+      },
+      default: {},
+    }),
   },
 });

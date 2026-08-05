@@ -129,13 +129,39 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     };
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Trip'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Active trip',
+              style: AppTheme.host(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
+            Text(
+              job.service,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted),
+            ),
+          ],
+        ),
         actions: [
           if (job.buyerContactPhone.isNotEmpty)
-            IconButton(
-              onPressed: () => _callBuyer(job.buyerContactPhone),
-              icon: const Icon(Icons.phone_outlined),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: IconButton.filledTonal(
+                onPressed: () => _callBuyer(job.buyerContactPhone),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.primarySoft,
+                  foregroundColor: AppColors.primary,
+                ),
+                icon: const Icon(Icons.phone_rounded, size: 20),
+              ),
             ),
         ],
       ),
@@ -143,58 +169,83 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         children: [
           Expanded(
             flex: 5,
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(target: center, zoom: 14),
-              markers: markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              compassEnabled: false,
-              mapToolbarEnabled: false,
-              onMapCreated: (c) {
-                _mapController = c;
-                if (dest != null && provider != null) {
-                  final south = dest.latitude < provider.latitude ? dest.latitude : provider.latitude;
-                  final west = dest.longitude < provider.longitude ? dest.longitude : provider.longitude;
-                  final north = dest.latitude > provider.latitude ? dest.latitude : provider.latitude;
-                  final east = dest.longitude > provider.longitude ? dest.longitude : provider.longitude;
-                  if ((north - south).abs() < 0.0001 && (east - west).abs() < 0.0001) {
-                    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(dest, 15));
-                  } else {
-                    _mapController?.animateCamera(
-                      CameraUpdate.newLatLngBounds(
-                        LatLngBounds(
-                          southwest: LatLng(south, west),
-                          northeast: LatLng(north, east),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppRadii.lg)),
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(target: center, zoom: 14),
+                markers: markers,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: true,
+                compassEnabled: false,
+                mapToolbarEnabled: false,
+                onMapCreated: (c) {
+                  _mapController = c;
+                  if (dest != null && provider != null) {
+                    final south = dest.latitude < provider.latitude ? dest.latitude : provider.latitude;
+                    final west = dest.longitude < provider.longitude ? dest.longitude : provider.longitude;
+                    final north = dest.latitude > provider.latitude ? dest.latitude : provider.latitude;
+                    final east = dest.longitude > provider.longitude ? dest.longitude : provider.longitude;
+                    if ((north - south).abs() < 0.0001 && (east - west).abs() < 0.0001) {
+                      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(dest, 15));
+                    } else {
+                      _mapController?.animateCamera(
+                        CameraUpdate.newLatLngBounds(
+                          LatLngBounds(
+                            southwest: LatLng(south, west),
+                            northeast: LatLng(north, east),
+                          ),
+                          72,
                         ),
-                        72,
-                      ),
-                    );
+                      );
+                    }
                   }
-                }
-              },
+                },
+              ),
             ),
           ),
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: AppColors.surfaceHigh.withOpacity(0.96),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border(top: BorderSide(color: AppColors.border.withOpacity(0.8))),
+              color: AppColors.surfaceHigh.withValues(alpha: 0.98),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xxl)),
+              border: Border(top: BorderSide(color: AppColors.border.withValues(alpha: 0.85))),
               boxShadow: AppTheme.softShadow,
             ),
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderStrong,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
                 Text(
                   job.service,
-                  style: AppTheme.host(fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+                  style: AppTheme.host(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   job.location,
                   style: AppTheme.host(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
                 ),
+                if (job.buyerContactName.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    job.buyerContactName,
+                    style: AppTheme.host(fontSize: 13, color: AppColors.textMuted),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 _QuietStages(job: job),
                 const SizedBox(height: 22),
@@ -235,19 +286,31 @@ class _QuietStages extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < steps.length; i++) ...[
-          Text(
-            steps[i].$1,
-            style: AppTheme.host(
-              fontSize: 12,
-              fontWeight: steps[i].$2 ? FontWeight.w600 : FontWeight.w500,
-              color: steps[i].$2 ? AppColors.textPrimary : AppColors.textMuted,
+          Expanded(
+            child: Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 240),
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: steps[i].$2 ? AppColors.primary : AppColors.borderSoft,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  steps[i].$1,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.host(
+                    fontSize: 11.5,
+                    fontWeight: steps[i].$2 ? FontWeight.w700 : FontWeight.w500,
+                    color: steps[i].$2 ? AppColors.primary : AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
           ),
-          if (i < steps.length - 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text('·', style: AppTheme.host(color: AppColors.textMuted)),
-            ),
+          if (i < steps.length - 1) const SizedBox(width: 6),
         ],
       ],
     );

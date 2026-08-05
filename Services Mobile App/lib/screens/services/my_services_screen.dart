@@ -167,17 +167,12 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       title: 'Services',
       subtitle: _listings.isEmpty ? 'What you offer' : '$activeCount active listing${activeCount == 1 ? '' : 's'}',
       actions: [
-        IconButton(
-          onPressed: _saving ? null : _openCatalogPicker,
-          icon: _saving
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_rounded),
+        SoftIconButton(
+          icon: Icons.add_rounded,
           tooltip: 'Manage services',
+          onPressed: _saving ? () {} : _openCatalogPicker,
         ),
+        const SizedBox(width: 12),
       ],
       body: RefreshIndicator(
         color: AppColors.primary,
@@ -191,7 +186,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
               )
             : _offline && _listings.isEmpty
                 ? ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
                     children: [
                       OfflineBanner(onRetry: _load),
                       const SizedBox(height: 24),
@@ -227,30 +222,38 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                             ],
                           )
                         : ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
                             children: [
                               if (_offline) ...[
                                 OfflineBanner(onRetry: _load),
                                 const SizedBox(height: 14),
                               ],
-                              Container(
+                              GlassCard(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEFF6FF),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                                ),
+                                highlight: true,
                                 child: Row(
                                   children: [
-                                    Icon(Icons.touch_app_outlined, size: 18, color: AppColors.primary.withValues(alpha: 0.9)),
-                                    const SizedBox(width: 10),
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(11),
+                                      ),
+                                      child: const Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 18,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
-                                        'Tap + to select services you offer. Prices are set by MyGarage.',
+                                        'Choose services you offer. Job prices are set by MyGarage.',
                                         style: AppTheme.host(
-                                          fontSize: 12.5,
-                                          color: AppColors.primaryDeep,
-                                          height: 1.35,
+                                          fontSize: 13,
+                                          color: AppColors.textSecondary,
+                                          height: 1.4,
                                         ),
                                       ),
                                     ),
@@ -262,10 +265,6 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                                 onPressed: _saving ? null : _openCatalogPicker,
                                 icon: const Icon(Icons.checklist_rounded, size: 18),
                                 label: const Text('Manage offerings'),
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(46),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                ),
                               ),
                               const SizedBox(height: 16),
                               ...List.generate(_listings.length, (i) {
@@ -311,16 +310,17 @@ class _ServiceColorCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: accent.fill,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.border),
-          boxShadow: [
-            BoxShadow(
-              color: accent.accent.withOpacity(0.08),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.fill,
+              AppColors.surface.withValues(alpha: 0.96),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppRadii.xl),
+          border: Border.all(color: accent.border.withValues(alpha: 0.9)),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,7 +333,7 @@ class _ServiceColorCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: accent.iconBg,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadii.md),
                     border: Border.all(color: accent.border),
                   ),
                   child: Icon(icon, color: accent.accent, size: 24),
@@ -344,22 +344,22 @@ class _ServiceColorCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        catTitle,
+                        catTitle.toUpperCase(),
                         style: AppTheme.host(
                           fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: accent.accent,
-                          letterSpacing: 0.3,
+                          letterSpacing: 0.6,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
                         listing.serviceName,
                         style: AppTheme.host(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
-                          letterSpacing: -0.2,
+                          letterSpacing: -0.25,
                           height: 1.25,
                         ),
                       ),
@@ -367,14 +367,17 @@ class _ServiceColorCard extends StatelessWidget {
                   ),
                 ),
                 PopupMenuButton<String>(
-                  icon: Icon(Icons.more_horiz_rounded, color: accent.accent.withOpacity(0.85)),
+                  icon: Icon(
+                    Icons.more_horiz_rounded,
+                    color: accent.accent.withValues(alpha: 0.85),
+                  ),
                   onSelected: (v) {
                     if (v == 'edit') onEdit();
                     if (v == 'delete') onDelete();
                   },
                   itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    PopupMenuItem(value: 'edit', child: Text('Edit options')),
+                    PopupMenuItem(value: 'delete', child: Text('Remove')),
                   ],
                 ),
               ],
@@ -387,30 +390,30 @@ class _ServiceColorCard extends StatelessWidget {
                 _Chip(
                   label: formatUgx(listing.priceUgx),
                   color: accent.accent,
-                  bg: Colors.white.withOpacity(0.75),
+                  bg: AppColors.surface.withValues(alpha: 0.88),
                   bold: true,
                 ),
                 if (listing.etaMinutes != null)
                   _Chip(
                     label: '${listing.etaMinutes} min',
                     color: AppColors.textSecondary,
-                    bg: Colors.white.withOpacity(0.65),
+                    bg: AppColors.surface.withValues(alpha: 0.72),
                   ),
                 _Chip(
                   label: listing.isActive ? 'Active' : 'Paused',
                   color: listing.isActive ? AppColors.success : AppColors.textMuted,
-                  bg: Colors.white.withOpacity(0.65),
+                  bg: AppColors.surface.withValues(alpha: 0.72),
                 ),
                 if (listing.mobileAvailable)
                   _Chip(
                     label: 'Mobile',
                     color: accent.accent,
-                    bg: Colors.white.withOpacity(0.65),
+                    bg: AppColors.surface.withValues(alpha: 0.72),
                   ),
                 if (listing.emergency)
                   const _Chip(
                     label: 'Emergency',
-                    color: Color(0xFFDC2626),
+                    color: Color(0xFFB91C1C),
                     bg: Color(0xFFFFF1F2),
                   ),
               ],
@@ -421,7 +424,7 @@ class _ServiceColorCard extends StatelessWidget {
                 listing.description.trim(),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.35),
+                style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
               ),
             ],
           ],
@@ -450,8 +453,8 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.16)),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Text(
         label,

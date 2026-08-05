@@ -98,7 +98,7 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xxl)),
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + bottom),
       child: SingleChildScrollView(
@@ -110,17 +110,35 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: AppColors.borderStrong,
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
             ),
             const SizedBox(height: 18),
+            Text(
+              'Service options',
+              style: AppTheme.host(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.35,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Prices are set by MyGarage. Update how you deliver this service.',
+              style: AppTheme.host(fontSize: 13, color: AppColors.textMuted, height: 1.4),
+            ),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: accent.fill,
-                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [accent.fill, AppColors.surface],
+                ),
+                borderRadius: BorderRadius.circular(AppRadii.xl),
                 border: Border.all(color: accent.border),
               ),
               child: Row(
@@ -130,7 +148,7 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
                     height: 48,
                     decoration: BoxDecoration(
                       color: accent.iconBg,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadii.md),
                     ),
                     child: Icon(iconForCategory(i.categoryId), color: accent.accent, size: 24),
                   ),
@@ -140,21 +158,23 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          categoryTitle(i.categoryId),
+                          categoryTitle(i.categoryId).toUpperCase(),
                           style: AppTheme.host(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                             color: accent.accent,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Text(
                           i.serviceName,
                           style: AppTheme.host(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                             height: 1.25,
+                            letterSpacing: -0.2,
                           ),
                         ),
                       ],
@@ -167,8 +187,8 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(14),
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadii.md),
                 border: Border.all(color: AppColors.border),
               ),
               child: Row(

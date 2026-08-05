@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     marginBottom: 12,
+    backgroundColor: '#FFFFFF',
   },
   imageWrap: {
     position: 'relative',
@@ -168,11 +169,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(226,232,240,0.9)',
   },
   body: {
     padding: 12,
@@ -192,6 +195,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: '700',
     minHeight: 38,
+    letterSpacing: -0.15,
   },
   brand: {
     fontSize: 12,
@@ -203,16 +207,17 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: -0.2,
   },
   comparePrice: {
     fontSize: 12,
     textDecorationLine: 'line-through',
   },
   bottomRow: {
-    marginTop: 4,
+    marginTop: 6,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 10,
   },
   metaPills: {
@@ -228,15 +233,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   metaText: {
     fontSize: 11,
     fontWeight: '700',
   },
   quickAdd: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

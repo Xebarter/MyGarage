@@ -76,9 +76,10 @@ function RootStack() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          contentStyle: { flex: 1, backgroundColor: 'transparent' },
+          contentStyle: { flex: 1, backgroundColor: '#F4F6F9' },
           headerShadowVisible: false,
-          headerTitleStyle: { fontFamily: NUNITO.bold },
+          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerTitleStyle: { fontFamily: NUNITO.bold, fontSize: 17, letterSpacing: -0.2 },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ title: 'Sign in', presentation: 'modal' }} />

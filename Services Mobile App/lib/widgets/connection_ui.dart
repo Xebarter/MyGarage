@@ -19,12 +19,12 @@ class OfflineBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFFED7AA)),
+        color: AppColors.warningSoft,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.22)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFD97706).withOpacity(0.08),
+            color: AppColors.warning.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -36,10 +36,10 @@ class OfflineBanner extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFEDD5),
+              color: AppColors.surface.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.wifi_off_rounded, color: Color(0xFFD97706), size: 22),
+            child: Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 22),
           )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .fade(begin: 0.55, end: 1, duration: 1100.ms)
@@ -53,8 +53,8 @@ class OfflineBanner extends StatelessWidget {
                   "You're offline",
                   style: AppTheme.host(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF9A3412),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.warning,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -62,7 +62,7 @@ class OfflineBanner extends StatelessWidget {
                   message,
                   style: AppTheme.host(
                     fontSize: 12.5,
-                    color: const Color(0xFFC2410C),
+                    color: AppColors.textSecondary,
                     height: 1.35,
                   ),
                 ),
@@ -74,7 +74,7 @@ class OfflineBanner extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFC2410C),
+                foregroundColor: AppColors.warning,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
               child: const Text('Retry'),
@@ -103,18 +103,26 @@ class AnimatedWaitingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 40),
       child: Column(
         children: [
           Container(
-            width: 88,
-            height: 88,
+            width: 96,
+            height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.primary.withOpacity(0.08),
-              border: Border.all(color: AppColors.primary.withOpacity(0.14)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.14),
+                  AppColors.primary.withValues(alpha: 0.04),
+                ],
+              ),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+              boxShadow: AppTheme.cardShadow,
             ),
-            child: Icon(Icons.route_rounded, size: 36, color: AppColors.primary.withOpacity(0.9)),
+            child: Icon(Icons.route_rounded, size: 38, color: AppColors.primary.withValues(alpha: 0.95)),
           )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .scale(
@@ -123,25 +131,25 @@ class AnimatedWaitingState extends StatelessWidget {
                 duration: 1600.ms,
                 curve: Curves.easeInOut,
               )
-              .fade(begin: 0.75, end: 1, duration: 1600.ms),
-          const SizedBox(height: 22),
+              .fade(begin: 0.8, end: 1, duration: 1600.ms),
+          const SizedBox(height: 24),
           Text(
             title,
             textAlign: TextAlign.center,
             style: AppTheme.host(
               fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
-              letterSpacing: -0.3,
+              letterSpacing: -0.35,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: AppTheme.host(fontSize: 14, color: AppColors.textMuted, height: 1.45),
+            style: AppTheme.host(fontSize: 14, color: AppColors.textMuted, height: 1.5),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(3, (i) {
@@ -149,8 +157,8 @@ class AnimatedWaitingState extends StatelessWidget {
                 width: 7,
                 height: 7,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.9),
                   shape: BoxShape.circle,
                 ),
               )

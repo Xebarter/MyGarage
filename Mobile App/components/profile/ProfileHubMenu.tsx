@@ -77,9 +77,9 @@ const styles = StyleSheet.create({
   block: { gap: 10 },
   blockHeader: { gap: 3, paddingHorizontal: 2 },
   blockTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    letterSpacing: -0.35,
+    letterSpacing: -0.3,
   },
   blockSubtitle: {
     fontSize: 13,

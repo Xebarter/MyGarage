@@ -53,25 +53,20 @@ class _JobsScreenState extends State<JobsScreen> {
 
     return PageScaffold(
       title: 'Jobs',
-      subtitle: 'Hi $greeting',
+      subtitle: 'Hi $greeting · ready for work',
       actions: [
-        IconButton(
-          onPressed: () => dispatch.refresh(),
-          icon: dispatch.loading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh_rounded, size: 22),
+        SoftIconButton(
+          icon: Icons.refresh_rounded,
           tooltip: 'Refresh',
+          onPressed: () => dispatch.refresh(),
         ),
+        const SizedBox(width: 12),
       ],
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () => dispatch.refresh(),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
           children: [
             if (dispatch.offline) ...[
               OfflineBanner(onRetry: () => dispatch.refresh()),
@@ -95,8 +90,8 @@ class _JobsScreenState extends State<JobsScreen> {
                 meta: offer.request?.category,
                 cta: 'Review offer',
                 icon: Icons.notifications_active_rounded,
-                tint: const Color(0xFFEFF6FF),
-                border: const Color(0xFFBFDBFE),
+                tint: AppColors.primarySoft,
+                border: AppColors.primary.withValues(alpha: 0.22),
                 onTap: () => dispatch.refresh(),
               ).animate().fadeIn(duration: 380.ms).slideY(begin: 0.06).scale(
                     begin: const Offset(0.98, 0.98),
@@ -112,8 +107,8 @@ class _JobsScreenState extends State<JobsScreen> {
                 meta: statusLabel(active.status),
                 cta: 'Open trip',
                 icon: Icons.near_me_rounded,
-                tint: const Color(0xFFECFDF5),
-                border: const Color(0xFFA7F3D0),
+                tint: AppColors.successSoft,
+                border: AppColors.success.withValues(alpha: 0.22),
                 onTap: () => context.push('/trip/${active.id}'),
               ).animate().fadeIn(delay: 60.ms, duration: 380.ms).slideY(begin: 0.05),
             if (offer == null && active == null && recent.isEmpty) ...[
@@ -195,8 +190,8 @@ class _OverviewStrip extends StatelessWidget {
           child: _StatChip(
             label: 'Offers',
             value: '$offerCount',
-            color: AppColors.primary,
-            fill: const Color(0xFFEFF6FF),
+            color: offerCount > 0 ? AppColors.primary : AppColors.primary,
+            fill: AppColors.primarySoft,
           ),
         ),
         const SizedBox(width: 10),
@@ -205,7 +200,7 @@ class _OverviewStrip extends StatelessWidget {
             label: 'Active',
             value: '$activeCount',
             color: AppColors.success,
-            fill: const Color(0xFFECFDF5),
+            fill: AppColors.successSoft,
           ),
         ),
         const SizedBox(width: 10),
@@ -213,8 +208,8 @@ class _OverviewStrip extends StatelessWidget {
           child: _StatChip(
             label: 'Recent',
             value: '$recentCount',
-            color: const Color(0xFF7C3AED),
-            fill: const Color(0xFFF5F3FF),
+            color: AppColors.textSecondary,
+            fill: AppColors.surfaceMuted,
           ),
         ),
       ],
@@ -238,11 +233,17 @@ class _StatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.18)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+        boxShadow: AppTheme.cardShadow,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [fill, AppColors.surface],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,13 +254,18 @@ class _StatChip extends StatelessWidget {
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: color,
-              letterSpacing: -0.4,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             label,
-            style: AppTheme.host(fontSize: 12, fontWeight: FontWeight.w500, color: color.withOpacity(0.85)),
+            style: AppTheme.host(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withValues(alpha: 0.8),
+              letterSpacing: 0.1,
+            ),
           ),
         ],
       ),
@@ -300,12 +306,13 @@ class _JobHeroCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(AppRadii.xl),
           border: Border.all(color: border),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [tint, AppColors.surface],
+            colors: [tint, AppColors.surface, AppColors.surface],
+            stops: const [0.0, 0.55, 1.0],
           ),
           boxShadow: AppTheme.softShadow,
         ),
@@ -315,11 +322,13 @@ class _JobHeroCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: badgeColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.surface.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: badgeColor.withValues(alpha: 0.18)),
+                    boxShadow: AppTheme.cardShadow,
                   ),
                   child: Icon(icon, color: badgeColor, size: 22),
                 ),
@@ -330,26 +339,34 @@ class _JobHeroCard extends StatelessWidget {
                     children: [
                       StatusPill(label: badge, color: badgeColor),
                       if (meta != null && meta!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 5),
                         Text(
                           meta!,
-                          style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
+                          style: AppTheme.host(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_rounded, color: badgeColor.withOpacity(0.8), size: 20),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: badgeColor.withValues(alpha: 0.1),
+                  ),
+                  child: Icon(Icons.arrow_forward_rounded, color: badgeColor, size: 18),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Text(
               title,
               style: AppTheme.host(
                 fontSize: 21,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
-                letterSpacing: -0.35,
+                letterSpacing: -0.4,
               ),
             ),
             if (subtitle != null && subtitle!.isNotEmpty) ...[
@@ -357,12 +374,12 @@ class _JobHeroCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.place_outlined, size: 16, color: AppColors.textMuted),
+                  const Icon(Icons.place_outlined, size: 16, color: AppColors.textMuted),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       subtitle!,
-                      style: AppTheme.host(fontSize: 14, color: AppColors.textSecondary, height: 1.35),
+                      style: AppTheme.host(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
                     ),
                   ),
                 ],
@@ -371,7 +388,7 @@ class _JobHeroCard extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               cta,
-              style: AppTheme.host(fontSize: 14, fontWeight: FontWeight.w600, color: badgeColor),
+              style: AppTheme.host(fontSize: 14, fontWeight: FontWeight.w700, color: badgeColor),
             ),
           ],
         ),
@@ -396,22 +413,26 @@ class _RecentJobTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           children: [
             Container(
               width: 10,
               height: 10,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
