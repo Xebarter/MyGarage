@@ -18,6 +18,18 @@ node_modules
 .next/
 .DS_Store
 
+# Flutter / Android (Services Mobile App and similar)
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/android/.gradle/
+**/android/.kotlin/
+**/android/build/
+**/android/local.properties
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/**/xcuserdata/
+
 # TypeScript build info
 *.tsbuildinfo
 

@@ -107,4 +107,10 @@ lib/
 
 ## Out of scope (v1)
 
-Dashboard analytics, Customers, Promotions, Google OAuth, push notifications.
+Dashboard analytics, Customers, Promotions, push notifications.
+
+## Git / secrets
+
+- Copy `.env.example` → `.env` locally (never commit `.env`).
+- `android/local.properties` is machine-local (SDK paths); do not commit it.
+- Release builds currently use the debug keystore — replace before Play Store upload.

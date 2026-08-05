@@ -2,6 +2,8 @@
 *.iml
 .cxx/
 .gradle/
+.kotlin/
+build/
 local.properties
 **/GeneratedPluginRegistrant.java
 **/GeneratedPluginRegistrant.kt
