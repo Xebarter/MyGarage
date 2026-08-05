@@ -1,19 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function POST() {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+async function resolveUser(req: NextRequest): Promise<User | null> {
+  const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
+  if (authHeader?.toLowerCase().startsWith("bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      const admin = createAdminClient();
+      const { data, error } = await admin.auth.getUser(token);
+      if (!error && data.user) return data.user;
     }
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user ?? null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await resolveUser(req);
+
     if (!user || !user.id) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
@@ -54,7 +66,6 @@ export async function POST() {
     });
 
     if (insertError) {
-      // If the email is already used by another vendor row, surface a clear message.
       return NextResponse.json({ error: insertError.message }, { status: 400 });
     }
 
@@ -63,4 +74,3 @@ export async function POST() {
     return NextResponse.json({ error: "Failed to bootstrap vendor" }, { status: 500 });
   }
 }
-

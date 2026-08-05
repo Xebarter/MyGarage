@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mygarage",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ug.mygarage.app"
@@ -14,7 +14,7 @@
     "android": {
       "package": "ug.mygarage.app",
       "adaptiveIcon": {
-        "backgroundColor": "#3B82F6",
+          "backgroundColor": "#2563EB",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -33,7 +33,7 @@
         {
           "image": "./assets/images/logo-black.png",
           "resizeMode": "contain",
-          "backgroundColor": "#000000",
+          "backgroundColor": "#F6F7F9",
           "imageWidth": 240
         }
       ],

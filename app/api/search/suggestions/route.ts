@@ -158,7 +158,7 @@ function scoreAllCatalogServices(
   const out: Array<{ item: SuggestionService; score: number }> = [];
   for (const cat of userServiceCategories) {
     const keywords = serviceIntentKeywordsByCategoryId[cat.id] ?? [];
-    for (const name of cat.services) {
+    for (const name of cat.services.map((s) => s.name)) {
       const score = scoreCatalogServiceSmart(name, cat.title, cat.id, keywords, qLower, tokens);
       if (score <= 0) continue;
       out.push({

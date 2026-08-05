@@ -35,10 +35,7 @@ export async function POST(req: NextRequest) {
     }
     if (countPhoneDigits(customer.phone) < 9) {
       return NextResponse.json(
-        {
-          error:
-            'Add a valid mobile number to your buyer account before requesting service. Open Buyer profile or complete sign-in to add your phone.',
-        },
+        { error: 'A valid mobile number is required to request service.', code: 'PHONE_REQUIRED' },
         { status: 400 },
       );
     }

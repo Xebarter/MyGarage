@@ -17,7 +17,7 @@ export function EmptyState({ title, message, action }: EmptyStateProps) {
     <View style={styles.wrap}>
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       {message ? <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text> : null}
-      {action}
+      {action ? <View style={styles.action}>{action}</View> : null}
     </View>
   );
 }
@@ -27,17 +27,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    paddingHorizontal: 28,
+    paddingVertical: 56,
     gap: 8,
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
   message: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
     textAlign: 'center',
+  },
+  action: {
+    marginTop: 12,
   },
 });

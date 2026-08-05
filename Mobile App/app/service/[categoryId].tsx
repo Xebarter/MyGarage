@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,7 +15,9 @@ import {
 import { getPriorityPalette } from '@/constants/ServicePriorities';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getServiceCategoryById } from '@/data/services-catalog';
+import { fetchServicePriceRanges, type ServicePriceRangeDto } from '@/lib/api';
 import { formatServiceCategoryTitle, formatServiceHint } from '@/lib/format';
+import { formatServicePriceRangeLabel } from '@/lib/format-service-price';
 
 const CARD_SHADOW = Platform.select({
   ios: {
@@ -35,6 +38,35 @@ export default function ServiceCategoryScreen() {
   const pageBackground = getServicesPageBackground(scheme);
 
   const category = categoryId ? getServiceCategoryById(categoryId) : undefined;
+  const [ranges, setRanges] = useState<ServicePriceRangeDto[]>([]);
+  const [rangesLoading, setRangesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!category?.id) {
+      setRanges([]);
+      return;
+    }
+    let cancelled = false;
+    setRangesLoading(true);
+    void fetchServicePriceRanges(category.id)
+      .then((rows) => {
+        if (!cancelled) setRanges(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setRanges([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRangesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [category?.id]);
+
+  const rangeByName = useMemo(
+    () => new Map(ranges.map((r) => [r.serviceName, r] as const)),
+    [ranges],
+  );
 
   if (!category) {
     return <EmptyState title="Service category not found" />;
@@ -94,37 +126,47 @@ export default function ServiceCategoryScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Choose a service</Text>
             <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-              Select one to continue to location
+              Prices show the range from providers listing each service
             </Text>
           </View>
 
           <View style={styles.optionGrid}>
-            {category.services.map((service) => (
-              <Pressable
-                key={service}
-                accessibilityRole="button"
-                onPress={() => openServiceLocation(service)}
-                style={({ pressed }) => [
-                  styles.optionCard,
-                  CARD_SHADOW,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    opacity: pressed ? 0.88 : 1,
-                    transform: [{ scale: pressed ? 0.985 : 1 }],
-                  },
-                ]}>
-                <View style={[styles.optionIcon, { backgroundColor: SERVICES_TINT.trustBg }]}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={accent} />
-                </View>
-                <Text style={[styles.optionLabel, { color: colors.text }]} numberOfLines={2}>
-                  {service}
-                </Text>
-                <View style={[styles.optionChevron, { backgroundColor: SERVICES_TINT.clearBg }]}>
-                  <Ionicons name="chevron-forward" size={16} color={accent} />
-                </View>
-              </Pressable>
-            ))}
+            {category.services.map((service) => {
+              const priceLabel = rangesLoading
+                ? 'Loading price…'
+                : formatServicePriceRangeLabel(rangeByName.get(service.name));
+              return (
+                <Pressable
+                  key={service.name}
+                  accessibilityRole="button"
+                  onPress={() => openServiceLocation(service.name)}
+                  style={({ pressed }) => [
+                    styles.optionCard,
+                    CARD_SHADOW,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.88 : 1,
+                      transform: [{ scale: pressed ? 0.985 : 1 }],
+                    },
+                  ]}>
+                  <View style={[styles.optionIcon, { backgroundColor: SERVICES_TINT.trustBg }]}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={accent} />
+                  </View>
+                  <View style={styles.optionCopy}>
+                    <Text style={[styles.optionLabel, { color: colors.text }]} numberOfLines={2}>
+                      {service.name}
+                    </Text>
+                    <Text style={[styles.optionPrice, { color: colors.textMuted }]} numberOfLines={1}>
+                      {priceLabel}
+                    </Text>
+                  </View>
+                  <View style={[styles.optionChevron, { backgroundColor: SERVICES_TINT.clearBg }]}>
+                    <Ionicons name="chevron-forward" size={16} color={accent} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         </ScrollView>
       </View>
@@ -220,7 +262,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    minHeight: 68,
+    minHeight: 72,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -234,12 +276,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  optionLabel: {
+  optionCopy: {
     flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  optionLabel: {
     fontSize: 15,
     lineHeight: 21,
     fontWeight: '600',
     letterSpacing: -0.15,
+  },
+  optionPrice: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
   optionChevron: {
     width: 32,

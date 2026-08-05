@@ -236,6 +236,18 @@ export type BuyerVehicle = {
   updatedAt: string;
 };
 
+export type VehicleServiceHistoryLinkedRequest = {
+  id: string;
+  category: string;
+  location: string;
+  requestStatus: 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled';
+  createdAt: string;
+  acceptedAt: string | null;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
 export type VehicleServiceHistoryEntry = {
   id: string;
   vehicleId: string;
@@ -250,6 +262,7 @@ export type VehicleServiceHistoryEntry = {
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
+  linkedRequest?: VehicleServiceHistoryLinkedRequest | null;
 };
 
 export type VehicleGarageDetail = {
@@ -269,13 +282,18 @@ export type CartItem = {
 
 export type ServicePriority = 'urgent' | 'common' | 'optional';
 
+export type CatalogService = {
+  name: string;
+  defaultPriceUgx: number;
+};
+
 export type ServiceCategory = {
   id: string;
   emoji: string;
   title: string;
   useWhen: string;
   priority: ServicePriority;
-  services: string[];
+  services: CatalogService[];
 };
 
 export type BuyerServiceRequestStatus =

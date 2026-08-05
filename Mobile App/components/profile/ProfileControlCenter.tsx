@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { DocumentFilePicker } from '@/components/profile/DocumentFilePicker';
 import { ProfileSection } from '@/components/profile/ProfileSection';
 import {
   ChipSelect,
@@ -511,7 +512,11 @@ function DocumentsTab({
             onChange={(documentType) => onChangeDocForm({ ...docForm, documentType })}
           />
           <Field label="Document name" colors={colors} value={docForm.name} onChange={(name) => onChangeDocForm({ ...docForm, name })} />
-          <Field label="File URL" colors={colors} value={docForm.fileUrl} onChange={(fileUrl) => onChangeDocForm({ ...docForm, fileUrl })} placeholder="https://..." />
+          <DocumentFilePicker
+            colors={colors}
+            value={docForm.fileUrl}
+            onChange={(fileUrl) => onChangeDocForm({ ...docForm, fileUrl })}
+          />
           <Field label="Expiry date" colors={colors} value={docForm.expiresAt} onChange={(expiresAt) => onChangeDocForm({ ...docForm, expiresAt })} placeholder="YYYY-MM-DD" />
           {vehicles.length > 0 ? (
             <>
@@ -556,17 +561,22 @@ function DocumentsTab({
           ) : (
             data.documents.map((doc) => (
               <ListCard key={doc.id} colors={colors} title={doc.name} subtitle={doc.documentType} meta={doc.expiresAt ? `Expires ${doc.expiresAt}` : undefined}>
-                <OutlineButton
-                  colors={colors}
-                  label="Remove"
-                  destructive
-                  onPress={() => {
-                    Alert.alert('Remove document?', undefined, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => void deleteBuyerVehicleDocument(doc.id, customerId).then(load) },
-                    ]);
-                  }}
-                />
+                <InlineActions>
+                  {doc.fileUrl ? (
+                    <OutlineButton colors={colors} label="View" onPress={() => void Linking.openURL(doc.fileUrl!)} />
+                  ) : null}
+                  <OutlineButton
+                    colors={colors}
+                    label="Remove"
+                    destructive
+                    onPress={() => {
+                      Alert.alert('Remove document?', undefined, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Remove', style: 'destructive', onPress: () => void deleteBuyerVehicleDocument(doc.id, customerId).then(load) },
+                      ]);
+                    }}
+                  />
+                </InlineActions>
               </ListCard>
             ))
           )}

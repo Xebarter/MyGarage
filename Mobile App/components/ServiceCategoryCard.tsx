@@ -48,7 +48,7 @@ export function ServiceCategoryCard({
             Platform.select({
               ios: {
                 shadowColor: '#0F172A',
-                shadowOpacity: scheme === 'dark' ? 0.22 : 0.08,
+                shadowOpacity: 0.06,
                 shadowOffset: { width: 0, height: 4 },
                 shadowRadius: 10,
               },
@@ -65,7 +65,7 @@ export function ServiceCategoryCard({
               style={[
                 styles.priorityPill,
                 {
-                  backgroundColor: scheme === 'dark' ? 'rgba(15,23,42,0.45)' : 'rgba(255,255,255,0.55)',
+                  backgroundColor: '#F6F7F9',
                   borderColor: accent.ring,
                 },
               ]}
@@ -114,8 +114,7 @@ export function ServiceCategoryCard({
               style={[
                 styles.footerGlass,
                 {
-                  backgroundColor:
-                    scheme === 'dark' ? 'rgba(15,23,42,0.38)' : 'rgba(255,255,255,0.48)',
+                  backgroundColor: '#F6F7F9',
                   borderColor: accent.ring,
                 },
               ]}
@@ -153,7 +152,7 @@ const styles = StyleSheet.create({
 
   card: {
     minHeight: 204,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
@@ -161,7 +160,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {},
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
@@ -176,8 +175,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '32%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
   },
 
   cardBody: {

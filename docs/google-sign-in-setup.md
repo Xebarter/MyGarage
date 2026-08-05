@@ -49,8 +49,19 @@ Project: **kystrhrzaliytdgfrfot** (from `NEXT_PUBLIC_SUPABASE_URL`)
      ```
      http://localhost:3000/**
      https://mygarage.ug/**
+     http://localhost:**
+     http://127.0.0.1:**
+     ug.mygarage.services://login-callback
      ```
+     (`https://mygarage.ug/**` already covers `/auth/mobile-callback` and `/auth/services-mobile-callback`.)
 5. **Save**.
+
+Native apps:
+
+| App | Supabase redirect (HTTPS bridge) | Deep link into app |
+|-----|----------------------------------|--------------------|
+| Buyer Expo | `https://mygarage.ug/auth/mobile-callback` | `mygarage://auth/callback` |
+| Services Flutter | `https://mygarage.ug/auth/services-mobile-callback` | `ug.mygarage.services://login-callback` |
 
 ---
 
@@ -68,9 +79,13 @@ Restart dev server or redeploy after changes.
 
 ## Step 4 — Test
 
-1. Open `/auth?role=buyer`.
-2. Click **Continue with Google**.
-3. You should leave the site briefly, sign in with Google, return to `/auth`, then redirect to `/buyer` (or phone step for new buyers).
+1. Open `/auth?role=buyer` → **Continue with Google** → land on `/buyer` (or phone step for new buyers).
+2. Open `/auth?role=services` → **Continue with Google** → provider profile is bootstrapped, then:
+   - `/services/pending` if not yet `services_verified`
+   - `/services/orders` (or your `next` URL) when verified
+3. Open `/auth?role=vendor` → same pattern for the product vendor portal.
+
+Admin sign-in uses email/password only (Google is hidden on `/auth?role=admin`).
 
 ---
 
@@ -81,6 +96,7 @@ Restart dev server or redeploy after changes.
 | `redirect_uri_mismatch` | Add Supabase callback URL exactly in Google **Authorized redirect URIs**. |
 | `invalid_client` | Client ID and secret in Supabase must match the **same** Google OAuth Web client. |
 | `access_denied` | Add your Gmail under OAuth consent **Test users** (Testing mode). |
+| Returns to website home after Google (Services app) | Add `https://mygarage.ug/auth/services-mobile-callback` (or `/**`) to Redirect URLs; rebuild the APK so Android has the `ug.mygarage.services` deep link. |
 | Returns to `/auth` but not signed in | Check Supabase **Redirect URLs** include your site with `/**`. |
 | Works on localhost, not production | Set `NEXT_PUBLIC_APP_URL` and Supabase redirect URLs for `https://mygarage.ug`. |
 

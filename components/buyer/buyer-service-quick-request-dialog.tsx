@@ -120,11 +120,13 @@ function ServiceOptionCard({
   index,
   isSelected,
   onSelect,
+  priceLabel,
 }: {
   service: string;
   index: number;
   isSelected: boolean;
   onSelect: () => void;
+  priceLabel?: string;
 }) {
   const accent = serviceRowAccents[index % serviceRowAccents.length];
 
@@ -157,8 +159,13 @@ function ServiceOptionCard({
         >
           {isSelected ? <CheckCircle2 className="h-5 w-5" /> : <Wrench className="h-4 w-4 opacity-90" />}
         </span>
-        <span className="relative min-w-0 flex-1 text-[15px] font-semibold leading-snug text-foreground sm:text-sm">
-          {service}
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold leading-snug text-foreground sm:text-sm">
+            {service}
+          </span>
+          {priceLabel ? (
+            <span className="mt-0.5 block text-xs font-medium text-muted-foreground">{priceLabel}</span>
+          ) : null}
         </span>
         <span
           className={cn(
@@ -186,6 +193,7 @@ export type BuyerServiceQuickRequestDialogProps = {
   categoryHint?: string;
   selectedService: string;
   services: string[];
+  servicePriceLabels?: Record<string, string>;
   serviceSectionRef: RefObject<HTMLDivElement | null>;
   onSelectService: (service: string) => void;
   onBackToService: () => void;
@@ -216,6 +224,7 @@ export function BuyerServiceQuickRequestDialog({
   categoryHint,
   selectedService,
   services,
+  servicePriceLabels,
   serviceSectionRef,
   onSelectService,
   onBackToService,
@@ -288,6 +297,7 @@ export function BuyerServiceQuickRequestDialog({
                         index={index}
                         isSelected={selectedService === service}
                         onSelect={() => onSelectService(service)}
+                        priceLabel={servicePriceLabels?.[service]}
                       />
                     ))}
                   </ul>

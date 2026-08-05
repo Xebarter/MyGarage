@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Platform, StyleSheet } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { NUNITO } from '@/constants/Fonts';
@@ -20,6 +21,12 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          elevation: 0,
+          shadowColor: '#0F172A',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: Platform.OS === 'ios' ? 0.04 : 0,
+          shadowRadius: 12,
         },
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,

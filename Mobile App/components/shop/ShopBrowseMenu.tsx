@@ -18,21 +18,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fetchAddItemsCategories, type AddItemsCategoryNode } from '@/lib/api';
 import { useAddItemsCategories } from '@/hooks/useAddItemsCategories';
+import { SHOP_PREMIUM } from '@/constants/ShopPremiumTheme';
 
 const DRAWER_WIDTH = Math.min(Dimensions.get('window').width * 0.88, 360);
 
-const PREMIUM = {
-  bg: '#0B1220',
-  bgElevated: '#121C2E',
-  bgGlass: 'rgba(255,255,255,0.06)',
-  borderGlass: 'rgba(255,255,255,0.12)',
-  borderGlow: 'rgba(59,130,246,0.45)',
-  text: '#F8FAFC',
-  textMuted: '#94A3B8',
-  accent: '#3B82F6',
-  accentSoft: '#60A5FA',
-  gold: '#FBBF24',
-};
+const PREMIUM = SHOP_PREMIUM;
 
 type ShopRow = {
   title: string;
@@ -509,11 +499,11 @@ const styles = StyleSheet.create({
   drawerShell: {
     width: DRAWER_WIDTH,
     zIndex: 2,
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 6, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 24,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
   },
   drawer: {
     flex: 1,

@@ -15,25 +15,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingView } from '@/components/LoadingView';
 import Colors from '@/constants/Colors';
+import { SHOP_PREMIUM } from '@/constants/ShopPremiumTheme';
 import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { fetchProduct } from '@/lib/api';
 import { formatCurrency, formatProductPrice } from '@/lib/format';
 import type { Product, ProductVariant } from '@/types';
 
-const PREMIUM = {
-  bg: '#0B1220',
-  bgElevated: '#121C2E',
-  bgGlass: 'rgba(255,255,255,0.06)',
-  borderGlass: 'rgba(255,255,255,0.12)',
-  borderGlow: 'rgba(59,130,246,0.45)',
-  text: '#F8FAFC',
-  textMuted: '#94A3B8',
-  accent: '#3B82F6',
-  accentSoft: '#60A5FA',
-  accentDeep: '#2563EB',
-  gold: '#FBBF24',
-};
+const PREMIUM = SHOP_PREMIUM;
 
 const TRUST_PILLS = [
   { icon: 'shield-checkmark-outline' as const, label: 'Genuine parts' },
@@ -55,7 +44,7 @@ export default function ProductDetailScreen() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [added, setAdded] = useState(false);
 
-  const pageBg = scheme === 'dark' ? colors.background : '#F4F7FB';
+  const pageBg = colors.background;
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -141,7 +130,7 @@ export default function ProductDetailScreen() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack.Screen
         options={{
           title: '',

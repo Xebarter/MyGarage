@@ -1,0 +1,10 @@
+# This file prevents Flutter tooling from accidentally committing generated files.
+*.iml
+.cxx/
+.gradle/
+local.properties
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.kt
+key.properties
+**/*.keystore
+**/*.jks

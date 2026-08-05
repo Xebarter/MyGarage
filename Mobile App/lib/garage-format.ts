@@ -18,6 +18,31 @@ export function formatGarageDate(iso: string | null | undefined): string {
   return date.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+export function formatGarageDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-UG', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function formatGarageRelativeDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const diffMs = date.getTime() - Date.now();
+  const absDays = Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+  if (absDays === 0) return 'Today';
+  if (absDays === 1) return diffMs < 0 ? 'Yesterday' : 'Tomorrow';
+  if (absDays < 30) return diffMs < 0 ? `${absDays} days ago` : `In ${absDays} days`;
+  return formatGarageDate(iso);
+}
+
 export function isServiceDueSoon(iso: string | null | undefined): boolean {
   if (!iso) return false;
   const date = new Date(iso);

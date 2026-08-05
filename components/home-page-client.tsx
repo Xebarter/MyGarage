@@ -284,7 +284,7 @@ export function HomePageClient({
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background">
+      <main className="min-h-screen bg-muted/30">
         <MarketplaceActionStrip
           chipCategories={chipCategories}
           categoryCatalog={categoryCatalog}
@@ -293,22 +293,22 @@ export function HomePageClient({
           showCategoryBrowser={showCategoryBrowser}
         />
 
-        <div className="mx-auto w-full max-w-[1500px] space-y-8 px-2 py-6 sm:px-2.5 md:space-y-10 md:px-3 md:py-8">
+        <div className="mx-auto w-full max-w-[1500px] space-y-10 px-3 py-6 sm:px-4 md:space-y-12 md:px-5 md:py-8">
           {selectedCategory !== 'all' || searchQuery.trim() ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Showing results for</span>
               {searchQuery.trim() ? (
-                <span className="rounded-full bg-muted px-2.5 py-1 font-medium text-foreground">
+                <span className="rounded-md bg-background px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border">
                   &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
               ) : null}
               {selectedCategory !== 'all' ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   {formatCategoryLabel(selectedCategory)}
                   <button
                     type="button"
                     onClick={() => handleSelectCategory('all')}
-                    className="rounded-full p-0.5 hover:bg-primary/20"
+                    className="rounded p-0.5 hover:bg-primary/20"
                     aria-label="Clear category filter"
                   >
                     <X className="h-3 w-3" />
@@ -319,12 +319,12 @@ export function HomePageClient({
           ) : null}
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
               <p className="mt-4 text-sm font-medium text-foreground">Loading marketplace…</p>
             </div>
           ) : isDefaultHomeFeed ? (
-            <div className="space-y-8 md:space-y-10">
+            <div className="space-y-10 md:space-y-12">
               <FeaturedPicksSection products={heroFeatured} />
               <PromoBannerSection
                 banners={initialPromoBanners}
@@ -340,8 +340,8 @@ export function HomePageClient({
               />
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-16 text-center">
-              <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/60" aria-hidden />
+            <div className="px-4 py-20 text-center">
+              <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/50" aria-hidden />
               <p className="mt-4 text-lg font-semibold text-foreground">No matching products found</p>
               <p className="mt-2 text-sm text-muted-foreground">Try a different category or adjust your search.</p>
               <button
@@ -350,37 +350,39 @@ export function HomePageClient({
                   setSelectedCategory('all');
                   router.replace('/');
                 }}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
               >
                 Browse all products
               </button>
             </div>
           ) : (
-            <div className="space-y-8">
-              <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
-                <div className="border-b border-border/60 px-5 py-4 sm:px-6">
-                  <h2 className="text-xl font-bold tracking-tight text-foreground">
-                    {selectedCategory !== 'all' ? formatCategoryLabel(selectedCategory) : 'Search results'}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
-                  </p>
+            <div className="space-y-10">
+              <section>
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                      {selectedCategory !== 'all' ? formatCategoryLabel(selectedCategory) : 'Search results'}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 sm:gap-4 sm:p-6 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
                   {visibleProducts.map((product, index) => (
                     <CategoryProductCard key={product.id} product={product} imagePriority={index < 4} />
                   ))}
                 </div>
                 <div ref={sentinelRef} className="h-1 w-full" />
                 {infiniteLoading ? (
-                  <p className="pb-4 text-center text-xs text-muted-foreground">Loading more products…</p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">Loading more products…</p>
                 ) : null}
               </section>
 
-              <section className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-r from-primary/[0.06] to-transparent p-5 sm:p-6">
+              <section className="border-y border-border bg-background px-4 py-5 sm:px-6 sm:py-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                       <Wrench className="h-5 w-5" aria-hidden />
                     </span>
                     <div>
@@ -392,7 +394,7 @@ export function HomePageClient({
                   </div>
                   <Link
                     href="/buyer/services"
-                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
                   >
                     Browse services
                     <ArrowRight className="h-4 w-4" aria-hidden />

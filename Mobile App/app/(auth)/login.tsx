@@ -52,6 +52,7 @@ export default function LoginScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -135,7 +136,6 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.heroCopy}>
-              <Text style={[styles.heroEyebrow, { color: colors.primary }]}>WELCOME</Text>
               <Text style={[styles.pageTitle, { color: colors.text }]}>
                 {mode === 'signin' ? 'Sign in' : 'Create account'}
               </Text>
@@ -228,8 +228,13 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Password"
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoComplete={mode === 'signin' ? 'password' : 'new-password'}
+                rightAction={{
+                  icon: showPassword ? 'eye-off-outline' : 'eye-outline',
+                  accessibilityLabel: showPassword ? 'Hide password' : 'View password',
+                  onPress: () => setShowPassword((v) => !v),
+                }}
               />
 
               {error && (
@@ -283,6 +288,7 @@ function InputRow({
   keyboardType,
   autoCapitalize,
   autoComplete,
+  rightAction,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   colors: (typeof Colors)['light'];
@@ -293,6 +299,11 @@ function InputRow({
   keyboardType?: 'email-address' | 'default';
   autoCapitalize?: 'none' | 'words';
   autoComplete?: string;
+  rightAction?: {
+    icon: keyof typeof Ionicons.glyphMap;
+    accessibilityLabel: string;
+    onPress: () => void;
+  };
 }) {
   return (
     <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -308,6 +319,17 @@ function InputRow({
         autoComplete={autoComplete as any}
         style={[styles.input, { color: colors.text }]}
       />
+      {rightAction ? (
+        <Pressable
+          onPress={rightAction.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={rightAction.accessibilityLabel}
+          hitSlop={8}
+          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, padding: 4 })}
+        >
+          <Ionicons name={rightAction.icon} size={20} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -369,38 +391,38 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.4,
   },
   brandTagline: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   heroCopy: {
     alignItems: 'center',
     gap: 8,
   },
   heroEyebrow: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1.5,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   pageTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -1,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
   },
   pageHint: {
-    fontSize: 15.5,
-    lineHeight: 23,
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
     maxWidth: 300,
   },
   authCard: {
     borderWidth: 1,
-    borderRadius: 28,
+    borderRadius: 22,
     padding: 20,
     gap: 18,
     maxWidth: 420,
@@ -410,7 +432,7 @@ const styles = StyleSheet.create({
   segment: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 4,
     gap: 4,
   },
@@ -419,11 +441,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   segmentText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   googleBtn: {
     flexDirection: 'row',
@@ -432,7 +454,7 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: 52,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 14,
   },
   googleBtnContent: {
     flexDirection: 'row',
@@ -441,7 +463,7 @@ const styles = StyleSheet.create({
   },
   googleBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   dividerRow: {
     flexDirection: 'row',

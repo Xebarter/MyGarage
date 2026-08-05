@@ -15,11 +15,11 @@ function CategoryFeedRow({ section }: { section: CategoryFeedSection }) {
   const products = section.products.slice(0, 5);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-5 py-4 sm:px-6">
+    <section>
+      <div className="mb-4 flex items-center justify-between gap-3">
         <Link
           href={`/category/products/${encodeURIComponent(section.category)}`}
-          className="min-w-0 text-lg font-bold tracking-tight text-foreground transition hover:text-primary"
+          className="min-w-0 text-xl font-bold tracking-tight text-foreground transition hover:text-primary sm:text-2xl"
         >
           {formatCategoryLabel(section.category)}
         </Link>
@@ -27,12 +27,12 @@ function CategoryFeedRow({ section }: { section: CategoryFeedSection }) {
           href={`/category/products/${encodeURIComponent(section.category)}`}
           className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
         >
-          All
+          See all
           <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 p-4 sm:gap-4 sm:p-6 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5 lg:gap-5">
         {products.map((product, index) => (
           <CategoryProductCard
             key={product.id}
@@ -114,7 +114,7 @@ export function CategoryInfiniteFeed({
 
   if (sections.length === 0) {
     return (
-      <section className="rounded-2xl border border-dashed border-border/70 bg-muted/15 px-5 py-12 text-center">
+      <section className="px-4 py-12 text-center">
         <p className="text-sm font-semibold text-foreground">No category sections yet</p>
         <p className="mt-2 text-sm text-muted-foreground">Products will appear here as vendors list inventory.</p>
       </section>
@@ -122,7 +122,7 @@ export function CategoryInfiniteFeed({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10 md:space-y-12">
       {sections.map((section) => (
         <CategoryFeedRow key={section.category} section={section} />
       ))}
@@ -137,7 +137,7 @@ export function CategoryInfiniteFeed({
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive">
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive">
           {error}
         </div>
       ) : null}

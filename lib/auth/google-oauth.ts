@@ -15,8 +15,10 @@ export async function redirectToGoogleSignIn(callbackPath: string): Promise<void
     provider: "google",
     options: {
       redirectTo,
+      scopes: "openid email profile",
       queryParams: {
         prompt: "select_account",
+        access_type: "online",
       },
     },
   });

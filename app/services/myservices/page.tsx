@@ -16,9 +16,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  getServiceDefaultPrice,
   userServiceCategories,
   type UserServiceCategory,
 } from '@/lib/services-catalog';
+import { formatUgxAmount } from '@/lib/format-service-price';
 import {
   Plus,
   Search,
@@ -33,6 +35,7 @@ import {
   ChevronLeft,
   Check,
   ArrowLeft,
+  RotateCcw,
 } from 'lucide-react';
 
 type ServiceStatus = 'active' | 'paused';
@@ -41,6 +44,7 @@ type ManagedService = {
   id: string;
   name: string;
   group: string;
+  categoryId: string;
   priceFrom: number;
   etaMinutes: number;
   description: string;
@@ -61,11 +65,26 @@ type AdApplication = {
   createdAt: string;
 };
 
+type ApiListing = {
+  id: string;
+  vendorId: string;
+  categoryId: string;
+  serviceName: string;
+  priceUgx: number;
+  status: ServiceStatus;
+  etaMinutes: number | null;
+  description: string;
+  mobileAvailable: boolean;
+  emergency: boolean;
+};
+
 const STORAGE_KEY = 'providerManagedServices';
+const MIGRATED_KEY = 'providerManagedServicesMigrated';
 
 const initialForm: Omit<ManagedService, 'id'> = {
   name: '',
   group: '',
+  categoryId: '',
   priceFrom: 50000,
   etaMinutes: 60,
   description: '',
@@ -75,10 +94,41 @@ const initialForm: Omit<ManagedService, 'id'> = {
   status: 'active',
 };
 
+function listingToManaged(row: ApiListing): ManagedService {
+  const cat = userServiceCategories.find((c) => c.id === row.categoryId);
+  return {
+    id: row.id,
+    name: row.serviceName,
+    group: cat?.title || row.categoryId,
+    categoryId: row.categoryId,
+    priceFrom: Number(row.priceUgx) || 0,
+    etaMinutes: row.etaMinutes ?? 60,
+    description: row.description || '',
+    imageUrl: '',
+    mobileAvailable: Boolean(row.mobileAvailable),
+    emergency: Boolean(row.emergency),
+    status: row.status === 'paused' ? 'paused' : 'active',
+  };
+}
+
+function managedToUpsert(service: ManagedService) {
+  return {
+    id: service.id.startsWith('svc-') ? undefined : service.id,
+    categoryId: service.categoryId,
+    serviceName: service.name,
+    priceUgx: service.priceFrom,
+    status: service.status,
+    etaMinutes: service.etaMinutes,
+    description: service.description,
+    mobileAvailable: service.mobileAvailable,
+    emergency: service.emergency,
+  };
+}
+
 /** True when the catalog still has at least one service name not yet listed under this category. */
 function categoryHasUnpickedCatalogServices(cat: UserServiceCategory, managed: ManagedService[]): boolean {
   const picked = new Set(managed.filter((s) => s.group === cat.title).map((s) => s.name));
-  return cat.services.some((name) => !picked.has(name));
+  return cat.services.some((svc) => !picked.has(svc.name));
 }
 
 const ADD_SERVICE_DISABLED_TITLE =
@@ -89,6 +139,7 @@ export default function ServiceProviderMyServicesPage() {
   const [services, setServices] = useState<ManagedService[]>([]);
   const [applications, setApplications] = useState<AdApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Navigation: null = category grid, set = category detail
   const [activeCategory, setActiveCategory] = useState<UserServiceCategory | null>(null);
@@ -101,6 +152,7 @@ export default function ServiceProviderMyServicesPage() {
   const [dialogStep, setDialogStep] = useState<'pick' | 'details'>('pick');
   const [pickedCategory, setPickedCategory] = useState<UserServiceCategory | null>(null);
   const [pickedServiceNames, setPickedServiceNames] = useState<string[]>([]);
+  const [pickedPrices, setPickedPrices] = useState<Record<string, number>>({});
   const [categoryLocked, setCategoryLocked] = useState(false);
 
   const [adApplying, setAdApplying] = useState<string | null>(null);
@@ -109,26 +161,71 @@ export default function ServiceProviderMyServicesPage() {
   useEffect(() => {
     const currentVendorId = localStorage.getItem('currentVendorId') || '';
     setVendorId(currentVendorId);
-    bootstrap(currentVendorId);
+    void bootstrap(currentVendorId);
   }, []);
 
   const bootstrap = async (currentVendorId: string) => {
     setLoading(true);
     try {
-      const fromStorage = localStorage.getItem(STORAGE_KEY);
-      if (fromStorage) {
-        const parsed = JSON.parse(fromStorage) as ManagedService[];
-        setServices(parsed.map((row) => ({ ...row, imageUrl: row.imageUrl ?? '' })));
-      } else {
-        setServices([]);
-      }
+      let loaded: ManagedService[] = [];
       if (currentVendorId) {
+        const res = await fetch(`/api/vendor/service-listings?vendorId=${encodeURIComponent(currentVendorId)}`);
+        if (res.ok) {
+          const data = (await res.json()) as ApiListing[];
+          loaded = Array.isArray(data) ? data.map(listingToManaged) : [];
+        }
+
+        // One-time migrate localStorage listings into DB when the vendor has none yet.
+        const migrated = localStorage.getItem(MIGRATED_KEY) === currentVendorId;
+        if (loaded.length === 0 && !migrated) {
+          const fromStorage = localStorage.getItem(STORAGE_KEY);
+          if (fromStorage) {
+            try {
+              const parsed = JSON.parse(fromStorage) as Array<Partial<ManagedService>>;
+              const toUpsert = (Array.isArray(parsed) ? parsed : [])
+                .map((row) => {
+                  const cat =
+                    userServiceCategories.find((c) => c.title === row.group) ||
+                    userServiceCategories.find((c) => c.services.some((s) => s.name === row.name));
+                  if (!cat || !row.name) return null;
+                  return {
+                    categoryId: cat.id,
+                    serviceName: String(row.name),
+                    priceUgx: Number(row.priceFrom) || getServiceDefaultPrice(String(row.name), cat.id),
+                    status: (row.status === 'paused' ? 'paused' : 'active') as ServiceStatus,
+                    etaMinutes: Number(row.etaMinutes) || 60,
+                    description: String(row.description || ''),
+                    mobileAvailable: Boolean(row.mobileAvailable),
+                    emergency: Boolean(row.emergency),
+                  };
+                })
+                .filter(Boolean);
+
+              if (toUpsert.length > 0) {
+                const migrateRes = await fetch('/api/vendor/service-listings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ vendorId: currentVendorId, listings: toUpsert }),
+                });
+                if (migrateRes.ok) {
+                  const saved = (await migrateRes.json()) as ApiListing[];
+                  loaded = Array.isArray(saved) ? saved.map(listingToManaged) : [];
+                }
+              }
+            } catch (migrateErr) {
+              console.error('Failed to migrate local service listings:', migrateErr);
+            }
+          }
+          localStorage.setItem(MIGRATED_KEY, currentVendorId);
+        }
+
         const appsRes = await fetch(`/api/ad-applications?vendorId=${currentVendorId}`);
         if (appsRes.ok) {
           const appsData = await appsRes.json();
           setApplications(Array.isArray(appsData) ? (appsData as AdApplication[]) : []);
         }
       }
+      setServices(loaded);
     } catch (error) {
       console.error('Failed to bootstrap services workspace:', error);
       setServices([]);
@@ -138,9 +235,36 @@ export default function ServiceProviderMyServicesPage() {
     }
   };
 
-  const persistServices = (next: ManagedService[]) => {
-    setServices(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const saveListingsToApi = async (next: ManagedService[]): Promise<ManagedService[] | null> => {
+    if (!vendorId) {
+      window.alert('Please login as provider first.');
+      return null;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/vendor/service-listings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendorId,
+          listings: next.map(managedToUpsert),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err?.error === 'string' ? err.error : 'Failed to save');
+      }
+      const saved = (await res.json()) as ApiListing[];
+      const managed = Array.isArray(saved) ? saved.map(listingToManaged) : next;
+      setServices(managed);
+      return managed;
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : 'Failed to save services.');
+      return null;
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Group services by category title
@@ -192,6 +316,7 @@ export default function ServiceProviderMyServicesPage() {
     setEditingService(null);
     setFormData(initialForm);
     setPickedServiceNames([]);
+    setPickedPrices({});
     setDialogStep('pick');
     if (cat) {
       setPickedCategory(cat);
@@ -208,6 +333,7 @@ export default function ServiceProviderMyServicesPage() {
     setFormData({
       name: service.name,
       group: service.group,
+      categoryId: service.categoryId,
       priceFrom: service.priceFrom,
       etaMinutes: service.etaMinutes,
       description: service.description,
@@ -216,62 +342,138 @@ export default function ServiceProviderMyServicesPage() {
       emergency: service.emergency,
       status: service.status,
     });
+    setPickedPrices({ [service.name]: service.priceFrom });
     setCategoryLocked(false);
     setDialogStep('details');
     setFormOpen(true);
   };
 
   const togglePickedService = (name: string) => {
-    setPickedServiceNames((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
+    setPickedServiceNames((prev) => {
+      const removing = prev.includes(name);
+      const next = removing ? prev.filter((n) => n !== name) : [...prev, name];
+      setPickedPrices((prices) => {
+        if (removing) {
+          const copy = { ...prices };
+          delete copy[name];
+          return copy;
+        }
+        return {
+          ...prices,
+          [name]: prices[name] ?? getServiceDefaultPrice(name, pickedCategory?.id),
+        };
+      });
+      return next;
+    });
   };
 
   const proceedToDetails = () => {
     if (!pickedCategory || pickedServiceNames.length === 0) return;
-    setFormData((prev) => ({ ...prev, group: pickedCategory.title, name: pickedServiceNames[0] }));
+    const prices: Record<string, number> = { ...pickedPrices };
+    for (const name of pickedServiceNames) {
+      if (prices[name] == null) {
+        prices[name] = getServiceDefaultPrice(name, pickedCategory.id);
+      }
+    }
+    setPickedPrices(prices);
+    setFormData((prev) => ({
+      ...prev,
+      group: pickedCategory.title,
+      categoryId: pickedCategory.id,
+      name: pickedServiceNames[0],
+      priceFrom: prices[pickedServiceNames[0]] ?? getServiceDefaultPrice(pickedServiceNames[0], pickedCategory.id),
+    }));
     setDialogStep('details');
   };
 
-  const saveForm = () => {
+  const saveForm = async () => {
     if (editingService) {
       if (!formData.name.trim()) {
         window.alert('Service name is required.');
         return;
       }
-      const next = services.map((s) =>
-        s.id === editingService.id ? { ...editingService, ...formData, name: formData.name.trim() } : s,
-      );
-      persistServices(next);
-    } else {
-      if (pickedServiceNames.length === 0 || !pickedCategory) {
-        window.alert('Please select at least one service.');
+      const price = Number(formData.priceFrom);
+      if (!Number.isFinite(price) || price < 0) {
+        window.alert('Enter a valid price (UGX).');
         return;
       }
-      const newServices: ManagedService[] = pickedServiceNames.map((name, index) => ({
+      const updated: ManagedService = {
+        ...editingService,
+        ...formData,
+        name: formData.name.trim(),
+        priceFrom: price,
+      };
+      const next = services.map((s) => (s.id === editingService.id ? updated : s));
+      const saved = await saveListingsToApi(next);
+      if (saved) setFormOpen(false);
+      return;
+    }
+
+    if (pickedServiceNames.length === 0 || !pickedCategory) {
+      window.alert('Please select at least one service.');
+      return;
+    }
+
+    const newServices: ManagedService[] = pickedServiceNames.map((name, index) => {
+      const price = Number(pickedPrices[name] ?? getServiceDefaultPrice(name, pickedCategory.id));
+      return {
         id: `svc-${Date.now()}-${index}`,
         ...formData,
         name,
         group: pickedCategory.title,
-      }));
-      persistServices([...newServices, ...services]);
-    }
-    setFormOpen(false);
+        categoryId: pickedCategory.id,
+        priceFrom: Number.isFinite(price) && price >= 0 ? price : getServiceDefaultPrice(name, pickedCategory.id),
+      };
+    });
+
+    // Merge: replace same-name listings in category, keep others
+    const keys = new Set(newServices.map((s) => `${s.categoryId}\0${s.name.toLowerCase()}`));
+    const kept = services.filter((s) => !keys.has(`${s.categoryId}\0${s.name.toLowerCase()}`));
+    const saved = await saveListingsToApi([...kept, ...newServices]);
+    if (saved) setFormOpen(false);
   };
 
-  const deleteService = (serviceId: string) => {
+  const deleteService = async (serviceId: string) => {
     if (!window.confirm('Delete this service from your listing?')) return;
-    persistServices(services.filter((s) => s.id !== serviceId));
+    if (!vendorId) {
+      window.alert('Please login as provider first.');
+      return;
+    }
+    const target = services.find((s) => s.id === serviceId);
+    if (!target) return;
+
+    if (!serviceId.startsWith('svc-')) {
+      setSaving(true);
+      try {
+        const res = await fetch(
+          `/api/vendor/service-listings/${encodeURIComponent(serviceId)}?vendorId=${encodeURIComponent(vendorId)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) throw new Error('Failed to delete');
+        setServices((prev) => prev.filter((s) => s.id !== serviceId));
+      } catch (error) {
+        console.error(error);
+        window.alert('Failed to delete service.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    setServices((prev) => prev.filter((s) => s.id !== serviceId));
   };
 
-  const toggleStatus = (serviceId: string) => {
+  const toggleStatus = async (serviceId: string) => {
     const next = services.map((s) =>
       s.id === serviceId
         ? { ...s, status: (s.status === 'active' ? 'paused' : 'active') as ServiceStatus }
         : s,
     );
-    persistServices(next);
+    await saveListingsToApi(next);
   };
+
+  const editCatalogDefault = editingService
+    ? getServiceDefaultPrice(editingService.name, editingService.categoryId)
+    : null;
 
   const applyAd = async (scope: 'single' | 'all', service?: ManagedService) => {
     if (!vendorId) {
@@ -456,7 +658,7 @@ export default function ServiceProviderMyServicesPage() {
                           <div className="grid grid-cols-2 gap-4 text-left md:min-w-48 md:text-right">
                             <div>
                               <p className="text-sm text-muted-foreground">Price from</p>
-                              <p className="font-semibold">UGX {service.priceFrom.toFixed(0)}</p>
+                              <p className="font-semibold">{formatUgxAmount(service.priceFrom)}</p>
                             </div>
                             <div>
                               <p className="text-sm text-muted-foreground">ETA</p>
@@ -834,7 +1036,8 @@ export default function ServiceProviderMyServicesPage() {
                       You can select multiple. Each becomes a separate listing you can price individually.
                     </p>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {pickedCategory.services.map((name) => {
+                      {pickedCategory.services.map((svc) => {
+                        const name = svc.name;
                         const isChosen = pickedServiceNames.includes(name);
                         return (
                           <button
@@ -855,7 +1058,12 @@ export default function ServiceProviderMyServicesPage() {
                             )}>
                               {isChosen && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
                             </span>
-                            <span className="leading-snug">{name}</span>
+                            <span className="min-w-0 flex-1 leading-snug">
+                              <span className="block">{name}</span>
+                              <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                                Default UGX {svc.defaultPriceUgx.toLocaleString('en-UG')}
+                              </span>
+                            </span>
                           </button>
                         );
                       })}
@@ -903,7 +1111,7 @@ export default function ServiceProviderMyServicesPage() {
                 <DialogDescription className="mt-0.5">
                   {editingService
                     ? 'Update pricing, timing, and availability for this service.'
-                    : 'These defaults apply to all selected services — you can fine-tune each one later.'}
+                    : 'Set a price for each service — defaults are pre-filled from the catalog. Leave, raise, or lower as you prefer.'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -936,26 +1144,97 @@ export default function ServiceProviderMyServicesPage() {
 
                 <section className="space-y-3">
                   <h3 className="text-sm font-semibold text-foreground">Pricing &amp; timing</h3>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                  {!editingService && pickedCategory ? (
+                    <div className="space-y-3">
+                      {pickedServiceNames.map((name) => {
+                        const catalogDefault = getServiceDefaultPrice(name, pickedCategory.id);
+                        const value = pickedPrices[name] ?? catalogDefault;
+                        return (
+                          <div
+                            key={name}
+                            className="rounded-lg border border-border/70 bg-card px-3 py-3"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">{name}</p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  Catalog default: {formatUgxAmount(catalogDefault)}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1 text-xs"
+                                onClick={() =>
+                                  setPickedPrices((prev) => ({ ...prev, [name]: catalogDefault }))
+                                }
+                              >
+                                <RotateCcw className="h-3 w-3" aria-hidden />
+                                Reset
+                              </Button>
+                            </div>
+                            <div className="mt-2 space-y-1.5">
+                              <Label htmlFor={`price-${name}`}>Your price (UGX)</Label>
+                              <Input
+                                id={`price-${name}`}
+                                type="number"
+                                min={0}
+                                value={value}
+                                onChange={(e) =>
+                                  setPickedPrices((prev) => ({
+                                    ...prev,
+                                    [name]: Number(e.target.value),
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
                     <div className="space-y-2">
-                      <Label htmlFor="svc-price">Starting price (UGX)</Label>
+                      <Label htmlFor="svc-price">Your price (UGX)</Label>
                       <Input
                         id="svc-price"
                         type="number"
                         min={0}
                         value={formData.priceFrom}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, priceFrom: Number(e.target.value) }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, priceFrom: Number(e.target.value) }))
+                        }
                       />
-                      <p className="text-xs text-muted-foreground">Typical minimum or dispatch fee.</p>
+                      {editCatalogDefault != null ? (
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>Catalog default: {formatUgxAmount(editCatalogDefault)}</span>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                            onClick={() =>
+                              setFormData((prev) => ({ ...prev, priceFrom: editCatalogDefault }))
+                            }
+                          >
+                            <RotateCcw className="h-3 w-3" aria-hidden />
+                            Reset to default
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="space-y-2">
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 sm:col-span-2 sm:max-w-xs">
                       <Label htmlFor="svc-eta">Typical ETA (minutes)</Label>
                       <Input
                         id="svc-eta"
                         type="number"
                         min={5}
                         value={formData.etaMinutes}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, etaMinutes: Number(e.target.value) }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, etaMinutes: Number(e.target.value) }))
+                        }
                       />
                     </div>
                   </div>
@@ -1022,13 +1301,15 @@ export default function ServiceProviderMyServicesPage() {
                 ) : (
                   <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
                 )}
-                <Button type="button" onClick={saveForm} className="gap-2">
+                <Button type="button" onClick={() => void saveForm()} disabled={saving} className="gap-2">
                   {editingService ? (
-                    'Save changes'
+                    saving ? 'Saving…' : 'Save changes'
                   ) : (
                     <>
                       <Plus className="h-4 w-4" />
-                      Add {pickedServiceNames.length} service{pickedServiceNames.length > 1 ? 's' : ''}
+                      {saving
+                        ? 'Saving…'
+                        : `Add ${pickedServiceNames.length} service${pickedServiceNames.length > 1 ? 's' : ''}`}
                     </>
                   )}
                 </Button>

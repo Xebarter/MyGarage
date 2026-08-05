@@ -135,7 +135,7 @@ export function ShopProductTile({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     overflow: 'hidden',
     marginBottom: 12,

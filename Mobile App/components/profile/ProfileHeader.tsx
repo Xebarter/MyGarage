@@ -129,7 +129,7 @@ export function ProfileHeaderSignedIn({
           accessibilityLabel="Open settings">
           <Ionicons name="settings-outline" size={20} color={palette.textMuted} />
           {unreadAlerts > 0 ? (
-            <View style={[styles.menuDot, { borderColor: palette.shellTop }]} />
+            <View style={[styles.menuDot, { borderColor: '#FFFFFF' }]} />
           ) : null}
         </Pressable>
       </View>
@@ -209,8 +209,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 18,
     gap: 14,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E6EE',
     overflow: 'hidden',
   },
   glowPrimary: {
@@ -254,18 +256,18 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.35,
   },
   brandTagline: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     marginTop: 1,
   },
   menuBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -277,12 +279,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#DC2626',
     borderWidth: 1.5,
   },
   identityCard: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
   },
   identityRow: {
@@ -301,7 +303,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   identityCopy: {
     flex: 1,
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.3,
   },
   metaRow: {
@@ -326,7 +328,7 @@ const styles = StyleSheet.create({
   },
   addPhone: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     flex: 1,
   },
   statsRow: {
@@ -340,7 +342,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 4,
     paddingVertical: 10,
     minWidth: 0,
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.2,
     textAlign: 'center',
   },
@@ -359,12 +361,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     textAlign: 'center',
   },
   guestCard: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     gap: 10,
   },

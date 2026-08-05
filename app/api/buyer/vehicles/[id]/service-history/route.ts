@@ -1,4 +1,4 @@
-import { getBuyerVehicle, getVehicleServiceHistory } from '@/lib/db';
+import { getBuyerServiceRequestById, getBuyerVehicle, getVehicleServiceHistory } from '@/lib/db';
 import {
   SERVICE_HISTORY_STATUSES,
   SERVICE_HISTORY_TYPES,
@@ -6,6 +6,50 @@ import {
   type ServiceHistoryType,
 } from '@/lib/garage';
 import { NextRequest, NextResponse } from 'next/server';
+
+function serializeHistoryEntry(
+  entry: Awaited<ReturnType<typeof getVehicleServiceHistory>>[number],
+  linkedRequest: Awaited<ReturnType<typeof getBuyerServiceRequestById>> | null,
+) {
+  return {
+    id: entry.id,
+    vehicleId: entry.vehicleId,
+    customerId: entry.customerId,
+    serviceRequestId: entry.serviceRequestId,
+    serviceType: entry.serviceType,
+    serviceName: entry.serviceName,
+    serviceDate: entry.serviceDate.toISOString(),
+    providerId: entry.providerId,
+    providerName: entry.providerName,
+    notes: entry.notes,
+    status: entry.status,
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
+    linkedRequest: linkedRequest
+      ? {
+          id: linkedRequest.id,
+          category: linkedRequest.category,
+          location: linkedRequest.location,
+          requestStatus: linkedRequest.status,
+          createdAt: linkedRequest.createdAt.toISOString(),
+          acceptedAt: linkedRequest.acceptedAt?.toISOString() ?? null,
+          arrivedAt: linkedRequest.arrivedAt?.toISOString() ?? null,
+          startedAt: linkedRequest.startedAt?.toISOString() ?? null,
+          completedAt: linkedRequest.completedAt?.toISOString() ?? null,
+        }
+      : null,
+  };
+}
+
+function serializeVehicle(vehicle: NonNullable<Awaited<ReturnType<typeof getBuyerVehicle>>>) {
+  return {
+    ...vehicle,
+    nextServiceDate: vehicle.nextServiceDate?.toISOString() ?? null,
+    statusUpdatedAt: vehicle.statusUpdatedAt?.toISOString() ?? null,
+    createdAt: vehicle.createdAt.toISOString(),
+    updatedAt: vehicle.updatedAt.toISOString(),
+  };
+}
 
 export async function GET(
   req: NextRequest,
@@ -40,7 +84,21 @@ export async function GET(
       sortOrder,
     });
 
-    return NextResponse.json({ vehicle, history });
+    const requestCache = new Map<string, Awaited<ReturnType<typeof getBuyerServiceRequestById>> | null>();
+    const enriched = await Promise.all(
+      history.map(async (entry) => {
+        if (!entry.serviceRequestId) {
+          return serializeHistoryEntry(entry, null);
+        }
+        if (!requestCache.has(entry.serviceRequestId)) {
+          const linked = await getBuyerServiceRequestById(entry.serviceRequestId);
+          requestCache.set(entry.serviceRequestId, linked);
+        }
+        return serializeHistoryEntry(entry, requestCache.get(entry.serviceRequestId) ?? null);
+      }),
+    );
+
+    return NextResponse.json({ vehicle: serializeVehicle(vehicle), history: enriched });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch vehicle service history' }, { status: 500 });
   }

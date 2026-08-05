@@ -97,7 +97,7 @@ export default function ServiceLocationScreen() {
 
   const category = categoryId ? getServiceCategoryById(categoryId) : undefined;
   const isValidService =
-    category && serviceName && category.services.some((item) => item === serviceName);
+    category && serviceName && category.services.some((item) => item.name === serviceName);
 
   const theme = category ? getCategoryTheme(category.id, scheme) : null;
   const categoryTitle = category ? formatServiceCategoryTitle(category.title) : '';

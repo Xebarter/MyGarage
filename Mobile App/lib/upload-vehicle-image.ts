@@ -1,28 +1,25 @@
+import { File, UploadType } from 'expo-file-system';
+
 import { getApiUrl } from '@/lib/config';
 
 export async function uploadVehicleImage(localUri: string, mimeType = 'image/jpeg'): Promise<string> {
-  const ext =
-    mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : mimeType === 'image/gif' ? 'gif' : 'jpg';
-
-  const formData = new FormData();
-  formData.append(
-    'file',
-    {
-      uri: localUri,
-      name: `vehicle-${Date.now()}.${ext}`,
-      type: mimeType,
-    } as unknown as Blob,
-  );
-
-  const res = await fetch(`${getApiUrl()}/api/uploads/vehicle-image`, {
-    method: 'POST',
-    body: formData,
+  const file = new File(localUri);
+  const result = await file.upload(`${getApiUrl()}/api/uploads/vehicle-image`, {
+    uploadType: UploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType,
     headers: { Accept: 'application/json' },
   });
 
-  const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
-  if (!res.ok) {
-    throw new Error(data.error || `Upload failed (${res.status})`);
+  let data: { error?: string; url?: string } = {};
+  try {
+    data = result.body ? (JSON.parse(result.body) as { error?: string; url?: string }) : {};
+  } catch {
+    // response was not JSON
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(data.error || `Upload failed (${result.status})`);
   }
   if (!data.url) {
     throw new Error('Upload failed');

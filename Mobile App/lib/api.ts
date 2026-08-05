@@ -579,4 +579,19 @@ export async function cancelBuyerSubscription(customerId: string) {
   return request(`/api/buyer/subscriptions?${search.toString()}`, { method: 'DELETE' });
 }
 
+export type ServicePriceRangeDto = {
+  serviceName: string;
+  minPriceUgx: number;
+  maxPriceUgx: number;
+  providerCount: number;
+};
+
+export async function fetchServicePriceRanges(categoryId: string): Promise<ServicePriceRangeDto[]> {
+  const search = new URLSearchParams({ categoryId });
+  const data = await request<{ ranges?: ServicePriceRangeDto[] }>(
+    `/api/services/price-ranges?${search.toString()}`,
+  );
+  return Array.isArray(data.ranges) ? data.ranges : [];
+}
+
 export { ApiError };

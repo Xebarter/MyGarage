@@ -38,7 +38,7 @@ function filterCategories(query: string, priority: ServicePriority | null): Serv
     return (
       category.title.toLowerCase().includes(q) ||
       category.useWhen.toLowerCase().includes(q) ||
-      category.services.some((service) => service.toLowerCase().includes(q))
+      category.services.some((service) => service.name.toLowerCase().includes(q))
     );
   });
 }

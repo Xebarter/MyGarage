@@ -37,8 +37,12 @@ Run these in order in the **SQL Editor** (or via `supabase db push` if you use t
 | `038_buyer_subscriptions.sql` | Subscription tiers |
 | `039_subscription_checkout_line_items.sql` | Subscription checkout line items |
 | `040_vehicle_images_storage.sql` | `vehicle-images` storage bucket for uploaded vehicle photos |
+| `041_vehicle_documents_storage.sql` | `vehicle-documents` storage bucket for PDFs and document images |
+| `042_vendor_service_listings.sql` | Provider service list prices + public min/max ranges |
 
 Vehicle photos are stored in Supabase Storage (`vehicle-images` bucket); the public URL is saved in `buyer_vehicles.image_url`. Uploads go through `/api/uploads/vehicle-image` using the service role (no client-side storage policy needed for writes).
+
+Vehicle documents (insurance, logbook, etc.) are stored in the `vehicle-documents` bucket; the public URL is saved in `buyer_vehicle_documents.file_url`. Uploads go through `/api/uploads/vehicle-document` (JPEG, PNG, WebP, GIF, or PDF, up to 10 MB).
 
 Listing/product images use migration `017_listing_images_storage.sql` (`listing-images` bucket).
 

@@ -11,6 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
 import {
+  formatServicePriceRangeLabel,
+  type ServicePriceRange,
+} from '@/lib/format-service-price';
+import {
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
@@ -307,7 +311,7 @@ function BuyerServicesPageInner() {
   const serviceSectionRef = useRef<HTMLDivElement | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(userServiceCategories[0]?.title || '');
-  const [selectedService, setSelectedService] = useState(userServiceCategories[0]?.services[0] || '');
+  const [selectedService, setSelectedService] = useState(userServiceCategories[0]?.services[0]?.name || '');
   const [manualLocation, setManualLocation] = useState('');
   const [detectedLocation, setDetectedLocation] = useState('');
   const [useDetectedLocation, setUseDetectedLocation] = useState(true);
@@ -329,10 +333,34 @@ function BuyerServicesPageInner() {
   const [sessionReady, setSessionReady] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState('');
+  const [priceRanges, setPriceRanges] = useState<ServicePriceRange[]>([]);
 
   useEffect(() => {
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    const cat = userServiceCategories.find((c) => c.title === selectedCategory);
+    const categoryId = cat?.id;
+    if (!categoryId) {
+      setPriceRanges([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/services/price-ranges?categoryId=${encodeURIComponent(categoryId)}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { ranges?: ServicePriceRange[] };
+        if (!cancelled) setPriceRanges(Array.isArray(data.ranges) ? data.ranges : []);
+      } catch {
+        if (!cancelled) setPriceRanges([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory]);
 
   useEffect(() => {
     if (appliedOpenQuickFromAuth.current) return;
@@ -373,10 +401,10 @@ function BuyerServicesPageInner() {
         appliedDeepLinkSc.current = true;
         setSelectedCategory(cat.title);
         if (ss) {
-          const exact = cat.services.find((s) => s === ss);
-          const ci = cat.services.find((s) => s.toLowerCase() === ss.toLowerCase());
+          const exact = cat.services.find((s) => s.name === ss);
+          const ci = cat.services.find((s) => s.name.toLowerCase() === ss.toLowerCase());
           serviceAutofillSuppressed.current = false;
-          setSelectedService(exact || ci || cat.services[0] || '');
+          setSelectedService(exact?.name || ci?.name || cat.services[0]?.name || '');
           if (openQuickDialog) {
             setQuickRequestUiStep('location');
             setIsQuickRequestDialogOpen(true);
@@ -389,7 +417,7 @@ function BuyerServicesPageInner() {
           setIsQuickRequestDialogOpen(true);
           stripQuickFromUrl();
         } else {
-          setSelectedService(cat.services[0] || '');
+          setSelectedService(cat.services[0]?.name || '');
         }
         return;
       }
@@ -397,13 +425,13 @@ function BuyerServicesPageInner() {
 
     if (ss) {
       for (const c of userServiceCategories) {
-        const exact = c.services.find((s) => s === ss);
-        const ci = c.services.find((s) => s.toLowerCase() === ss.toLowerCase());
+        const exact = c.services.find((s) => s.name === ss);
+        const ci = c.services.find((s) => s.name.toLowerCase() === ss.toLowerCase());
         if (exact || ci) {
           appliedDeepLinkSc.current = true;
           setSelectedCategory(c.title);
           serviceAutofillSuppressed.current = false;
-          setSelectedService(exact || ci || '');
+          setSelectedService(exact?.name || ci?.name || '');
           if (openQuickDialog) {
             setQuickRequestUiStep('location');
             setIsQuickRequestDialogOpen(true);
@@ -425,7 +453,18 @@ function BuyerServicesPageInner() {
     [selectedCategory]
   );
 
-  const suggestedServices = useMemo(() => selectedCategoryMeta?.services || [], [selectedCategoryMeta]);
+  const suggestedServices = useMemo(
+    () => (selectedCategoryMeta?.services || []).map((s) => s.name),
+    [selectedCategoryMeta],
+  );
+  const servicePriceLabels = useMemo(() => {
+    const byName = new Map(priceRanges.map((r) => [r.serviceName, r] as const));
+    const labels: Record<string, string> = {};
+    for (const name of suggestedServices) {
+      labels[name] = formatServicePriceRangeLabel(byName.get(name));
+    }
+    return labels;
+  }, [priceRanges, suggestedServices]);
   const filteredCategories = useMemo(() => {
     const query = categorySearch.trim().toLowerCase();
     if (!query) return userServiceCategories;
@@ -433,7 +472,7 @@ function BuyerServicesPageInner() {
       (category) =>
         category.title.toLowerCase().includes(query) ||
         category.useWhen.toLowerCase().includes(query) ||
-        category.services.some((service) => service.toLowerCase().includes(query)),
+        category.services.some((service) => service.name.toLowerCase().includes(query)),
     );
   }, [categorySearch]);
   const resolvedLocation = useMemo(
@@ -526,8 +565,9 @@ function BuyerServicesPageInner() {
   useEffect(() => {
     if (!selectedCategoryMeta) return;
     if (serviceAutofillSuppressed.current && selectedService === '') return;
-    if (!selectedCategoryMeta.services.includes(selectedService)) {
-      setSelectedService(selectedCategoryMeta.services[0] || '');
+    const names = selectedCategoryMeta.services.map((s) => s.name);
+    if (!names.includes(selectedService)) {
+      setSelectedService(names[0] || '');
     }
   }, [selectedCategoryMeta, selectedService]);
 
@@ -1328,6 +1368,7 @@ function BuyerServicesPageInner() {
         categoryHint={selectedCategoryMeta?.useWhen}
         selectedService={selectedService}
         services={suggestedServices}
+        servicePriceLabels={servicePriceLabels}
         serviceSectionRef={serviceSectionRef}
         onSelectService={(service) => {
           serviceAutofillSuppressed.current = false;

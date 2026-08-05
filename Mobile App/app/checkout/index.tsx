@@ -16,6 +16,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
+import { SHOP_PREMIUM } from '@/constants/ShopPremiumTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -30,17 +31,7 @@ import type { CartItem } from '@/types';
 
 const TAX_RATE = 0.08;
 
-const PREMIUM = {
-  bg: '#0B1220',
-  bgElevated: '#121C2E',
-  bgGlass: 'rgba(255,255,255,0.06)',
-  borderGlass: 'rgba(255,255,255,0.12)',
-  text: '#F8FAFC',
-  textMuted: '#94A3B8',
-  accent: '#3B82F6',
-  accentSoft: '#60A5FA',
-  accentDeep: '#2563EB',
-};
+const PREMIUM = SHOP_PREMIUM;
 
 type ColorSet = (typeof Colors)['light'];
 
@@ -53,7 +44,7 @@ export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
-  const pageBg = scheme === 'dark' ? colors.background : '#F4F7FB';
+  const pageBg = colors.background;
   const { items, subtotal, itemCount, clearCart } = useCart();
   const { profile } = useAuth();
 
@@ -599,12 +590,14 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderRadius: 22,
     backgroundColor: PREMIUM.bg,
+    borderWidth: 1,
+    borderColor: PREMIUM.borderGlass,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 3,
   },
   headerGlow: {
     position: 'absolute',
@@ -613,7 +606,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(59,130,246,0.16)',
+    backgroundColor: 'rgba(191,219,254,0.55)',
   },
   headerAccent: {
     position: 'absolute',
@@ -632,10 +625,10 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: '#F6F7F9',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
@@ -646,21 +639,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: PREMIUM.text,
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.4,
   },
   headerSubtitle: {
     color: PREMIUM.textMuted,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   cartChip: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: '#F6F7F9',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },

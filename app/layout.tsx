@@ -19,7 +19,13 @@ export default function RootLayout({
     <html lang="en-UG" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <JsonLdScript data={globalSiteJsonLd()} />
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          forcedTheme="light"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
           {children}
           <Analytics />
         </ThemeProvider>

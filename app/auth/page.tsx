@@ -122,6 +122,20 @@ function AuthForm() {
     setError(null);
 
     const checkSession = async () => {
+      // Fallback if middleware did not exchange the OAuth `code` (e.g. cookie race).
+      const oauthCode = searchParams.get("code");
+      if (oauthCode) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(oauthCode);
+        if (!exchangeError) {
+          const clean = new URLSearchParams(searchParams.toString());
+          clean.delete("code");
+          clean.delete("state");
+          const qs = clean.toString();
+          router.replace(qs ? `/auth?${qs}` : "/auth");
+          return;
+        }
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -160,16 +174,23 @@ function AuthForm() {
         }
       }
 
-      await persistSessionProfile();
-      setSessionChecked(true);
-      router.replace(nextPath);
+      try {
+        await persistSessionProfile();
+        if (cancelled) return;
+        setSessionChecked(true);
+        router.replace(await resolvePostAuthDestination());
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Could not finish signing in.");
+        setSessionChecked(true);
+      }
     };
 
-    checkSession();
+    void checkSession();
     return () => {
       cancelled = true;
     };
-  }, [role, nextPath, router, supabase.auth]);
+  }, [role, nextPath, router, supabase.auth, searchParams]);
 
   const hasAdminAccess = async () => {
     await supabase.auth.refreshSession();
@@ -200,6 +221,77 @@ function AuthForm() {
     return appRole === "admin" || appRoles.includes("admin");
   };
 
+  /** Creates/ensures a vendors row. Sends cookies + Bearer so Google OAuth sessions work reliably. */
+  const bootstrapVendorProfile = async () => {
+    await supabase.auth.refreshSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const headers: HeadersInit = { Accept: "application/json" };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
+    let res = await fetch("/api/vendor/bootstrap", {
+      method: "POST",
+      credentials: "include",
+      headers,
+    });
+
+    // One retry after a short delay — cookies can lag right after OAuth redirect.
+    if (res.status === 401) {
+      await new Promise((r) => setTimeout(r, 400));
+      await supabase.auth.refreshSession();
+      const {
+        data: { session: retrySession },
+      } = await supabase.auth.getSession();
+      if (retrySession?.access_token) {
+        headers.Authorization = `Bearer ${retrySession.access_token}`;
+      }
+      res = await fetch("/api/vendor/bootstrap", {
+        method: "POST",
+        credentials: "include",
+        headers,
+      });
+    }
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error || "Could not set up your provider profile.");
+    }
+  };
+
+  type VendorAccessFlags = {
+    vendorVerified?: boolean;
+    servicesVerified?: boolean;
+  };
+
+  const loadVendorAccess = async (vendorId: string): Promise<VendorAccessFlags | null> => {
+    const res = await fetch(`/api/vendors/${vendorId}`, { credentials: "include" });
+    if (!res.ok) return null;
+    return (await res.json()) as VendorAccessFlags;
+  };
+
+  /** After sign-in, send unverified providers to pending instead of bouncing in middleware. */
+  const resolvePostAuthDestination = async (): Promise<string> => {
+    if (role === "services" || role === "vendor") {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.id) {
+        const flags = await loadVendorAccess(user.id);
+        if (role === "services" && flags && flags.servicesVerified !== true) {
+          return "/services/pending";
+        }
+        if (role === "vendor" && flags && flags.vendorVerified !== true) {
+          return "/vendor/pending";
+        }
+      }
+    }
+    return nextPath;
+  };
+
   const persistSessionProfile = async () => {
     const {
       data: { user },
@@ -213,11 +305,7 @@ function AuthForm() {
     if (role === "vendor") {
       localStorage.setItem("currentVendorId", user.id);
       localStorage.setItem("currentVendorName", roleName);
-      try {
-        await fetch("/api/vendor/bootstrap", { method: "POST" });
-      } catch {
-        // best-effort
-      }
+      await bootstrapVendorProfile();
       return;
     }
 
@@ -225,11 +313,7 @@ function AuthForm() {
       localStorage.setItem("currentServiceProviderName", roleName);
       localStorage.setItem("currentVendorId", user.id);
       localStorage.setItem("currentVendorName", roleName);
-      try {
-        await fetch("/api/vendor/bootstrap", { method: "POST" });
-      } catch {
-        // best-effort — ensures vendors row exists for dispatch / orders
-      }
+      await bootstrapVendorProfile();
       return;
     }
 
@@ -322,7 +406,7 @@ function AuthForm() {
     }
 
     await persistSessionProfile();
-    router.replace(nextPath);
+    router.replace(await resolvePostAuthDestination());
     return true;
   }
 
@@ -499,6 +583,8 @@ function AuthForm() {
       }
 
       await finishAuthAfterSignIn(signupUser?.email?.trim() || trimmedEmail);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign in failed.");
     } finally {
       setLoading(false);
     }
@@ -588,12 +674,16 @@ function AuthForm() {
 
             {mode === "signin" ? (
               <div className="space-y-3">
-                <AuthGoogleButton
-                  loading={googleLoading}
-                  disabled={loading}
-                  onClick={() => void handleGoogleSignIn()}
-                />
-                <AuthDivider />
+                {!isAdminRole ? (
+                  <>
+                    <AuthGoogleButton
+                      loading={googleLoading}
+                      disabled={loading}
+                      onClick={() => void handleGoogleSignIn()}
+                    />
+                    <AuthDivider />
+                  </>
+                ) : null}
               <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
                 <input
                   required

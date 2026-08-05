@@ -92,7 +92,8 @@ function RootStack() {
         <Stack.Screen name="orders/index" options={{ title: 'My orders' }} />
         <Stack.Screen name="orders/[id]" options={{ title: 'Order' }} />
         <Stack.Screen name="garage/index" options={{ title: 'My Vehicles' }} />
-        <Stack.Screen name="garage/[id]" options={{ title: 'Vehicle' }} />
+        <Stack.Screen name="garage/[id]/index" options={{ title: 'Vehicle' }} />
+        <Stack.Screen name="garage/[id]/records" options={{ title: 'Service records' }} />
         <Stack.Screen name="garage/add" options={{ title: 'Add vehicle' }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
       </Stack>

@@ -23,6 +23,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { uploadVehicleDocument } from '@/lib/upload-vehicle-document';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -134,6 +135,8 @@ export function ProfileControlCenter() {
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<Array<{ id: string; make: string; model: string; nickname?: string | null }>>([]);
   const [docForm, setDocForm] = useState({ vehicleId: '', documentType: 'insurance' as DocumentType, name: '', fileUrl: '', expiresAt: '' });
+  const [docUploading, setDocUploading] = useState(false);
+  const [docFileName, setDocFileName] = useState('');
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({});
   const [expandedMessages, setExpandedMessages] = useState<string | null>(null);
   const [messagesByRequest, setMessagesByRequest] = useState<Record<string, Array<{ id: string; senderType: string; message: string; createdAt: string }>>>({});
@@ -354,9 +357,24 @@ export function ProfileControlCenter() {
         }),
       });
       setDocForm({ vehicleId: '', documentType: 'insurance', name: '', fileUrl: '', expiresAt: '' });
+      setDocFileName('');
       await load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDocumentFile = async (file: File | null) => {
+    if (!file) return;
+    setDocUploading(true);
+    try {
+      const url = await uploadVehicleDocument(file);
+      setDocForm((p) => ({ ...p, fileUrl: url }));
+      setDocFileName(file.name);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setDocUploading(false);
     }
   };
 
@@ -782,11 +800,38 @@ export function ProfileControlCenter() {
                 <Input className="mt-2" type="date" value={docForm.expiresAt} onChange={(e) => setDocForm((p) => ({ ...p, expiresAt: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
-                <Label>File URL</Label>
-                <Input className="mt-2" value={docForm.fileUrl} onChange={(e) => setDocForm((p) => ({ ...p, fileUrl: e.target.value }))} placeholder="https://..." />
+                <Label>Document file</Label>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <Input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    disabled={saving || docUploading}
+                    onChange={(e) => void handleDocumentFile(e.target.files?.[0] ?? null)}
+                  />
+                  {docUploading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+                  {docForm.fileUrl ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={docForm.fileUrl} target="_blank" rel="noreferrer">Preview</a>
+                    </Button>
+                  ) : null}
+                  {docForm.fileUrl ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setDocForm((p) => ({ ...p, fileUrl: '' }));
+                        setDocFileName('');
+                      }}>
+                      Remove file
+                    </Button>
+                  ) : null}
+                </div>
+                {docFileName ? <p className="mt-1 text-xs text-muted-foreground">{docFileName}</p> : null}
+                <p className="mt-1 text-xs text-muted-foreground">Photo or PDF, up to 10 MB</p>
               </div>
             </div>
-            <Button className="mt-4" onClick={() => void addDocument()} disabled={saving}>Add document</Button>
+            <Button className="mt-4" onClick={() => void addDocument()} disabled={saving || docUploading}>Add document</Button>
           </Card>
 
           <Card className="p-6">

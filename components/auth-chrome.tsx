@@ -142,7 +142,7 @@ export function getAuthRoleMeta(role: string): { title: string; description: str
       return {
         badge: 'Services',
         title: 'Sign in',
-        description: 'Jobs, customers, and funds.',
+        description: 'Jobs, customers, and funds. Google or email.',
       };
     default:
       return {

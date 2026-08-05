@@ -12,13 +12,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ServiceRecordCard } from '@/components/garage/ServiceRecordCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingView } from '@/components/LoadingView';
-import {
-  SERVICE_HISTORY_STATUS_LABELS,
-  SERVICE_HISTORY_TYPE_LABELS,
-  VEHICLE_STATUS_LABELS,
-} from '@/constants/garage';
+import { VEHICLE_STATUS_LABELS } from '@/constants/garage';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { fetchVehicleGarageDetail } from '@/lib/api';
@@ -44,13 +41,12 @@ export default function GarageDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
     if (!silent) setError(null);
     try {
-      const detail = await fetchVehicleGarageDetail(id, { sortBy: 'date', sortOrder });
+      const detail = await fetchVehicleGarageDetail(id, { sortBy: 'date', sortOrder: 'desc' });
       setVehicle(detail.vehicle);
       setHistory(detail.history);
     } catch (err) {
@@ -59,7 +55,7 @@ export default function GarageDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id, sortOrder]);
+  }, [id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,6 +64,12 @@ export default function GarageDetailScreen() {
   );
 
   const title = useMemo(() => (vehicle ? vehicleTitle(vehicle) : 'Vehicle'), [vehicle]);
+  const previewHistory = history.slice(0, 2);
+
+  const openRecords = () => {
+    if (!vehicle) return;
+    router.push(`/garage/${vehicle.id}/records`);
+  };
 
   if (loading) return <LoadingView label="Loading vehicle" />;
   if (error || !vehicle) {
@@ -170,11 +172,21 @@ export default function GarageDetailScreen() {
                 <Text style={[styles.statHint, { color: colors.textMuted }]}>Not scheduled</Text>
               )}
             </View>
-            <View style={[styles.statBox, { borderColor: colors.border }]}>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Service records</Text>
+
+            <Pressable
+              onPress={openRecords}
+              style={({ pressed }) => [
+                styles.statBox,
+                styles.statBoxTappable,
+                { borderColor: colors.primary + '33', backgroundColor: colors.primary + '08', opacity: pressed ? 0.92 : 1 },
+              ]}>
+              <View style={styles.statBoxTop}>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Service records</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+              </View>
               <Text style={[styles.statValue, { color: colors.text }]}>{history.length}</Text>
-              <Text style={[styles.statHint, { color: colors.textMuted }]}>Linked to this vehicle</Text>
-            </View>
+              <Text style={[styles.statHint, { color: colors.primary }]}>View full history</Text>
+            </Pressable>
           </View>
 
           <View style={styles.actionRow}>
@@ -194,12 +206,12 @@ export default function GarageDetailScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Service history</Text>
-          <Pressable onPress={() => setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}>
-            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>
-              {sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
-            </Text>
-          </Pressable>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent service</Text>
+          {history.length > 0 ? (
+            <Pressable onPress={openRecords} hitSlop={8}>
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>View all</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {history.length === 0 ? (
@@ -216,29 +228,30 @@ export default function GarageDetailScreen() {
             </Pressable>
           </View>
         ) : (
-          history.map((entry) => (
-            <View
-              key={entry.id}
-              style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.historyTop}>
-                <Text style={[styles.historyTitle, { color: colors.text }]}>{entry.serviceName}</Text>
-                <View style={[styles.pill, { backgroundColor: colors.primary + '14' }]}>
-                  <Text style={[styles.pillText, { color: colors.primary }]}>
-                    {SERVICE_HISTORY_STATUS_LABELS[entry.status]}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.historyMeta, { color: colors.textMuted }]}>
-                {SERVICE_HISTORY_TYPE_LABELS[entry.serviceType]} · {formatGarageDate(entry.serviceDate)}
-              </Text>
-              <Text style={[styles.historyProvider, { color: colors.text }]}>
-                Provider: {entry.providerName || '—'}
-              </Text>
-              {entry.notes ? (
-                <Text style={[styles.historyNotes, { color: colors.textMuted }]}>{entry.notes}</Text>
-              ) : null}
-            </View>
-          ))
+          <>
+            {previewHistory.map((entry, index) => (
+              <ServiceRecordCard
+                key={entry.id}
+                entry={entry}
+                colors={colors}
+                isLast={index === previewHistory.length - 1}
+                onOpenRequest={(requestId) => router.push(`/service/track/${requestId}`)}
+              />
+            ))}
+            {history.length > previewHistory.length ? (
+              <Pressable
+                onPress={openRecords}
+                style={({ pressed }) => [
+                  styles.viewAllBtn,
+                  { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.9 : 1 },
+                ]}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>
+                  View all {history.length} service records
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+              </Pressable>
+            ) : null}
+          </>
         )}
       </ScrollView>
     </>
@@ -284,6 +297,8 @@ const styles = StyleSheet.create({
   statusBannerHint: { fontSize: 12, lineHeight: 17 },
   statsRow: { flexDirection: 'row', gap: 10 },
   statBox: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
+  statBoxTappable: {},
+  statBoxTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   statValue: { fontSize: 15, fontWeight: '800' },
   statHint: { fontSize: 10, lineHeight: 14 },
@@ -311,12 +326,15 @@ const styles = StyleSheet.create({
   emptyHistoryTitle: { fontSize: 16, fontWeight: '800', marginTop: 4 },
   emptyHistoryCta: { marginTop: 8, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
   emptyHistoryCtaText: { color: '#fff', fontWeight: '700' },
-  historyCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
-  historyTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' },
-  historyTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
-  pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  pillText: { fontSize: 10, fontWeight: '800' },
-  historyMeta: { fontSize: 12 },
-  historyProvider: { fontSize: 13, fontWeight: '600' },
-  historyNotes: { fontSize: 13, lineHeight: 18 },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: -4,
+  },
+  viewAllText: { fontSize: 14, fontWeight: '700' },
 });

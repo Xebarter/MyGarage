@@ -1,9 +1,14 @@
+export type CatalogService = {
+  name: string;
+  defaultPriceUgx: number;
+};
+
 export type UserServiceCategory = {
   id: string;
   emoji: string;
   title: string;
   useWhen: string;
-  services: string[];
+  services: CatalogService[];
 };
 
 /** Keywords for matching catalog products to a buyer service category (home feed + discovery). */
@@ -29,6 +34,10 @@ export type ProviderServiceGroup = {
   services: string[];
 };
 
+function svc(name: string, defaultPriceUgx: number): CatalogService {
+  return { name, defaultPriceUgx };
+}
+
 export const userServiceCategories: UserServiceCategory[] = [
   {
     id: 'emergency-help',
@@ -36,13 +45,13 @@ export const userServiceCategories: UserServiceCategory[] = [
     title: "Emergency Help (I'm Stuck)",
     useWhen: "Use when: car won't move / urgent situation",
     services: [
-      'Towing (accident / breakdown)',
-      'Jump-start (dead battery)',
-      'Flat tyre change',
-      'Fuel delivery (ran out of fuel)',
-      "Car won't start (mobile mechanic)",
-      'Keys locked in car',
-      'Vehicle stuck (mud, ditch recovery)',
+      svc('Towing (accident / breakdown)', 180000),
+      svc('Jump-start (dead battery)', 50000),
+      svc('Flat tyre change', 45000),
+      svc('Fuel delivery (ran out of fuel)', 40000),
+      svc("Car won't start (mobile mechanic)", 80000),
+      svc('Keys locked in car', 60000),
+      svc('Vehicle stuck (mud, ditch recovery)', 200000),
     ],
   },
   {
@@ -51,13 +60,13 @@ export const userServiceCategories: UserServiceCategory[] = [
     title: 'Fix My Car (Something is Wrong)',
     useWhen: 'Use when: car has a problem but not urgent',
     services: [
-      'Engine problems (noise, overheating, smoke)',
-      'Brake problems (not stopping well)',
-      'Suspension issues (noise, rough ride)',
-      'Electrical issues (lights, battery draining)',
-      'AC not cooling',
-      'Gearbox / clutch issues',
-      'Exhaust problems',
+      svc('Engine problems (noise, overheating, smoke)', 150000),
+      svc('Brake problems (not stopping well)', 120000),
+      svc('Suspension issues (noise, rough ride)', 130000),
+      svc('Electrical issues (lights, battery draining)', 90000),
+      svc('AC not cooling', 100000),
+      svc('Gearbox / clutch issues', 200000),
+      svc('Exhaust problems', 80000),
     ],
   },
   {
@@ -66,12 +75,12 @@ export const userServiceCategories: UserServiceCategory[] = [
     title: 'Service My Car (Routine Maintenance)',
     useWhen: 'Use when: regular care / no problem yet',
     services: [
-      'Oil change',
-      'Full service (minor / major)',
-      'Brake check',
-      'Tyre rotation / alignment',
-      'Battery check',
-      'General inspection',
+      svc('Oil change', 80000),
+      svc('Full service (minor / major)', 180000),
+      svc('Brake check', 50000),
+      svc('Tyre rotation / alignment', 60000),
+      svc('Battery check', 30000),
+      svc('General inspection', 40000),
     ],
   },
   {
@@ -79,70 +88,124 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🚗',
     title: 'Tyres & Battery',
     useWhen: 'High-frequency, simple category',
-    services: ['Buy tyres', 'Fix puncture', 'Replace tyres', 'Wheel alignment', 'Battery replacement', 'Battery charging'],
+    services: [
+      svc('Buy tyres', 250000),
+      svc('Fix puncture', 25000),
+      svc('Replace tyres', 80000),
+      svc('Wheel alignment', 70000),
+      svc('Battery replacement', 180000),
+      svc('Battery charging', 30000),
+    ],
   },
   {
     id: 'car-wash-cleaning',
     emoji: '🧼',
     title: 'Car Wash & Cleaning',
     useWhen: 'Very frequent + easy entry service',
-    services: ['Basic wash', 'Interior cleaning', 'Full detailing', 'Engine cleaning', 'Mobile car wash (come to me)'],
+    services: [
+      svc('Basic wash', 15000),
+      svc('Interior cleaning', 35000),
+      svc('Full detailing', 120000),
+      svc('Engine cleaning', 50000),
+      svc('Mobile car wash (come to me)', 40000),
+    ],
   },
   {
     id: 'body-repair-painting',
     emoji: '🎨',
     title: 'Body Repair & Painting',
     useWhen: 'Use when: physical damage',
-    services: ['Dent removal', 'Scratch repair', 'Full painting', 'Bumper repair', 'Accident repair'],
+    services: [
+      svc('Dent removal', 150000),
+      svc('Scratch repair', 100000),
+      svc('Full painting', 800000),
+      svc('Bumper repair', 200000),
+      svc('Accident repair', 500000),
+    ],
   },
   {
     id: 'ac-cooling',
     emoji: '❄️',
     title: 'Air Conditioning & Cooling',
     useWhen: 'Simple mental model for users',
-    services: ['AC repair', 'AC gas refill', 'Car overheating', 'Radiator issues'],
+    services: [
+      svc('AC repair', 120000),
+      svc('AC gas refill', 80000),
+      svc('Car overheating', 100000),
+      svc('Radiator issues', 110000),
+    ],
   },
   {
     id: 'security-tracking',
     emoji: '🔐',
     title: 'Security & Tracking',
     useWhen: 'High relevance in Uganda',
-    services: ['Install car tracker', 'Install alarm', 'Anti-theft systems', 'Track my car'],
+    services: [
+      svc('Install car tracker', 250000),
+      svc('Install alarm', 180000),
+      svc('Anti-theft systems', 300000),
+      svc('Track my car', 50000),
+    ],
   },
   {
     id: 'documents-insurance',
     emoji: '📄',
     title: 'Documents & Insurance',
     useWhen: 'Non-technical but essential',
-    services: ['Motor insurance', 'Renew insurance', 'Transfer ownership', 'Road license', 'Driving permit help'],
+    services: [
+      svc('Motor insurance', 150000),
+      svc('Renew insurance', 80000),
+      svc('Transfer ownership', 120000),
+      svc('Road license', 60000),
+      svc('Driving permit help', 70000),
+    ],
   },
   {
     id: 'drivers-transport',
     emoji: '🚘',
     title: 'Drivers & Transport',
     useWhen: 'Human + mobility layer',
-    services: ['Hire driver', 'Learn driving', 'Chauffeur services'],
+    services: [
+      svc('Hire driver', 80000),
+      svc('Learn driving', 200000),
+      svc('Chauffeur services', 150000),
+    ],
   },
   {
     id: 'fuel-delivery',
     emoji: '⛽',
     title: 'Fuel & Delivery',
     useWhen: 'Convenience',
-    services: ['Fuel delivery', 'Oil delivery', 'Battery delivery'],
+    services: [
+      svc('Fuel delivery', 35000),
+      svc('Oil delivery', 40000),
+      svc('Battery delivery', 45000),
+    ],
   },
   {
     id: 'rent-buy-car',
     emoji: '🚙',
     title: 'Rent or Buy a Car',
     useWhen: 'Marketplace layer',
-    services: ['Rent a car', 'Hire car with driver', 'Buy a car', 'Sell a car'],
+    services: [
+      svc('Rent a car', 150000),
+      svc('Hire car with driver', 250000),
+      svc('Buy a car', 0),
+      svc('Sell a car', 0),
+    ],
   },
   {
     id: 'upgrade-my-car',
     emoji: '⭐',
     title: 'Upgrade My Car',
     useWhen: 'Lifestyle category',
-    services: ['Install music system', 'Tint windows', 'Car wrapping', 'Interior upgrades', 'Lights upgrade'],
+    services: [
+      svc('Install music system', 200000),
+      svc('Tint windows', 120000),
+      svc('Car wrapping', 400000),
+      svc('Interior upgrades', 250000),
+      svc('Lights upgrade', 100000),
+    ],
   },
 ];
 
@@ -164,6 +227,41 @@ export const providerServiceGroups: ProviderServiceGroup[] = [
 
 export const providerSignupServiceOptions = providerServiceGroups.flatMap((group) => group.services);
 
+const FALLBACK_DEFAULT_PRICE_UGX = 50000;
+
+export function getCatalogServiceNames(category: UserServiceCategory): string[] {
+  return category.services.map((s) => s.name);
+}
+
+export function findCatalogService(
+  serviceName: string,
+  categoryId?: string,
+): CatalogService | undefined {
+  const needle = serviceName.trim().toLowerCase();
+  const cats = categoryId
+    ? userServiceCategories.filter((c) => c.id === categoryId)
+    : userServiceCategories;
+  for (const cat of cats) {
+    const found = cat.services.find((s) => s.name.toLowerCase() === needle);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+export function getServiceDefaultPrice(serviceName: string, categoryId?: string): number {
+  return findCatalogService(serviceName, categoryId)?.defaultPriceUgx ?? FALLBACK_DEFAULT_PRICE_UGX;
+}
+
 export function servicesForPublicCategory(categoryTitle: string): string[] {
-  return userServiceCategories.find((c) => c.title === categoryTitle)?.services ?? [];
+  const cat = userServiceCategories.find((c) => c.title === categoryTitle);
+  return cat ? getCatalogServiceNames(cat) : [];
+}
+
+export function getUserServiceCategoryById(id: string): UserServiceCategory | undefined {
+  return userServiceCategories.find((c) => c.id === id);
+}
+
+export function getUserServiceCategoryByTitle(title: string): UserServiceCategory | undefined {
+  const needle = title.trim().toLowerCase();
+  return userServiceCategories.find((c) => c.title.toLowerCase() === needle);
 }

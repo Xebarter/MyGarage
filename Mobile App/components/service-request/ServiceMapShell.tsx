@@ -20,6 +20,6 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#F6F7F9',
   },
 });

@@ -146,7 +146,7 @@ export function ShopHeader({
             onPress={item.onPress}
             style={({ pressed }) => [
               styles.toolPill,
-              item.active && { borderColor: accent, backgroundColor: 'rgba(59,130,246,0.12)' },
+              item.active && { borderColor: accent, backgroundColor: 'rgba(37,99,235,0.1)' },
               pressed && styles.pressed,
             ]}
             accessibilityRole="button"
@@ -179,8 +179,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 12,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E6EE',
     overflow: 'hidden',
   },
   glowPrimary: {
@@ -216,16 +218,16 @@ const styles = StyleSheet.create({
   brandName: {
     color: PREMIUM.text,
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.4,
   },
   profileBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: '#F6F7F9',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
@@ -249,9 +251,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: PREMIUM.bgGlass,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#F6F7F9',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
@@ -272,10 +274,10 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: PREMIUM.bgGlass,
+    backgroundColor: '#F6F7F9',
   },
   toolText: {
     color: PREMIUM.textMuted,

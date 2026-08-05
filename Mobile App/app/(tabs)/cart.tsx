@@ -11,22 +11,13 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
+import { SHOP_PREMIUM } from '@/constants/ShopPremiumTheme';
 import { useCart } from '@/contexts/CartContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { formatCurrency } from '@/lib/format';
 import type { CartItem } from '@/types';
 
-const PREMIUM = {
-  bg: '#0B1220',
-  bgElevated: '#121C2E',
-  bgGlass: 'rgba(255,255,255,0.06)',
-  borderGlass: 'rgba(255,255,255,0.12)',
-  text: '#F8FAFC',
-  textMuted: '#94A3B8',
-  accent: '#3B82F6',
-  accentSoft: '#60A5FA',
-  accentDeep: '#2563EB',
-};
+const PREMIUM = SHOP_PREMIUM;
 
 function lineTotal(item: CartItem) {
   return item.price * item.quantity;
@@ -39,7 +30,7 @@ export default function CartScreen() {
   const colors = Colors[scheme];
   const { items, subtotal, itemCount, updateQuantity, removeItem, clearCart } = useCart();
 
-  const pageBg = scheme === 'dark' ? colors.background : '#F4F7FB';
+  const pageBg = colors.background;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]} edges={['top']}>
@@ -240,12 +231,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderRadius: 22,
     backgroundColor: PREMIUM.bg,
+    borderWidth: 1,
+    borderColor: PREMIUM.borderGlass,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 3,
   },
   headerGlow: {
     position: 'absolute',
@@ -254,7 +247,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(59,130,246,0.16)',
+    backgroundColor: 'rgba(191,219,254,0.55)',
   },
   headerAccent: {
     position: 'absolute',
@@ -278,7 +271,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: PREMIUM.text,
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.5,
   },
   headerSubtitle: {
@@ -293,15 +286,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: PREMIUM.bgGlass,
+    borderRadius: 14,
+    backgroundColor: '#F6F7F9',
     borderWidth: 1,
     borderColor: PREMIUM.borderGlass,
   },
   shopChipText: {
-    color: PREMIUM.accentSoft,
+    color: PREMIUM.accentDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   chipPressed: {
     opacity: 0.82,
@@ -319,14 +312,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(59,130,246,0.12)',
+    backgroundColor: 'rgba(37,99,235,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.2)',
+    borderColor: 'rgba(37,99,235,0.16)',
   },
   metaPillText: {
-    color: PREMIUM.accentSoft,
+    color: PREMIUM.accentDeep,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   emptyWrap: {
     flex: 1,

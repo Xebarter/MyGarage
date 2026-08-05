@@ -36,58 +36,58 @@ export function MarketplaceActionStrip({
   return (
     <section
       id="browse-categories"
-      className="sticky top-0 z-20 border-b border-border/70 bg-background/95 py-3 shadow-sm backdrop-blur-md md:top-16"
+      className="sticky top-0 z-20 border-b border-border bg-background py-2.5 md:top-16"
     >
-      <div className="mx-auto w-full max-w-[1500px] px-2 sm:px-2.5 md:px-3">
-        <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onSelectCategory('all')}
-              className={cn(
-                'shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition',
-                selectedCategory === 'all'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'border border-border/80 bg-card text-muted-foreground hover:text-foreground',
-              )}
-            >
-              All
-            </button>
+      <div className="mx-auto w-full max-w-[1500px] px-3 sm:px-4 md:px-5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSelectCategory('all')}
+            className={cn(
+              'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition',
+              selectedCategory === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            All
+          </button>
 
-            <div className="relative min-w-0 flex-1">
-              <div
-                className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-6 bg-gradient-to-r from-background/95 to-transparent"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-6 bg-gradient-to-l from-background/95 to-transparent"
-                aria-hidden
-              />
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {visiblePills.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => onSelectCategory(category)}
-                    className={cn(
-                      'shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium transition',
-                      selectedCategory === category
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'border border-border/80 bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground',
-                    )}
-                  >
-                    {formatCategoryLabel(category)}
-                  </button>
-                ))}
-              </div>
+          <div className="relative min-w-0 flex-1">
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-5 bg-gradient-to-r from-background to-transparent"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-5 bg-gradient-to-l from-background to-transparent"
+              aria-hidden
+            />
+            <div className="flex flex-nowrap items-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {visiblePills.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => onSelectCategory(category)}
+                  className={cn(
+                    'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition',
+                    selectedCategory === category
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {formatCategoryLabel(category)}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {showCategoryBrowser ? (
-              <CategoryOverflowMenu
-                categoryCatalog={categoryCatalog}
-                overflowCount={overflowCount}
-                onSelectCategory={onSelectCategory}
-              />
-            ) : null}
+          {showCategoryBrowser ? (
+            <CategoryOverflowMenu
+              categoryCatalog={categoryCatalog}
+              overflowCount={overflowCount}
+              onSelectCategory={onSelectCategory}
+            />
+          ) : null}
         </div>
       </div>
     </section>
@@ -108,11 +108,11 @@ function CategoryOverflowMenu({
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-9 shrink-0 gap-1.5 rounded-full border-dashed px-3 text-xs font-semibold"
+          className="h-8 shrink-0 gap-1 rounded-md px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
-          {overflowCount > 0 ? `+${overflowCount}` : 'More'}
+          {overflowCount > 0 ? `+${overflowCount} more` : 'More'}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(calc(100vw-2rem),22rem)] p-0">
