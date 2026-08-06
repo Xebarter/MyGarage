@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/service_accents.dart';
 import '../../utils/format.dart';
 import '../../widgets/connection_ui.dart';
+import '../../widgets/incoming_job_card.dart';
 import '../../widgets/ui.dart';
 
 class JobsScreen extends StatefulWidget {
@@ -82,21 +83,11 @@ class _JobsScreenState extends State<JobsScreen> {
             ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
             const SizedBox(height: 18),
             if (offer != null)
-              _JobHeroCard(
-                badge: 'New offer',
-                badgeColor: AppColors.primary,
-                title: offer.request?.service ?? 'Incoming request',
-                subtitle: offer.request?.location,
-                meta: offer.request?.category,
-                cta: 'Review offer',
-                icon: Icons.notifications_active_rounded,
-                tint: AppColors.primarySoft,
-                border: AppColors.primary.withValues(alpha: 0.22),
-                onTap: () => dispatch.refresh(),
-              ).animate().fadeIn(duration: 380.ms).slideY(begin: 0.06).scale(
-                    begin: const Offset(0.98, 0.98),
-                    curve: Curves.easeOutCubic,
-                  ),
+              IncomingJobCard(offer: offer)
+                  .animate()
+                  .fadeIn(duration: 380.ms)
+                  .slideY(begin: 0.06)
+                  .scale(begin: const Offset(0.98, 0.98), curve: Curves.easeOutCubic),
             if (offer != null && active != null) const SizedBox(height: 12),
             if (active != null)
               _JobHeroCard(
@@ -235,15 +226,10 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: fill,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
         boxShadow: AppTheme.cardShadow,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [fill, AppColors.surface],
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,15 +291,9 @@ class _JobHeroCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: tint,
           borderRadius: BorderRadius.circular(AppRadii.xl),
           border: Border.all(color: border),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [tint, AppColors.surface, AppColors.surface],
-            stops: const [0.0, 0.55, 1.0],
-          ),
           boxShadow: AppTheme.softShadow,
         ),
         child: Column(

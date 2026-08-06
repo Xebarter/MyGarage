@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/app_theme.dart';
 
-/// Soft atmospheric background used across polished screens.
+/// Solid page background (no gradients).
 class AmbientBackground extends StatelessWidget {
   const AmbientBackground({super.key, required this.child, this.accent});
 
@@ -12,65 +12,9 @@ class AmbientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glow = accent ?? AppColors.glow;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Layered wash: base + soft vertical depth
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFF7F9FC),
-                AppColors.background,
-                Color(0xFFEEF2F7),
-              ],
-              stops: [0.0, 0.45, 1.0],
-            ),
-          ),
-        ),
-        Positioned(
-          top: -120,
-          right: -80,
-          child: _Blob(color: glow.withValues(alpha: 0.42), size: 320),
-        ),
-        Positioned(
-          top: 180,
-          left: -140,
-          child: _Blob(color: AppColors.primary.withValues(alpha: 0.06), size: 280),
-        ),
-        Positioned(
-          bottom: -140,
-          right: -60,
-          child: _Blob(color: AppColors.primaryDeep.withValues(alpha: 0.05), size: 300),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _Blob extends StatelessWidget {
-  const _Blob({required this.color, required this.size});
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
-          ),
-        ),
-      ),
+    return ColoredBox(
+      color: AppColors.background,
+      child: child,
     );
   }
 }
@@ -92,35 +36,16 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = AnimatedContainer(
-      duration: 240.ms,
+      duration: 200.ms,
       curve: Curves.easeOutCubic,
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadii.xl),
-        color: AppColors.surface.withValues(alpha: highlight ? 0.98 : 1),
-        gradient: highlight
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.07),
-                  AppColors.surface,
-                  AppColors.surface,
-                ],
-                stops: const [0.0, 0.4, 1.0],
-              )
-            : LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.surface,
-                  AppColors.surfaceMuted.withValues(alpha: 0.55),
-                ],
-              ),
+        color: highlight ? AppColors.surface : AppColors.surface,
         border: Border.all(
           color: highlight
-              ? AppColors.primary.withValues(alpha: 0.2)
-              : AppColors.border.withValues(alpha: 0.9),
+              ? AppColors.primary.withValues(alpha: 0.22)
+              : AppColors.border.withValues(alpha: 0.95),
         ),
         boxShadow: highlight ? AppTheme.softShadow : AppTheme.cardShadow,
       ),
@@ -187,16 +112,8 @@ class EmptyState extends StatelessWidget {
             height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.1),
-                  AppColors.surface,
-                ],
-              ),
+              color: AppColors.primarySoft,
               border: Border.all(color: AppColors.border),
-              boxShadow: AppTheme.cardShadow,
             ),
             child: Icon(icon, color: AppColors.primary, size: 30),
           ),
@@ -225,7 +142,7 @@ class EmptyState extends StatelessWidget {
           ],
         ],
       ),
-    ).animate().fadeIn(duration: 420.ms).slideY(begin: 0.05, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: 360.ms);
   }
 }
 
@@ -422,7 +339,7 @@ class SoftIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final btn = Material(
-      color: AppColors.surface.withValues(alpha: 0.9),
+      color: AppColors.surface,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),

@@ -218,14 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppColors.primary.withValues(alpha: 0.28),
-                                AppColors.primaryDeep.withValues(alpha: 0.14),
-                              ],
-                            ),
+                            color: AppColors.primarySoft,
                             border: Border.all(color: AppColors.primary.withValues(alpha: 0.28), width: 1.5),
                           ),
                           child: hasPending

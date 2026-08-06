@@ -6,6 +6,46 @@ import { userHasAdminAccess } from "@/lib/auth-admin-shared";
 const protectedPrefixes = ["/buyer", "/vendor", "/services"];
 const adminPrefix = "/admin";
 
+/**
+ * Browser (Flutter web) clients on localhost:<random port> call the API cross-origin.
+ * Without ACAO headers the fetch fails and the app surfaces a generic offline message.
+ */
+function isAllowedCorsOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== "http:" && protocol !== "https:") return false;
+    if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+    if (hostname === "www.mygarage.ug" || hostname === "mygarage.ug") return true;
+    // Private LAN hosts (Flutter web on desktop IP, etc.)
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function applyCors(request: NextRequest, response: NextResponse): NextResponse {
+  const origin = request.headers.get("origin");
+  if (origin && isAllowedCorsOrigin(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+    response.headers.set(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD",
+    );
+    response.headers.set(
+      "Access-Control-Allow-Headers",
+      "Authorization, Content-Type, Accept, X-Requested-With",
+    );
+    response.headers.set("Access-Control-Max-Age", "86400");
+    response.headers.append("Vary", "Origin");
+  }
+  return response;
+}
+
 function isProtectedPath(pathname: string) {
   // Book and pay for roadside / help services without signing in.
   if (pathname === "/buyer/services" || pathname.startsWith("/buyer/services/")) {
@@ -67,6 +107,14 @@ function canSkipAuthMiddleware(pathname: string, hasOAuthCode: boolean): boolean
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const authCode = request.nextUrl.searchParams.get("code");
+
+  // Flutter web (and other browser clients) need CORS on every /api response + preflight.
+  if (pathname.startsWith("/api/")) {
+    if (request.method === "OPTIONS") {
+      return applyCors(request, new NextResponse(null, { status: 204 }));
+    }
+    return applyCors(request, NextResponse.next());
+  }
 
   if (canSkipAuthMiddleware(pathname, Boolean(authCode))) {
     return NextResponse.next();

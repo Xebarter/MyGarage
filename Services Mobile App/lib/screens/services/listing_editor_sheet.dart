@@ -133,11 +133,7 @@ class _ListingEditorSheetState extends State<ListingEditorSheet> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [accent.fill, AppColors.surface],
-                ),
+                color: accent.fill,
                 borderRadius: BorderRadius.circular(AppRadii.xl),
                 border: Border.all(color: accent.border),
               ),

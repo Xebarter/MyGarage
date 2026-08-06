@@ -41,6 +41,9 @@ export default function ProviderTripPage() {
   const [error, setError] = useState<string | null>(null);
   const [myPos, setMyPos] = useState<TripMapPoint | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [routeMeta, setRouteMeta] = useState<{ etaMinutes: number; distanceMeters: number } | null>(
+    null,
+  );
   const lastSentRef = useRef<{ t: number; lat: number; lng: number } | null>(null);
   const geocodeTriedRef = useRef(false);
 
@@ -239,6 +242,11 @@ export default function ProviderTripPage() {
           </Card>
 
           <div className="overflow-hidden rounded-2xl border border-border/70 shadow-lg shadow-black/[0.04] dark:shadow-black/20">
+            {routeMeta ? (
+              <p className="border-b border-border/60 bg-primary/5 px-3 py-2 text-center text-sm font-semibold text-primary">
+                ~{routeMeta.etaMinutes} min · {(routeMeta.distanceMeters / 1000).toFixed(1)} km to customer
+              </p>
+            ) : null}
             <ServiceTripMap
               destination={destinationPoint}
               destinationAddress={destinationPoint ? undefined : request.location}
@@ -247,6 +255,16 @@ export default function ProviderTripPage() {
               providerLabel="You (provider)"
               destinationLabel={`${request.buyerContactName || 'Customer'} — drop-off`}
               minHeight="min(52vh,440px)"
+              onRouteMeta={(meta) => {
+                if (!meta || meta.etaMinutes == null) {
+                  setRouteMeta(null);
+                  return;
+                }
+                setRouteMeta({
+                  etaMinutes: meta.etaMinutes,
+                  distanceMeters: meta.distanceMeters ?? 0,
+                });
+              }}
             />
             {geocoding ? (
               <p className="border-t border-border/60 bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">

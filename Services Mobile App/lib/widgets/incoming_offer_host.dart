@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../app.dart';
 import '../models/service_request.dart';
 import '../providers/auth_controller.dart';
 import '../providers/dispatch_controller.dart';
@@ -22,21 +23,29 @@ class IncomingOfferHost extends StatefulWidget {
   State<IncomingOfferHost> createState() => _IncomingOfferHostState();
 }
 
-class _IncomingOfferHostState extends State<IncomingOfferHost> {
+class _IncomingOfferHostState extends State<IncomingOfferHost>
+    with WidgetsBindingObserver {
   DispatchController? _dispatch;
   AuthController? _auth;
   String? _presentedOfferId;
   bool _dialogOpen = false;
+  bool _responding = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _auth = context.read<AuthController>();
       _dispatch = context.read<DispatchController>();
       _auth!.addListener(_onAuthChanged);
       _dispatch!.addListener(_onDispatchChanged);
+
+      final alerts = JobAlertService.instance;
+      alerts.onNotificationAction = _respondFromExternal;
+      alerts.onRequestPresentDialog = _forcePresentIfNeeded;
+
       _onAuthChanged();
       _onDispatchChanged();
     });
@@ -44,9 +53,20 @@ class _IncomingOfferHostState extends State<IncomingOfferHost> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _auth?.removeListener(_onAuthChanged);
     _dispatch?.removeListener(_onDispatchChanged);
+    final alerts = JobAlertService.instance;
+    alerts.onNotificationAction = null;
+    alerts.onRequestPresentDialog = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _forcePresentIfNeeded();
+    }
   }
 
   void _onAuthChanged() {
@@ -60,6 +80,17 @@ class _IncomingOfferHostState extends State<IncomingOfferHost> {
     }
   }
 
+  void _forcePresentIfNeeded() {
+    final offer = _dispatch?.offer;
+    if (offer == null || !mounted) return;
+    if (_dialogOpen) return;
+    _presentedOfferId = null;
+    _onDispatchChanged();
+  }
+
+  /// Public path for Jobs-tab “Review offer” CTA.
+  void requestPresentOffer() => _forcePresentIfNeeded();
+
   void _onDispatchChanged() {
     final offer = _dispatch?.offer;
     if (offer == null) {
@@ -70,7 +101,8 @@ class _IncomingOfferHostState extends State<IncomingOfferHost> {
       _presentedOfferId = null;
       return;
     }
-    if (offer.assignmentId == _presentedOfferId || _dialogOpen) return;
+    if (_dialogOpen) return;
+    if (offer.assignmentId == _presentedOfferId) return;
     _presentedOfferId = offer.assignmentId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -88,22 +120,19 @@ class _IncomingOfferHostState extends State<IncomingOfferHost> {
       useRootNavigator: true,
       barrierDismissible: false,
       barrierLabel: 'Incoming job offer',
-      barrierColor: Colors.black.withValues(alpha: 0.72),
-      transitionDuration: const Duration(milliseconds: 320),
+      barrierColor: const Color(0xFF0B1220),
+      transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondary) {
         return SafeArea(
-          child: IncomingOfferScreen(offer: offer),
+          child: IncomingOfferScreen(
+            offer: offer,
+            onVolumeSilence: () => JobAlertService.instance.silence(),
+          ),
         );
       },
       transitionBuilder: (context, animation, secondary, child) {
         final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-            child: child,
-          ),
-        );
+        return FadeTransition(opacity: curved, child: child);
       },
     );
 
@@ -111,33 +140,120 @@ class _IncomingOfferHostState extends State<IncomingOfferHost> {
     if (!mounted) return;
 
     if (action == null) {
+      // Dialog closed without choice (e.g. offer cleared server-side).
       if (_dispatch?.offer == null) {
         await JobAlertService.instance.stop();
+      } else if (_dispatch?.offer?.assignmentId == offer.assignmentId) {
+        // Allow re-present next frame if still valid.
+        _presentedOfferId = null;
       }
       return;
     }
 
+    await _completeResponse(action);
+  }
+
+  Future<void> _respondFromExternal(String action) async {
+    if (!mounted) return;
+    // Close dialog if open so we don't double-respond.
+    if (_dialogOpen) {
+      final nav = Navigator.of(context, rootNavigator: true);
+      if (nav.canPop()) nav.pop(action);
+      return;
+    }
+    await _completeResponse(action);
+  }
+
+  Future<void> _completeResponse(String action) async {
+    if (_responding) return;
+    _responding = true;
     try {
-      await context.read<DispatchController>().respondToOffer(action);
+      // Capture id before respond clears the offer.
+      final knownId = _dispatch?.offer?.requestId.isNotEmpty == true
+          ? _dispatch!.offer!.requestId
+          : _dispatch?.offer?.request?.id;
+
+      final tripId = await context.read<DispatchController>().respondToOffer(action);
       await JobAlertService.instance.stop();
       if (!mounted) return;
+
       if (action == 'accept') {
+        final id = (tripId != null && tripId.isNotEmpty)
+            ? tripId
+            : knownId;
         final job = context.read<DispatchController>().activeJob;
-        if (job != null) context.push('/trip/${job.id}');
+        final dest = (id != null && id.isNotEmpty) ? id : job?.id;
+        if (dest != null && dest.isNotEmpty) {
+          // After the dialog is fully torn down, navigate on the next frame so
+          // GoRouter/root navigator are free (builder context + general dialog).
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          if (!mounted) return;
+          _openTrip(dest);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Job accepted. Open it from Active trip on Jobs.')),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(userFacingError(e, fallback: 'Could not respond to this offer.'))),
+        SnackBar(
+          content: Text(userFacingError(e, fallback: 'Could not respond to this offer.')),
+        ),
       );
       final still = context.read<DispatchController>().offer;
       if (still != null) {
         _presentedOfferId = null;
         _onDispatchChanged();
       }
+    } finally {
+      _responding = false;
+    }
+  }
+
+  void _openTrip(String requestId) {
+    AppNavigation.openTrip(requestId);
+    if (AppNavigation.router != null) return;
+    if (!mounted) return;
+    try {
+      GoRouter.of(context).go('/trip/$requestId');
+    } catch (_) {
+      try {
+        context.go('/trip/$requestId');
+      } catch (_) {}
     }
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // Expose present helper via InheritedWidget-like static access from jobs tab.
+    return _IncomingOfferScope(
+      presentOffer: _forcePresentIfNeeded,
+      child: widget.child,
+    );
+  }
+}
+
+class _IncomingOfferScope extends InheritedWidget {
+  const _IncomingOfferScope({
+    required this.presentOffer,
+    required super.child,
+  });
+
+  final VoidCallback presentOffer;
+
+  static _IncomingOfferScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<_IncomingOfferScope>();
+  }
+
+  @override
+  bool updateShouldNotify(_IncomingOfferScope oldWidget) => false;
+}
+
+/// Call from Jobs (or elsewhere) to re-open the accept/decline intercept.
+void presentIncomingOfferDialog(BuildContext context) {
+  _IncomingOfferScope.maybeOf(context)?.presentOffer();
+  // Fallback if InheritedWidget was not found (edge mount order).
+  JobAlertService.instance.onRequestPresentDialog?.call();
 }

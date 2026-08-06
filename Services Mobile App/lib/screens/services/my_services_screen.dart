@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
@@ -162,10 +161,13 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final activeCount = _listings.where((l) => l.isActive).length;
+    final subtitle = _listings.isEmpty
+        ? 'Prices set by MyGarage'
+        : '$activeCount active · prices set by MyGarage';
 
     return PageScaffold(
       title: 'Services',
-      subtitle: _listings.isEmpty ? 'What you offer' : '$activeCount active listing${activeCount == 1 ? '' : 's'}',
+      subtitle: subtitle,
       actions: [
         SoftIconButton(
           icon: Icons.add_rounded,
@@ -221,75 +223,30 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                               ),
                             ],
                           )
-                        : ListView(
+                        : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
-                            children: [
-                              if (_offline) ...[
-                                OfflineBanner(onRetry: _load),
-                                const SizedBox(height: 14),
-                              ],
-                              GlassCard(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                highlight: true,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(11),
-                                      ),
-                                      child: const Icon(
-                                        Icons.info_outline_rounded,
-                                        size: 18,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Choose services you offer. Job prices are set by MyGarage.',
-                                        style: AppTheme.host(
-                                          fontSize: 13,
-                                          color: AppColors.textSecondary,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ).animate().fadeIn(duration: 300.ms),
-                              const SizedBox(height: 12),
-                              OutlinedButton.icon(
-                                onPressed: _saving ? null : _openCatalogPicker,
-                                icon: const Icon(Icons.checklist_rounded, size: 18),
-                                label: const Text('Manage offerings'),
-                              ),
-                              const SizedBox(height: 16),
-                              ...List.generate(_listings.length, (i) {
-                                final item = _listings[i];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _ServiceColorCard(
-                                    listing: item,
-                                    onEdit: () => _editOptions(item),
-                                    onDelete: () => _delete(item),
-                                  )
-                                      .animate()
-                                      .fadeIn(delay: (35 + i * 50).ms, duration: 360.ms)
-                                      .slideY(begin: 0.05, curve: Curves.easeOutCubic),
-                                );
-                              }),
-                            ],
+                            itemCount: _listings.length + (_offline ? 1 : 0),
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, i) {
+                              if (_offline) {
+                                if (i == 0) return OfflineBanner(onRetry: _load);
+                                i -= 1;
+                              }
+                              final item = _listings[i];
+                              return _ServiceRow(
+                                listing: item,
+                                onEdit: () => _editOptions(item),
+                                onDelete: () => _delete(item),
+                              );
+                            },
                           ),
       ),
     );
   }
 }
 
-class _ServiceColorCard extends StatelessWidget {
-  const _ServiceColorCard({
+class _ServiceRow extends StatelessWidget {
+  const _ServiceRow({
     required this.listing,
     required this.onEdit,
     required this.onDelete,
@@ -304,164 +261,82 @@ class _ServiceColorCard extends StatelessWidget {
     final accent = accentForCategory(listing.categoryId, seed: listing.serviceName.hashCode);
     final catTitle = categoryTitle(listing.categoryId);
     final icon = iconForCategory(listing.categoryId);
+    final meta = [
+      formatUgx(listing.priceUgx),
+      if (listing.etaMinutes != null) '${listing.etaMinutes} min',
+      if (listing.mobileAvailable) 'Mobile',
+    ].join(' · ');
 
-    return PressableScale(
-      onTap: onEdit,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accent.fill,
-              AppColors.surface.withValues(alpha: 0.96),
-            ],
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            border: Border.all(color: AppColors.border),
           ),
-          borderRadius: BorderRadius.circular(AppRadii.xl),
-          border: Border.all(color: accent.border.withValues(alpha: 0.9)),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accent.iconBg,
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    border: Border.all(color: accent.border),
-                  ),
-                  child: Icon(icon, color: accent.accent, size: 24),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.iconBg,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        catTitle.toUpperCase(),
-                        style: AppTheme.host(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: accent.accent,
-                          letterSpacing: 0.6,
-                        ),
+                child: Icon(icon, color: accent.accent, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      listing.serviceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.host(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        listing.serviceName,
-                        style: AppTheme.host(
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.25,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  icon: Icon(
-                    Icons.more_horiz_rounded,
-                    color: accent.accent.withValues(alpha: 0.85),
-                  ),
-                  onSelected: (v) {
-                    if (v == 'edit') onEdit();
-                    if (v == 'delete') onDelete();
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit options')),
-                    PopupMenuItem(value: 'delete', child: Text('Remove')),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      catTitle,
+                      style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      meta,
+                      style: AppTheme.host(fontSize: 12.5, color: AppColors.textSecondary),
+                    ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Chip(
-                  label: formatUgx(listing.priceUgx),
-                  color: accent.accent,
-                  bg: AppColors.surface.withValues(alpha: 0.88),
-                  bold: true,
-                ),
-                if (listing.etaMinutes != null)
-                  _Chip(
-                    label: '${listing.etaMinutes} min',
-                    color: AppColors.textSecondary,
-                    bg: AppColors.surface.withValues(alpha: 0.72),
-                  ),
-                _Chip(
-                  label: listing.isActive ? 'Active' : 'Paused',
-                  color: listing.isActive ? AppColors.success : AppColors.textMuted,
-                  bg: AppColors.surface.withValues(alpha: 0.72),
-                ),
-                if (listing.mobileAvailable)
-                  _Chip(
-                    label: 'Mobile',
-                    color: accent.accent,
-                    bg: AppColors.surface.withValues(alpha: 0.72),
-                  ),
-                if (listing.emergency)
-                  const _Chip(
-                    label: 'Emergency',
-                    color: Color(0xFFB91C1C),
-                    bg: Color(0xFFFFF1F2),
-                  ),
-              ],
-            ),
-            if (listing.description.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                listing.description.trim(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(width: 8),
+              StatusPill(
+                label: listing.isActive ? 'Active' : 'Paused',
+                color: listing.isActive ? AppColors.success : AppColors.textMuted,
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, color: AppColors.textMuted, size: 20),
+                onSelected: (v) {
+                  if (v == 'edit') onEdit();
+                  if (v == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit options')),
+                  PopupMenuItem(value: 'delete', child: Text('Remove')),
+                ],
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.color,
-    required this.bg,
-    this.bold = false,
-  });
-
-  final String label;
-  final Color color;
-  final Color bg;
-  final bool bold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Text(
-        label,
-        style: AppTheme.host(
-          fontSize: 12,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          color: color,
+          ),
         ),
       ),
     );

@@ -9,6 +9,21 @@ import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'widgets/incoming_offer_host.dart';
 
+/// Global go_router for navigation from overlays outside the shell tree
+/// (e.g. full-screen offer intercept after Accept).
+class AppNavigation {
+  AppNavigation._();
+  static GoRouter? router;
+
+  static void openTrip(String requestId) {
+    final path = '/trip/$requestId';
+    final r = router;
+    if (r != null) {
+      r.go(path);
+    }
+  }
+}
+
 class MyGarageServicesApp extends StatefulWidget {
   const MyGarageServicesApp({super.key});
 
@@ -28,13 +43,15 @@ class _MyGarageServicesAppState extends State<MyGarageServicesApp> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (identical(AppNavigation.router, _router)) {
+      AppNavigation.router = null;
+    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    // Quiet recovery after long background / process death restore.
     final auth = context.read<AuthController>();
     final dispatch = context.read<DispatchController>();
     auth.onAppResumed().then((_) {
@@ -49,7 +66,10 @@ class _MyGarageServicesAppState extends State<MyGarageServicesApp> with WidgetsB
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _router ??= createRouter(context.read<AuthController>());
+    if (_router == null) {
+      _router = createRouter(context.read<AuthController>());
+      AppNavigation.router = _router;
+    }
   }
 
   @override
@@ -60,7 +80,6 @@ class _MyGarageServicesAppState extends State<MyGarageServicesApp> with WidgetsB
       theme: AppTheme.light,
       routerConfig: _router!,
       builder: (context, child) {
-        // Avoid Flutter's red error panel after resume/crashes in release builds.
         ErrorWidget.builder = (details) {
           if (kDebugMode) {
             return ErrorWidget(details.exception);

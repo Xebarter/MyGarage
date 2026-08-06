@@ -1,66 +1,52 @@
-# MyGarage Mobile App
-
-React Native (Expo) buyer app for the MyGarage automotive marketplace. Browse spare parts, manage your cart, explore service categories, and sign in with the same Supabase account as the web storefront.
-
-## Prerequisites
-
-- Node.js 20+
-- [Expo Go](https://expo.dev/go) on your phone, or Android Studio / Xcode for emulators
-- The MyGarage Next.js app running locally (or deployed) for product APIs
+# MyGarage buyer app (Flutter)
 
 ## Setup
 
 ```bash
 cd "Mobile App"
+# Copy and edit env:
 cp .env.example .env
+flutter pub get
+flutter run
 ```
 
-Edit `.env`:
+## Environment (`.env`)
 
 | Variable | Description |
 |----------|-------------|
-| `EXPO_PUBLIC_API_URL` | Web app URL. Use `http://YOUR_LAN_IP:3000` on a physical device (not `localhost`). |
-| `EXPO_PUBLIC_SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` in the web app |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Same as `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the web app |
+| `API_URL` | Next.js API base — use `https://www.mygarage.ug` or `http://YOUR_LAN_IP:3000` |
+| `SUPABASE_URL` | Same as web `NEXT_PUBLIC_SUPABASE_URL` |
+| `SUPABASE_ANON_KEY` | Same as web anon key |
+| `GOOGLE_MAPS_API_KEY` | Maps SDK key |
+| `AUTH_DEEP_LINK_URI` | Default `mygarage://login-callback` |
+| `AUTH_REDIRECT_URI` | HTTPS OAuth bridge (default `{API_URL}/auth/mobile-callback`) |
 
-On the **Next.js server** (repo root `.env`), set `GOOGLE_MAPS_API_KEY` with these APIs enabled in [Google Cloud Console](https://console.cloud.google.com/apis/library):
+## Preview
 
-- **Places API**
-- **Places API (New)**
-
-Restart the Next.js server after adding the key. In the app network tab, `/api/geocode/suggestions` should return `"provider": "google"`. If you see `"provider": "osm"`, Google is not being used (missing key, APIs not enabled, or billing not set up).
-
-Allow **location access** when typing an address so results are ranked near you (like Uber/SafeBoda), not only near Kampala.
-
-Install and start:
+| Mode | Command | API |
+|------|---------|-----|
+| **Flutter Web** (e.g. `http://localhost:55006`) | `flutter run -d chrome` | Set `API_URL=http://localhost:3000` and run Next on port 3000. Browser CORS blocks production unless the site middleware allows localhost. |
+| Android / iOS | `flutter run` | Emulator: `http://10.0.2.2:3000`. Device: PC LAN IP. |
+| Release APK | `flutter build apk --release` | Use `API_URL=https://www.mygarage.ug` then rebuild (`.env` is bundled). |
+## Build APK
 
 ```bash
-npm install
-npm start
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Then press `a` for Android emulator, `w` for web preview, or scan the QR code with Expo Go.
+Enable **Windows Developer Mode** if Flutter reports symlink errors for plugins.
 
 ## Features
 
-- **Home** — featured products and category discovery feed from `/api/landing/products`
-- **Shop** — searchable product catalog with category filters
-- **Services** — automotive service categories (roadside, repairs, maintenance, etc.)
-- **Cart** — persistent cart with checkout handoff to the web storefront
-- **Profile** — Supabase email/password auth and buyer profile sync
-
-## Project structure
-
-```
-app/           Expo Router screens (tabs, product detail, auth)
-components/    Reusable UI (ProductCard, SearchBar, …)
-contexts/      Auth and cart state
-lib/           API client, Supabase, formatting
-data/          Service category catalog (mirrors web app)
-types/         Shared TypeScript types
-```
+- **Services** — category catalog, location, request, provider tracking (name + photo)
+- **Shop** — product catalog + product detail
+- **Cart / Checkout** — local cart + Paytota hosted payment
+- **Garage** — vehicles list + add
+- **Profile / Orders** — auth, orders list
 
 ## Notes
 
-- Checkout and full service booking open in the browser (Paytota mobile money and dispatch flows live on the web app today).
-- Product images and data are loaded from the existing Next.js API routes — no duplicate backend.
+- Backend is the MyGarage Next.js API (no separate mobile backend).
+- This folder is Flutter-only (the previous Expo/RN app was replaced).
+- Provider app remains in `Services Mobile App/`.

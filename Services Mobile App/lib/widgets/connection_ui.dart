@@ -39,7 +39,7 @@ class OfflineBanner extends StatelessWidget {
               color: AppColors.surface.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 22),
+            child: const Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 22),
           )
               .animate(onPlay: (c) => c.repeat(reverse: true))
               .fade(begin: 0.55, end: 1, duration: 1100.ms)
@@ -111,16 +111,8 @@ class AnimatedWaitingState extends StatelessWidget {
             height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.14),
-                  AppColors.primary.withValues(alpha: 0.04),
-                ],
-              ),
+              color: AppColors.primarySoft,
               border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
-              boxShadow: AppTheme.cardShadow,
             ),
             child: Icon(Icons.route_rounded, size: 38, color: AppColors.primary.withValues(alpha: 0.95)),
           )

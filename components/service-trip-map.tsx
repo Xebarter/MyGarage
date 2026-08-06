@@ -22,6 +22,7 @@ export type ServiceTripMapProps = {
   /** searching = radar at pickup; tracking = route + both markers */
   mode?: 'tracking' | 'searching' | 'auto';
   minHeight?: string;
+  onRouteMeta?: ServiceTripMapInnerProps['onRouteMeta'];
 };
 
 export function ServiceTripMap({

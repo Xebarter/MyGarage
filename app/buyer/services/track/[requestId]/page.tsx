@@ -115,6 +115,10 @@ export default function ServiceTrackPage() {
     providerContact: ProviderContact | null;
   } | null>(null);
   const [geocodedDest, setGeocodedDest] = useState<TripMapPoint | null>(null);
+  const [routeMeta, setRouteMeta] = useState<{
+    etaMinutes: number;
+    distanceMeters: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -471,6 +475,14 @@ export default function ServiceTrackPage() {
                           ? 'We are matching you with a nearby professional — your pin is where help will meet you.'
                           : 'See your provider moving toward you — same view they use to reach your pin.'}
                       </p>
+                      {routeMeta && data.request.status !== 'pending' ? (
+                        <p className="mt-3 text-sm font-semibold text-primary">
+                          Provider ~{routeMeta.etaMinutes} min away
+                          {routeMeta.distanceMeters > 0
+                            ? ` · ${(routeMeta.distanceMeters / 1000).toFixed(1)} km remaining`
+                            : ''}
+                        </p>
+                      ) : null}
                       <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 shadow-lg shadow-black/[0.04] dark:shadow-black/25">
                         <ServiceTripMap
                           destination={destinationOnMap}
@@ -479,6 +491,16 @@ export default function ServiceTrackPage() {
                           mode={data.request.status === 'pending' ? 'searching' : 'auto'}
                           providerLabel="Your provider"
                           destinationLabel="Your location"
+                          onRouteMeta={(meta) => {
+                            if (!meta || meta.etaMinutes == null) {
+                              setRouteMeta(null);
+                              return;
+                            }
+                            setRouteMeta({
+                              etaMinutes: meta.etaMinutes,
+                              distanceMeters: meta.distanceMeters ?? 0,
+                            });
+                          }}
                         />
                       </div>
                       {data.request.status !== 'pending' && data.providerContact?.phone ? (

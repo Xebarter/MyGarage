@@ -15,9 +15,11 @@ class DispatchController extends ChangeNotifier {
 
   final DispatchApi _api;
   Timer? _pollTimer;
-  Timer? _locationTimer;
+  StreamSubscription<Position>? _locationSub;
+  Timer? _locationThrottle;
   String? _vendorId;
   bool _refreshing = false;
+  DateTime? _lastLocationPush;
 
   DispatchOffer? offer;
   ServiceRequest? activeJob;
@@ -28,10 +30,12 @@ class DispatchController extends ChangeNotifier {
   bool offline = false;
   String? _lastOfferId;
 
+  /// Live GPS of the provider device (for map) — may be fresher than server.
+  double? liveProviderLat;
+  double? liveProviderLng;
 
   void start(String vendorId) {
     if (_vendorId == vendorId && _pollTimer != null) {
-      // Still force a silent refresh after resume / re-auth.
       unawaited(refresh(silent: true));
       return;
     }
@@ -49,7 +53,6 @@ class DispatchController extends ChangeNotifier {
     unawaited(JobAlertService.instance.stop());
   }
 
-  /// Called when the app returns to the foreground.
   Future<void> onAppResumed() async {
     if (_vendorId == null) return;
     await refresh(silent: true);
@@ -84,6 +87,8 @@ class DispatchController extends ChangeNotifier {
         _ensureLocationUpdates();
       } else {
         _stopLocationUpdates();
+        liveProviderLat = null;
+        liveProviderLng = null;
       }
 
       try {
@@ -103,7 +108,7 @@ class DispatchController extends ChangeNotifier {
     } catch (e) {
       if (isTransientNetworkError(e)) {
         offline = true;
-        statusHint = null; // Jobs UI shows OfflineBanner instead of exception text.
+        statusHint = null;
       } else if (!silent) {
         offline = false;
         statusHint = userFacingError(
@@ -122,16 +127,58 @@ class DispatchController extends ChangeNotifier {
     }
   }
 
-  Future<void> respondToOffer(String action) async {
+  /// Accept or decline the current offer.
+  /// Returns the request id when [action] is accept (for trip navigation).
+  Future<String?> respondToOffer(String action) async {
     final vendorId = _vendorId;
     final current = offer;
-    if (vendorId == null || current == null) return;
+    if (vendorId == null || current == null) return null;
+
+    final requestId = current.requestId.isNotEmpty
+        ? current.requestId
+        : (current.request?.id ?? '');
+
     await _api.respond(
       assignmentId: current.assignmentId,
       vendorId: vendorId,
       action: action,
     );
-    await refresh();
+
+    // Always refresh after respond — wait out any in-flight poll first.
+    await _awaitRefreshIdle();
+    await refresh(silent: true);
+
+    if (action != 'accept' || requestId.isEmpty) return null;
+
+    // Ensure we have an active job for the trip screen (poll race / lag).
+    if (activeJob == null || activeJob!.id != requestId) {
+      try {
+        final job = await loadJob(requestId);
+        if (job != null && job.isActive) {
+          activeJob = job;
+          _ensureLocationUpdates();
+          notifyListeners();
+        }
+      } catch (_) {
+        // Still navigate — trip screen will load by id.
+      }
+    } else {
+      _ensureLocationUpdates();
+    }
+
+    // Optimistic seed so the map has a marker while GPS starts.
+    liveProviderLat ??= activeJob?.providerLat;
+    liveProviderLng ??= activeJob?.providerLng;
+
+    return requestId;
+  }
+
+  Future<void> _awaitRefreshIdle() async {
+    var spins = 0;
+    while (_refreshing && spins < 40) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      spins++;
+    }
   }
 
   Future<void> advanceStage({
@@ -163,21 +210,28 @@ class DispatchController extends ChangeNotifier {
     return job;
   }
 
+  /// Start / restart GPS stream for an active trip (trip screen entry).
+  void ensureLiveTrackingForJob(ServiceRequest job) {
+    if (job.isActive) {
+      if (activeJob == null || activeJob!.id != job.id) {
+        activeJob = job;
+      }
+      // Restart stream if it was stopped, or if we need a fix immediately.
+      if (_locationSub == null) {
+        _ensureLocationUpdates();
+      } else {
+        unawaited(_pushOnce());
+      }
+      notifyListeners();
+    }
+  }
+
   void _ensureLocationUpdates() {
-    if (_locationTimer != null) return;
-    _pushLocation();
-    _locationTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pushLocation());
+    if (_locationSub != null) return;
+    unawaited(_startLocationStream());
   }
 
-  void _stopLocationUpdates() {
-    _locationTimer?.cancel();
-    _locationTimer = null;
-  }
-
-  Future<void> _pushLocation() async {
-    final vendorId = _vendorId;
-    final job = activeJob;
-    if (vendorId == null || job == null) return;
+  Future<void> _startLocationStream() async {
     try {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -187,14 +241,64 @@ class DispatchController extends ChangeNotifier {
           return;
         }
       }
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) return;
+
+      _locationSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 12,
+        ),
+      ).listen((pos) {
+        liveProviderLat = pos.latitude;
+        liveProviderLng = pos.longitude;
+        notifyListeners();
+        _throttledPush(pos);
+      }, onError: (_) {});
+      // Immediate fix
+      unawaited(_pushOnce());
+    } catch (_) {}
+  }
+
+  void _throttledPush(Position pos) {
+    final now = DateTime.now();
+    if (_lastLocationPush != null &&
+        now.difference(_lastLocationPush!) < const Duration(seconds: 4)) {
+      return;
+    }
+    _lastLocationPush = now;
+    unawaited(_sendLocation(pos.latitude, pos.longitude));
+  }
+
+  Future<void> _pushOnce() async {
+    try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
+      liveProviderLat = pos.latitude;
+      liveProviderLng = pos.longitude;
+      notifyListeners();
+      await _sendLocation(pos.latitude, pos.longitude);
+    } catch (_) {}
+  }
+
+  void _stopLocationUpdates() {
+    _locationSub?.cancel();
+    _locationSub = null;
+    _locationThrottle?.cancel();
+    _locationThrottle = null;
+  }
+
+  Future<void> _sendLocation(double lat, double lng) async {
+    final vendorId = _vendorId;
+    final job = activeJob;
+    if (vendorId == null || job == null) return;
+    try {
       await _api.updateLocation(
         requestId: job.id,
         vendorId: vendorId,
-        lat: pos.latitude,
-        lng: pos.longitude,
+        lat: lat,
+        lng: lng,
       );
     } catch (_) {
       // Location is best-effort while on a job.
