@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ProductImage } from '@/components/product-image';
 import { useRouter } from 'next/navigation';
 import {
   ChevronDown,
@@ -24,46 +23,21 @@ import { cn } from '@/lib/utils';
 import { useBuyerPortalChrome } from '@/components/buyer-portal-chrome';
 import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
 import { useServicesPortalChrome } from '@/components/services-portal-chrome';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
+import {
+  flattenSearchActions,
+  SearchClearButton,
+  SearchSuggestionsPanel,
+  type SearchSuggestionsPayload,
+} from '@/components/search/search-suggestions-panel';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createClient } from '@/lib/supabase/client';
 import { getAuthAvatarUrl, getAuthDisplayInitials, userHasAdminPortalAccess } from '@/lib/auth-avatar';
 
-type SuggestionProduct = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  compareAtPrice: number | null;
-  image: string;
-  category: string;
-  brand: string;
-};
-
-type SuggestionCategory = {
-  name: string;
-  image: string;
-  count: number;
-  headline: string;
-};
-
-type SuggestionService = {
-  id: string;
-  name: string;
-  categoryId: string;
-  categoryTitle: string;
-};
-
-type SuggestionServiceCategory = {
-  categoryId: string;
-  categoryTitle: string;
-  emoji: string;
-  count: number;
-  headline: string;
-  topServiceName: string;
-};
+const SEARCH_RECENT_KEY = 'mygarage.search.recent';
+const SEARCH_RECENT_LIMIT = 8;
 
 const profileMenuPanelClass =
   'absolute right-0 z-50 mt-2.5 w-[min(calc(100vw-2rem),18rem)] overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xl ring-1 ring-black/[0.04] dark:ring-white/[0.08]';
@@ -303,18 +277,57 @@ export function Header() {
 
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<{
-    query: string;
-    categories: SuggestionCategory[];
-    products: SuggestionProduct[];
-    serviceCategories?: SuggestionServiceCategory[];
-    services?: SuggestionService[];
-  } | null>(null);
+  const [suggestions, setSuggestions] = useState<SearchSuggestionsPayload | null>(null);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [activeSuggestIndex, setActiveSuggestIndex] = useState(-1);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const suggestionsBlurCloseTimerRef = useRef<number | null>(null);
   const mobileSearchFieldRef = useRef<HTMLDivElement | null>(null);
   const [mobileSuggestLayout, setMobileSuggestLayout] = useState<{ top: number; maxHeight: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SEARCH_RECENT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      setRecentSearches(
+        parsed
+          .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+          .map((item) => item.trim())
+          .slice(0, SEARCH_RECENT_LIMIT),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const persistRecent = useCallback((query: string) => {
+    const next = query.trim();
+    if (next.length < 2) return;
+    setRecentSearches((prev) => {
+      const updated = [next, ...prev.filter((item) => item.toLowerCase() !== next.toLowerCase())].slice(
+        0,
+        SEARCH_RECENT_LIMIT,
+      );
+      try {
+        localStorage.setItem(SEARCH_RECENT_KEY, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
+  }, []);
+
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(SEARCH_RECENT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     // Keep the search input in sync when the URL changes (e.g. back/forward).
@@ -335,30 +348,24 @@ export function Header() {
   }, [])
 
   const applySearch = useCallback(
-    (raw: string, opts?: { closeSidebar?: boolean }) => {
+    (raw: string, opts?: { closeSidebar?: boolean; remember?: boolean }) => {
       const next = raw.trim();
       if (next.length > 0) {
         router.replace(`/?q=${encodeURIComponent(next)}`);
         setUrlQ(next);
+        if (opts?.remember !== false) persistRecent(next);
       } else {
         router.replace('/');
         setUrlQ('');
       }
+      setSuggestionsVisible(false);
+      setActiveSuggestIndex(-1);
       if (opts?.closeSidebar) closeSidebar();
     },
-    [router, closeSidebar],
+    [router, closeSidebar, persistRecent],
   );
 
-  // Amazon-like search: debounce updates while typing.
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      if (searchValue.trim() === urlQ) return;
-      applySearch(searchValue);
-    }, 250);
-    return () => window.clearTimeout(t);
-  }, [searchValue, urlQ, applySearch]);
-
-  // Live suggestions (categories + top matching products) under the search bar.
+  // Live suggestions while typing (URL updates only on submit / explicit pick).
   useEffect(() => {
     if (!suggestionsVisible) return;
 
@@ -366,6 +373,8 @@ export function Header() {
     if (q.length < 2) {
       setSuggestions(null);
       setSuggestionsError(null);
+      setSuggestionsLoading(false);
+      setActiveSuggestIndex(-1);
       return;
     }
 
@@ -376,23 +385,28 @@ export function Header() {
         setSuggestionsLoading(true);
         setSuggestionsError(null);
 
-        const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(q)}`, { signal: controller.signal });
-        const data = await res.json();
+        const res = await fetch(
+          `/api/search/suggestions?q=${encodeURIComponent(q)}&limitProducts=8&limitCategories=5&limitServices=5&limitServiceCategories=4`,
+          { signal: controller.signal },
+        );
+        const data = (await res.json()) as SearchSuggestionsPayload;
         if (!res.ok) {
-          throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to fetch suggestions');
+          throw new Error('Failed to fetch suggestions');
         }
         if (cancelled) return;
         setSuggestions(data);
+        setActiveSuggestIndex(0);
       } catch (e) {
         if (cancelled) return;
         if ((e as Error)?.name === 'AbortError') return;
         setSuggestions(null);
-        setSuggestionsError('No suggestions');
+        setSuggestionsError('Could not load suggestions');
+        setActiveSuggestIndex(-1);
       } finally {
         if (cancelled) return;
         setSuggestionsLoading(false);
       }
-    }, 200);
+    }, 160);
 
     return () => {
       cancelled = true;
@@ -401,8 +415,13 @@ export function Header() {
     };
   }, [searchValue, suggestionsVisible]);
 
+  const suggestionActions = useMemo(
+    () => flattenSearchActions(suggestions, searchValue, recentSearches),
+    [suggestions, searchValue, recentSearches],
+  );
+
   useLayoutEffect(() => {
-    if (!suggestionsVisible || searchValue.trim().length < 2) {
+    if (!suggestionsVisible || (searchValue.trim().length < 2 && recentSearches.length === 0)) {
       setMobileSuggestLayout(null);
       return;
     }
@@ -435,10 +454,11 @@ export function Header() {
       vv?.removeEventListener('resize', run);
       vv?.removeEventListener('scroll', run);
     };
-  }, [suggestionsVisible, searchValue]);
+  }, [suggestionsVisible, searchValue, recentSearches.length]);
 
   const closeSuggestions = useCallback(() => {
     setSuggestionsVisible(false);
+    setActiveSuggestIndex(-1);
   }, []);
 
   const showSuggestionsNow = useCallback(() => {
@@ -446,19 +466,100 @@ export function Header() {
     setSuggestionsVisible(true);
   }, []);
 
-  const buildCategoryHref = useCallback((category?: string) => {
-    const cat = (category ?? '').trim();
-    if (!cat || cat === 'all') return '/';
-    return `/category/products/${encodeURIComponent(cat)}`;
-  }, []);
+  const activateSuggestion = useCallback(
+    (index: number) => {
+      const item = suggestionActions[index];
+      if (!item) {
+        applySearch(searchValue, { closeSidebar: true });
+        return;
+      }
+      switch (item.kind) {
+        case 'recent':
+        case 'search-all':
+          applySearch(item.query, { closeSidebar: true });
+          break;
+        case 'category':
+          persistRecent(searchValue.trim() || item.category.name);
+          router.push(`/category/products/${encodeURIComponent(item.category.name)}`);
+          closeSuggestions();
+          closeSidebar();
+          break;
+        case 'product':
+          persistRecent(searchValue.trim() || item.product.name);
+          router.push(`/products/${item.product.id}`);
+          closeSuggestions();
+          closeSidebar();
+          break;
+        case 'service-category':
+          persistRecent(searchValue.trim() || item.category.categoryTitle);
+          router.push(`/buyer/services?sc=${encodeURIComponent(item.category.categoryId)}&quick=1`);
+          closeSuggestions();
+          closeSidebar();
+          break;
+        case 'service':
+          persistRecent(searchValue.trim() || item.service.name);
+          router.push(
+            `/buyer/services?sc=${encodeURIComponent(item.service.categoryId)}&ss=${encodeURIComponent(item.service.name)}&quick=1`,
+          );
+          closeSuggestions();
+          closeSidebar();
+          break;
+      }
+    },
+    [suggestionActions, applySearch, searchValue, persistRecent, router, closeSuggestions, closeSidebar],
+  );
 
-  const buildServiceHref = useCallback((categoryId: string, serviceName: string) => {
-    return `/buyer/services?sc=${encodeURIComponent(categoryId)}&ss=${encodeURIComponent(serviceName)}&quick=1`;
-  }, []);
+  const handleSearchKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Escape') {
+        if (searchValue) {
+          setSearchValue('');
+          applySearch('', { closeSidebar: true, remember: false });
+        }
+        closeSuggestions();
+        return;
+      }
 
-  const buildServiceCategoryHref = useCallback((categoryId: string) => {
-    return `/buyer/services?sc=${encodeURIComponent(categoryId)}&quick=1`;
-  }, []);
+      if (!suggestionsVisible) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          showSuggestionsNow();
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (suggestionActions.length === 0) return;
+        setActiveSuggestIndex((prev) => (prev + 1) % suggestionActions.length);
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (suggestionActions.length === 0) return;
+        setActiveSuggestIndex((prev) => (prev <= 0 ? suggestionActions.length - 1 : prev - 1));
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        if (activeSuggestIndex >= 0 && suggestionActions[activeSuggestIndex]) {
+          e.preventDefault();
+          activateSuggestion(activeSuggestIndex);
+        }
+      }
+    },
+    [
+      searchValue,
+      applySearch,
+      closeSuggestions,
+      suggestionsVisible,
+      showSuggestionsNow,
+      suggestionActions,
+      activeSuggestIndex,
+      activateSuggestion,
+    ],
+  );
 
   const buyerChrome = useBuyerPortalChrome();
   const vendorChrome = useVendorPortalChrome();
@@ -714,20 +815,30 @@ export function Header() {
               <span>SOS</span>
             </Link>
             <form
-              className="mx-6 flex max-w-md flex-1 items-center"
+              className="mx-6 flex max-w-lg flex-1 items-center"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (activeSuggestIndex >= 0 && suggestionActions[activeSuggestIndex]) {
+                  activateSuggestion(activeSuggestIndex);
+                  return;
+                }
                 applySearch(searchValue, { closeSidebar: true });
               }}
             >
               <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
-                  placeholder="Search products & services..."
+                  placeholder="Search parts, brands, categories, services…"
                   aria-label="Search products and services"
+                  aria-autocomplete="list"
+                  aria-expanded={suggestionsVisible}
                   value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
+                  onChange={(e) => {
+                    setSearchValue(e.target.value);
+                    setActiveSuggestIndex(-1);
+                    showSuggestionsNow();
+                  }}
                   onFocus={() => {
                     showSuggestionsNow();
                   }}
@@ -735,195 +846,38 @@ export function Header() {
                     if (suggestionsBlurCloseTimerRef.current) window.clearTimeout(suggestionsBlurCloseTimerRef.current);
                     suggestionsBlurCloseTimerRef.current = window.setTimeout(() => {
                       closeSuggestions();
-                    }, 120);
+                    }, 140);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setSearchValue('');
-                      applySearch('', { closeSidebar: true });
-                      closeSuggestions();
-                    }
+                  onKeyDown={handleSearchKeyDown}
+                  className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <SearchClearButton
+                  visible={searchValue.length > 0}
+                  onClear={() => {
+                    setSearchValue('');
+                    applySearch('', { closeSidebar: true, remember: false });
+                    showSuggestionsNow();
                   }}
-                  className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
 
-                {suggestionsVisible && (searchValue.trim().length >= 2) ? (
-                  <div
-                    className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-border bg-popover shadow-lg z-50 overflow-hidden"
-                    onMouseDown={(e) => {
-                      // Prevent the input from losing focus before click/navigation.
-                      e.preventDefault();
+                {suggestionsVisible && (searchValue.trim().length >= 2 || recentSearches.length > 0) ? (
+                  <SearchSuggestionsPanel
+                    query={searchValue}
+                    suggestions={suggestions}
+                    loading={suggestionsLoading}
+                    error={suggestionsError}
+                    recent={recentSearches}
+                    activeIndex={activeSuggestIndex}
+                    variant="desktop"
+                    onHoverIndex={setActiveSuggestIndex}
+                    onPickRecent={(q) => applySearch(q, { closeSidebar: true })}
+                    onClearRecent={clearRecentSearches}
+                    onNavigate={() => {
+                      persistRecent(searchValue.trim());
+                      closeSuggestions();
+                      closeSidebar();
                     }}
-                  >
-                    <div className="p-3">
-                      {suggestionsLoading ? (
-                        <p className="text-xs text-muted-foreground">Searching…</p>
-                      ) : suggestionsError ? (
-                        <p className="text-xs text-muted-foreground">{suggestionsError}</p>
-                      ) : suggestions &&
-                        (suggestions.categories?.length ?? 0) === 0 &&
-                        suggestions.products.length === 0 &&
-                        (suggestions.serviceCategories?.length ?? 0) === 0 &&
-                        (suggestions.services?.length ?? 0) === 0 ? (
-                        <p className="text-xs text-muted-foreground">No matches found</p>
-                      ) : null}
-
-                      {suggestions &&
-                      ((suggestions.categories?.length ?? 0) > 0 ||
-                        suggestions.products.length > 0 ||
-                        (suggestions.serviceCategories?.length ?? 0) > 0 ||
-                        (suggestions.services?.length ?? 0) > 0) ? (
-                        <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto overflow-x-hidden pb-1">
-                          {(suggestions.categories?.length ?? 0) > 0 ? (
-                            <div>
-                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Browse categories
-                              </p>
-                              <div className="flex flex-col gap-2">
-                                {(suggestions.categories ?? []).map((c) => (
-                                  <Link
-                                    key={c.name}
-                                    href={buildCategoryHref(c.name)}
-                                    className="group w-full rounded-lg border border-primary/20 bg-primary/5 transition hover:border-primary/35 hover:bg-primary/10"
-                                    onClick={() => {
-                                      closeSuggestions();
-                                      closeSidebar();
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 px-2 py-2">
-                                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 ring-1 ring-border">
-                                        <ProductImage
-                                          src={c.image?.trim() ? c.image : '/products/default.jpg'}
-                                          alt={c.headline}
-                                          width={48}
-                                          height={48}
-                                          className="h-full w-full object-cover transition group-hover:scale-[1.03]"
-                                          sizes="48px"
-                                        />
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-semibold leading-snug text-foreground line-clamp-2">
-                                          {c.headline}
-                                        </p>
-                                        <p className="mt-0.5 text-[10px] text-muted-foreground">
-                                          View all in {c.name}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                          {suggestions.products.length > 0 ? (
-                            <div>
-                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Top products
-                              </p>
-                              <div className="flex flex-col gap-2">
-                                {suggestions.products.map((p) => (
-                                  <Link
-                                    key={p.id}
-                                    href={buildCategoryHref(p.category)}
-                                    className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
-                                    onClick={() => {
-                                      closeSuggestions();
-                                      closeSidebar();
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 px-2 py-2">
-                                      <div className="relative h-12 w-12 overflow-hidden rounded-md bg-muted/40">
-                                        <ProductImage
-                                          src={p.image || '/products/default.jpg'}
-                                          alt={p.name}
-                                          width={48}
-                                          height={48}
-                                          className="h-full w-full object-cover transition group-hover:scale-[1.03]"
-                                          sizes="48px"
-                                        />
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="line-clamp-1 text-xs font-medium text-foreground">{p.name}</p>
-                                        <p className="line-clamp-1 text-[10px] text-muted-foreground">{p.category}</p>
-                                      </div>
-                                    </div>
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                          {(suggestions.serviceCategories?.length ?? 0) > 0 ? (
-                            <div>
-                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Browse service categories
-                              </p>
-                              <div className="flex flex-col gap-2">
-                                {(suggestions.serviceCategories ?? []).map((sc) => (
-                                  <Link
-                                    key={sc.categoryId}
-                                    href={buildServiceCategoryHref(sc.categoryId)}
-                                    className="group w-full rounded-lg border border-amber-500/25 bg-amber-500/5 transition hover:border-amber-500/40 hover:bg-amber-500/10"
-                                    onClick={() => {
-                                      closeSuggestions();
-                                      closeSidebar();
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 px-2 py-2">
-                                      <div
-                                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background text-2xl leading-none ring-1 ring-border"
-                                        aria-hidden
-                                      >
-                                        {sc.emoji}
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">
-                                          {sc.headline}
-                                        </p>
-                                        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
-                                          <span className="line-clamp-1">{sc.topServiceName}</span>
-                                          <span className="text-muted-foreground/80"> · Browse category</span>
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                          {(suggestions.services?.length ?? 0) > 0 ? (
-                            <div>
-                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Services
-                              </p>
-                              <div className="flex flex-col gap-2">
-                                {(suggestions.services ?? []).map((s) => (
-                                  <Link
-                                    key={s.id}
-                                    href={buildServiceHref(s.categoryId, s.name)}
-                                    className="group w-full rounded-lg border border-border bg-background transition hover:bg-accent"
-                                    onClick={() => {
-                                      closeSuggestions();
-                                      closeSidebar();
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 px-2 py-2">
-                                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                                        <Wrench className="h-5 w-5" aria-hidden />
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="line-clamp-2 text-xs font-medium text-foreground">{s.name}</p>
-                                        <p className="line-clamp-1 text-[10px] text-muted-foreground">{s.categoryTitle}</p>
-                                      </div>
-                                    </div>
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  />
                 ) : null}
               </div>
             </form>
@@ -982,17 +936,27 @@ export function Header() {
           className="flex flex-1 items-center"
           onSubmit={(e) => {
             e.preventDefault();
+            if (activeSuggestIndex >= 0 && suggestionActions[activeSuggestIndex]) {
+              activateSuggestion(activeSuggestIndex);
+              return;
+            }
             applySearch(searchValue, { closeSidebar: true });
           }}
         >
           <div ref={mobileSearchFieldRef} className="relative w-full min-w-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="search"
-              placeholder="Search products & services..."
+              placeholder="Search parts & services…"
               aria-label="Search products and services"
+              aria-autocomplete="list"
+              aria-expanded={suggestionsVisible}
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onChange={(e) => {
+                setSearchValue(e.target.value);
+                setActiveSuggestIndex(-1);
+                showSuggestionsNow();
+              }}
               onFocus={() => {
                 showSuggestionsNow();
               }}
@@ -1000,199 +964,43 @@ export function Header() {
                 if (suggestionsBlurCloseTimerRef.current) window.clearTimeout(suggestionsBlurCloseTimerRef.current);
                 suggestionsBlurCloseTimerRef.current = window.setTimeout(() => {
                   closeSuggestions();
-                }, 120);
+                }, 140);
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setSearchValue('');
-                  applySearch('', { closeSidebar: true });
-                  closeSuggestions();
-                }
+              onKeyDown={handleSearchKeyDown}
+              className="w-full min-w-0 rounded-xl border border-border bg-background py-2.5 pl-9 pr-9 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <SearchClearButton
+              visible={searchValue.length > 0}
+              onClear={() => {
+                setSearchValue('');
+                applySearch('', { closeSidebar: true, remember: false });
+                showSuggestionsNow();
               }}
-              className="w-full min-w-0 rounded-lg border border-border bg-background py-2.5 pl-9 pr-3 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
 
-            {suggestionsVisible && (searchValue.trim().length >= 2) ? (
-              <div
-                className="fixed inset-x-0 z-[60] flex flex-col overflow-hidden rounded-b-2xl border-x-0 border-b border-border bg-popover/98 shadow-[0_16px_48px_rgba(0,0,0,0.14)] backdrop-blur-md supports-[backdrop-filter]:bg-popover/90 dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
+            {suggestionsVisible && (searchValue.trim().length >= 2 || recentSearches.length > 0) ? (
+              <SearchSuggestionsPanel
+                query={searchValue}
+                suggestions={suggestions}
+                loading={suggestionsLoading}
+                error={suggestionsError}
+                recent={recentSearches}
+                activeIndex={activeSuggestIndex}
+                variant="mobile"
+                className="bg-popover/98 shadow-[0_16px_48px_rgba(0,0,0,0.14)] supports-[backdrop-filter]:bg-popover/90"
                 style={{
                   top: mobileSuggestLayout?.top ?? 108,
                   maxHeight: mobileSuggestLayout?.maxHeight ?? 'calc(100dvh - 120px)',
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onHoverIndex={setActiveSuggestIndex}
+                onPickRecent={(q) => applySearch(q, { closeSidebar: true })}
+                onClearRecent={clearRecentSearches}
+                onNavigate={() => {
+                  persistRecent(searchValue.trim());
+                  closeSuggestions();
+                  closeSidebar();
                 }}
-                role="listbox"
-                aria-label="Search suggestions"
-              >
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]">
-                  {suggestionsLoading ? (
-                    <p className="py-3 text-center text-sm text-muted-foreground">Searching…</p>
-                  ) : suggestionsError ? (
-                    <p className="py-3 text-center text-sm text-muted-foreground">{suggestionsError}</p>
-                  ) : suggestions &&
-                    (suggestions.categories?.length ?? 0) === 0 &&
-                    suggestions.products.length === 0 &&
-                    (suggestions.serviceCategories?.length ?? 0) === 0 &&
-                    (suggestions.services?.length ?? 0) === 0 ? (
-                    <p className="py-3 text-center text-sm text-muted-foreground">No matches found</p>
-                  ) : null}
-
-                  {suggestions &&
-                  ((suggestions.categories?.length ?? 0) > 0 ||
-                    suggestions.products.length > 0 ||
-                    (suggestions.serviceCategories?.length ?? 0) > 0 ||
-                    (suggestions.services?.length ?? 0) > 0) ? (
-                    <div className="space-y-3">
-                      {(suggestions.categories?.length ?? 0) > 0 ? (
-                        <div>
-                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Browse categories
-                          </p>
-                          <div className="flex flex-col gap-1.5">
-                            {(suggestions.categories ?? []).map((c) => (
-                              <Link
-                                key={c.name}
-                                href={buildCategoryHref(c.name)}
-                                className="group flex min-h-12 w-full items-center rounded-xl border border-primary/20 bg-primary/5 px-2 py-2 transition active:scale-[0.99] hover:border-primary/35 hover:bg-primary/10"
-                                onClick={() => {
-                                  closeSuggestions();
-                                  closeSidebar();
-                                }}
-                              >
-                                <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40 ring-1 ring-border">
-                                    <ProductImage
-                                      src={c.image?.trim() ? c.image : '/products/default.jpg'}
-                                      alt={c.headline}
-                                      width={44}
-                                      height={44}
-                                      className="h-full w-full object-cover"
-                                      sizes="44px"
-                                    />
-                                  </div>
-                                  <div className="min-w-0 flex-1 text-left">
-                                    <p className="text-[13px] font-semibold leading-snug text-foreground line-clamp-2">
-                                      {c.headline}
-                                    </p>
-                                    <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">
-                                      {c.name}
-                                    </p>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {suggestions.products.length > 0 ? (
-                        <div>
-                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Top products
-                          </p>
-                          <div className="flex flex-col gap-1.5">
-                            {suggestions.products.map((p) => (
-                              <Link
-                                key={p.id}
-                                href={buildCategoryHref(p.category)}
-                                className="group flex min-h-12 w-full items-center rounded-xl border border-border bg-background px-2 py-2 transition active:scale-[0.99] hover:bg-accent"
-                                onClick={() => {
-                                  closeSuggestions();
-                                  closeSidebar();
-                                }}
-                              >
-                                <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-muted/40">
-                                    <ProductImage
-                                      src={p.image || '/products/default.jpg'}
-                                      alt={p.name}
-                                      width={44}
-                                      height={44}
-                                      className="h-full w-full object-cover"
-                                      sizes="44px"
-                                    />
-                                  </div>
-                                  <div className="min-w-0 flex-1 text-left">
-                                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground">{p.name}</p>
-                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{p.category}</p>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {(suggestions.serviceCategories?.length ?? 0) > 0 ? (
-                        <div>
-                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Service categories
-                          </p>
-                          <div className="flex flex-col gap-1.5">
-                            {(suggestions.serviceCategories ?? []).map((sc) => (
-                              <Link
-                                key={sc.categoryId}
-                                href={buildServiceCategoryHref(sc.categoryId)}
-                                className="group flex min-h-12 w-full items-center rounded-xl border border-amber-500/25 bg-amber-500/5 px-2 py-2 transition active:scale-[0.99] hover:border-amber-500/40 hover:bg-amber-500/10"
-                                onClick={() => {
-                                  closeSuggestions();
-                                  closeSidebar();
-                                }}
-                              >
-                                <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div
-                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background text-xl leading-none ring-1 ring-border"
-                                    aria-hidden
-                                  >
-                                    {sc.emoji}
-                                  </div>
-                                  <div className="min-w-0 flex-1 text-left">
-                                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">
-                                      {sc.headline}
-                                    </p>
-                                    <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-                                      {sc.topServiceName}
-                                    </p>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {(suggestions.services?.length ?? 0) > 0 ? (
-                        <div>
-                          <p className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Services
-                          </p>
-                          <div className="flex flex-col gap-1.5">
-                            {(suggestions.services ?? []).map((s) => (
-                              <Link
-                                key={s.id}
-                                href={buildServiceHref(s.categoryId, s.name)}
-                                className="group flex min-h-12 w-full items-center rounded-xl border border-border bg-background px-2 py-2 transition active:scale-[0.99] hover:bg-accent"
-                                onClick={() => {
-                                  closeSuggestions();
-                                  closeSidebar();
-                                }}
-                              >
-                                <div className="flex w-full min-w-0 items-center gap-2.5">
-                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                    <Wrench className="h-5 w-5" aria-hidden />
-                                  </div>
-                                  <div className="min-w-0 flex-1 text-left">
-                                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground">{s.name}</p>
-                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{s.categoryTitle}</p>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              />
             ) : null}
           </div>
         </form>

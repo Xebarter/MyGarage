@@ -7,15 +7,19 @@ import { ArrowRight, ShoppingBag, Wrench, X } from 'lucide-react';
 
 import { CategoryInfiniteFeed } from '@/components/home/category-infinite-feed';
 import { CategoryProductCard } from '@/components/home/category-product-card';
+import { DesktopHomeHero } from '@/components/home/desktop-home-hero';
+import { DesktopShopCategories, type DepartmentTile } from '@/components/home/desktop-shop-categories';
+import { DesktopTrustBar } from '@/components/home/desktop-trust-bar';
 import { FeaturedPicksSection, MoreFeaturedSection } from '@/components/home/featured-picks-section';
 import { MarketplaceActionStrip } from '@/components/home/marketplace-action-strip';
+import { MobileShopHome } from '@/components/home/mobile-shop-home';
 import { PromoBannerSection } from '@/components/home/promo-banner-section';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import type { Product } from '@/lib/db';
-import type { CategoryFeedSection } from '@/lib/home-category-feed';
 import { pickFeaturedProducts } from '@/lib/home-category-feed';
 import type { HomePromoBanner } from '@/lib/home-initial-data';
+import { buildExpandedRankingTokens, expandTokenVariants, normalizeSearchText } from '@/lib/search/expand-query';
 
 type RecommendedFeedMeta = {
   feedRank?: number;
@@ -72,15 +76,9 @@ function formatCategoryLabel(category: string): string {
 export function HomePageClient({
   initialProducts,
   initialPromoBanners,
-  initialCategorySections,
-  initialCategoryHasMore,
-  initialCategoryNextOffset,
 }: {
   initialProducts: Product[];
   initialPromoBanners: HomePromoBanner[];
-  initialCategorySections: CategoryFeedSection[];
-  initialCategoryHasMore: boolean;
-  initialCategoryNextOffset: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,12 +86,14 @@ export function HomePageClient({
   const [loading, setLoading] = useState(() => initialProducts.length === 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>(() => getRecommendedCategories(initialProducts));
   const [visibleCount, setVisibleCount] = useState(24);
   const [infiniteLoading, setInfiniteLoading] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [wishlistByProductId, setWishlistByProductId] = useState<Record<string, string>>({});
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement | null>(null);
+  const searchDebounceRef = useRef<number | null>(null);
 
   const refreshWishlist = useCallback(async (cid: string) => {
     try {
@@ -175,18 +175,17 @@ export function HomePageClient({
         ? `?customerEmail=${encodeURIComponent(customerEmail)}&limit=300`
         : '?limit=300';
       const response = await fetch(`/api/feed${query}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to fetch products');
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!response.ok || !contentType.includes('application/json')) {
+        throw new Error('Failed to fetch products');
       }
+      const data: unknown = await response.json();
 
       const safeProducts = Array.isArray(data) ? (data as Product[]) : [];
       setProducts(safeProducts);
       setCategories(getRecommendedCategories(safeProducts));
     } catch (error) {
       console.error('Failed to fetch products:', error);
-      setProducts([]);
-      setCategories(['all']);
     } finally {
       setLoading(false);
     }
@@ -196,16 +195,34 @@ export function HomePageClient({
     let filtered = products;
 
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          (p.brand && p.brand.toLowerCase().includes(q)) ||
-          (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
-          (p.tags ?? []).some((t) => t.toLowerCase().includes(q)),
-      );
+      const safeQ = normalizeSearchText(searchQuery);
+      const { primaryTokens, dbTokenGroups } = buildExpandedRankingTokens(safeQ);
+      const groups =
+        dbTokenGroups.length > 0
+          ? dbTokenGroups
+          : safeQ.length >= 2
+            ? [expandTokenVariants(safeQ)]
+            : [];
+
+      filtered = filtered.filter((p) => {
+        const hay = [
+          p.name,
+          p.description,
+          p.category,
+          p.brand,
+          p.subcategory,
+          p.sku,
+          ...(p.tags ?? []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        if (safeQ.length >= 2 && hay.includes(safeQ)) return true;
+        if (groups.length === 0) return false;
+
+        return groups.every((variants) => variants.some((v) => v.length >= 2 && hay.includes(v)));
+      });
     }
 
     if (selectedCategory !== 'all') {
@@ -220,13 +237,15 @@ export function HomePageClient({
   }, [searchQuery, selectedCategory]);
 
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const sentinels = [sentinelRef.current, mobileSentinelRef.current].filter(
+      (el): el is HTMLDivElement => Boolean(el),
+    );
+    if (sentinels.length === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const first = entries[0];
-        if (!first?.isIntersecting) return;
+        const visible = entries.some((entry) => entry.isIntersecting);
+        if (!visible) return;
         if (infiniteLoading) return;
         if (visibleCount >= filteredProducts.length) return;
 
@@ -239,7 +258,7 @@ export function HomePageClient({
       { root: null, rootMargin: '1000px', threshold: 0.01 },
     );
 
-    observer.observe(sentinel);
+    sentinels.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [filteredProducts.length, infiniteLoading, visibleCount]);
 
@@ -247,8 +266,9 @@ export function HomePageClient({
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
   const featuredProducts = useMemo(() => pickFeaturedProducts(products, 60), [products]);
-  const heroFeatured = featuredProducts.slice(0, 5);
-  const moreFeatured = featuredProducts.length > 5 ? featuredProducts.slice(5) : [];
+  const heroFeatured = featuredProducts.slice(0, 3);
+  const moreFeatured = featuredProducts.length > 3 ? featuredProducts.slice(3) : [];
+  const heroProduct = featuredProducts[0] ?? products[0] ?? null;
 
   const categoryCatalog = useMemo(() => {
     const set = new Set<string>();
@@ -258,6 +278,29 @@ export function HomePageClient({
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [products]);
+
+  const shopCategories = useMemo(() => topCategoriesByFrequency(products, products.length), [products]);
+
+  const departmentTiles = useMemo((): DepartmentTile[] => {
+    const stats = new Map<string, { count: number; image: string }>();
+    for (const product of products) {
+      const category = product.category?.trim();
+      if (!category) continue;
+      const existing = stats.get(category);
+      if (!existing) {
+        stats.set(category, { count: 1, image: product.image });
+      } else {
+        existing.count += 1;
+      }
+    }
+    return shopCategories
+      .map((category) => {
+        const entry = stats.get(category);
+        if (!entry) return null;
+        return { category, count: entry.count, image: entry.image };
+      })
+      .filter((tile): tile is DepartmentTile => tile !== null);
+  }, [products, shopCategories]);
 
   const chipCategories = useMemo(() => {
     const raw = categories.length ? categories : ['all'];
@@ -281,10 +324,56 @@ export function HomePageClient({
     router.replace(qs ? `/?${qs}` : '/');
   }
 
+  function handleSearchChange(value: string) {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const next = value.trim();
+      if (next) params.set('q', next);
+      else params.delete('q');
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : '/');
+    }, 250);
+  }
+
+  function handleResetFilters() {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    setSearchQuery('');
+    setSelectedCategory('all');
+    router.replace('/');
+  }
+
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-muted/30">
+      <MobileShopHome
+        products={filteredProducts}
+        visibleProducts={visibleProducts}
+        categories={shopCategories}
+        selectedCategory={selectedCategory}
+        searchQuery={searchQuery}
+        loading={loading}
+        infiniteLoading={infiniteLoading}
+        sentinelRef={mobileSentinelRef}
+        onSelectCategory={handleSelectCategory}
+        onSearchChange={handleSearchChange}
+        onReset={handleResetFilters}
+      />
+
+      <div className="hidden md:contents">
+      <main className="min-h-screen bg-[#F7F8FB]">
+        {isDefaultHomeFeed && !loading ? (
+          <>
+            <DesktopHomeHero
+              featuredProduct={heroProduct}
+              productCount={products.length}
+              departmentCount={categoryCatalog.length}
+            />
+            <DesktopTrustBar />
+          </>
+        ) : null}
+
         <MarketplaceActionStrip
           chipCategories={chipCategories}
           categoryCatalog={categoryCatalog}
@@ -293,12 +382,12 @@ export function HomePageClient({
           showCategoryBrowser={showCategoryBrowser}
         />
 
-        <div className="mx-auto w-full max-w-[1500px] space-y-10 px-3 py-6 sm:px-4 md:space-y-12 md:px-5 md:py-8">
+        <div className="mx-auto w-full max-w-[1500px] space-y-14 px-4 py-10 sm:px-5 md:px-6 lg:space-y-16 lg:px-8 lg:py-14">
           {selectedCategory !== 'all' || searchQuery.trim() ? (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Showing results for</span>
               {searchQuery.trim() ? (
-                <span className="rounded-md bg-background px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border">
+                <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border">
                   &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
               ) : null}
@@ -324,7 +413,11 @@ export function HomePageClient({
               <p className="mt-4 text-sm font-medium text-foreground">Loading marketplace…</p>
             </div>
           ) : isDefaultHomeFeed ? (
-            <div className="space-y-10 md:space-y-12">
+            <div className="space-y-14 lg:space-y-16">
+              <DesktopShopCategories
+                tiles={departmentTiles}
+                onSelectCategory={handleSelectCategory}
+              />
               <FeaturedPicksSection products={heroFeatured} />
               <PromoBannerSection
                 banners={initialPromoBanners}
@@ -333,11 +426,7 @@ export function HomePageClient({
                 onWishlistChange={handleWishlistChange}
               />
               <MoreFeaturedSection products={moreFeatured} />
-              <CategoryInfiniteFeed
-                initialSections={initialCategorySections}
-                initialHasMore={initialCategoryHasMore}
-                initialNextOffset={initialCategoryNextOffset}
-              />
+              <CategoryInfiniteFeed products={products} />
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="px-4 py-20 text-center">
@@ -350,27 +439,32 @@ export function HomePageClient({
                   setSelectedCategory('all');
                   router.replace('/');
                 }}
-                className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
               >
                 Browse all products
               </button>
             </div>
           ) : (
-            <div className="space-y-10">
+            <div className="space-y-12">
               <section>
-                <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                    <h2 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
                       {selectedCategory !== 'all' ? formatCategoryLabel(selectedCategory) : 'Search results'}
                     </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1.5 text-sm text-muted-foreground">
                       {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
                   {visibleProducts.map((product, index) => (
-                    <CategoryProductCard key={product.id} product={product} imagePriority={index < 4} />
+                    <CategoryProductCard
+                      key={product.id}
+                      product={product}
+                      toneIndex={index}
+                      imagePriority={index < 4}
+                    />
                   ))}
                 </div>
                 <div ref={sentinelRef} className="h-1 w-full" />
@@ -379,10 +473,10 @@ export function HomePageClient({
                 ) : null}
               </section>
 
-              <section className="border-y border-border bg-background px-4 py-5 sm:px-6 sm:py-6">
+              <section className="rounded-2xl border border-black/[0.06] bg-white px-5 py-6 sm:px-7 sm:py-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <div className="flex items-start gap-3.5">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Wrench className="h-5 w-5" aria-hidden />
                     </span>
                     <div>
@@ -394,7 +488,7 @@ export function HomePageClient({
                   </div>
                   <Link
                     href="/buyer/services"
-                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
                   >
                     Browse services
                     <ArrowRight className="h-4 w-4" aria-hidden />
@@ -405,6 +499,7 @@ export function HomePageClient({
           )}
         </div>
       </main>
+      </div>
       <Footer />
     </>
   );

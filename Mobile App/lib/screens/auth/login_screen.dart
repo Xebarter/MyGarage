@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_brand_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     return Scaffold(
-      appBar: AppBar(title: Text(_register ? 'Create account' : 'Sign in')),
+      appBar: AppBar(title: AppBarTitle(_register ? 'Create account' : 'Sign in')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

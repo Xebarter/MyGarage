@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
 
 import { ProductImage } from '@/components/product-image';
 import { ProductWishlistButton } from '@/components/product-wishlist-button';
@@ -66,9 +65,9 @@ export function PromoBannerSection({
     `Shop ${product.category} from verified vendors on MyGarage.`;
 
   return (
-    <section aria-label="Sponsored product highlights" className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+    <section aria-label="Sponsored product highlights" className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       {/* Frame matches 1600×450 promo assets uploaded in Admin → Promotions */}
-      <div className="relative aspect-[1600/450] w-full overflow-hidden bg-muted/30">
+      <div className="relative aspect-[1600/450] w-full overflow-hidden bg-[#EEF1F6]">
         <ProductImage
           src={active.bannerUrl || product.image}
           alt={`${product.name} promotion`}
@@ -80,49 +79,38 @@ export function PromoBannerSection({
           sizes="(max-width: 1500px) 100vw, 1500px"
           priority={activeIndex === 0}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070B14]/75 via-[#070B14]/15 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm">
-              Featured ad
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm">
-              <ShieldCheck className="h-3 w-3" aria-hidden />
-              Verified vendors
-            </span>
-          </div>
-          <h2 className="mt-3 line-clamp-2 text-xl font-bold leading-tight text-white sm:text-2xl md:text-3xl">
+        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 md:p-9">
+          <h2 className="line-clamp-2 max-w-3xl text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-3xl md:text-4xl">
             {product.name}
           </h2>
-          <p className="mt-2 line-clamp-2 max-w-2xl text-sm leading-relaxed text-white/90 sm:text-base">
+          <p className="mt-2.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-white/75 sm:text-base">
             {headline}
           </p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 border-t border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5 md:p-6">
+      <div className="flex flex-col gap-4 border-t border-black/[0.06] p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-6 md:px-8 md:py-6">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-lg font-bold tabular-nums text-foreground sm:text-xl">
               {formatProductPriceLabel(product)}
             </span>
-            <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-              {product.category}
-            </span>
+            <span className="text-sm text-muted-foreground">{product.category}</span>
           </div>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:gap-3">
           <Link
             href={`/products/${product.id}`}
-            className="inline-flex flex-1 items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 sm:flex-none"
+            className="inline-flex flex-1 items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 sm:flex-none"
           >
             View product
           </Link>
           <Link
             href={`/products/${product.id}`}
-            className="inline-flex flex-1 items-center justify-center rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-accent sm:flex-none"
+            className="inline-flex flex-1 items-center justify-center rounded-full border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-accent sm:flex-none"
           >
             See details
           </Link>
@@ -137,7 +125,7 @@ export function PromoBannerSection({
       </div>
 
       {items.length > 1 ? (
-        <div className="flex items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between gap-3 border-t border-black/[0.06] bg-[#F7F8FB] px-5 py-3.5 sm:px-8">
           <p className="text-xs text-muted-foreground">
             Banner {activeIndex + 1} of {items.length}
           </p>

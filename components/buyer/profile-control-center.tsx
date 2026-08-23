@@ -118,7 +118,7 @@ function healthBadge(status: string) {
   return map[status] ?? map.good;
 }
 
-export function ProfileControlCenter() {
+export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -466,36 +466,45 @@ export function ProfileControlCenter() {
 
   return (
     <div className="space-y-4 pb-8">
-      <ProfileHero
-        name={profile.customer.name}
-        email={profile.customer.email}
-        createdAt={profile.customer.createdAt}
-        totalOrders={profile.customer.totalOrders}
-        totalSpent={formatCurrency(profile.customer.totalSpent)}
-        wishlistItems={profile.stats.wishlistItems ?? 0}
-        serviceRequests={profile.stats.serviceRequests ?? 0}
-      />
-
-      <div className="space-y-4 px-4 md:px-6">
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={saving}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', saving && 'animate-spin')} />
-            Refresh
-          </Button>
-          {unreadNotificationCount > 0 ? (
-            <Badge variant="secondary">{unreadNotificationCount} unread</Badge>
-          ) : null}
-        </div>
-
-        <ProfileContactPanel
+      {embed ? null : (
+        <ProfileHero
+          name={profile.customer.name}
           email={profile.customer.email}
-          phone={profileForm.phone}
-          saving={saving}
-          onSavePhone={savePhone}
+          createdAt={profile.customer.createdAt}
+          totalOrders={profile.customer.totalOrders}
+          totalSpent={formatCurrency(profile.customer.totalSpent)}
+          wishlistItems={profile.stats.wishlistItems ?? 0}
+          serviceRequests={profile.stats.serviceRequests ?? 0}
         />
+      )}
+
+      <div className={cn('space-y-4', embed ? 'px-0' : 'px-4 md:px-6')}>
+        {embed ? null : (
+          <>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => void load()} disabled={saving}>
+                <RefreshCw className={cn('mr-2 h-4 w-4', saving && 'animate-spin')} />
+                Refresh
+              </Button>
+              {unreadNotificationCount > 0 ? (
+                <Badge variant="secondary">{unreadNotificationCount} unread</Badge>
+              ) : null}
+            </div>
+
+            <ProfileContactPanel
+              email={profile.customer.email}
+              phone={profileForm.phone}
+              saving={saving}
+              onSavePhone={savePhone}
+            />
+          </>
+        )}
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SectionId)} className="gap-4">
-          <TabsList className="flex h-auto w-full justify-start gap-2 overflow-x-auto rounded-none bg-transparent p-0">
+          <TabsList className={cn(
+            'flex h-auto w-full justify-start gap-2 overflow-x-auto rounded-none bg-transparent p-0',
+            embed && 'hidden',
+          )}>
             {SECTIONS.map((section) => (
               <TabsTrigger
                 key={section.id}

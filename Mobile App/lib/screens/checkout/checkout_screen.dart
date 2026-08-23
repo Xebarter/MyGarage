@@ -11,6 +11,7 @@ import '../../providers/cart_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
+import '../../widgets/app_brand_logo.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -105,7 +106,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final money = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
+      appBar: AppBar(title: const AppBarTitle('Checkout')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

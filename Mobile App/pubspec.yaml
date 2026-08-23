@@ -29,8 +29,25 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/app_icon.png
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/images/app_icon.png
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: assets/images/app_icon.png
+    background_color: "#000000"
+    theme_color: "#000000"
 
 flutter:
   uses-material-design: true
   assets:
-    - .env
+    # Use a non-dot filename — Flutter web often 404s root ".env" as an asset.
+    - assets/app.env
+    - assets/images/logo-black.png
+    - assets/images/app_icon.png

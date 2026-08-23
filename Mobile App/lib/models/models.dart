@@ -4,23 +4,75 @@ class BuyerProfile {
     required this.name,
     required this.email,
     required this.phone,
+    this.address = '',
+    this.totalOrders = 0,
+    this.totalSpent = 0,
+    this.wishlistCount = 0,
+    this.vehicleCount = 0,
+    this.serviceRequestCount = 0,
+    this.defaultAddress,
   });
 
   final String id;
   final String name;
   final String email;
   final String phone;
+  final String address;
+  final int totalOrders;
+  final double totalSpent;
+  final int wishlistCount;
+  final int vehicleCount;
+  final int serviceRequestCount;
+  final String? defaultAddress;
 
   factory BuyerProfile.fromJson(Map<String, dynamic> json) {
     // API returns { customer: {...}, stats: ... } or flat customer fields.
     final customer = json['customer'] is Map
         ? Map<String, dynamic>.from(json['customer'] as Map)
         : json;
+    final stats = json['stats'] is Map
+        ? Map<String, dynamic>.from(json['stats'] as Map)
+        : <String, dynamic>{};
+    final def = json['defaultAddress'];
+    String? defaultAddr;
+    if (def is Map) {
+      defaultAddr = def['fullAddress']?.toString();
+    } else if (def is String) {
+      defaultAddr = def;
+    }
+
     return BuyerProfile(
       id: customer['id']?.toString() ?? '',
       name: customer['name']?.toString() ?? '',
       email: customer['email']?.toString() ?? '',
       phone: customer['phone']?.toString() ?? '',
+      address: customer['address']?.toString() ?? '',
+      totalOrders: (customer['totalOrders'] as num?)?.toInt() ?? 0,
+      totalSpent: (customer['totalSpent'] as num?)?.toDouble() ?? 0,
+      wishlistCount: (stats['wishlistItems'] as num?)?.toInt() ?? 0,
+      vehicleCount: (stats['vehicles'] as num?)?.toInt() ?? 0,
+      serviceRequestCount: (stats['serviceRequests'] as num?)?.toInt() ?? 0,
+      defaultAddress: defaultAddr,
+    );
+  }
+
+  BuyerProfile copyWith({
+    String? name,
+    String? phone,
+    String? address,
+  }) {
+    return BuyerProfile(
+      id: id,
+      name: name ?? this.name,
+      email: email,
+      phone: phone ?? this.phone,
+      address: address ?? this.address,
+      totalOrders: totalOrders,
+      totalSpent: totalSpent,
+      wishlistCount: wishlistCount,
+      vehicleCount: vehicleCount,
+      serviceRequestCount: serviceRequestCount,
+      defaultAddress: defaultAddress,
     );
   }
 }
@@ -45,16 +97,132 @@ class Product {
   final String brand;
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final primary = json['image']?.toString().trim() ?? '';
+    final gallery = <String>[];
+    final rawImages = json['images'];
+    if (rawImages is List) {
+      for (final e in rawImages) {
+        final s = e?.toString().trim() ?? '';
+        if (s.isNotEmpty) gallery.add(s);
+      }
+    }
     return Product(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0,
-      image: json['image']?.toString() ?? '',
+      image: primary.isNotEmpty ? primary : (gallery.isNotEmpty ? gallery.first : ''),
       category: json['category']?.toString() ?? '',
       brand: json['brand']?.toString() ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'price': price,
+        'image': image,
+        'category': category,
+        'brand': brand,
+      };
+}
+
+class ShopSearchSuggestions {
+  ShopSearchSuggestions({
+    required this.query,
+    required this.categories,
+    required this.products,
+  });
+
+  final String query;
+  final List<ShopCategorySuggestion> categories;
+  final List<Product> products;
+
+  factory ShopSearchSuggestions.fromJson(Map<String, dynamic> json) {
+    final cats = json['categories'] is List ? json['categories'] as List : const [];
+    final products = json['products'] is List ? json['products'] as List : const [];
+    return ShopSearchSuggestions(
+      query: json['query']?.toString() ?? '',
+      categories: cats
+          .whereType<Map>()
+          .map((e) => ShopCategorySuggestion.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      products: products
+          .whereType<Map>()
+          .map((e) => Product.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+    );
+  }
+
+  bool get isEmpty => categories.isEmpty && products.isEmpty;
+}
+
+class ShopCategorySuggestion {
+  ShopCategorySuggestion({
+    required this.name,
+    required this.image,
+    required this.count,
+    required this.headline,
+  });
+
+  final String name;
+  final String image;
+  final int count;
+  final String headline;
+
+  factory ShopCategorySuggestion.fromJson(Map<String, dynamic> json) {
+    return ShopCategorySuggestion(
+      name: json['name']?.toString() ?? '',
+      image: json['image']?.toString() ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      headline: json['headline']?.toString() ?? json['name']?.toString() ?? '',
+    );
+  }
+}
+
+/// Sidebar / browse catalog node from GET /api/additems.
+class ShopCategoryNode {
+  ShopCategoryNode({
+    required this.title,
+    this.children = const [],
+  });
+
+  final String title;
+  final List<ShopCategoryNode> children;
+
+  bool get hasChildren => children.isNotEmpty;
+
+  factory ShopCategoryNode.fromJson(Map<String, dynamic> json) {
+    final raw = json['children'];
+    final kids = raw is List
+        ? raw
+            .whereType<Map>()
+            .map((e) => ShopCategoryNode.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : const <ShopCategoryNode>[];
+    return ShopCategoryNode(
+      title: json['title']?.toString() ?? '',
+      children: kids,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        if (children.isNotEmpty)
+          'children': children.map((c) => c.toJson()).toList(),
+      };
+}
+
+/// Flattened hit used by browse-menu search.
+class ShopCategorySearchHit {
+  ShopCategorySearchHit({
+    required this.title,
+    required this.breadcrumb,
+  });
+
+  final String title;
+  final String breadcrumb;
 }
 
 class CartItem {
@@ -74,12 +242,12 @@ class CartItem {
 
   double get lineTotal => price * quantity;
 
-  CartItem copyWith({int? quantity}) {
+  CartItem copyWith({int? quantity, String? image}) {
     return CartItem(
       productId: productId,
       name: name,
       price: price,
-      image: image,
+      image: image ?? this.image,
       quantity: quantity ?? this.quantity,
     );
   }
@@ -94,7 +262,7 @@ class CartItem {
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
-      productId: json['productId']?.toString() ?? '',
+      productId: json['productId']?.toString() ?? json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0,
       image: json['image']?.toString() ?? '',

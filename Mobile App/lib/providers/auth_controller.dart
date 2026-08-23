@@ -185,6 +185,55 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateLocalProfile(BuyerProfile next) async {
+    profile = next;
+    notifyListeners();
+  }
+
+  Future<void> updateProfileFields({
+    required String name,
+    required String phone,
+    String address = '',
+  }) async {
+    final current = profile;
+    final email = user?.email ?? current?.email;
+    if (current == null || email == null || email.isEmpty) {
+      throw Exception('Not signed in');
+    }
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      profile = await _buyerApi.updateProfile(
+        current.id,
+        name: name.trim(),
+        email: email,
+        phone: phone.trim(),
+        address: address.trim(),
+      );
+      errorMessage = null;
+    } catch (e) {
+      errorMessage = userFacingError(e, fallback: 'Could not update profile.');
+      rethrow;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> changePassword(String newPassword) async {
+    await Supabase.instance.client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  Future<void> deleteAccount() async {
+    final id = profile?.id;
+    if (id == null || id.isEmpty) throw Exception('No profile');
+    await _buyerApi.deleteProfile(id);
+    await signOut();
+  }
+
   Future<void> signOut() async {
     try {
       await Supabase.instance.client.auth.signOut();

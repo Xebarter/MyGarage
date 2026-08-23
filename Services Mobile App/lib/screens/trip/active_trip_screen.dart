@@ -323,20 +323,36 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           width: 4,
           patterns: [PatternItem.dash(16), PatternItem.gap(10)],
         ),
-      if (_route.length > 1)
+      if (_route.length > 1) ...[
+        Polyline(
+          polylineId: const PolylineId('route-case'),
+          points: _route,
+          color: AppColors.primaryDeep.withValues(alpha: 0.35),
+          width: 9,
+        ),
         Polyline(
           polylineId: const PolylineId('route'),
           points: _route,
           color: AppColors.primary,
           width: 5,
         ),
+      ],
     };
 
-    final metaLine = [
+    final etaShort = [
       if (_etaMinutes != null) '$_etaMinutes min',
       if (_distanceKm != null) '${_distanceKm!.toStringAsFixed(1)} km',
-      statusLabelSafe(job),
     ].join(' · ');
+
+    final metaLine = [
+      if (_etaMinutes != null) '$_etaMinutes min away',
+      if (_distanceKm != null) '${_distanceKm!.toStringAsFixed(1)} km remaining',
+    ].join(' · ');
+
+    String stageCta = job.stageLabel;
+    if (job.nextStage == 'arrived') stageCta = "I've arrived";
+    if (job.nextStage == 'started') stageCta = 'Start job';
+    if (job.nextStage == 'completed') stageCta = 'Complete & close';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -352,9 +368,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               compassEnabled: false,
               mapToolbarEnabled: false,
               zoomControlsEnabled: false,
-              onCameraMoveStarted: () {
-                // User panned — pause follow until they re-enable it.
-              },
+              onCameraMoveStarted: () {},
               onMapCreated: (c) {
                 _mapController = c;
                 if (dest != null && provider != null) {
@@ -379,6 +393,32 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
                   ),
+                  const Spacer(),
+                  if (etaShort.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: AppTheme.cardShadow,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.navigation_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            etaShort,
+                            style: AppTheme.host(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryDeep,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const Spacer(),
                   Material(
                     color: AppColors.surface,
@@ -422,7 +462,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               child: Container(
                 width: double.infinity,
                 margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(AppRadii.xxl),
@@ -435,7 +475,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                   children: [
                     Center(
                       child: Container(
-                        width: 36,
+                        width: 40,
                         height: 4,
                         margin: const EdgeInsets.only(bottom: 14),
                         decoration: BoxDecoration(
@@ -451,7 +491,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                             job.service,
                             style: AppTheme.host(
                               fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -459,42 +499,100 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                         StatusChip(label: statusLabelSafe(job)),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      job.location,
-                      style: AppTheme.host(fontSize: 14, color: AppColors.textSecondary, height: 1.35),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.place_outlined, size: 18, color: AppColors.textMuted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            job.location,
+                            style: AppTheme.host(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (metaLine.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         metaLine,
                         style: AppTheme.host(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.primary,
                         ),
                       ),
                     ],
                     if (job.buyerContactName.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        job.buyerContactName,
-                        style: AppTheme.host(fontSize: 13, color: AppColors.textMuted),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: AppColors.primarySoft,
+                            child: Text(
+                              job.buyerContactName[0].toUpperCase(),
+                              style: AppTheme.host(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  job.buyerContactName,
+                                  style: AppTheme.host(fontSize: 14, fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  'Customer',
+                                  style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 16),
                     _QuietStages(job: job),
                     const SizedBox(height: 18),
                     if (job.status != 'completed' && job.status != 'cancelled')
-                      ElevatedButton(
-                        onPressed: _busy ? null : () => _advance(job),
-                        child: _busy
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : Text(job.stageLabel),
+                      SizedBox(
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _busy ? null : () => _advance(job),
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadii.md),
+                            ),
+                          ),
+                          child: _busy
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  stageCta,
+                                  style: AppTheme.host(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
                       ),
                   ],
                 ),

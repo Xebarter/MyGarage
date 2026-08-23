@@ -8,6 +8,7 @@ import '../../providers/auth_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
+import '../../widgets/app_brand_logo.dart';
 
 class GarageScreen extends StatefulWidget {
   const GarageScreen({super.key});
@@ -113,7 +114,7 @@ class _GarageScreenState extends State<GarageScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My garage'),
+        title: const AppBarTitle('My garage'),
         actions: [IconButton(onPressed: _addVehicle, icon: const Icon(Icons.add))],
       ),
       body: _loading

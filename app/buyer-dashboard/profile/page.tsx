@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import { MobileProfilePage } from '@/components/buyer/mobile-profile-page';
 import { ProfileControlCenter } from '@/components/buyer/profile-control-center';
 
 export default function BuyerProfilePage() {
@@ -12,7 +13,12 @@ export default function BuyerProfilePage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       }>
-      <ProfileControlCenter />
+      <div className="md:hidden">
+        <MobileProfilePage />
+      </div>
+      <div className="hidden md:block">
+        <ProfileControlCenter />
+      </div>
     </Suspense>
   );
 }

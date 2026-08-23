@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MobileProfileHub } from '@/components/buyer/mobile-profile-hub';
 
 interface OrderItem {
   id: string;
@@ -228,7 +229,14 @@ export default function BuyerDashboardPage() {
   const timeGreeting = useMemo(() => getTimeGreeting(), []);
 
   if (loading) {
-    return <DashboardSkeleton />;
+    return (
+      <>
+        <MobileProfileHub />
+        <div className="hidden md:block">
+          <DashboardSkeleton />
+        </div>
+      </>
+    );
   }
 
   const statCards = [
@@ -251,7 +259,9 @@ export default function BuyerDashboardPage() {
   ] as const;
 
   return (
-    <div className="min-h-full bg-background px-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-1 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/25 sm:px-5 sm:pb-8 sm:pt-3 md:p-8">
+    <>
+    <MobileProfileHub />
+    <div className="hidden min-h-full bg-background px-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-1 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/25 sm:px-5 sm:pb-8 sm:pt-3 md:block md:p-8">
       <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
         <header className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-card to-card p-4 shadow-sm ring-1 ring-black/[0.03] dark:from-primary/20 dark:ring-white/[0.04] sm:p-6">
           <div
@@ -498,5 +508,6 @@ export default function BuyerDashboardPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

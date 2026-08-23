@@ -161,7 +161,7 @@ export default function CheckoutPage() {
     <>
       <Header />
       <main className="bg-background">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-16 pb-28 lg:pb-0">
+        <div className="mx-auto max-w-7xl px-4 py-10 pb-8 sm:px-6 sm:py-16 lg:px-8 lg:pb-0">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Checkout</h1>
@@ -374,10 +374,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* Mobile sticky CTA */}
-        <div
-          className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 backdrop-blur-md"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-border bg-background/90 backdrop-blur-md lg:hidden">
           <div className="mx-auto max-w-7xl px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -397,6 +394,7 @@ export default function CheckoutPage() {
         </div>
       </main>
       <Footer />
+      <div className="h-24 lg:hidden" aria-hidden />
     </>
   );
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
+import '../utils/media_url.dart';
 
 const _cartKey = 'mygarage_cart_v1';
 
@@ -17,6 +18,13 @@ class CartController extends ChangeNotifier {
 
   double get subtotal => _items.fold(0.0, (sum, i) => sum + i.lineTotal);
 
+  int quantityOf(String productId) {
+    for (final item in _items) {
+      if (item.productId == productId) return item.quantity;
+    }
+    return 0;
+  }
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_cartKey);
@@ -26,7 +34,10 @@ class CartController extends ChangeNotifier {
         final list = jsonDecode(raw) as List<dynamic>;
         for (final e in list) {
           if (e is Map) {
-            _items.add(CartItem.fromJson(Map<String, dynamic>.from(e)));
+            final item = CartItem.fromJson(Map<String, dynamic>.from(e));
+            _items.add(
+              item.copyWith(image: resolveMediaUrl(item.image)),
+            );
           }
         }
       } catch (_) {
@@ -46,17 +57,21 @@ class CartController extends ChangeNotifier {
   }
 
   Future<void> add(Product product, {int quantity = 1}) async {
+    final img = resolveMediaUrl(product.image);
     final idx = _items.indexWhere((e) => e.productId == product.id);
     if (idx >= 0) {
       final current = _items[idx];
-      _items[idx] = current.copyWith(quantity: current.quantity + quantity);
+      _items[idx] = current.copyWith(
+        quantity: current.quantity + quantity,
+        image: current.image.isEmpty ? img : current.image,
+      );
     } else {
       _items.add(
         CartItem(
           productId: product.id,
           name: product.name,
           price: product.price,
-          image: product.image,
+          image: img,
           quantity: quantity,
         ),
       );

@@ -2,18 +2,22 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 import { CategoryProductCard } from '@/components/home/category-product-card';
+import type { Product } from '@/lib/db';
 import {
   HOME_FEED_COL_CAPACITY,
   HOME_FEED_MOBILE_COL_CAPACITY,
+  buildCategoryFeedPage,
   packCategoryFeedSections,
   type CategoryFeedPackCell,
   type CategoryFeedPackedRow,
-  type CategoryFeedSection,
 } from '@/lib/home-category-feed';
 import { cn } from '@/lib/utils';
+
+const FEED_PAGE_SIZE = 3;
+const FEED_PER_CATEGORY = 5;
 
 function formatCategoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -51,8 +55,8 @@ function SeeAllButton({
       href={`/category/products/${encodeURIComponent(category)}`}
       aria-label={`See all ${formatCategoryLabel(category)}`}
       className={cn(
-        'inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary',
-        narrow ? 'w-9 px-0' : 'gap-1.5 px-3',
+        'inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-black/[0.08] bg-white text-sm font-semibold text-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary',
+        narrow ? 'w-9 px-0' : 'gap-1.5 px-3.5',
       )}
     >
       {narrow ? null : <span>See all</span>}
@@ -69,11 +73,11 @@ function CategoryHeader({
   narrow?: boolean;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4 sm:gap-3">
+    <div className="mb-4 flex items-center justify-between gap-2 sm:mb-5 sm:gap-3">
       <Link
         href={`/category/products/${encodeURIComponent(category)}`}
         className={cn(
-          'min-w-0 truncate font-bold tracking-tight text-foreground transition hover:text-primary',
+          'min-w-0 truncate font-extrabold tracking-tight text-foreground transition hover:text-primary',
           narrow ? 'text-base sm:text-lg' : 'text-xl sm:text-2xl',
         )}
       >
@@ -103,6 +107,7 @@ function SoloCategoryRow({
           <CategoryProductCard
             key={product.id}
             product={product}
+            toneIndex={index}
             imagePriority={imagePriority && index < 2}
           />
         ))}
@@ -143,13 +148,18 @@ function SharedCategoryRow({
 
       <div className={cn('grid', TRACK_COLS[cols], gap)}>
         {row.cells.flatMap((cell, cellIndex) =>
-          cell.products.map((product, index) => (
-            <CategoryProductCard
-              key={`${cell.section.category}-${product.id}`}
-              product={product}
-              imagePriority={cellIndex === 0 && index < 2}
-            />
-          )),
+          cell.products.map((product, index) => {
+            const toneIndex =
+              row.cells.slice(0, cellIndex).reduce((sum, c) => sum + c.products.length, 0) + index;
+            return (
+              <CategoryProductCard
+                key={`${cell.section.category}-${product.id}`}
+                product={product}
+                toneIndex={toneIndex}
+                imagePriority={cellIndex === 0 && index < 2}
+              />
+            );
+          }),
         )}
       </div>
     </section>
@@ -169,21 +179,20 @@ function PackedCategoryRow({
   return <SharedCategoryRow row={row} cols={cols} />;
 }
 
-export function CategoryInfiniteFeed({
-  initialSections,
-  initialHasMore,
-  initialNextOffset,
-}: {
-  initialSections: CategoryFeedSection[];
-  initialHasMore: boolean;
-  initialNextOffset: number;
-}) {
-  const [sections, setSections] = useState(initialSections);
-  const [hasMore, setHasMore] = useState(initialHasMore);
-  const [nextOffset, setNextOffset] = useState(initialNextOffset);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function CategoryInfiniteFeed({ products }: { products: Product[] }) {
+  const [visibleLimit, setVisibleLimit] = useState(FEED_PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const page = useMemo(
+    () =>
+      buildCategoryFeedPage(products, {
+        offset: 0,
+        limit: visibleLimit,
+        perCategory: FEED_PER_CATEGORY,
+      }),
+    [products, visibleLimit],
+  );
+  const { sections, hasMore } = page;
 
   const mobileRows = useMemo(
     () => packCategoryFeedSections(sections, HOME_FEED_MOBILE_COL_CAPACITY),
@@ -194,40 +203,10 @@ export function CategoryInfiniteFeed({
     [sections],
   );
 
-  const loadMore = useCallback(async () => {
-    if (loading || !hasMore) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/landing/products?offset=${nextOffset}&limit=3&perCategory=5`,
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to load more');
-      }
-
-      const incoming = Array.isArray(data.sections) ? (data.sections as CategoryFeedSection[]) : [];
-      setSections((prev) => {
-        const seen = new Set(prev.map((section) => section.category));
-        const merged = [...prev];
-        for (const section of incoming) {
-          if (!seen.has(section.category)) {
-            merged.push(section);
-            seen.add(section.category);
-          }
-        }
-        return merged;
-      });
-      setHasMore(Boolean(data.hasMore));
-      setNextOffset(typeof data.nextOffset === 'number' ? data.nextOffset : nextOffset);
-    } catch (e) {
-      console.error('Category feed load more failed:', e);
-      setError('Could not load more categories. Scroll to try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [hasMore, loading, nextOffset]);
+  const loadMore = useCallback(() => {
+    if (!hasMore) return;
+    setVisibleLimit((current) => current + FEED_PAGE_SIZE);
+  }, [hasMore]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -270,19 +249,6 @@ export function CategoryInfiniteFeed({
       </div>
 
       <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
-
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Loading more categories…
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
 
       {!hasMore && sections.length > 0 ? (
         <p className="pb-2 text-center text-xs text-muted-foreground">End of list</p>

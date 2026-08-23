@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { MobileCartPage } from '@/components/cart/mobile-cart-page';
 import { ProductImage } from '@/components/product-image';
 import { Trash2 } from 'lucide-react';
 import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
@@ -54,9 +55,12 @@ export default function CartPage() {
     return (
       <>
         <Header />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <p className="text-muted-foreground">Loading cart...</p>
-        </main>
+        <MobileCartPage />
+        <div className="hidden md:contents">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <p className="text-muted-foreground">Loading cart...</p>
+          </main>
+        </div>
         <Footer />
       </>
     );
@@ -65,6 +69,8 @@ export default function CartPage() {
   return (
     <>
       <Header />
+      <MobileCartPage />
+      <div className="hidden md:contents">
       <main className="bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <h1 className="text-3xl font-bold text-foreground mb-8">Shopping Cart</h1>
@@ -113,7 +119,7 @@ export default function CartPage() {
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                          onChange={(e) => updateQuantity(cartLineKey(item), parseInt(e.target.value) || 1)}
                           className="w-16 py-2 text-center border-l border-r border-border focus:outline-none bg-background text-foreground"
                         />
                         <button
@@ -188,7 +194,9 @@ export default function CartPage() {
           )}
         </div>
       </main>
+      </div>
       <Footer />
+      {cartItems.length > 0 ? <div className="h-[12rem] md:hidden" aria-hidden /> : null}
     </>
   );
 }

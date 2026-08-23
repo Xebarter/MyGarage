@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import { HomePageClient } from '@/components/home-page-client';
-import { loadHomeCategoryFeedInitial, loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
+import { loadHomeInitialProducts, loadHomePromoBanners } from '@/lib/home-initial-data';
 import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 
 /** Fresh-enough storefront HTML without paying full dynamic TTFB on every request */
@@ -12,10 +12,9 @@ export const revalidate = 120;
 export const metadata = buildPageMetadata(STATIC_PAGE_SEO['/']);
 
 export default async function Home() {
-  const initialProducts = await loadHomeInitialProducts(300);
-  const [initialPromoBanners, initialCategoryFeed] = await Promise.all([
+  const [initialProducts, initialPromoBanners] = await Promise.all([
+    loadHomeInitialProducts(300),
     loadHomePromoBanners(),
-    loadHomeCategoryFeedInitial(initialProducts),
   ]);
 
   return (
@@ -23,7 +22,7 @@ export default async function Home() {
       fallback={
         <>
           <Header />
-          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-3 bg-muted/30 px-3 sm:px-4 md:px-5 text-center">
+          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-3 bg-[#F2F4F8] px-3 sm:px-4 md:bg-muted/30 md:px-5 text-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
             <p className="text-sm font-medium text-foreground">Loading storefront…</p>
             <p className="text-xs text-muted-foreground">Preparing products and recommendations.</p>
@@ -35,9 +34,6 @@ export default async function Home() {
       <HomePageClient
         initialProducts={initialProducts}
         initialPromoBanners={initialPromoBanners}
-        initialCategorySections={initialCategoryFeed.sections}
-        initialCategoryHasMore={initialCategoryFeed.hasMore}
-        initialCategoryNextOffset={initialCategoryFeed.nextOffset}
       />
     </Suspense>
   );

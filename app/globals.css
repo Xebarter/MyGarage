@@ -140,6 +140,12 @@
     @apply bg-background text-foreground font-sans;
   }
 
+  @media (max-width: 767px) {
+    body.has-mobile-app-footer {
+      padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   button,
   input,
   textarea,
@@ -178,6 +184,59 @@
 
   @media (prefers-reduced-motion: reduce) {
     .animate-urgent-pulse {
+      animation: none;
+    }
+  }
+
+  @keyframes home-hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes home-hero-float {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes home-dept-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .home-hero-copy {
+    animation: home-hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .home-hero-visual {
+    animation: home-hero-float 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  }
+
+  .home-dept-tile {
+    animation: home-dept-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-hero-copy,
+    .home-hero-visual,
+    .home-dept-tile {
       animation: none;
     }
   }

@@ -195,6 +195,8 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
                   onPressed: _busy ? null : () => _respond('accept'),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: _busy
@@ -203,7 +205,14 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Accept job'),
+                      : Text(
+                          'Accept job',
+                          style: AppTheme.host(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontSize: 15,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton(
@@ -214,7 +223,7 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
                     side: BorderSide(color: AppColors.danger.withValues(alpha: 0.35)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text('Reject'),
+                  child: const Text('Decline'),
                 ),
               ],
             ),

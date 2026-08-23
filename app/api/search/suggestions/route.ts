@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { serviceIntentKeywordsByCategoryId, userServiceCategories } from "@/lib/services-catalog";
+import {
+  buildExpandedRankingTokens,
+  normalizeSearchText,
+  sanitizeIlikeToken,
+} from "@/lib/search/expand-query";
 
 type SuggestionProduct = {
   id: string;
@@ -11,6 +16,7 @@ type SuggestionProduct = {
   image: string;
   category: string;
   brand: string;
+  matchLabel?: string;
 };
 
 type CategoryAggregate = {
@@ -49,6 +55,8 @@ type SuggestionsResponse = {
   products: SuggestionProduct[];
   serviceCategories: ServiceCategorySearchRow[];
   services: SuggestionService[];
+  matchedProductCount: number;
+  matchedServiceCount: number;
 };
 
 function titleCaseDisplayQuery(raw: string): string {
@@ -267,32 +275,30 @@ function parseOptionalNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const PRODUCT_ILIKE_FIELDS = ["name", "description", "category", "brand", "subcategory"] as const;
+const PRODUCT_ILIKE_FIELDS = ["name", "description", "category", "brand", "subcategory", "sku"] as const;
 
-function sanitizeIlikeToken(t: string): string {
-  return t.replace(/[%,]/g, "").toLowerCase();
+function emptySuggestions(query = ""): SuggestionsResponse {
+  return {
+    query,
+    categories: [],
+    products: [],
+    serviceCategories: [],
+    services: [],
+    matchedProductCount: 0,
+    matchedServiceCount: 0,
+  };
 }
 
-/** Distinct search tokens (2+ chars), max 6 — used for AND-style DB filter + ranking. */
-function searchTokensFromSafeQuery(safeQ: string): string[] {
-  const raw = safeQ
-    .split(/\s+/)
-    .map(sanitizeIlikeToken)
-    .filter((t) => t.length >= 2);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const t of raw) {
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= 6) break;
+function ilikeOrClauseForVariants(variants: string[]): string {
+  const clauses: string[] = [];
+  for (const token of variants) {
+    const p = `%${sanitizeIlikeToken(token)}%`;
+    if (p.length < 4) continue;
+    for (const f of PRODUCT_ILIKE_FIELDS) {
+      clauses.push(`${f}.ilike.${p}`);
+    }
   }
-  return out;
-}
-
-function ilikeOrClauseForToken(token: string): string {
-  const p = `%${token}%`;
-  return PRODUCT_ILIKE_FIELDS.map((f) => `${f}.ilike.${p}`).join(",");
+  return clauses.join(",");
 }
 
 function escapeRegExp(s: string): string {
@@ -317,6 +323,7 @@ function tokenHaystackScore(hay: string, token: string, weight: number): number 
 type ProductScoreInput = SuggestionProduct & {
   tags?: unknown;
   subcategory?: string;
+  sku?: string;
   featured?: boolean;
   createdAt?: string;
 };
@@ -327,31 +334,57 @@ function scoreProductSmart(p: ProductScoreInput, qLower: string, tokens: string[
   const category = (p.category || "").toLowerCase();
   const sub = (p.subcategory || "").toLowerCase();
   const desc = (p.description || "").toLowerCase();
+  const sku = (p.sku || "").toLowerCase();
   const tags = Array.isArray(p.tags) ? (p.tags as unknown[]).map((t) => String(t).toLowerCase()) : [];
   const tagBlob = tags.join(" ");
 
   const effectiveTokens = tokens.length > 0 ? tokens : qLower.length >= 2 ? [qLower] : [];
 
   let score = 0;
-  if (qLower.length >= 2 && name.includes(qLower)) score += 28;
-  else if (qLower.length >= 2 && `${brand} ${category} ${sub}`.includes(qLower)) score += 6;
+  if (qLower.length >= 2 && name === qLower) score += 48;
+  else if (qLower.length >= 2 && name.includes(qLower)) score += 28;
+  else if (qLower.length >= 2 && `${brand} ${category} ${sub}`.includes(qLower)) score += 8;
+
+  if (qLower.length >= 2 && sku && (sku === qLower || sku.includes(qLower))) score += 22;
 
   let tokensAllInName = effectiveTokens.length > 0;
+  let matchedTokenCount = 0;
   for (const tok of effectiveTokens) {
     const inName = tokenHaystackScore(name, tok, 12);
     const inBrand = tokenHaystackScore(brand, tok, 7);
     const inTax = Math.max(tokenHaystackScore(category, tok, 6), tokenHaystackScore(sub, tok, 6));
     const inTags = tokenHaystackScore(tagBlob, tok, 5);
+    const inSku = tokenHaystackScore(sku, tok, 9);
     const inDesc = tokenHaystackScore(desc, tok, 2);
-    const best = Math.max(inName, inBrand, inTax, inTags, inDesc);
+    const best = Math.max(inName, inBrand, inTax, inTags, inSku, inDesc);
     score += best;
+    if (best > 0) matchedTokenCount += 1;
     if (inName < 1) tokensAllInName = false;
   }
 
   if (effectiveTokens.length >= 2 && tokensAllInName) score += 18;
   if (effectiveTokens.length >= 2 && name.includes(qLower)) score += 12;
+  if (effectiveTokens.length > 0 && matchedTokenCount === effectiveTokens.length) score += 10;
+
+  if (p.featured) score += 6;
+
+  // Prefer products with real images when scores are close.
+  score += imagePreferenceRank(p.image) * 0.5;
 
   return score;
+}
+
+function productMatchLabel(p: ProductScoreInput, qLower: string, tokens: string[]): string {
+  const name = (p.name || "").toLowerCase();
+  const brand = (p.brand || "").toLowerCase();
+  const category = (p.category || "").toLowerCase();
+  const sku = (p.sku || "").toLowerCase();
+  if (qLower && name.includes(qLower)) return "Name match";
+  if (qLower && sku && sku.includes(qLower)) return "SKU match";
+  if (tokens.some((t) => brand.includes(t))) return brand ? `Brand · ${p.brand}` : "Brand match";
+  if (tokens.some((t) => category.includes(t))) return p.category || "Category match";
+  if (p.brand?.trim()) return p.brand.trim();
+  return p.category || "Product";
 }
 
 function scoreCatalogServiceSmart(
@@ -399,33 +432,15 @@ export async function GET(req: NextRequest) {
       : 6;
 
     if (!q || q.length < 2) {
-      return NextResponse.json({
-        query: q,
-        categories: [],
-        products: [],
-        serviceCategories: [],
-        services: [],
-      } satisfies SuggestionsResponse);
+      return NextResponse.json(emptySuggestions(q));
     }
 
-    // Prevent Supabase `.or('...')` parse issues from commas/wildcards.
-    const safeQ = q
-      .replace(/[%,]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, " ");
+    const safeQ = normalizeSearchText(q);
     if (!safeQ) {
-      return NextResponse.json({
-        query: q,
-        categories: [],
-        products: [],
-        serviceCategories: [],
-        services: [],
-      } satisfies SuggestionsResponse);
+      return NextResponse.json(emptySuggestions(q));
     }
 
-    const searchTokens = searchTokensFromSafeQuery(safeQ);
-    const rankingTokens = searchTokens.length > 0 ? searchTokens : safeQ.length >= 2 ? [safeQ] : [];
+    const { rankingTokens, dbTokenGroups } = buildExpandedRankingTokens(safeQ);
     const serviceScored = scoreAllCatalogServices(safeQ, rankingTokens);
     const { serviceCategories, services: catalogServices } = buildServiceSuggestionPayload(
       serviceScored,
@@ -439,136 +454,219 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     let productQuery = supabase
       .from("products")
-      .select("id,name,description,price,compare_at_price,image,category,subcategory,brand,tags,published,featured,created_at")
+      .select(
+        "id,name,description,price,compare_at_price,image,category,subcategory,brand,sku,tags,published,featured,created_at",
+      )
+      .eq("published", true)
       .order("featured", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(120);
+      .limit(160);
 
-    for (const token of rankingTokens) {
-      productQuery = productQuery.or(ilikeOrClauseForToken(token));
+    for (const variants of dbTokenGroups) {
+      const clause = ilikeOrClauseForVariants(variants);
+      if (clause) productQuery = productQuery.or(clause);
     }
 
     const { data, error } = await productQuery;
 
     if (error) {
-      return NextResponse.json(
-        {
-          query: q,
-          categories: [],
-          products: [],
-          serviceCategories,
-          services: catalogServices,
-        } satisfies SuggestionsResponse,
-        { status: 200 },
-      );
-    }
-
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
-    // Use the same sanitized query we used for the ilike search to keep scoring consistent.
-    const qLower = safeQ;
-
-    const scored = rows
-      .map((row) => {
-        const product: ProductScoreInput = {
-          id: String(row.id),
-          name: String(row.name ?? ""),
-          description: String(row.description ?? ""),
-          price: parseNumber(row.price),
-          compareAtPrice: parseOptionalNumber(row.compare_at_price),
-          image: String(row.image ?? ""),
-          category: String(row.category ?? ""),
-          brand: String(row.brand ?? ""),
-          subcategory: String(row.subcategory ?? ""),
-          tags: row.tags,
-          featured: Boolean(row.featured),
-          createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
-        };
-
-        const score = scoreProductSmart(product, qLower, rankingTokens);
-        return { product, score };
-      })
-      .filter((item) => item.product.name.length > 0 && item.score > 0)
-      .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        const fa = a.product.featured ? 1 : 0;
-        const fb = b.product.featured ? 1 : 0;
-        if (fb !== fa) return fb - fa;
-        const ta = a.product.createdAt ?? "";
-        const tb = b.product.createdAt ?? "";
-        return tb.localeCompare(ta);
-      });
-
-    const categoryMap = new Map<string, CategoryAggregate>();
-    for (const { product, score } of scored) {
-      const name = product.category?.trim();
-      if (!name || name.toLowerCase() === "all") continue;
-
-      const existing = categoryMap.get(name);
-      if (!existing) {
-        categoryMap.set(name, {
-          name,
-          image: product.image,
-          count: 1,
-          topScore: score,
-        });
-        continue;
-      }
-
-      existing.count += 1;
-      if (score > existing.topScore) {
-        existing.topScore = score;
-        existing.image = product.image;
-      } else if (score === existing.topScore) {
-        if (imagePreferenceRank(product.image) > imagePreferenceRank(existing.image)) {
-          existing.image = product.image;
+      // Retry without sku if the column is missing in some environments.
+      const message = String(error.message || "");
+      if (message.toLowerCase().includes("sku")) {
+        let fallbackQuery = supabase
+          .from("products")
+          .select(
+            "id,name,description,price,compare_at_price,image,category,subcategory,brand,tags,published,featured,created_at",
+          )
+          .eq("published", true)
+          .order("featured", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(160);
+        for (const variants of dbTokenGroups) {
+          const fields = ["name", "description", "category", "brand", "subcategory"] as const;
+          const clauses: string[] = [];
+          for (const token of variants) {
+            const p = `%${sanitizeIlikeToken(token)}%`;
+            if (p.length < 4) continue;
+            for (const f of fields) clauses.push(`${f}.ilike.${p}`);
+          }
+          const clause = clauses.join(",");
+          if (clause) fallbackQuery = fallbackQuery.or(clause);
+        }
+        const fallback = await fallbackQuery;
+        if (!fallback.error) {
+          return NextResponse.json(
+            buildProductSuggestionResponse({
+              q,
+              safeQ,
+              rankingTokens,
+              rows: (fallback.data ?? []) as Array<Record<string, unknown>>,
+              limitProducts,
+              limitCategories,
+              serviceCategories,
+              catalogServices,
+              matchedServiceCount: serviceScored.length,
+            }),
+          );
         }
       }
+
+      return NextResponse.json({
+        ...emptySuggestions(q),
+        serviceCategories,
+        services: catalogServices,
+        matchedServiceCount: serviceScored.length,
+      } satisfies SuggestionsResponse);
     }
 
-    const distinctCategoryCount = categoryMap.size;
-    const totalMatched = scored.length;
-    const preferCategoryBrowse = totalMatched >= 4 || distinctCategoryCount >= 2;
-    const productSliceLimit = preferCategoryBrowse ? Math.min(3, limitProducts) : limitProducts;
-    const topProducts = scored.slice(0, productSliceLimit).map((s) => s.product);
-
-    const displayTopic = titleCaseDisplayQuery(q);
-    const topCategories: CategorySearchRow[] = Array.from(categoryMap.values())
-      .sort((a, b) => {
-        const affA = categoryQueryAffinity(a.name, qLower, rankingTokens);
-        const affB = categoryQueryAffinity(b.name, qLower, rankingTokens);
-        const rankA = a.topScore + affA;
-        const rankB = b.topScore + affB;
-        if (rankB !== rankA) return rankB - rankA;
-        return b.count - a.count || a.name.localeCompare(b.name);
-      })
-      .slice(0, limitCategories)
-      .map((row) => ({
-        name: row.name,
-        image: row.image?.trim() ? row.image : "",
-        count: row.count,
-        headline: categoryBrowseHeadline(displayTopic, row.name, row.count),
-      }));
-
-    const response: SuggestionsResponse = {
-      query: q,
-      categories: topCategories,
-      products: topProducts,
-      serviceCategories,
-      services: catalogServices,
-    };
-
-    return NextResponse.json(response);
-  } catch {
     return NextResponse.json(
-      {
-        query: "",
-        categories: [],
-        products: [],
-        serviceCategories: [],
-        services: [],
-      } satisfies SuggestionsResponse,
-      { status: 200 }
+      buildProductSuggestionResponse({
+        q,
+        safeQ,
+        rankingTokens,
+        rows: (data ?? []) as Array<Record<string, unknown>>,
+        limitProducts,
+        limitCategories,
+        serviceCategories,
+        catalogServices,
+        matchedServiceCount: serviceScored.length,
+      }),
     );
+  } catch {
+    return NextResponse.json(emptySuggestions(), { status: 200 });
   }
+}
+
+function buildProductSuggestionResponse({
+  q,
+  safeQ,
+  rankingTokens,
+  rows,
+  limitProducts,
+  limitCategories,
+  serviceCategories,
+  catalogServices,
+  matchedServiceCount,
+}: {
+  q: string;
+  safeQ: string;
+  rankingTokens: string[];
+  rows: Array<Record<string, unknown>>;
+  limitProducts: number;
+  limitCategories: number;
+  serviceCategories: ServiceCategorySearchRow[];
+  catalogServices: SuggestionService[];
+  matchedServiceCount: number;
+}): SuggestionsResponse {
+  const qLower = safeQ;
+
+  const scored = rows
+    .map((row) => {
+      const product: ProductScoreInput = {
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        description: String(row.description ?? ""),
+        price: parseNumber(row.price),
+        compareAtPrice: parseOptionalNumber(row.compare_at_price),
+        image: String(row.image ?? ""),
+        category: String(row.category ?? ""),
+        brand: String(row.brand ?? ""),
+        subcategory: String(row.subcategory ?? ""),
+        sku: typeof row.sku === "string" ? row.sku : "",
+        tags: row.tags,
+        featured: Boolean(row.featured),
+        createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
+      };
+
+      const score = scoreProductSmart(product, qLower, rankingTokens);
+      return {
+        product: {
+          ...product,
+          matchLabel: productMatchLabel(product, qLower, rankingTokens),
+        },
+        score,
+      };
+    })
+    .filter((item) => item.product.name.length > 0 && item.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const fa = a.product.featured ? 1 : 0;
+      const fb = b.product.featured ? 1 : 0;
+      if (fb !== fa) return fb - fa;
+      const ta = a.product.createdAt ?? "";
+      const tb = b.product.createdAt ?? "";
+      return tb.localeCompare(ta);
+    });
+
+  const categoryMap = new Map<string, CategoryAggregate>();
+  for (const { product, score } of scored) {
+    const name = product.category?.trim();
+    if (!name || name.toLowerCase() === "all") continue;
+
+    const existing = categoryMap.get(name);
+    if (!existing) {
+      categoryMap.set(name, {
+        name,
+        image: product.image,
+        count: 1,
+        topScore: score,
+      });
+      continue;
+    }
+
+    existing.count += 1;
+    if (score > existing.topScore) {
+      existing.topScore = score;
+      existing.image = product.image;
+    } else if (score === existing.topScore) {
+      if (imagePreferenceRank(product.image) > imagePreferenceRank(existing.image)) {
+        existing.image = product.image;
+      }
+    }
+  }
+
+  const distinctCategoryCount = categoryMap.size;
+  const totalMatched = scored.length;
+  const preferCategoryBrowse = totalMatched >= 4 || distinctCategoryCount >= 2;
+  const productSliceLimit = preferCategoryBrowse ? Math.min(5, limitProducts) : limitProducts;
+  const topProducts = scored.slice(0, productSliceLimit).map(({ product }) => ({
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    compareAtPrice: product.compareAtPrice,
+    image: product.image,
+    category: product.category,
+    brand: product.brand,
+    matchLabel: product.matchLabel,
+  }));
+
+  const displayTopic = titleCaseDisplayQuery(q);
+  const topCategories: CategorySearchRow[] = Array.from(categoryMap.values())
+    .sort((a, b) => {
+      const affA = categoryQueryAffinity(a.name, qLower, rankingTokens);
+      const affB = categoryQueryAffinity(b.name, qLower, rankingTokens);
+      const rankA = a.topScore + affA;
+      const rankB = b.topScore + affB;
+      if (rankB !== rankA) return rankB - rankA;
+      return b.count - a.count || a.name.localeCompare(b.name);
+    })
+    .slice(0, limitCategories)
+    .map((row) => ({
+      name: row.name,
+      image: row.image?.trim() ? row.image : "",
+      count: row.count,
+      headline: categoryBrowseHeadline(displayTopic, row.name, row.count),
+    }));
+
+  return {
+    query: q,
+    categories: topCategories,
+    products: topProducts,
+    serviceCategories,
+    services: catalogServices,
+    matchedProductCount: totalMatched,
+    matchedServiceCount,
+  };
 }
 

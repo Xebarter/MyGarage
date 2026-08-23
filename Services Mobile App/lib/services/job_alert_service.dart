@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -14,15 +13,16 @@ import '../models/service_request.dart';
 /// Callback for Accept/Decline from the notification tray.
 typedef JobAlertActionHandler = Future<void> Function(String action);
 
-/// Professional looping chime + vibration for incoming job offers.
-/// On Android, posts a high-priority notification with Accept / Decline actions
-/// and full-screen intent so the offer can surface over the lock screen.
+/// Looping in-app chime + vibration for incoming job offers while foreground.
+/// On Android/iOS, also posts a high-priority heads-up notification with
+/// Accept / Decline actions (and channel sound for background reliability).
 class JobAlertService with WidgetsBindingObserver {
   JobAlertService._();
 
   static final JobAlertService instance = JobAlertService._();
 
-  static const _channelId = 'job_offers_alarm';
+  /// Bumped so devices recreate the channel (old silent channels are sticky).
+  static const _channelId = 'job_offers_alarm_v2';
   static const _notificationId = 71001;
   static const _assetPath = 'sounds/job_offer_alarm.wav';
   static const _methodChannelName = 'ug.mygarage.services/job_alert';
@@ -37,6 +37,8 @@ class JobAlertService with WidgetsBindingObserver {
   bool _initialized = false;
   bool _ringing = false;
   bool _silenced = false;
+  /// True after a real background pause while an offer was ringing (not user mute).
+  bool _pausedForBackground = false;
   String? _activeOfferId;
   DispatchOffer? _activeOffer;
   Timer? _vibPulse;
@@ -73,11 +75,9 @@ class JobAlertService with WidgetsBindingObserver {
     await _player.setAudioContext(
       AudioContext(
         iOS: AudioContextIOS(
+          // defaultToSpeaker is only valid with playAndRecord.
           category: AVAudioSessionCategory.playback,
-          options: const {
-            AVAudioSessionOptions.duckOthers,
-            AVAudioSessionOptions.defaultToSpeaker,
-          },
+          options: const {AVAudioSessionOptions.duckOthers},
         ),
         android: const AudioContextAndroid(
           isSpeakerphoneOn: true,
@@ -101,7 +101,7 @@ class JobAlertService with WidgetsBindingObserver {
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
-    if (Platform.isAndroid) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       final android = _notifications.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       await android?.createNotificationChannel(
@@ -110,8 +110,8 @@ class JobAlertService with WidgetsBindingObserver {
           'Incoming jobs',
           description: 'Alerts when a job offer arrives',
           importance: Importance.max,
-          playSound: false,
-          enableVibration: false,
+          playSound: true,
+          enableVibration: true,
           showBadge: true,
         ),
       );
@@ -150,7 +150,7 @@ class JobAlertService with WidgetsBindingObserver {
       unawaited(_dispatchAction('decline'));
       return;
     }
-    // Body/FSI tap — reopen the intercept.
+    // Body tap — reopen the intercept.
     onRequestPresentDialog?.call();
   }
 
@@ -161,17 +161,11 @@ class JobAlertService with WidgetsBindingObserver {
     }
   }
 
-  /// Request notification / overlay permissions once the provider is online.
+  /// Request notification permission when the provider is online.
   Future<void> ensurePermissions() async {
     await init();
     try {
       await Permission.notification.request();
-      if (Platform.isAndroid) {
-        final overlay = await Permission.systemAlertWindow.status;
-        if (!overlay.isGranted) {
-          await Permission.systemAlertWindow.request();
-        }
-      }
     } catch (e) {
       debugPrint('JobAlertService permissions: $e');
     }
@@ -183,6 +177,7 @@ class JobAlertService with WidgetsBindingObserver {
       // Same offer — ensure notification stays, but do not re-blast audio if silenced.
       if (!_silenced && !_ringing) {
         _ringing = true;
+        _pausedForBackground = false;
         unawaited(_startSound());
         unawaited(_startVibration());
       }
@@ -192,18 +187,40 @@ class JobAlertService with WidgetsBindingObserver {
     _activeOfferId = offer.assignmentId;
     _activeOffer = offer;
     _silenced = false;
+    _pausedForBackground = false;
     _ringing = true;
 
     unawaited(ensurePermissions());
     unawaited(_startSound());
     unawaited(_startVibration());
-    unawaited(_showFullScreenNotification(offer));
+    unawaited(_showOfferNotification(offer));
   }
 
   /// Mute audio + vibration (power button / volume down) but keep the offer active.
   Future<void> silence() async {
     if (!_ringing && !_silenced && _activeOffer == null) return;
     _silenced = true;
+    _ringing = false;
+    _pausedForBackground = false;
+    _vibPulse?.cancel();
+    _vibPulse = null;
+
+    try {
+      if (await Vibration.hasVibrator() == true) {
+        await Vibration.cancel();
+      }
+    } catch (_) {}
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+  }
+
+  /// Pause in-app loop while backgrounded (notification sound covers heads-up).
+  /// Unlike [silence], this is not a user mute — sound resumes on [resumed].
+  Future<void> _pauseForBackground() async {
+    if (!_ringing || _silenced || _activeOffer == null) return;
+    _pausedForBackground = true;
     _ringing = false;
     _vibPulse?.cancel();
     _vibPulse = null;
@@ -219,10 +236,20 @@ class JobAlertService with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _resumeAfterBackground() async {
+    if (_silenced || _activeOffer == null) return;
+    if (!_pausedForBackground && _ringing) return;
+    _pausedForBackground = false;
+    _ringing = true;
+    unawaited(_startSound());
+    unawaited(_startVibration());
+  }
+
   /// Full teardown after accept / decline / offer cleared.
   Future<void> stop() async {
     _ringing = false;
     _silenced = false;
+    _pausedForBackground = false;
     _activeOfferId = null;
     _activeOffer = null;
     _vibPulse?.cancel();
@@ -244,18 +271,31 @@ class JobAlertService with WidgetsBindingObserver {
   }
 
   Future<void> _startSound() async {
-    if (_silenced) return;
+    if (_silenced || !_ringing) return;
     try {
       await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.loop);
       await _player.setVolume(0.75);
-      await _player.play(AssetSource(_assetPath));
-    } catch (e) {
-      debugPrint('JobAlertService sound failed: $e');
+      await _player.setSource(AssetSource(_assetPath));
+      await _player.resume();
+      final state = _player.state;
+      if (state != PlayerState.playing && state != PlayerState.completed) {
+        // Some platforms only start via [play].
+        await _player.play(AssetSource(_assetPath));
+      }
+      debugPrint('JobAlertService sound state=${_player.state}');
+    } catch (e, st) {
+      debugPrint('JobAlertService sound failed: $e\n$st');
+      try {
+        await _player.play(AssetSource(_assetPath));
+      } catch (e2) {
+        debugPrint('JobAlertService sound retry failed: $e2');
+      }
     }
   }
 
   Future<void> _startVibration() async {
-    if (_silenced) return;
+    if (_silenced || !_ringing) return;
     try {
       final hasVibrator = await Vibration.hasVibrator() == true;
       if (!hasVibrator) return;
@@ -284,7 +324,7 @@ class JobAlertService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _showFullScreenNotification(DispatchOffer offer) async {
+  Future<void> _showOfferNotification(DispatchOffer offer) async {
     if (kIsWeb) return;
     final title = offer.request?.service ?? 'New job offer';
     final body = (offer.request?.location ?? '').isNotEmpty
@@ -297,16 +337,16 @@ class JobAlertService with WidgetsBindingObserver {
       channelDescription: 'Alerts when a job offer arrives',
       importance: Importance.max,
       priority: Priority.max,
-      category: AndroidNotificationCategory.call,
-      fullScreenIntent: true,
+      category: AndroidNotificationCategory.message,
+      fullScreenIntent: false,
       visibility: NotificationVisibility.public,
       ongoing: true,
       autoCancel: false,
-      playSound: false,
-      enableVibration: false,
+      playSound: true,
+      enableVibration: true,
       ticker: 'Incoming MyGarage job',
       timeoutAfter: 90 * 1000,
-      actions: const <AndroidNotificationAction>[
+      actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
           actionAccept,
           'Accept',
@@ -325,7 +365,7 @@ class JobAlertService with WidgetsBindingObserver {
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
-      presentSound: false,
+      presentSound: true,
       interruptionLevel: InterruptionLevel.timeSensitive,
       categoryIdentifier: 'job_offer',
     );
@@ -335,7 +375,10 @@ class JobAlertService with WidgetsBindingObserver {
         id: _notificationId,
         title: title,
         body: body,
-        notificationDetails: NotificationDetails(android: androidDetails, iOS: iosDetails),
+        notificationDetails: NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+        ),
         payload: offer.assignmentId,
       );
     } catch (e) {
@@ -345,14 +388,17 @@ class JobAlertService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Screen lock / background ≈ power button: silence like a phone call.
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      if (_ringing && !_silenced) {
-        unawaited(silence());
-      }
+    // Do NOT silence on [inactive] — dialogs / system sheets fire it and
+    // previously killed the ring as soon as the offer UI appeared.
+    if (state == AppLifecycleState.paused) {
+      // Real background: stop in-app loop; heads-up notification sound remains.
+      unawaited(_pauseForBackground());
+      return;
     }
-    // Do not restart sound on resume after user silenced.
     if (state == AppLifecycleState.resumed) {
+      if (_pausedForBackground && !_silenced && _activeOffer != null) {
+        unawaited(_resumeAfterBackground());
+      }
       onRequestPresentDialog?.call();
     }
   }

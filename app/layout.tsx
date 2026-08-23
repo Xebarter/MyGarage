@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { Nunito } from 'next/font/google';
 
 import { JsonLdScript } from '@/components/seo/json-ld-script';
+import { MobileAppFooterHost } from '@/components/mobile-app-footer-host';
 import { ThemeProvider } from '@/components/theme-provider';
 import { buildRootMetadata } from '@/lib/seo/metadata';
 import { globalSiteJsonLd } from '@/lib/seo/json-ld';
@@ -35,6 +36,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <MobileAppFooterHost />
           <Analytics />
         </ThemeProvider>
       </body>

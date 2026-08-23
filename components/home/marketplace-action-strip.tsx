@@ -36,17 +36,17 @@ export function MarketplaceActionStrip({
   return (
     <section
       id="browse-categories"
-      className="sticky top-0 z-20 border-b border-border bg-background py-2.5 md:top-16"
+      className="sticky top-0 z-20 border-b border-border/80 bg-white/90 py-3 backdrop-blur-md md:top-16"
     >
-      <div className="mx-auto w-full max-w-[1500px] px-3 sm:px-4 md:px-5">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="mx-auto w-full max-w-[1500px] px-3 sm:px-4 md:px-5 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={() => onSelectCategory('all')}
             className={cn(
-              'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition',
+              'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition',
               selectedCategory === 'all'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-[#0B1220] text-white'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -55,23 +55,23 @@ export function MarketplaceActionStrip({
 
           <div className="relative min-w-0 flex-1">
             <div
-              className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-5 bg-gradient-to-r from-background to-transparent"
+              className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-6 bg-gradient-to-r from-white/90 to-transparent"
               aria-hidden
             />
             <div
-              className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-5 bg-gradient-to-l from-background to-transparent"
+              className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-6 bg-gradient-to-l from-white/90 to-transparent"
               aria-hidden
             />
-            <div className="flex flex-nowrap items-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {visiblePills.map((category) => (
                 <button
                   key={category}
                   type="button"
                   onClick={() => onSelectCategory(category)}
                   className={cn(
-                    'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition',
+                    'shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition',
                     selectedCategory === category
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-[#0B1220] text-white'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
@@ -110,7 +110,7 @@ function CategoryOverflowMenu({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 shrink-0 gap-1 rounded-md px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          className="h-8 shrink-0 gap-1 rounded-full px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
           {overflowCount > 0 ? `+${overflowCount} more` : 'More'}
         </Button>

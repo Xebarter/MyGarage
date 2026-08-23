@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { MobileProductDetail } from '@/components/products/mobile-product-detail';
 import { ProductImage } from '@/components/product-image';
 import { ProductWishlistButton } from '@/components/product-wishlist-button';
 import { Button } from '@/components/ui/button';
@@ -205,9 +206,103 @@ export function ProductDetailClient({ initialProduct }: { initialProduct: Produc
 
   const showThumbStrip = galleryImages.length > 1;
 
+  const variantOptions = (
+    <>
+      {multiAxis && product.variantOptions.length > 0 ? (
+        <div className="space-y-4">
+          {product.variantOptions.map((opt) => (
+            <div key={opt.id}>
+              <p className="text-sm font-semibold text-[#0B1220]">
+                {opt.name}
+                {selectionByOptionId[opt.id] ? (
+                  <span className="ml-2 font-normal text-[#8B9BB0]">
+                    · {opt.values.find((v) => v.id === selectionByOptionId[opt.id])?.label ?? ''}
+                  </span>
+                ) : null}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {opt.values.map((val) => {
+                  const selectable = isOptionValueSelectable(
+                    variantList,
+                    product.variantOptions,
+                    selectionByOptionId,
+                    opt.id,
+                    val.id,
+                  );
+                  const selected = selectionByOptionId[opt.id] === val.id;
+                  return (
+                    <button
+                      key={val.id}
+                      type="button"
+                      disabled={!selectable}
+                      onClick={() => {
+                        const next = pickVariantForOptionChange(
+                          variantList,
+                          product.variantOptions,
+                          selectionByOptionId,
+                          opt.id,
+                          val.id,
+                        );
+                        const v = findVariantForSelections(variantList, product.variantOptions, next);
+                        setVariantState({
+                          selectedVariantId: v?.id ?? null,
+                          selectionByOptionId: next,
+                        });
+                        setQuantity(1);
+                      }}
+                      className={cn(
+                        'min-h-10 rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-40',
+                        selected ? 'border-primary bg-primary/10' : 'border-border bg-white',
+                      )}
+                    >
+                      {val.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : variantList.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-[#0B1220]">Choose an option</p>
+          {variantList.map((v) => {
+            const isActive = selectedVariant?.id === v.id;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => {
+                  setVariantState((prev) => ({ ...prev, selectedVariantId: v.id }));
+                  setQuantity(1);
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left',
+                  isActive ? 'border-primary bg-primary/5' : 'border-border bg-white',
+                )}
+              >
+                <span className="text-sm font-medium">{v.label}</span>
+                <span className="text-sm font-semibold">UGX {v.price.toFixed(0)}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+
   return (
     <>
       <Header />
+      <MobileProductDetail
+        product={product}
+        displayPrice={!canPurchase && variantList.length > 0 ? null : displayPrice}
+        canPurchase={canPurchase}
+        cartFeedback={cartFeedback === 'added'}
+        onAddToCart={handleAddToCart}
+        options={variantList.length > 0 ? variantOptions : null}
+      />
+      <div className="hidden md:contents">
       <main className="bg-background">
         <div className="mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-8 lg:px-8 lg:pb-20 lg:pt-10">
           <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
@@ -541,6 +636,7 @@ export function ProductDetailClient({ initialProduct }: { initialProduct: Produc
           </div>
         </div>
       </main>
+      </div>
       <Footer />
     </>
   );

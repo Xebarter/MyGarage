@@ -9,6 +9,7 @@ import '../../providers/auth_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
+import '../../widgets/app_brand_logo.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -59,7 +60,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final money = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Orders')),
+      appBar: AppBar(title: const AppBarTitle('Orders')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

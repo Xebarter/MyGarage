@@ -9,8 +9,8 @@ import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'widgets/incoming_offer_host.dart';
 
-/// Global go_router for navigation from overlays outside the shell tree
-/// (e.g. full-screen offer intercept after Accept).
+/// Global go_router for navigation from outside the shell tree
+/// (e.g. after Accept on the job-offer intercept).
 class AppNavigation {
   AppNavigation._();
   static GoRouter? router;

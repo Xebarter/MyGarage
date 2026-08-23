@@ -13,7 +13,7 @@ export function BuyerPortalShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <BuyerSidebar />
-          <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
             {children}
           </main>
         </div>

@@ -4,6 +4,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   AppConfig._();
 
+  static String? _env(String key) {
+    if (!dotenv.isInitialized) return null;
+    final v = dotenv.env[key]?.trim();
+    if (v == null || v.isEmpty) return null;
+    return v;
+  }
+
   /// Production site serves the API on www; apex redirects break some verbs from Flutter.
   static String normalizeApiUrl(String raw) {
     var url = raw.trim().replaceAll(RegExp(r'/+$'), '');
@@ -23,44 +30,49 @@ class AppConfig {
     return url;
   }
 
+  ///
+  /// Priority:
+  /// 1. `--dart-define=API_URL=...` (compile-time)
+  /// 2. Flutter **web** → always local Next (`http://localhost:3000`)
+  /// 3. `assets/app.env` / production defaults for native
+  ///
   static String get apiUrl {
-    final raw = dotenv.env['API_URL']?.trim();
-    // Support legacy Expo-style keys during migration.
-    final legacy = dotenv.env['EXPO_PUBLIC_API_URL']?.trim();
-    final value = (raw != null && raw.isNotEmpty) ? raw : legacy;
-    if (value == null || value.isEmpty) {
-      // Flutter *web* on localhost often wants a local Next server, not production.
-      if (kIsWeb && kDebugMode) return 'http://localhost:3000';
+    const fromDefine = String.fromEnvironment('API_URL');
+    if (fromDefine.isNotEmpty) {
+      return normalizeApiUrl(fromDefine);
+    }
+
+    // Browser must never use a phone-LAN IP from an old build.
+    if (kIsWeb) {
+      return 'http://localhost:3000';
+    }
+
+    final value = _env('API_URL') ?? _env('EXPO_PUBLIC_API_URL');
+    if (value == null) {
       return 'https://www.mygarage.ug';
     }
     return normalizeApiUrl(value);
   }
 
   static String get supabaseUrl =>
-      dotenv.env['SUPABASE_URL']?.trim() ??
-      dotenv.env['EXPO_PUBLIC_SUPABASE_URL']?.trim() ??
-      '';
+      _env('SUPABASE_URL') ?? _env('EXPO_PUBLIC_SUPABASE_URL') ?? '';
 
   static String get supabaseAnonKey =>
-      dotenv.env['SUPABASE_ANON_KEY']?.trim() ??
-      dotenv.env['EXPO_PUBLIC_SUPABASE_ANON_KEY']?.trim() ??
-      '';
+      _env('SUPABASE_ANON_KEY') ?? _env('EXPO_PUBLIC_SUPABASE_ANON_KEY') ?? '';
 
   static String get googleMapsApiKey =>
-      dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() ??
-      dotenv.env['EXPO_PUBLIC_GOOGLE_MAPS_API_KEY']?.trim() ??
+      _env('GOOGLE_MAPS_API_KEY') ??
+      _env('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY') ??
       '';
 
   static String get authDeepLinkUri {
-    final raw = dotenv.env['AUTH_DEEP_LINK_URI']?.trim();
-    if (raw != null && raw.isNotEmpty) return raw;
-    return 'mygarage://login-callback';
+    return _env('AUTH_DEEP_LINK_URI') ?? 'mygarage://login-callback';
   }
 
   static String get authHttpsRedirectUri {
-    final explicit = dotenv.env['AUTH_REDIRECT_URI']?.trim() ??
-        dotenv.env['EXPO_PUBLIC_AUTH_REDIRECT_URI']?.trim();
-    if (explicit != null && explicit.isNotEmpty) {
+    final explicit =
+        _env('AUTH_REDIRECT_URI') ?? _env('EXPO_PUBLIC_AUTH_REDIRECT_URI');
+    if (explicit != null) {
       if (explicit.startsWith('http://') || explicit.startsWith('https://')) {
         return normalizeApiUrl(explicit);
       }
