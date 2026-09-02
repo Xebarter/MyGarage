@@ -260,7 +260,7 @@ const sections: LegalSectionContent[] = [
     bullets: [
       'Company: MyGarage',
       'Email: support@mygarage.ug',
-      'Phone: +256 783 676 313',
+      'Phone: +256 787 118 634 / +256 752 405 877',
       'Address: Kampala, Uganda',
       'Business Hours: Monday to Saturday, 8:00 AM to 6:00 PM EAT',
       'Data Protection Contact: dpo@mygarage.ug',

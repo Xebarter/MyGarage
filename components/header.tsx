@@ -1004,18 +1004,6 @@ export function Header() {
             ) : null}
           </div>
         </form>
-        <Link
-          href="/cart"
-          className="relative inline-flex items-center gap-1 bg-primary text-primary-foreground px-2 py-2 rounded-lg hover:bg-primary/90 transition text-xs"
-        >
-          <ShoppingCart className="w-4 h-4" />
-          <span>Cart</span>
-          {cartCount > 0 ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-red-700 bg-red-600 px-1 text-[10px] font-semibold text-white shadow-sm">
-              {cartCount > 99 ? '99+' : cartCount}
-            </span>
-          ) : null}
-        </Link>
       </div>
     </div>
     </>

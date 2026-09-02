@@ -21,9 +21,16 @@ export function organizationJsonLd(): JsonLd {
     contactPoint: [
       {
         '@type': 'ContactPoint',
-        telephone: '+256-783-676-313',
+        telephone: '+256-787-118-634',
         contactType: 'customer service',
         email: 'support@mygarage.ug',
+        areaServed: 'UG',
+        availableLanguage: ['English'],
+      },
+      {
+        '@type': 'ContactPoint',
+        telephone: '+256-752-405-877',
+        contactType: 'customer service',
         areaServed: 'UG',
         availableLanguage: ['English'],
       },
@@ -201,7 +208,7 @@ export function localBusinessJsonLd(): JsonLd {
     name: SITE_NAME,
     url: getSiteUrl(),
     image: absoluteUrl('/web-app-manifest-512x512.png'),
-    telephone: '+256-783-676-313',
+    telephone: ['+256-787-118-634', '+256-752-405-877'],
     email: 'support@mygarage.ug',
     address: {
       '@type': 'PostalAddress',

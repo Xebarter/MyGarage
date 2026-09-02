@@ -6,6 +6,7 @@ import {
   normalizeSearchText,
   sanitizeIlikeToken,
 } from "@/lib/search/expand-query";
+import { scoreCatalogService } from "@/lib/search/match-catalog-services";
 
 type SuggestionProduct = {
   id: string;
@@ -167,7 +168,7 @@ function scoreAllCatalogServices(
   for (const cat of userServiceCategories) {
     const keywords = serviceIntentKeywordsByCategoryId[cat.id] ?? [];
     for (const name of cat.services.map((s) => s.name)) {
-      const score = scoreCatalogServiceSmart(name, cat.title, cat.id, keywords, qLower, tokens);
+      const score = scoreCatalogService(name, cat.title, cat.id, keywords, qLower, tokens);
       if (score <= 0) continue;
       out.push({
         score,
@@ -385,35 +386,6 @@ function productMatchLabel(p: ProductScoreInput, qLower: string, tokens: string[
   if (tokens.some((t) => category.includes(t))) return p.category || "Category match";
   if (p.brand?.trim()) return p.brand.trim();
   return p.category || "Product";
-}
-
-function scoreCatalogServiceSmart(
-  serviceName: string,
-  categoryTitle: string,
-  categoryId: string,
-  keywords: string[],
-  qLower: string,
-  tokens: string[],
-): number {
-  const svc = serviceName.toLowerCase();
-  const title = categoryTitle.toLowerCase();
-  const idNorm = categoryId.toLowerCase().replace(/-/g, " ");
-  const kwBlob = keywords.map((k) => k.toLowerCase()).join(" ");
-
-  const effectiveTokens = tokens.length > 0 ? tokens : qLower.length >= 2 ? [qLower] : [];
-
-  let score = 0;
-  if (qLower.length >= 2 && svc.includes(qLower)) score += 24;
-
-  for (const tok of effectiveTokens) {
-    score += tokenHaystackScore(svc, tok, 14);
-    score += tokenHaystackScore(title, tok, 6);
-    score += tokenHaystackScore(idNorm, tok, 4);
-    score += tokenHaystackScore(kwBlob, tok, 5);
-  }
-
-  if (effectiveTokens.length >= 2 && effectiveTokens.every((t) => svc.includes(t))) score += 14;
-  return score;
 }
 
 export async function GET(req: NextRequest) {

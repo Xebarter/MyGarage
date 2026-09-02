@@ -9,7 +9,9 @@ import { MobileAppBottomNav, shouldHideMobileAppFooter } from '@/components/mobi
 export function MobileAppFooterHost() {
   const pathname = usePathname();
   const hide = shouldHideMobileAppFooter(pathname);
-  const buyerPortal = pathname === '/buyer' || pathname.startsWith('/buyer/');
+  const buyerPortal =
+    (pathname === '/buyer' || pathname.startsWith('/buyer/')) &&
+    pathname !== '/buyer/services';
 
   useEffect(() => {
     const padBody = !hide && !buyerPortal;

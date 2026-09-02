@@ -72,7 +72,7 @@ const sections: LegalSectionContent[] = [
     id: legalSectionId('4. Return Process'),
     title: '4. Return Process',
     ordered: [
-      'Contact us within the applicable timeframe at support@mygarage.ug or via phone/WhatsApp at +256 783 676 313 with order number, photos, and reason.',
+      'Contact us within the applicable timeframe at support@mygarage.ug or via phone/WhatsApp at +256 787 118 634 or +256 752 405 877 with order number, photos, and reason.',
       'We review and respond within 2-3 working days with approval/rejection and return instructions.',
       'Pack item securely in original packaging (or equivalent) and include all accessories.',
       'Return shipping is at your cost unless the return is due to our error.',
@@ -147,7 +147,7 @@ const sections: LegalSectionContent[] = [
     title: '12. Contact for Refund and Return Questions',
     bullets: [
       'Email: support@mygarage.ug',
-      'Phone/WhatsApp: +256 783 676 313',
+      'Phone/WhatsApp: +256 787 118 634 / +256 752 405 877',
       'Physical returns/drop-off: Kampala, Uganda',
       'Response target: within 2 working days.',
     ],

@@ -14,12 +14,14 @@ import { FeaturedPicksSection, MoreFeaturedSection } from '@/components/home/fea
 import { MarketplaceActionStrip } from '@/components/home/marketplace-action-strip';
 import { MobileShopHome } from '@/components/home/mobile-shop-home';
 import { PromoBannerSection } from '@/components/home/promo-banner-section';
+import { SearchServicesResults } from '@/components/search/search-services-results';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import type { Product } from '@/lib/db';
 import { pickFeaturedProducts } from '@/lib/home-category-feed';
 import type { HomePromoBanner } from '@/lib/home-initial-data';
 import { buildExpandedRankingTokens, expandTokenVariants, normalizeSearchText } from '@/lib/search/expand-query';
+import { matchCatalogServices } from '@/lib/search/match-catalog-services';
 
 type RecommendedFeedMeta = {
   feedRank?: number;
@@ -265,6 +267,13 @@ export function HomePageClient({
   const isDefaultHomeFeed = selectedCategory === 'all' && !searchQuery.trim();
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
+  const matchedServices = useMemo(() => {
+    if (!searchQuery.trim() || selectedCategory !== 'all') return [];
+    return matchCatalogServices(searchQuery, 8);
+  }, [searchQuery, selectedCategory]);
+
+  const hasSearchHits = filteredProducts.length > 0 || matchedServices.length > 0;
+
   const featuredProducts = useMemo(() => pickFeaturedProducts(products, 60), [products]);
   const heroFeatured = featuredProducts.slice(0, 3);
   const moreFeatured = featuredProducts.length > 3 ? featuredProducts.slice(3) : [];
@@ -350,6 +359,7 @@ export function HomePageClient({
       <MobileShopHome
         products={filteredProducts}
         visibleProducts={visibleProducts}
+        matchedServices={matchedServices}
         categories={shopCategories}
         selectedCategory={selectedCategory}
         searchQuery={searchQuery}
@@ -428,10 +438,10 @@ export function HomePageClient({
               <MoreFeaturedSection products={moreFeatured} />
               <CategoryInfiniteFeed products={products} />
             </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : !hasSearchHits ? (
             <div className="px-4 py-20 text-center">
               <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/50" aria-hidden />
-              <p className="mt-4 text-lg font-semibold text-foreground">No matching products found</p>
+              <p className="mt-4 text-lg font-semibold text-foreground">No matching parts or services</p>
               <p className="mt-2 text-sm text-muted-foreground">Try a different category or adjust your search.</p>
               <button
                 type="button"
@@ -446,32 +456,52 @@ export function HomePageClient({
             </div>
           ) : (
             <div className="space-y-12">
-              <section>
-                <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
-                  <div>
-                    <h2 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-                      {selectedCategory !== 'all' ? formatCategoryLabel(selectedCategory) : 'Search results'}
-                    </h2>
-                    <p className="mt-1.5 text-sm text-muted-foreground">
-                      {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}
-                    </p>
+              {matchedServices.length > 0 ? (
+                <SearchServicesResults services={matchedServices} />
+              ) : null}
+
+              {filteredProducts.length > 0 ? (
+                <section>
+                  <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <h2 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+                        {selectedCategory !== 'all'
+                          ? formatCategoryLabel(selectedCategory)
+                          : searchQuery.trim()
+                            ? 'Matching parts'
+                            : 'Search results'}
+                      </h2>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        {filteredProducts.length} part{filteredProducts.length !== 1 ? 's' : ''}
+                        {matchedServices.length > 0
+                          ? ` · ${matchedServices.length} service${matchedServices.length !== 1 ? 's' : ''}`
+                          : ''}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
-                  {visibleProducts.map((product, index) => (
-                    <CategoryProductCard
-                      key={product.id}
-                      product={product}
-                      toneIndex={index}
-                      imagePriority={index < 4}
-                    />
-                  ))}
-                </div>
-                <div ref={sentinelRef} className="h-1 w-full" />
-                {infiniteLoading ? (
-                  <p className="py-4 text-center text-xs text-muted-foreground">Loading more products…</p>
-                ) : null}
-              </section>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
+                    {visibleProducts.map((product, index) => (
+                      <CategoryProductCard
+                        key={product.id}
+                        product={product}
+                        toneIndex={index}
+                        imagePriority={index < 4}
+                      />
+                    ))}
+                  </div>
+                  <div ref={sentinelRef} className="h-1 w-full" />
+                  {infiniteLoading ? (
+                    <p className="py-4 text-center text-xs text-muted-foreground">Loading more products…</p>
+                  ) : null}
+                </section>
+              ) : searchQuery.trim() ? (
+                <section className="rounded-2xl border border-dashed border-border/80 bg-white px-5 py-10 text-center">
+                  <p className="text-base font-semibold text-foreground">No matching parts</p>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    Services above still match “{searchQuery.trim()}”.
+                  </p>
+                </section>
+              ) : null}
 
               <section className="rounded-2xl border border-black/[0.06] bg-white px-5 py-6 sm:px-7 sm:py-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

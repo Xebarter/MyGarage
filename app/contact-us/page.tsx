@@ -17,8 +17,9 @@ const contactItems = [
   },
   {
     title: 'Phone / WhatsApp',
-    value: '+256 783 676 313',
-    href: 'tel:+256783676313',
+    value: '+256 787 118 634',
+    href: 'tel:+256787118634',
+    secondary: { value: '+256 752 405 877', href: 'tel:+256752405877' },
     note: 'Available for quick updates and delivery coordination.',
   },
   {
@@ -65,9 +66,21 @@ export default function ContactUsPage() {
                 {item.href === '#' ? (
                   <p className="text-primary font-medium">{item.value}</p>
                 ) : (
-                  <a href={item.href} className="text-primary font-medium hover:underline">
-                    {item.value}
-                  </a>
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <a href={item.href} className="text-primary font-medium hover:underline">
+                      {item.value}
+                    </a>
+                    {'secondary' in item && item.secondary ? (
+                      <>
+                        <span className="text-muted-foreground" aria-hidden>
+                          ·
+                        </span>
+                        <a href={item.secondary.href} className="text-primary font-medium hover:underline">
+                          {item.secondary.value}
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
                 )}
                 <p className="text-sm text-muted-foreground mt-2 leading-6">{item.note}</p>
               </section>

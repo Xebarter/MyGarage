@@ -303,15 +303,19 @@ export function LegalContentLayout({
   );
 }
 
+function telHref(phone: string) {
+  return `tel:${phone.replace(/\s+/g, '')}`;
+}
+
 export function LegalContactStrip({
   primaryEmail = 'support@mygarage.ug',
   privacyEmail = 'dpo@mygarage.ug',
-  phone = '+256 783 676 313',
+  phones = ['+256 787 118 634', '+256 752 405 877'],
   extra,
 }: {
   primaryEmail?: string;
   privacyEmail?: string;
-  phone?: string;
+  phones?: string[];
   extra?: ReactNode;
 }) {
   return (
@@ -339,15 +343,17 @@ export function LegalContactStrip({
             {privacyEmail}
           </a>
         </li>
-        <li>
-          <a
-            href="tel:+256783676313"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-          >
-            <Phone className="h-4 w-4 shrink-0" aria-hidden />
-            {phone}
-          </a>
-        </li>
+        {phones.map((phone) => (
+          <li key={phone}>
+            <a
+              href={telHref(phone)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            >
+              <Phone className="h-4 w-4 shrink-0" aria-hidden />
+              {phone}
+            </a>
+          </li>
+        ))}
       </ul>
       {extra ? <div className="mt-4 border-t border-border/60 pt-4 text-sm text-muted-foreground">{extra}</div> : null}
       <p className="mt-4 text-sm text-muted-foreground">

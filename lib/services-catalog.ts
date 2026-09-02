@@ -8,6 +8,8 @@ export type UserServiceCategory = {
   emoji: string;
   title: string;
   useWhen: string;
+  /** Matches buyer Mobile App: urgent heroes, common grid, muted optional */
+  priority: 'urgent' | 'common' | 'optional';
   services: CatalogService[];
 };
 
@@ -44,6 +46,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🚨',
     title: "Emergency Help (I'm Stuck)",
     useWhen: "Use when: car won't move / urgent situation",
+    priority: 'urgent',
     services: [
       svc('Towing (accident / breakdown)', 180000),
       svc('Jump-start (dead battery)', 50000),
@@ -59,6 +62,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🔧',
     title: 'Fix My Car (Something is Wrong)',
     useWhen: 'Use when: car has a problem but not urgent',
+    priority: 'common',
     services: [
       svc('Engine problems (noise, overheating, smoke)', 150000),
       svc('Brake problems (not stopping well)', 120000),
@@ -74,6 +78,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🛠',
     title: 'Service My Car (Routine Maintenance)',
     useWhen: 'Use when: regular care / no problem yet',
+    priority: 'common',
     services: [
       svc('Oil change', 80000),
       svc('Full service (minor / major)', 180000),
@@ -88,6 +93,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🚗',
     title: 'Tyres & Battery',
     useWhen: 'High-frequency, simple category',
+    priority: 'common',
     services: [
       svc('Buy tyres', 250000),
       svc('Fix puncture', 25000),
@@ -102,6 +108,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🧼',
     title: 'Car Wash & Cleaning',
     useWhen: 'Very frequent + easy entry service',
+    priority: 'common',
     services: [
       svc('Basic wash', 15000),
       svc('Interior cleaning', 35000),
@@ -115,6 +122,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🎨',
     title: 'Body Repair & Painting',
     useWhen: 'Use when: physical damage',
+    priority: 'optional',
     services: [
       svc('Dent removal', 150000),
       svc('Scratch repair', 100000),
@@ -128,6 +136,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '❄️',
     title: 'Air Conditioning & Cooling',
     useWhen: 'Simple mental model for users',
+    priority: 'common',
     services: [
       svc('AC repair', 120000),
       svc('AC gas refill', 80000),
@@ -140,6 +149,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🔐',
     title: 'Security & Tracking',
     useWhen: 'High relevance in Uganda',
+    priority: 'optional',
     services: [
       svc('Install car tracker', 250000),
       svc('Install alarm', 180000),
@@ -152,6 +162,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '📄',
     title: 'Documents & Insurance',
     useWhen: 'Non-technical but essential',
+    priority: 'optional',
     services: [
       svc('Motor insurance', 150000),
       svc('Renew insurance', 80000),
@@ -165,6 +176,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🚘',
     title: 'Drivers & Transport',
     useWhen: 'Human + mobility layer',
+    priority: 'optional',
     services: [
       svc('Hire driver', 80000),
       svc('Learn driving', 200000),
@@ -176,6 +188,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '⛽',
     title: 'Fuel & Delivery',
     useWhen: 'Convenience',
+    priority: 'common',
     services: [
       svc('Fuel delivery', 35000),
       svc('Oil delivery', 40000),
@@ -187,6 +200,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '🚙',
     title: 'Rent or Buy a Car',
     useWhen: 'Marketplace layer',
+    priority: 'optional',
     services: [
       svc('Rent a car', 150000),
       svc('Hire car with driver', 250000),
@@ -199,6 +213,7 @@ export const userServiceCategories: UserServiceCategory[] = [
     emoji: '⭐',
     title: 'Upgrade My Car',
     useWhen: 'Lifestyle category',
+    priority: 'optional',
     services: [
       svc('Install music system', 200000),
       svc('Tint windows', 120000),
@@ -266,4 +281,10 @@ export function getUserServiceCategoryById(id: string): UserServiceCategory | un
 export function getUserServiceCategoryByTitle(title: string): UserServiceCategory | undefined {
   const needle = title.trim().toLowerCase();
   return userServiceCategories.find((c) => c.title.toLowerCase() === needle);
+}
+
+/** Strip trailing parenthetical / bracketed subtitle from catalog titles (Mobile App parity). */
+export function cleanServiceDisplayTitle(title: string): string {
+  const cleaned = title.replace(/\s*[([{][^)\]}]*[)\]}]\s*$/u, '').trim();
+  return cleaned || title.trim();
 }

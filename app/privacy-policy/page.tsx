@@ -47,7 +47,7 @@ const sections: LegalSectionContent[] = [
     title: '1. Who We Are and How to Contact Us',
     body: [
       'MyGarage ("we", "us", or "our") is an online automotive parts store serving customers in Uganda and the East African region. We act as the data controller for personal data collected through our website, customer support channels, and delivery interactions.',
-      'For privacy-related requests, contact our Data Protection Officer at dpo@mygarage.ug, support@mygarage.ug, or +256 783 676 313.',
+      'For privacy-related requests, contact our Data Protection Officer at dpo@mygarage.ug, support@mygarage.ug, +256 787 118 634, or +256 752 405 877.',
     ],
   },
   {

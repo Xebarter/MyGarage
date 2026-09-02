@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { serviceCardSurfaceClass, serviceCardTone, SERVICE_EMERGENCY_TONE, serviceEmergencySurfaceClass } from '@/lib/service-card-tones';
 import { cn } from '@/lib/utils';
 
 export type QuickRequestUiStep = 'service' | 'location';
@@ -29,15 +30,6 @@ const dialogShellClass =
 const closeButtonOffsetClass =
   '[&_[data-slot=dialog-close]]:top-[max(0.75rem,env(safe-area-inset-top))] [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:z-20 [&_[data-slot=dialog-close]]:h-10 [&_[data-slot=dialog-close]]:w-10 [&_[data-slot=dialog-close]]:rounded-full [&_[data-slot=dialog-close]]:border [&_[data-slot=dialog-close]]:border-white/20 [&_[data-slot=dialog-close]]:bg-background/90 [&_[data-slot=dialog-close]]:opacity-100 [&_[data-slot=dialog-close]]:shadow-md [&_[data-slot=dialog-close]]:backdrop-blur-sm';
 
-/** Subtle left-accent hues for service rows — professional, not rainbow */
-const serviceRowAccents = [
-  { bar: 'bg-violet-500', icon: 'bg-violet-500/12 text-violet-700 dark:text-violet-300 ring-violet-500/25' },
-  { bar: 'bg-sky-500', icon: 'bg-sky-500/12 text-sky-800 dark:text-sky-300 ring-sky-500/25' },
-  { bar: 'bg-emerald-500', icon: 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-400 ring-emerald-500/25' },
-  { bar: 'bg-amber-500', icon: 'bg-amber-500/12 text-amber-900 dark:text-amber-400 ring-amber-500/25' },
-  { bar: 'bg-indigo-500', icon: 'bg-indigo-500/12 text-indigo-800 dark:text-indigo-300 ring-indigo-500/25' },
-  { bar: 'bg-teal-500', icon: 'bg-teal-500/12 text-teal-800 dark:text-teal-300 ring-teal-500/25' },
-] as const;
 
 function StepIndicator({ step }: { step: QuickRequestUiStep }) {
   const steps = [
@@ -84,17 +76,22 @@ function CategoryHeroCard({
   emoji,
   title,
   hint,
+  urgent,
 }: {
   emoji?: string;
   title: string;
   hint?: string;
+  urgent?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm ring-1 ring-primary/10">
+    <div
+      className={cn('rounded-2xl p-4', urgent ? serviceEmergencySurfaceClass : serviceCardSurfaceClass)}
+      style={{ backgroundColor: urgent ? SERVICE_EMERGENCY_TONE : serviceCardTone(2) }}
+    >
       <div className="flex items-start gap-3.5">
         {emoji ? (
           <span
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card text-2xl shadow-sm"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/50 text-2xl"
             aria-hidden
           >
             {emoji}
@@ -128,32 +125,22 @@ function ServiceOptionCard({
   onSelect: () => void;
   priceLabel?: string;
 }) {
-  const accent = serviceRowAccents[index % serviceRowAccents.length];
-
   return (
     <li>
       <button
         type="button"
         onClick={onSelect}
         className={cn(
-          'group relative flex min-h-[58px] w-full touch-manipulation items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 active:scale-[0.99]',
-          isSelected
-            ? 'border-primary/50 bg-primary/10 shadow-md ring-2 ring-primary/30'
-            : 'border-border/70 bg-card/90 shadow-sm hover:-translate-y-px hover:border-primary/30 hover:shadow-md',
+          'group relative flex min-h-[58px] w-full touch-manipulation items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-left transition-all duration-200 active:scale-[0.99]',
+          serviceCardSurfaceClass,
+          isSelected ? 'ring-2 ring-primary/35' : 'hover:-translate-y-px hover:shadow-md',
         )}
+        style={{ backgroundColor: serviceCardTone(index) }}
       >
         <span
           className={cn(
-            'absolute bottom-2 left-0 top-2 w-1 rounded-full transition-opacity',
-            accent.bar,
-            isSelected ? 'opacity-100' : 'opacity-40 group-hover:opacity-70',
-          )}
-          aria-hidden
-        />
-        <span
-          className={cn(
-            'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-105',
-            isSelected ? 'bg-primary text-primary-foreground ring-primary/40 shadow-sm' : accent.icon,
+            'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105',
+            isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-white/50 text-[#0B1220]',
           )}
           aria-hidden
         >
@@ -172,7 +159,7 @@ function ServiceOptionCard({
             'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
             isSelected
               ? 'bg-primary/15 text-primary'
-              : 'bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary',
+              : 'bg-white/50 text-[#0B1220]/70 group-hover:text-[#0B1220]',
           )}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
@@ -191,6 +178,7 @@ export type BuyerServiceQuickRequestDialogProps = {
   selectedCategory: string;
   categoryEmoji?: string;
   categoryHint?: string;
+  categoryUrgent?: boolean;
   selectedService: string;
   services: string[];
   servicePriceLabels?: Record<string, string>;
@@ -222,6 +210,7 @@ export function BuyerServiceQuickRequestDialog({
   selectedCategory,
   categoryEmoji,
   categoryHint,
+  categoryUrgent,
   selectedService,
   services,
   servicePriceLabels,
@@ -281,6 +270,7 @@ export function BuyerServiceQuickRequestDialog({
                   emoji={categoryEmoji}
                   title={selectedCategory || 'Choose a category on the page'}
                   hint={categoryHint}
+                  urgent={categoryUrgent}
                 />
 
                 <div ref={serviceSectionRef} className="mt-5">
@@ -426,7 +416,10 @@ export function BuyerServiceQuickRequestDialog({
                   </div>
 
                   {useDetectedLocation ? (
-                    <div className="rounded-2xl border border-sky-500/20 bg-card p-4 shadow-sm ring-1 ring-sky-500/10">
+                    <div
+                      className={cn('rounded-2xl p-4', serviceCardSurfaceClass)}
+                      style={{ backgroundColor: serviceCardTone(3) }}
+                    >
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -477,7 +470,10 @@ export function BuyerServiceQuickRequestDialog({
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-amber-500/20 bg-card p-4 shadow-sm ring-1 ring-amber-500/10">
+                    <div
+                      className={cn('rounded-2xl p-4', serviceCardSurfaceClass)}
+                      style={{ backgroundColor: serviceCardTone(2) }}
+                    >
                       <div className="space-y-2">
                         <label
                           htmlFor="quick-request-manual-location"

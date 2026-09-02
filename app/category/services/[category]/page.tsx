@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { userServiceCategories } from '@/lib/services-catalog';
+import { serviceCardSurfaceClass, serviceCardTone } from '@/lib/service-card-tones';
 import {
   formatServicePriceRangeLabel,
   type ServicePriceRange,
@@ -96,14 +97,15 @@ export default function ServiceCategoryPage() {
               </div>
             </div>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {category.services.map((service) => {
+              {category.services.map((service, index) => {
                 const label = rangesLoading
                   ? 'Loading price…'
                   : formatServicePriceRangeLabel(rangeByName.get(service.name));
                 return (
                   <li
                     key={service.name}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                    className={`flex items-start justify-between gap-3 rounded-xl px-4 py-3 ${serviceCardSurfaceClass}`}
+                    style={{ backgroundColor: serviceCardTone(index) }}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{service.name}</p>

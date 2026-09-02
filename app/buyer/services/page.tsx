@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { BuyerServiceQuickRequestDialog } from '@/components/buyer/buyer-service-quick-request-dialog';
+import { MobileBuyerServicesBrowse } from '@/components/buyer/mobile-buyer-services-browse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { userServiceCategories } from '@/lib/services-catalog';
+import { serviceCardSurfaceClass, serviceCardTone, SERVICE_EMERGENCY_TONE, serviceEmergencySurfaceClass } from '@/lib/service-card-tones';
 import {
   formatServicePriceRangeLabel,
   type ServicePriceRange,
@@ -218,15 +220,6 @@ const PAY_CONTACT_NAME_KEY = 'servicePaymentContactName';
 const PAY_CONTACT_EMAIL_KEY = 'servicePaymentContactEmail';
 const PAY_CONTACT_PHONE_KEY = 'servicePaymentContactPhone';
 
-const CATEGORY_CARD_ACCENTS = [
-  { ring: 'ring-rose-500/20', icon: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
-  { ring: 'ring-sky-500/20', icon: 'bg-sky-500/10 text-sky-800 dark:text-sky-300' },
-  { ring: 'ring-emerald-500/20', icon: 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400' },
-  { ring: 'ring-amber-500/20', icon: 'bg-amber-500/10 text-amber-900 dark:text-amber-400' },
-  { ring: 'ring-violet-500/20', icon: 'bg-violet-500/10 text-violet-800 dark:text-violet-300' },
-  { ring: 'ring-teal-500/20', icon: 'bg-teal-500/10 text-teal-800 dark:text-teal-300' },
-] as const;
-
 function ServiceProgressTimeline({ status }: { status: BuyerServiceRequest['status'] }) {
   const steps = [
     { id: 'accepted', label: 'Request accepted', short: 'Accepted', done: status !== 'pending' },
@@ -246,9 +239,11 @@ function ServiceProgressTimeline({ status }: { status: BuyerServiceRequest['stat
         <li
           key={step.id}
           className={cn(
-            'relative flex items-start gap-3 rounded-xl border border-border/60 bg-background/80 p-3',
-            step.done && 'border-primary/25 bg-primary/[0.04]',
+            'relative flex items-start gap-3 rounded-xl p-3',
+            serviceCardSurfaceClass,
+            step.done && 'ring-1 ring-primary/20',
           )}
+          style={{ backgroundColor: serviceCardTone(index) }}
         >
           <span
             className={cn(
@@ -851,17 +846,6 @@ function BuyerServicesPageInner() {
     setIsQuickRequestDialogOpen(true);
   };
 
-  const openQuickRequestFlow = () => {
-    if (!selectedCategory) {
-      document.getElementById('quick-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
-    serviceAutofillSuppressed.current = true;
-    setSelectedService('');
-    setQuickRequestUiStep('service');
-    setIsQuickRequestDialogOpen(true);
-  };
-
   const requestStatCards = [
     { label: 'Pending', value: requestStats.pending, icon: Clock3, hint: 'Awaiting match' },
     { label: 'Active', value: requestStats.active, icon: Wrench, hint: 'In progress' },
@@ -869,7 +853,29 @@ function BuyerServicesPageInner() {
   ] as const;
 
   return (
-    <div className="min-h-full bg-background px-3 pb-[max(5.75rem,env(safe-area-inset-bottom))] pt-1 sm:bg-gradient-to-b sm:from-background sm:via-background sm:to-muted/25 sm:px-5 sm:pb-8 sm:pt-3 md:p-8">
+    <>
+      <div className="md:hidden">
+        <MobileBuyerServicesBrowse
+          activeRequest={
+            activeServiceRequest
+              ? {
+                  id: activeServiceRequest.id,
+                  service: activeServiceRequest.service,
+                  statusLabel: serviceStatusPresentation(activeServiceRequest.status).label,
+                }
+              : null
+          }
+          onSelectService={(categoryTitle, serviceName) => {
+            serviceAutofillSuppressed.current = false;
+            setSelectedCategory(categoryTitle);
+            setSelectedService(serviceName);
+            setQuickRequestUiStep('location');
+            setIsQuickRequestDialogOpen(true);
+          }}
+        />
+      </div>
+
+      <div className="hidden min-h-full bg-gradient-to-b from-background via-background to-muted/25 px-5 pb-8 pt-3 md:block md:p-8">
       <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
         <header className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-card to-card p-4 shadow-sm ring-1 ring-black/[0.03] dark:from-primary/20 dark:ring-white/[0.04] sm:p-6">
           <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-primary/10 blur-2xl" aria-hidden />
@@ -911,12 +917,16 @@ function BuyerServicesPageInner() {
                   'sm:mx-0 sm:grid sm:min-w-[280px] sm:grid-cols-3 sm:gap-2 sm:overflow-visible sm:px-0',
                 )}
               >
-                {requestStatCards.map((stat) => {
+                {requestStatCards.map((stat, index) => {
                   const Icon = stat.icon;
                   return (
                     <div
                       key={stat.label}
-                      className="min-w-[6.5rem] shrink-0 snap-start rounded-xl border border-border/70 bg-background/80 p-3 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03] sm:min-w-0"
+                      className={cn(
+                        'min-w-[6.5rem] shrink-0 snap-start rounded-xl p-3 sm:min-w-0',
+                        serviceCardSurfaceClass,
+                      )}
+                      style={{ backgroundColor: serviceCardTone(index) }}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.label}</p>
@@ -987,15 +997,24 @@ function BuyerServicesPageInner() {
                     </p>
                   </div>
                   <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3 sm:text-sm">
-                    <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                    <div
+                      className="rounded-lg px-3 py-2"
+                      style={{ backgroundColor: serviceCardTone(0) }}
+                    >
                       <p className="text-muted-foreground">Service</p>
                       <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.base.toLocaleString()}</p>
                     </div>
-                    <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+                    <div
+                      className="rounded-lg px-3 py-2"
+                      style={{ backgroundColor: serviceCardTone(1) }}
+                    >
                       <p className="text-muted-foreground">Platform fee</p>
                       <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.platformFee.toLocaleString()}</p>
                     </div>
-                    <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+                    <div
+                      className="rounded-lg px-3 py-2 ring-1 ring-primary/20"
+                      style={{ backgroundColor: serviceCardTone(2) }}
+                    >
                       <p className="text-primary/80">Total due</p>
                       <p className="mt-0.5 font-bold tabular-nums text-foreground">
                         UGX {paymentSummary.total.toLocaleString()}
@@ -1129,25 +1148,23 @@ function BuyerServicesPageInner() {
                 <ul className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                   {filteredCategories.map((category, index) => {
                     const isActive = selectedCategory === category.title;
-                    const accent = CATEGORY_CARD_ACCENTS[index % CATEGORY_CARD_ACCENTS.length];
+                    const isEmergency = category.priority === 'urgent';
                     return (
                       <li key={category.id}>
                         <button
                           type="button"
                           onClick={() => openCategoryRequest(category.title)}
                           className={cn(
-                            'group flex h-full min-h-[7.5rem] w-full flex-col gap-2 rounded-xl border p-2.5 text-left transition active:scale-[0.99] sm:min-h-[4.25rem] sm:flex-row sm:items-center sm:gap-3 sm:p-3',
-                            'ring-1 ring-transparent',
-                            isActive
-                              ? 'border-primary bg-primary/[0.06] ring-primary/20'
-                              : cn('border-border/70 bg-background hover:border-border hover:bg-muted/30', accent.ring),
+                            'group flex h-full min-h-[7.5rem] w-full flex-col gap-2 rounded-xl p-2.5 text-left transition active:scale-[0.99] sm:min-h-[4.25rem] sm:flex-row sm:items-center sm:gap-3 sm:p-3',
+                            isEmergency ? serviceEmergencySurfaceClass : serviceCardSurfaceClass,
+                            isActive && 'ring-2 ring-primary/35',
                           )}
+                          style={{
+                            backgroundColor: isEmergency ? SERVICE_EMERGENCY_TONE : serviceCardTone(index),
+                          }}
                         >
                           <span
-                            className={cn(
-                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] sm:h-11 sm:w-11 sm:text-xl',
-                              accent.icon,
-                            )}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/50 text-lg sm:h-11 sm:w-11 sm:text-xl"
                             aria-hidden
                           >
                             {category.emoji}
@@ -1270,17 +1287,18 @@ function BuyerServicesPageInner() {
                         </div>
                       ) : (
                         <ul className="space-y-2.5 p-0">
-                          {tabItems.map((request) => {
+                          {tabItems.map((request, index) => {
                             const pres = serviceStatusPresentation(request.status);
                             const when = formatHistoryWhen(request.createdAt);
                             return (
                               <li key={request.id}>
                                 <div
                                   className={cn(
-                                    'group rounded-xl border border-border/70 bg-card transition active:scale-[0.995]',
-                                    'border-l-[3px] p-3.5 sm:p-4',
+                                    'group rounded-xl border-l-[3px] p-3.5 transition active:scale-[0.995] sm:p-4',
+                                    serviceCardSurfaceClass,
                                     pres.borderClass,
                                   )}
+                                  style={{ backgroundColor: serviceCardTone(index) }}
                                 >
                                   <div className="flex items-start gap-3">
                                     <div className="min-w-0 flex-1 space-y-1.5">
@@ -1339,20 +1357,7 @@ function BuyerServicesPageInner() {
           </div>
         </Card>
       </div>
-
-      {!activeServiceRequest ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/80 bg-background/95 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-md sm:hidden">
-          <button
-            type="button"
-            onClick={openQuickRequestFlow}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition active:scale-[0.99] hover:bg-primary/90"
-          >
-            <Wrench className="h-4 w-4" aria-hidden />
-            {selectedCategory ? 'Continue request' : 'Request a service'}
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </button>
-        </div>
-      ) : null}
+      </div>
 
       <BuyerServiceQuickRequestDialog
         open={isQuickRequestDialogOpen}
@@ -1366,6 +1371,7 @@ function BuyerServicesPageInner() {
         selectedCategory={selectedCategory}
         categoryEmoji={selectedCategoryMeta?.emoji}
         categoryHint={selectedCategoryMeta?.useWhen}
+        categoryUrgent={selectedCategoryMeta?.priority === 'urgent'}
         selectedService={selectedService}
         services={suggestedServices}
         servicePriceLabels={servicePriceLabels}
@@ -1375,7 +1381,15 @@ function BuyerServicesPageInner() {
           setSelectedService(service);
           setQuickRequestUiStep('location');
         }}
-        onBackToService={goBackToQuickServiceStep}
+        onBackToService={() => {
+          // On phones, category pick lives outside the dialog (app-style).
+          if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+            setIsQuickRequestDialogOpen(false);
+            setQuickRequestUiStep('service');
+            return;
+          }
+          goBackToQuickServiceStep();
+        }}
         useDetectedLocation={useDetectedLocation}
         onUseDetectedLocation={setUseDetectedLocation}
         locationStatus={locationStatus}
@@ -1391,7 +1405,7 @@ function BuyerServicesPageInner() {
         identityMode={identityMode}
         onSubmit={handleSubmitRequestIntent}
       />
-    </div>
+    </>
   );
 }
 

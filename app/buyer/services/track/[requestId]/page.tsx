@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { serviceCardSurfaceClass, serviceCardTone } from '@/lib/service-card-tones';
 import { cn } from '@/lib/utils';
 import {
   AlertCircle,
@@ -438,8 +439,11 @@ export default function ServiceTrackPage() {
               <>
                 <Separator className="my-5 bg-border/60" />
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex gap-3 rounded-xl border border-border/50 bg-background/60 px-3 py-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/80">
+                  <div
+                    className={cn('flex gap-3 rounded-xl px-3 py-3', serviceCardSurfaceClass)}
+                    style={{ backgroundColor: serviceCardTone(0) }}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/50">
                       <Clock3 className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div>
@@ -448,8 +452,11 @@ export default function ServiceTrackPage() {
                       <p className="text-xs text-muted-foreground">{formatRelativeTime(data.request.createdAt)}</p>
                     </div>
                   </div>
-                  <div className="flex gap-3 rounded-xl border border-border/50 bg-background/60 px-3 py-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/80">
+                  <div
+                    className={cn('flex gap-3 rounded-xl px-3 py-3', serviceCardSurfaceClass)}
+                    style={{ backgroundColor: serviceCardTone(1) }}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/50">
                       <Sparkles className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div>
@@ -504,7 +511,13 @@ export default function ServiceTrackPage() {
                         />
                       </div>
                       {data.request.status !== 'pending' && data.providerContact?.phone ? (
-                        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border/50 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div
+                          className={cn(
+                            'mt-4 flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between',
+                            serviceCardSurfaceClass,
+                          )}
+                          style={{ backgroundColor: serviceCardTone(4) }}
+                        >
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider</p>
                             <p className="text-sm font-medium text-foreground">
@@ -581,18 +594,17 @@ export default function ServiceTrackPage() {
                         )}
                       </div>
                     </div>
-                    <div className={cn('min-w-0 flex-1 pt-1', index === stages.length - 1 && 'pb-0')}>
-                      <div
-                        className={cn(
-                          'rounded-xl border px-4 py-3 transition-colors',
-                          s.active && 'border-primary/40 bg-primary/[0.04] shadow-sm shadow-primary/5',
-                          !s.active && 'border-border/60 bg-muted/20',
-                          isCancel && s.active && 'border-destructive/30 bg-destructive/[0.06]',
-                        )}
-                      >
-                        <p className={cn('font-medium leading-snug', s.active ? 'text-foreground' : 'text-foreground/90')}>{s.label}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
-                      </div>
+                    <div
+                      className={cn(
+                        'min-w-0 flex-1 rounded-xl px-4 py-3 transition-colors',
+                        serviceCardSurfaceClass,
+                        s.active && 'ring-2 ring-primary/30',
+                        isCancel && s.active && 'ring-destructive/30',
+                      )}
+                      style={{ backgroundColor: serviceCardTone(index) }}
+                    >
+                      <p className={cn('font-medium leading-snug', s.active ? 'text-foreground' : 'text-foreground/90')}>{s.label}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
                     </div>
                   </li>
                 );

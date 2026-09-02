@@ -185,18 +185,29 @@ export function Footer() {
             <ul className="mt-7 space-y-3.5">
               <li>
                 <a
-                  href="tel:+256783676313"
+                  href="tel:+256787118634"
                   className="inline-flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
                 >
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-primary">
                     <Phone className="h-3.5 w-3.5" aria-hidden />
                   </span>
-                  +256 783 676 313
+                  +256 787 118 634
                 </a>
               </li>
               <li>
                 <a
-                  href="https://wa.me/256783676313"
+                  href="tel:+256752405877"
+                  className="inline-flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-primary">
+                    <Phone className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  +256 752 405 877
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://wa.me/256787118634"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"

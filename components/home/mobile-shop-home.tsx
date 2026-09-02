@@ -6,12 +6,17 @@ import { Menu, SearchX } from 'lucide-react';
 
 import { AddItemsSidebar } from '@/components/additems-sidebar';
 import { MobileShopProductCard } from '@/components/home/mobile-shop-product-card';
+import { SearchServicesResults } from '@/components/search/search-services-results';
 import { addProductToCart, quantityOfProduct, readCartItems, setProductCartQuantity } from '@/lib/cart-client';
 import type { Product } from '@/lib/db';
+import type { MatchedCatalogService } from '@/lib/search/match-catalog-services';
 import { cn } from '@/lib/utils';
 
-function resultLabel(count: number, query: string, category: string): string {
-  const n = count === 1 ? '1 product' : `${count} products`;
+function resultLabel(productCount: number, serviceCount: number, query: string, category: string): string {
+  const parts: string[] = [];
+  if (productCount > 0) parts.push(productCount === 1 ? '1 part' : `${productCount} parts`);
+  if (serviceCount > 0) parts.push(serviceCount === 1 ? '1 service' : `${serviceCount} services`);
+  const n = parts.length > 0 ? parts.join(' · ') : 'No matches';
   const q = query.trim();
   if (q && category !== 'all') return `${n} for “${q}” in ${category}`;
   if (q) return `${n} for “${q}”`;
@@ -22,6 +27,7 @@ function resultLabel(count: number, query: string, category: string): string {
 export function MobileShopHome({
   products,
   visibleProducts,
+  matchedServices = [],
   categories,
   selectedCategory,
   searchQuery,
@@ -33,6 +39,7 @@ export function MobileShopHome({
 }: {
   products: Product[];
   visibleProducts: Product[];
+  matchedServices?: MatchedCatalogService[];
   categories: string[];
   selectedCategory: string;
   searchQuery: string;
@@ -49,6 +56,7 @@ export function MobileShopHome({
   const snackTimerRef = useRef<number | null>(null);
 
   const hasFilters = searchQuery.trim().length > 0 || selectedCategory !== 'all';
+  const hasHits = visibleProducts.length > 0 || matchedServices.length > 0;
 
   const refreshCart = useCallback(() => {
     const items = readCartItems();
@@ -138,7 +146,7 @@ export function MobileShopHome({
           </div>
           <div className="flex items-center justify-between gap-2 px-5 pb-2 pt-1">
             <p className="text-[13px] font-medium text-[#8B9BB0]">
-              {resultLabel(products.length, searchQuery, selectedCategory)}
+              {resultLabel(products.length, matchedServices.length, searchQuery, selectedCategory)}
             </p>
             {hasFilters ? (
               <button type="button" onClick={onReset} className="text-[13px] font-semibold text-primary">
@@ -154,7 +162,7 @@ export function MobileShopHome({
           <div className="flex min-h-[50vh] items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        ) : visibleProducts.length === 0 ? (
+        ) : !hasHits ? (
           <div className="flex min-h-[50vh] flex-col items-center justify-center px-8 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-primary/10 text-primary">
               <SearchX className="h-7 w-7" aria-hidden />
@@ -175,22 +183,32 @@ export function MobileShopHome({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2.5">
-              {visibleProducts.map((product, index) => (
-                <MobileShopProductCard
-                  key={product.id}
-                  product={product}
-                  quantity={qtyByProductId[product.id] ?? 0}
-                  onAdd={() => handleAdd(product)}
-                  onRemove={() => handleRemove(product)}
-                  imagePriority={index < 4}
-                  toneIndex={index}
-                />
-              ))}
-            </div>
-            <div ref={sentinelRef} className="h-1 w-full" />
-            {infiniteLoading ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">Loading more products…</p>
+            {matchedServices.length > 0 ? (
+              <SearchServicesResults services={matchedServices} compact className="mb-5" />
+            ) : null}
+            {visibleProducts.length > 0 ? (
+              <>
+                {matchedServices.length > 0 ? (
+                  <p className="mb-2.5 px-1 text-[13px] font-semibold text-[#8B9BB0]">Parts</p>
+                ) : null}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {visibleProducts.map((product, index) => (
+                    <MobileShopProductCard
+                      key={product.id}
+                      product={product}
+                      quantity={qtyByProductId[product.id] ?? 0}
+                      onAdd={() => handleAdd(product)}
+                      onRemove={() => handleRemove(product)}
+                      imagePriority={index < 4}
+                      toneIndex={index}
+                    />
+                  ))}
+                </div>
+                <div ref={sentinelRef} className="h-1 w-full" />
+                {infiniteLoading ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">Loading more products…</p>
+                ) : null}
+              </>
             ) : null}
           </>
         )}

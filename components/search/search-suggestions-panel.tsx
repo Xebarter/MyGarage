@@ -161,6 +161,7 @@ export function SearchSuggestionsPanel({
     (suggestions?.services?.length ?? 0) > 0;
   const showRecent = q.length < 2 && recent.length > 0;
   const matchedProducts = suggestions?.matchedProductCount ?? suggestions?.products?.length ?? 0;
+  const matchedServices = suggestions?.matchedServiceCount ?? suggestions?.services?.length ?? 0;
 
   let cursor = -1;
   const nextIndex = () => {
@@ -280,8 +281,17 @@ export function SearchSuggestionsPanel({
                     Search for “{q}”
                   </span>
                   <span className="block text-[11px] text-muted-foreground">
-                    {matchedProducts > 0
-                      ? `${matchedProducts} product${matchedProducts === 1 ? '' : 's'} matched`
+                    {matchedProducts > 0 || matchedServices > 0
+                      ? [
+                          matchedProducts > 0
+                            ? `${matchedProducts} product${matchedProducts === 1 ? '' : 's'}`
+                            : null,
+                          matchedServices > 0
+                            ? `${matchedServices} service${matchedServices === 1 ? '' : 's'}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
                       : 'Browse all results'}
                   </span>
                 </span>
