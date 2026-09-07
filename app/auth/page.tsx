@@ -672,18 +672,16 @@ function AuthForm() {
               description={roleMeta.description}
             />
 
+            <div className="space-y-3">
+              <AuthGoogleButton
+                loading={googleLoading}
+                disabled={loading}
+                onClick={() => void handleGoogleSignIn()}
+              />
+              <AuthDivider />
+            </div>
+
             {mode === "signin" ? (
-              <div className="space-y-3">
-                {!isAdminRole ? (
-                  <>
-                    <AuthGoogleButton
-                      loading={googleLoading}
-                      disabled={loading}
-                      onClick={() => void handleGoogleSignIn()}
-                    />
-                    <AuthDivider />
-                  </>
-                ) : null}
               <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
                 <input
                   required
@@ -723,7 +721,6 @@ function AuthForm() {
                   {loading ? "Please wait…" : "Continue"}
                 </button>
               </form>
-              </div>
             ) : (
               <form className="space-y-3" onSubmit={handleForgotPassword}>
                 <input

@@ -130,7 +130,7 @@ export function getAuthRoleMeta(role: string): { title: string; description: str
       return {
         badge: 'Admin',
         title: 'Admin sign in',
-        description: 'Approved admin accounts only.',
+        description: 'Approved admin accounts only. Google or email.',
       };
     case 'vendor':
       return {
