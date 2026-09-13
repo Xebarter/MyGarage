@@ -108,7 +108,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                        colors: [AppColors.ink, AppColors.primaryDeep],
                       ),
                     ),
                   ),
@@ -263,7 +263,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.onPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadii.md),
                         ),
@@ -277,7 +277,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                         style: AppTheme.host(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: AppColors.onPrimary,
                         ),
                       ),
                     ),

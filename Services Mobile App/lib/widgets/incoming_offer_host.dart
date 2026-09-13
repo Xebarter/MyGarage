@@ -10,6 +10,7 @@ import '../providers/auth_controller.dart';
 import '../providers/dispatch_controller.dart';
 import '../screens/jobs/incoming_offer_screen.dart';
 import '../services/job_alert_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/user_facing_error.dart';
 
 /// Listens for a new job offer app-wide and presents a full-screen intercept
@@ -73,7 +74,9 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
     final auth = _auth;
     final dispatch = _dispatch;
     if (auth == null || dispatch == null) return;
-    if (auth.status == AuthStatus.authenticated && auth.vendorId != null) {
+    if (auth.vendorId != null &&
+        (auth.status == AuthStatus.authenticated ||
+            auth.status == AuthStatus.pendingVerification)) {
       dispatch.start(auth.vendorId!);
     } else if (auth.status == AuthStatus.unauthenticated) {
       dispatch.stop();
@@ -120,7 +123,7 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
       useRootNavigator: true,
       barrierDismissible: false,
       barrierLabel: 'Incoming job offer',
-      barrierColor: const Color(0xFF0B1220),
+      barrierColor: AppColors.ink,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondary) {
         return SafeArea(

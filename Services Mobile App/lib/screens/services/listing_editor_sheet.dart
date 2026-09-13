@@ -319,7 +319,7 @@ class _SelectChip extends StatelessWidget {
             style: AppTheme.host(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : AppColors.textSecondary,
+              color: selected ? AppColors.onPrimary : AppColors.textSecondary,
             ),
           ),
         ),

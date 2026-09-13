@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -25,8 +25,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _picker = ImagePicker();
   bool _initialized = false;
 
-  /// Local file path for a newly picked photo not yet uploaded.
-  String? _pendingImagePath;
+  /// Picked photo bytes (not a file path — `Image.file` is unsupported on web).
+  Uint8List? _pendingImageBytes;
+  String? _pendingFilename;
   String? _pendingMime;
 
   @override
@@ -57,9 +58,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         imageQuality: 85,
       );
       if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
       setState(() {
-        _pendingImagePath = file.path;
-        _pendingMime = file.mimeType ?? _mimeFromPath(file.path);
+        _pendingImageBytes = bytes;
+        _pendingFilename = file.name;
+        _pendingMime = file.mimeType ?? _mimeFromPath(file.name);
       });
     } catch (e) {
       if (!mounted) return;
@@ -145,11 +149,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       List<int>? avatarBytes;
       String? filename;
       var contentType = 'image/jpeg';
-      if (_pendingImagePath != null) {
-        final file = File(_pendingImagePath!);
-        avatarBytes = await file.readAsBytes();
-        filename = _pendingImagePath!.split(RegExp(r'[/\\]')).last;
-        contentType = _pendingMime ?? _mimeFromPath(_pendingImagePath!);
+      if (_pendingImageBytes != null) {
+        final name = _pendingFilename ?? 'avatar.jpg';
+        avatarBytes = _pendingImageBytes;
+        filename = name;
+        contentType = _pendingMime ?? _mimeFromPath(name);
       }
 
       await auth.updateProfile(
@@ -162,7 +166,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _pendingImagePath = null;
+        _pendingImageBytes = null;
+        _pendingFilename = null;
         _pendingMime = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,7 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final email = vendor?.email ?? auth.user?.email ?? '';
     final initials = _initials(vendor?.name ?? email);
     final remoteImage = vendor?.imageUrl;
-    final hasPending = _pendingImagePath != null;
+    final hasPending = _pendingImageBytes != null;
 
     return PageScaffold(
       title: 'Profile',
@@ -222,8 +227,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: Border.all(color: AppColors.primary.withValues(alpha: 0.28), width: 1.5),
                           ),
                           child: hasPending
-                              ? Image.file(
-                                  File(_pendingImagePath!),
+                              ? Image.memory(
+                                  _pendingImageBytes!,
                                   width: 76,
                                   height: 76,
                                   fit: BoxFit.cover,
@@ -265,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: Border.all(color: AppColors.surface, width: 2),
                             boxShadow: AppTheme.cardShadow,
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
+                          child: const Icon(Icons.camera_alt_rounded, size: 14, color: AppColors.onPrimary),
                         ),
                       ),
                     ],
@@ -326,7 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                           )
                         : const Text('Save changes'),
                   ),

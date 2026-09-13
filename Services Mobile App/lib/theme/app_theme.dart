@@ -2,37 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Design tokens for the provider app — cool slate neutrals, confident blue.
+/// Design tokens — warm cream, rich forest teal. Premium chroma, not neon, not gray.
 class AppColors {
   AppColors._();
 
-  static const Color primary = Color(0xFF1E4ED8);
-  static const Color primaryDeep = Color(0xFF1E3A8A);
-  static const Color primarySoft = Color(0xFFDBEAFE);
-  static const Color success = Color(0xFF047857);
-  static const Color successSoft = Color(0xFFD1FAE5);
-  static const Color warning = Color(0xFFB45309);
-  static const Color warningSoft = Color(0xFFFEF3C7);
-  static const Color danger = Color(0xFFB91C1C);
-  static const Color dangerSoft = Color(0xFFFEE2E2);
+  static const Color primary = Color(0xFF236B5C);
+  static const Color primaryDeep = Color(0xFF16483E);
+  static const Color primarySoft = Color(0xFFDDEEE8);
+  static const Color onPrimary = Color(0xFFF7FBF9);
 
-  /// Atmospheric page wash (not flat white, not cream).
-  static const Color background = Color(0xFFF2F4F8);
-  static const Color backgroundLift = Color(0xFFFCFCFE);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceHigh = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF8FAFC);
+  static const Color success = Color(0xFF2E7D5B);
+  static const Color successSoft = Color(0xFFE3F3EB);
+  static const Color warning = Color(0xFFB07D2E);
+  static const Color warningSoft = Color(0xFFF6EFE0);
+  static const Color danger = Color(0xFFB04A44);
+  static const Color dangerSoft = Color(0xFFF6E8E6);
 
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color borderSoft = Color(0xFFEEF2F7);
-  static const Color borderStrong = Color(0xFFCBD5E1);
+  /// Warm cream page wash — luminous, not dusty.
+  static const Color background = Color(0xFFF5F2EB);
+  static const Color backgroundLift = Color(0xFFFAF7F1);
+  static const Color surface = Color(0xFFFFFDF9);
+  static const Color surfaceHigh = Color(0xFFFFFEFB);
+  static const Color surfaceMuted = Color(0xFFF1EBE3);
 
-  static const Color textPrimary = Color(0xFF0B1220);
-  static const Color textSecondary = Color(0xFF475569);
-  static const Color textMuted = Color(0xFF8B9BB0);
+  static const Color border = Color(0xFFE4DDD2);
+  static const Color borderSoft = Color(0xFFEFE9E0);
+  static const Color borderStrong = Color(0xFFCFC4B5);
 
-  static const Color glow = Color(0xFF93C5FD);
-  static const Color ink = Color(0xFF0B1220);
+  static const Color textPrimary = Color(0xFF171C1A);
+  static const Color textSecondary = Color(0xFF4A5551);
+  static const Color textMuted = Color(0xFF7A8581);
+
+  static const Color glow = Color(0xFFA8C9C0);
+  static const Color ink = Color(0xFF12201C);
 }
 
 class AppRadii {
@@ -69,13 +71,13 @@ class AppTheme {
 
   static List<BoxShadow> get softShadow => [
         BoxShadow(
-          color: AppColors.ink.withValues(alpha: 0.045),
+          color: AppColors.ink.withValues(alpha: 0.04),
           blurRadius: 28,
           offset: const Offset(0, 12),
           spreadRadius: -4,
         ),
         BoxShadow(
-          color: AppColors.ink.withValues(alpha: 0.03),
+          color: AppColors.ink.withValues(alpha: 0.025),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -83,8 +85,8 @@ class AppTheme {
 
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
-          color: AppColors.ink.withValues(alpha: 0.05),
-          blurRadius: 20,
+          color: AppColors.ink.withValues(alpha: 0.04),
+          blurRadius: 18,
           offset: const Offset(0, 8),
           spreadRadius: -2,
         ),
@@ -92,7 +94,7 @@ class AppTheme {
 
   static List<BoxShadow> get navShadow => [
         BoxShadow(
-          color: AppColors.ink.withValues(alpha: 0.08),
+          color: AppColors.ink.withValues(alpha: 0.06),
           blurRadius: 24,
           offset: const Offset(0, -4),
         ),
@@ -110,19 +112,25 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
+      canvasColor: AppColors.background,
+      cardColor: AppColors.surface,
+      applyElevationOverlayColor: false,
+      splashFactory: InkSparkle.splashFactory,
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
-        onPrimary: Colors.white,
+        onPrimary: AppColors.onPrimary,
         secondary: AppColors.primaryDeep,
+        onSecondary: AppColors.onPrimary,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
+        surfaceTint: Color(0x00000000),
         error: AppColors.danger,
+        onError: AppColors.onPrimary,
         outline: AppColors.border,
       ),
       fontFamily: fontFamily,
       textTheme: textTheme,
       primaryTextTheme: textTheme,
-      splashFactory: InkSparkle.splashFactory,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary,
@@ -138,6 +146,17 @@ class AppTheme {
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 22),
         actionsIconTheme: const IconThemeData(color: AppColors.textSecondary, size: 22),
+      ),
+      iconTheme: const IconThemeData(color: AppColors.textSecondary, size: 22),
+      cardTheme: CardThemeData(
+        color: AppColors.surface,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.xl),
+          side: const BorderSide(color: AppColors.border),
+        ),
       ),
       dividerTheme: const DividerThemeData(color: AppColors.borderSoft, thickness: 1, space: 1),
       inputDecorationTheme: InputDecorationTheme(
@@ -166,9 +185,9 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.onPrimary,
           elevation: 0,
-          shadowColor: AppColors.primary.withValues(alpha: 0.28),
+          shadowColor: AppColors.primary.withValues(alpha: 0.22),
           minimumSize: const Size.fromHeight(54),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
           textStyle: host(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.1),
@@ -192,7 +211,7 @@ class AppTheme {
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.onPrimary,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -200,7 +219,7 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         height: 64,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+        indicatorColor: AppColors.primarySoft,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return host(
@@ -220,7 +239,7 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.ink,
-        contentTextStyle: host(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+        contentTextStyle: host(color: AppColors.onPrimary, fontSize: 14, fontWeight: FontWeight.w500),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),

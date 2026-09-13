@@ -92,7 +92,7 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
         boxShadow: AppTheme.softShadow,
       ),
       clipBehavior: Clip.antiAlias,
@@ -196,20 +196,20 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
                     backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.onPrimary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: _busy
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                         )
                       : Text(
                           'Accept job',
                           style: AppTheme.host(
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: AppColors.onPrimary,
                             fontSize: 15,
                           ),
                         ),

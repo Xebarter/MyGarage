@@ -319,7 +319,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         Polyline(
           polylineId: const PolylineId('trail'),
           points: List<LatLng>.from(_breadcrumb),
-          color: const Color(0xFF64748B),
+          color: AppColors.textMuted,
           width: 4,
           patterns: [PatternItem.dash(16), PatternItem.gap(10)],
         ),
@@ -447,7 +447,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                       elevation: 2,
                       child: IconButton(
                         onPressed: () => _callBuyer(job.buyerContactPhone),
-                        icon: const Icon(Icons.phone_rounded, color: Colors.white),
+                        icon: const Icon(Icons.phone_rounded, color: AppColors.onPrimary),
                       ),
                     ),
                   ],
@@ -581,7 +581,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                   ),
                                 )
                               : Text(
@@ -589,7 +589,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                                   style: AppTheme.host(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                   ),
                                 ),
                         ),

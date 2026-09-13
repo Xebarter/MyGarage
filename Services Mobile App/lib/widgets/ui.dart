@@ -14,7 +14,21 @@ class AmbientBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.background,
-      child: child,
+      child: accent == null
+          ? child
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.85),
+                  radius: 1.15,
+                  colors: [
+                    accent!.withValues(alpha: 0.18),
+                    AppColors.background,
+                  ],
+                ),
+              ),
+              child: child,
+            ),
     );
   }
 }
@@ -41,7 +55,7 @@ class GlassCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadii.xl),
-        color: highlight ? AppColors.surface : AppColors.surface,
+        color: highlight ? AppColors.backgroundLift : AppColors.surface,
         border: Border.all(
           color: highlight
               ? AppColors.primary.withValues(alpha: 0.22)
@@ -311,9 +325,9 @@ class StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
       ),
       child: Text(
         label,

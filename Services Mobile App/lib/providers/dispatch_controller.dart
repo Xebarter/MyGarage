@@ -43,7 +43,7 @@ class DispatchController extends ChangeNotifier {
     unawaited(JobAlertService.instance.ensurePermissions());
     unawaited(refresh());
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 12), (_) => refresh(silent: true));
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => refresh(silent: true));
   }
 
   void stop() {

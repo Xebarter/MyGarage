@@ -280,7 +280,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                           Icon(
                             iconForCategory(cat.id),
                             size: 16,
-                            color: selected ? Colors.white : catAccent.accent,
+                            color: selected ? AppColors.onPrimary : catAccent.accent,
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -288,7 +288,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                             style: AppTheme.host(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: selected ? Colors.white : AppColors.textPrimary,
+                              color: selected ? AppColors.onPrimary : AppColors.textPrimary,
                             ),
                           ),
                           if (count > 0) ...[
@@ -297,7 +297,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: selected
-                                    ? Colors.white.withValues(alpha: 0.22)
+                                    ? AppColors.onPrimary.withValues(alpha: 0.22)
                                     : catAccent.fill,
                                 borderRadius: BorderRadius.circular(999),
                               ),
@@ -306,7 +306,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                                 style: AppTheme.host(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: selected ? Colors.white : catAccent.accent,
+                                  color: selected ? AppColors.onPrimary : catAccent.accent,
                                 ),
                               ),
                             ),
@@ -397,7 +397,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                                 ),
                               ),
                               child: isOn
-                                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                                  ? const Icon(Icons.check_rounded, size: 16, color: AppColors.onPrimary)
                                   : null,
                             ),
                             const SizedBox(width: 12),
@@ -456,7 +456,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
               border: Border(top: BorderSide(color: AppColors.border.withValues(alpha: 0.9))),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  color: AppColors.ink.withValues(alpha: 0.05),
                   blurRadius: 16,
                   offset: const Offset(0, -4),
                 ),

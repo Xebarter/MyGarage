@@ -278,6 +278,7 @@ class _ServiceRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.lg),
             border: Border.all(color: AppColors.border),
+            boxShadow: AppTheme.cardShadow,
           ),
           child: Row(
             children: [
