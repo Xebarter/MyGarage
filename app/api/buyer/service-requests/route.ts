@@ -1,5 +1,6 @@
 import { createBuyerServiceRequest, getBuyerServiceRequests, getCustomer } from '@/lib/db';
 import { startDispatchForNewRequest } from '@/lib/service-dispatch';
+import { resolveBuyerServiceCategory } from '@/lib/services-catalog';
 import { NextRequest, NextResponse } from 'next/server';
 
 function countPhoneDigits(value: string): number {
@@ -23,7 +24,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { customerId, category, service, location, vehicleId } = body;
+    const { customerId, service, location, vehicleId } = body;
+    const resolvedCategory = resolveBuyerServiceCategory({
+      category: typeof body.category === 'string' ? body.category : null,
+      categoryId: typeof body.categoryId === 'string' ? body.categoryId : null,
+    });
+    const category = resolvedCategory?.title ?? '';
     const destinationLat = body.destinationLat != null ? Number(body.destinationLat) : null;
     const destinationLng = body.destinationLng != null ? Number(body.destinationLng) : null;
     if (!customerId || !category || !service || !location) {

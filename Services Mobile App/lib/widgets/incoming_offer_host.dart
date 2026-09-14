@@ -74,9 +74,7 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
     final auth = _auth;
     final dispatch = _dispatch;
     if (auth == null || dispatch == null) return;
-    if (auth.vendorId != null &&
-        (auth.status == AuthStatus.authenticated ||
-            auth.status == AuthStatus.pendingVerification)) {
+    if (auth.vendorId != null && auth.status != AuthStatus.unauthenticated) {
       dispatch.start(auth.vendorId!);
     } else if (auth.status == AuthStatus.unauthenticated) {
       dispatch.stop();

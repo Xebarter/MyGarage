@@ -1,10 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GoogleMap, MarkerF, PolylineF, useJsApiLoader } from '@react-google-maps/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import { Circle, MapContainer, Marker, Polyline, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   ROUTE_CASING_COLOR,
   ROUTE_CORE_COLOR,
+  RIDE_MAP_LEAFLET_CSS,
+  getRideTileUrl,
+  pickupMarkerHtml,
+  providerMarkerHtml,
   type MapPoint,
 } from '@/lib/maps/ride-map-utils';
 import { cn } from '@/lib/utils';
@@ -27,17 +33,15 @@ export type ServiceTripMapInnerProps = {
   } | null) => void;
 };
 
-const MAP_LIBRARIES: ('places')[] = [];
-
-const LIGHT_STYLE: google.maps.MapTypeStyle[] = [
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'simplified' }] },
-  { elementType: 'geometry', stylers: [{ color: '#f4f6f9' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#475569' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#e8eef7' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
-];
+function bearingDegrees(from: MapPoint, to: MapPoint): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const lat1 = toRad(from.lat);
+  const lat2 = toRad(to.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
 
 function haversine(a: MapPoint, b: MapPoint): number {
   const R = 6371000;
@@ -59,6 +63,79 @@ function interpolate(a: MapPoint, b: MapPoint, t: number): MapPoint {
   };
 }
 
+function destinationIcon(searching: boolean) {
+  return L.divIcon({
+    className: 'ride-map-marker-icon',
+    html: pickupMarkerHtml(searching ? '#1E4ED8' : '#0F172A'),
+    iconSize: [48, 64],
+    iconAnchor: [24, 62],
+  });
+}
+
+function vehicleIcon(heading: number) {
+  return L.divIcon({
+    className: 'ride-map-marker-icon',
+    html: `<div style="transform:rotate(${heading}deg);transform-origin:center center">${providerMarkerHtml()}</div>`,
+    iconSize: [54, 54],
+    iconAnchor: [27, 27],
+  });
+}
+
+function DragGuard({ onDrag }: { onDrag: () => void }) {
+  useMapEvents({
+    dragstart: onDrag,
+  });
+  return null;
+}
+
+function FitTripView({
+  destination,
+  provider,
+  searching,
+  userDragged,
+}: {
+  destination: TripMapPoint | null;
+  provider: TripMapPoint | null;
+  searching: boolean;
+  userDragged: boolean;
+}) {
+  const map = useMap();
+  const fittedKeyRef = useRef('');
+  const wasSearchingRef = useRef(searching);
+
+  useEffect(() => {
+    if (searching !== wasSearchingRef.current) {
+      fittedKeyRef.current = '';
+      wasSearchingRef.current = searching;
+    }
+    if (userDragged) return;
+
+    const fitKey = [
+      provider && !searching ? `${provider.lat.toFixed(3)},${provider.lng.toFixed(3)}` : '',
+      destination ? `${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}` : '',
+      searching ? 'search' : 'track',
+    ].join('|');
+    if (fittedKeyRef.current === fitKey) return;
+    fittedKeyRef.current = fitKey;
+
+    if (provider && destination && !searching) {
+      const bounds = L.latLngBounds(
+        [provider.lat, provider.lng],
+        [destination.lat, destination.lng],
+      );
+      map.fitBounds(bounds, { padding: [72, 48], maxZoom: 16, animate: true });
+      return;
+    }
+
+    const focus = provider && !searching ? provider : destination;
+    if (focus) {
+      map.setView([focus.lat, focus.lng], searching ? 16 : 15, { animate: true });
+    }
+  }, [map, destination, provider, searching, userDragged]);
+
+  return null;
+}
+
 export function ServiceTripMapInner({
   destination,
   provider,
@@ -70,24 +147,15 @@ export function ServiceTripMapInner({
   minHeight = 'min(48vh,420px)',
   onRouteMeta,
 }: ServiceTripMapInnerProps) {
-  const apiKey =
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ||
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY?.trim() ||
-    '';
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'mygarage-google-maps',
-    googleMapsApiKey: apiKey || 'missing',
-    libraries: MAP_LIBRARIES,
-  });
-
-  const mapRef = useRef<google.maps.Map | null>(null);
   const [geocodedDest, setGeocodedDest] = useState<TripMapPoint | null>(null);
   const [routePath, setRoutePath] = useState<TripMapPoint[]>([]);
   const [smoothProvider, setSmoothProvider] = useState<TripMapPoint | null>(provider);
+  const [heading, setHeading] = useState(0);
+  const [userDragged, setUserDragged] = useState(false);
   const animRef = useRef<number | null>(null);
   const lastProviderRef = useRef<TripMapPoint | null>(provider);
-  const lastRouteFetchRef = useRef<string>('');
+  const lastRouteFetchRef = useRef('');
+  const lastSmoothRef = useRef<TripMapPoint | null>(null);
 
   const resolvedDestination = destination ?? geocodedDest;
 
@@ -109,7 +177,6 @@ export function ServiceTripMapInner({
     };
   }, [destination, destinationAddress]);
 
-  // Smooth provider marker between position updates
   useEffect(() => {
     if (!provider) {
       setSmoothProvider(null);
@@ -140,9 +207,25 @@ export function ServiceTripMapInner({
     };
   }, [provider?.lat, provider?.lng]);
 
+  useEffect(() => {
+    if (!smoothProvider) {
+      lastSmoothRef.current = null;
+      return;
+    }
+    const prev = lastSmoothRef.current;
+    if (prev && haversine(prev, smoothProvider) > 4) {
+      setHeading(bearingDegrees(prev, smoothProvider));
+    }
+    lastSmoothRef.current = smoothProvider;
+  }, [smoothProvider?.lat, smoothProvider?.lng]);
+
   const isSearching =
     mode === 'searching' ||
     (mode === 'auto' && Boolean(resolvedDestination) && !provider);
+
+  useEffect(() => {
+    setUserDragged(false);
+  }, [isSearching]);
 
   useEffect(() => {
     if (!provider || !resolvedDestination || isSearching) {
@@ -152,7 +235,6 @@ export function ServiceTripMapInner({
     }
 
     const key = `${provider.lat.toFixed(4)},${provider.lng.toFixed(4)}|${resolvedDestination.lat.toFixed(4)},${resolvedDestination.lng.toFixed(4)}`;
-    // Skip tiny provider jiggles; re-route every ~40m class change via fixed precision
     if (key === lastRouteFetchRef.current) return;
     lastRouteFetchRef.current = key;
 
@@ -210,31 +292,8 @@ export function ServiceTripMapInner({
     return { lat: 0.3476, lng: 32.5825 };
   }, [smoothProvider, resolvedDestination]);
 
-  const onLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || typeof google === 'undefined') return;
-    const bounds = new google.maps.LatLngBounds();
-    let has = false;
-    if (smoothProvider) {
-      bounds.extend(smoothProvider);
-      has = true;
-    }
-    if (resolvedDestination) {
-      bounds.extend(resolvedDestination);
-      has = true;
-    }
-    if (!has) return;
-    if (smoothProvider && resolvedDestination) {
-      map.fitBounds(bounds, 64);
-    } else {
-      map.panTo(center);
-      map.setZoom(isSearching ? 16 : 15);
-    }
-  }, [smoothProvider, resolvedDestination, center, isSearching]);
+  const destMarker = useMemo(() => destinationIcon(isSearching), [isSearching]);
+  const providerMarker = useMemo(() => vehicleIcon(heading), [heading]);
 
   if (!resolvedDestination && !provider) {
     return (
@@ -250,127 +309,97 @@ export function ServiceTripMapInner({
     );
   }
 
-  if (!apiKey) {
-    return (
-      <div
-        className={cn(
-          'flex flex-col items-center justify-center gap-2 rounded-2xl border border-border/60 bg-muted/30 px-4 text-center text-sm text-muted-foreground',
-          className,
-        )}
-        style={{ minHeight }}
-      >
-        <p className="font-medium text-foreground">Google Maps key missing</p>
-        <p>Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable the live trip map.</p>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-2xl border border-border/60 bg-muted/30 text-sm text-muted-foreground',
-          className,
-        )}
-        style={{ minHeight }}
-      >
-        Could not load Google Maps.
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return <div className={cn('w-full animate-pulse rounded-2xl bg-muted/40', className)} style={{ minHeight }} />;
-  }
-
-  const pathLatLng = routePath.map((p) => ({ lat: p.lat, lng: p.lng }));
+  const pathLatLng = routePath.map((p) => [p.lat, p.lng] as [number, number]);
 
   return (
-    <div className={cn('relative overflow-hidden rounded-2xl', className)} style={{ minHeight }}>
+    <div className={cn('relative overflow-hidden rounded-2xl', className)} style={{ minHeight, height: minHeight }}>
+      <style>{RIDE_MAP_LEAFLET_CSS}</style>
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-16 bg-gradient-to-b from-background/80 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[400] h-16 bg-gradient-to-b from-background/80 to-transparent"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-20 bg-gradient-to-t from-background/90 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[400] h-20 bg-gradient-to-t from-background/90 to-transparent"
         aria-hidden
       />
 
-      <GoogleMap
-        mapContainerStyle={{ width: '100%', height: '100%', minHeight }}
-        center={center}
+      <MapContainer
+        center={[center.lat, center.lng]}
         zoom={isSearching ? 16 : 14}
-        onLoad={onLoad}
-        options={{
-          disableDefaultUI: true,
-          zoomControl: true,
-          clickableIcons: false,
-          styles: LIGHT_STYLE,
-          gestureHandling: 'greedy',
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-        }}
+        style={{ width: '100%', height: '100%', minHeight, background: '#f3f5f8' }}
+        zoomControl={false}
+        attributionControl
+        scrollWheelZoom
       >
-        {pathLatLng.length > 1 && !isSearching ? (
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url={getRideTileUrl(false)}
+          subdomains={['a', 'b', 'c', 'd']}
+        />
+        <ZoomControl position="bottomright" />
+        <DragGuard onDrag={() => setUserDragged(true)} />
+        <FitTripView
+          destination={resolvedDestination}
+          provider={smoothProvider}
+          searching={isSearching}
+          userDragged={userDragged}
+        />
+
+        {isSearching && resolvedDestination ? (
           <>
-            <PolylineF
-              path={pathLatLng}
-              options={{
-                strokeColor: ROUTE_CASING_COLOR,
-                strokeOpacity: 1,
-                strokeWeight: 10,
-                zIndex: 1,
+            <Circle
+              center={[resolvedDestination.lat, resolvedDestination.lng]}
+              radius={220}
+              pathOptions={{
+                fillColor: '#1E4ED8',
+                fillOpacity: 0.07,
+                color: '#1E4ED8',
+                opacity: 0.22,
+                weight: 1,
               }}
             />
-            <PolylineF
-              path={pathLatLng}
-              options={{
-                strokeColor: ROUTE_CORE_COLOR,
-                strokeOpacity: 1,
-                strokeWeight: 5,
-                zIndex: 2,
+            <Circle
+              center={[resolvedDestination.lat, resolvedDestination.lng]}
+              radius={90}
+              pathOptions={{
+                fillColor: '#1E4ED8',
+                fillOpacity: 0.1,
+                color: '#1E4ED8',
+                opacity: 0.35,
+                weight: 1,
               }}
             />
           </>
         ) : null}
 
+        {pathLatLng.length > 1 && !isSearching ? (
+          <>
+            <Polyline positions={pathLatLng} pathOptions={{ color: ROUTE_CASING_COLOR, weight: 10, opacity: 1 }} />
+            <Polyline positions={pathLatLng} pathOptions={{ color: ROUTE_CORE_COLOR, weight: 5, opacity: 1 }} />
+          </>
+        ) : null}
+
         {resolvedDestination ? (
-          <MarkerF
-            position={resolvedDestination}
+          <Marker
+            position={[resolvedDestination.lat, resolvedDestination.lng]}
+            icon={destMarker}
             title={destinationLabel}
-            zIndex={isSearching ? 1000 : 800}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: isSearching ? 14 : 11,
-              fillColor: isSearching ? '#2563EB' : '#0F172A',
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 3,
-            }}
+            zIndexOffset={isSearching ? 1000 : 800}
           />
         ) : null}
 
         {smoothProvider && !isSearching ? (
-          <MarkerF
-            position={smoothProvider}
+          <Marker
+            position={[smoothProvider.lat, smoothProvider.lng]}
+            icon={providerMarker}
             title={providerLabel}
-            zIndex={900}
-            icon={{
-              path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-              scale: 6,
-              fillColor: '#2563EB',
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 2,
-              rotation: 0,
-            }}
+            zIndexOffset={900}
           />
         ) : null}
-      </GoogleMap>
+      </MapContainer>
 
       {isSearching ? (
-        <div className="pointer-events-none absolute left-4 top-4 z-[3] flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-semibold shadow-md backdrop-blur-sm">
+        <div className="pointer-events-none absolute left-4 top-4 z-[401] flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-semibold shadow-md backdrop-blur-sm">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />

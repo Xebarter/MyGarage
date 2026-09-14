@@ -221,7 +221,7 @@ export function BuyerSidebar() {
     setBuyerName('Buyer');
     setBuyerEmail('No email saved');
     await supabase.auth.signOut();
-    window.location.href = '/auth?role=buyer&next=/buyer';
+    window.location.href = '/';
   };
 
   return (

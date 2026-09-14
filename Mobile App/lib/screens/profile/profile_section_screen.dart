@@ -321,7 +321,7 @@ class _AccountSectionState extends State<_AccountSection> {
                 accountStatus: 'deactivated',
               );
               await auth.signOut();
-              if (context.mounted) context.go('/profile');
+              if (context.mounted) context.go('/services');
             });
           },
           child: const Text('Deactivate account'),
@@ -346,7 +346,7 @@ class _AccountSectionState extends State<_AccountSection> {
             if (yes != true) return;
             try {
               await auth.deleteAccount();
-              if (context.mounted) context.go('/profile');
+              if (context.mounted) context.go('/services');
             } catch (e) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(

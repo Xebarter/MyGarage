@@ -2,11 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api/api_client.dart';
 import '../api/dispatch_api.dart';
+import '../auth/session_backup.dart';
+import '../config.dart';
 import '../models/service_request.dart';
+import '../services/dispatch_background.dart';
 import '../services/job_alert_service.dart';
+import '../services/push_service.dart';
 import '../utils/user_facing_error.dart';
 
 class DispatchController extends ChangeNotifier {
@@ -36,11 +41,13 @@ class DispatchController extends ChangeNotifier {
 
   void start(String vendorId) {
     if (_vendorId == vendorId && _pollTimer != null) {
+      unawaited(_armBackgroundDuty());
       unawaited(refresh(silent: true));
       return;
     }
     _vendorId = vendorId;
     unawaited(JobAlertService.instance.ensurePermissions());
+    unawaited(_armBackgroundDuty());
     unawaited(refresh());
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => refresh(silent: true));
@@ -51,10 +58,43 @@ class DispatchController extends ChangeNotifier {
     _pollTimer = null;
     _stopLocationUpdates();
     unawaited(JobAlertService.instance.stop());
+    unawaited(DispatchBackground.stop());
+    unawaited(PushService.unregister(ApiClient()));
+  }
+
+  Future<void> _armBackgroundDuty() async {
+    final vendorId = _vendorId;
+    if (vendorId == null) return;
+    await _persistDutySession(vendorId);
+    try {
+      await DispatchBackground.start();
+    } catch (e) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Background duty start failed: $e');
+      }
+    }
+    unawaited(PushService.register(ApiClient()));
+  }
+
+  Future<void> _persistDutySession(String vendorId) async {
+    String? accessToken;
+    try {
+      accessToken = Supabase.instance.client.auth.currentSession?.accessToken;
+    } catch (_) {}
+    if (accessToken == null || accessToken.isEmpty) {
+      accessToken = await SessionBackup.readAccessToken();
+    }
+    await DispatchBackground.persistSession(
+      vendorId: vendorId,
+      apiUrl: AppConfig.apiUrl,
+      accessToken: accessToken,
+    );
   }
 
   Future<void> onAppResumed() async {
     if (_vendorId == null) return;
+    unawaited(_armBackgroundDuty());
     await refresh(silent: true);
   }
 
@@ -74,6 +114,7 @@ class DispatchController extends ChangeNotifier {
       final state = await _api.getMe(vendorId);
       offer = state.offer;
       activeJob = state.activeJob;
+      unawaited(_persistDutySession(vendorId));
 
       if (offer != null && offer!.assignmentId != _lastOfferId) {
         _lastOfferId = offer!.assignmentId;

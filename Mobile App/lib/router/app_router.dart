@@ -27,6 +27,18 @@ GoRouter createRouter(AuthController auth) {
   return GoRouter(
     initialLocation: '/services',
     refreshListenable: auth,
+    redirect: (context, state) {
+      final uri = state.uri;
+      if (uri.scheme == 'mygarage') {
+        return auth.status == AuthStatus.authenticated ? '/services' : '/login';
+      }
+      if (state.matchedLocation == '/login' &&
+          auth.status == AuthStatus.authenticated &&
+          !context.canPop()) {
+        return '/services';
+      }
+      return null;
+    },
     routes: [
       // Login has no footer so auth UI stays full-height.
       GoRoute(

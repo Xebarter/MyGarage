@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/session_backup.dart';
 import '../config.dart';
 
 class ApiException implements Exception {
@@ -66,8 +67,14 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
     if (auth) {
-      final token = Supabase.instance.client.auth.currentSession?.accessToken;
-      if (token != null && token.isNotEmpty) {
+      var token = '';
+      try {
+        token = Supabase.instance.client.auth.currentSession?.accessToken ?? '';
+      } catch (_) {}
+      if (token.isEmpty) {
+        token = await SessionBackup.readAccessToken() ?? '';
+      }
+      if (token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
     }

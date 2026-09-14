@@ -67,6 +67,17 @@ function isVerificationBypassPath(pathname: string) {
 
 /** Routes that never need session lookup or role redirects in middleware (unless OAuth `code` is present). */
 function canSkipAuthMiddleware(pathname: string, hasOAuthCode: boolean): boolean {
+  // Native app bridges must keep `?code=` in the URL so the deep link can
+  // finish PKCE inside Flutter. Middleware must not exchange that code.
+  if (
+    pathname === "/auth/mobile-callback" ||
+    pathname.startsWith("/auth/mobile-callback/") ||
+    pathname === "/auth/services-mobile-callback" ||
+    pathname.startsWith("/auth/services-mobile-callback/")
+  ) {
+    return true;
+  }
+
   if (hasOAuthCode) return false;
 
   if (pathname.startsWith("/api/")) return true;

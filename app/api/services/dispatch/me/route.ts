@@ -1,8 +1,9 @@
 import {
   getActiveFulfillmentRequestForVendor,
   getPendingAssignmentForVendor,
+  touchVendorDispatchSeen,
 } from '@/lib/supabase/service-dispatch-repo';
-import { processStaleOffersBestEffort } from '@/lib/service-dispatch';
+import { claimNextOfferForVendor, processStaleOffersBestEffort } from '@/lib/service-dispatch';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
@@ -11,7 +12,13 @@ export async function GET(req: NextRequest) {
     if (!vendorId) {
       return NextResponse.json({ error: 'vendorId is required' }, { status: 400 });
     }
+    await touchVendorDispatchSeen(vendorId);
     await processStaleOffersBestEffort();
+    try {
+      await claimNextOfferForVendor(vendorId);
+    } catch (error) {
+      console.error('claimNextOfferForVendor failed:', error);
+    }
     const [offer, activeJob] = await Promise.all([
       getPendingAssignmentForVendor(vendorId),
       getActiveFulfillmentRequestForVendor(vendorId),

@@ -283,6 +283,36 @@ export function getUserServiceCategoryByTitle(title: string): UserServiceCategor
   return userServiceCategories.find((c) => c.title.toLowerCase() === needle);
 }
 
+/** Buyer Play Store catalog ids that differ from the shared web catalog. */
+const CATEGORY_ID_ALIASES: Record<string, string> = {
+  'body-paint': 'body-repair-painting',
+  'inspection-paperwork': 'documents-insurance',
+};
+
+/**
+ * Accepts a category title, catalog id, or Play Store alias and returns the
+ * canonical catalog id + display title used for dispatch matching.
+ */
+export function resolveBuyerServiceCategory(input: {
+  category?: string | null;
+  categoryId?: string | null;
+}): { id: string; title: string } | null {
+  const rawId = (input.categoryId || '').trim();
+  const rawCategory = (input.category || '').trim();
+  const aliasedId = CATEGORY_ID_ALIASES[rawId] || rawId;
+  const aliasedFromCategory = CATEGORY_ID_ALIASES[rawCategory] || rawCategory;
+
+  const cat =
+    (aliasedId ? getUserServiceCategoryById(aliasedId) : undefined) ||
+    (aliasedFromCategory ? getUserServiceCategoryById(aliasedFromCategory) : undefined) ||
+    (rawCategory ? getUserServiceCategoryByTitle(rawCategory) : undefined);
+
+  if (cat) return { id: cat.id, title: cat.title };
+  if (rawCategory) return { id: aliasedId || aliasedFromCategory, title: rawCategory };
+  if (rawId) return { id: aliasedId, title: rawId };
+  return null;
+}
+
 /** Strip trailing parenthetical / bracketed subtitle from catalog titles (Mobile App parity). */
 export function cleanServiceDisplayTitle(title: string): string {
   const cleaned = title.replace(/\s*[([{][^)\]}]*[)\]}]\s*$/u, '').trim();

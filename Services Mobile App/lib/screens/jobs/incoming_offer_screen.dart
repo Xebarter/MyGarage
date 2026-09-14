@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../maps/premium_google_map.dart';
+import '../../maps/premium_map_markers.dart';
 import '../../models/service_request.dart';
 import '../../services/job_alert_service.dart';
 import '../../theme/app_theme.dart';
@@ -28,6 +30,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
   late Duration _remaining;
   Timer? _timer;
   bool _expiredHandled = false;
+  BitmapDescriptor? _pinIcon;
 
   bool _onKey(KeyEvent event) {
     if (event is KeyDownEvent &&
@@ -43,6 +46,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_onKey);
+    unawaited(_loadPin());
     final assigned = widget.offer.assignedAt ?? DateTime.now();
     final elapsed = DateTime.now().difference(assigned);
     _remaining = _window - elapsed;
@@ -58,6 +62,14 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
         Navigator.of(context).pop('decline');
       }
     });
+  }
+
+  Future<void> _loadPin() async {
+    try {
+      final icon = await PremiumMapMarkers.destinationPin(AppColors.ink);
+      if (!mounted) return;
+      setState(() => _pinIcon = icon);
+    } catch (_) {}
   }
 
   @override
@@ -84,24 +96,24 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
         children: [
           Positioned.fill(
             child: dest != null
-                ? GoogleMap(
-                    initialCameraPosition: CameraPosition(target: center, zoom: 14.8),
+                ? PremiumGoogleMap(
+                    initialCameraPosition: CameraPosition(target: center, zoom: 15),
+                    padding: EdgeInsets.only(top: 120, bottom: 280 + padBottom, left: 12, right: 12),
+                    myLocationEnabled: true,
                     markers: {
                       Marker(
                         markerId: const MarkerId('customer'),
                         position: dest,
-                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                        icon: _pinIcon ??
+                            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
                         infoWindow: InfoWindow(
                           title: 'Customer',
                           snippet: req?.buyerContactName,
                         ),
+                        anchor: const Offset(0.5, 0.92),
                       ),
                     },
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    zoomControlsEnabled: false,
-                    mapToolbarEnabled: false,
-                    compassEnabled: false,
+                    circles: premiumSearchCircles(center: dest, color: AppColors.primary),
                   )
                 : Container(
                     decoration: const BoxDecoration(

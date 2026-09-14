@@ -232,7 +232,7 @@ export function ServiceProviderSidebar() {
     localStorage.removeItem('currentVendorId');
     localStorage.removeItem('currentVendorName');
     await supabase.auth.signOut();
-    window.location.href = '/auth?role=services&next=/services';
+    window.location.href = '/';
   };
 
   const displayName = useMemo(

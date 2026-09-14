@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_controller.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/funds/funds_screen.dart';
+import '../screens/jobs/job_history_screen.dart';
 import '../screens/jobs/jobs_screen.dart';
 import '../screens/pending/pending_verification_screen.dart';
 import '../screens/profile/profile_screen.dart';
@@ -41,9 +42,16 @@ GoRouter createRouter(AuthController auth) {
         path: '/pending',
         builder: (context, state) => const PendingVerificationScreen(),
       ),
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         builder: (context, state, navigationShell) {
           return MainShell(navigationShell: navigationShell);
+        },
+        navigatorContainerBuilder: (context, navigationShell, children) {
+          return TabSwipeView(
+            currentIndex: navigationShell.currentIndex,
+            onIndexChanged: navigationShell.goBranch,
+            children: children,
+          );
         },
         branches: [
           StatefulShellBranch(
@@ -79,6 +87,10 @@ GoRouter createRouter(AuthController auth) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '/jobs/history',
+        builder: (context, state) => const JobHistoryScreen(),
       ),
       GoRoute(
         path: '/trip/:requestId',

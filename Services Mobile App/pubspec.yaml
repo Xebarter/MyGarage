@@ -1,7 +1,7 @@
 name: mygarage_services
 description: MyGarage service provider mobile app — jobs, trips, listings, and funds.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -16,6 +16,8 @@ dependencies:
   provider: ^6.1.2
   flutter_dotenv: ^5.2.1
   google_maps_flutter: ^2.10.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
   geolocator: ^13.0.2
   intl: ^0.19.0
   flutter_secure_storage: ^9.2.2
@@ -26,6 +28,9 @@ dependencies:
   audioplayers: ^6.8.1
   vibration: ^3.2.0
   flutter_local_notifications: ^22.2.0
+  flutter_background_service: ^5.1.0
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
   permission_handler: ^13.0.0
   image_picker: ^1.1.2
   http_parser: ^4.0.2
@@ -41,14 +46,14 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/images/app_icon.png
-  adaptive_icon_background: "#1E3251"
-  adaptive_icon_foreground: assets/images/app_icon.png
+  adaptive_icon_background: "#236B5C"
+  adaptive_icon_foreground: assets/images/app_icon_foreground.png
   remove_alpha_ios: true
   web:
     generate: true
     image_path: assets/images/app_icon.png
-    background_color: "#1E3251"
-    theme_color: "#1E3251"
+    background_color: "#236B5C"
+    theme_color: "#236B5C"
 
 flutter:
   uses-material-design: true

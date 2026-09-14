@@ -128,15 +128,51 @@ class _CartHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final productWord = lineCount == 1 ? 'product' : 'products';
     final unitWord = count == 1 ? 'item' : 'items';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4, top: 4),
-      child: Text(
-        '$lineCount $productWord · $count $unitWord',
-        style: AppTheme.host(
-          color: AppColors.textSecondary,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundLift,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.shopping_bag_outlined, color: AppColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ready to checkout',
+                  style: AppTheme.host(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$lineCount $productWord · $count $unitWord',
+                  style: AppTheme.host(
+                    color: AppColors.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -157,8 +193,10 @@ class _EmptyCart extends StatelessWidget {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft.withValues(alpha: 0.55),
+                color: AppColors.primarySoft,
                 shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+                boxShadow: AppTheme.cardShadow,
               ),
               child: const Icon(
                 Icons.shopping_bag_outlined,
@@ -233,7 +271,7 @@ class _CartLineCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadii.lg),
-            border: Border.all(color: AppColors.borderSoft),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
             boxShadow: AppTheme.cardShadow,
           ),
           child: Padding(
@@ -467,8 +505,8 @@ class _CheckoutBar extends StatelessWidget {
       elevation: 0,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: const Border(top: BorderSide(color: AppColors.borderSoft)),
+          color: AppColors.surfaceHigh,
+          border: Border(top: BorderSide(color: AppColors.border.withValues(alpha: 0.9))),
           boxShadow: AppTheme.navShadow,
         ),
         child: SafeArea(
@@ -487,9 +525,10 @@ class _CheckoutBar extends StatelessWidget {
                           Text(
                             'Subtotal',
                             style: AppTheme.host(
-                              color: AppColors.textSecondary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                              color: AppColors.textMuted,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -499,17 +538,25 @@ class _CheckoutBar extends StatelessWidget {
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.4,
+                              color: AppColors.primaryDeep,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Text(
-                      itemCount == 1 ? '1 item' : '$itemCount items',
-                      style: AppTheme.host(
-                        color: AppColors.textMuted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Text(
+                        itemCount == 1 ? '1 item' : '$itemCount items',
+                        style: AppTheme.host(
+                          color: AppColors.primary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],

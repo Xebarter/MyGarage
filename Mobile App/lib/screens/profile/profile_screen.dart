@@ -287,7 +287,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(AppRadii.md),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+                      boxShadow: AppTheme.cardShadow,
+                      color: AppColors.surface,
                     ),
                     child: Row(
                       children: [
@@ -328,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Text(
                               '$unread',
                               style: AppTheme.host(
-                                color: Colors.white,
+                                color: AppColors.onPrimary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -363,7 +365,7 @@ class _GuestCard extends StatelessWidget {
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1E3A8A), Color(0xFF1E4ED8)],
+            colors: [AppColors.primaryDeep, AppColors.primary],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -376,7 +378,7 @@ class _GuestCard extends StatelessWidget {
             Text(
               'Welcome to MyGarage',
               style: AppTheme.host(
-                color: Colors.white,
+                color: AppColors.onPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.4,
@@ -385,13 +387,13 @@ class _GuestCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Sign in to manage vehicles, orders, membership, documents, and preferences in one place.',
-              style: AppTheme.host(color: Colors.white.withValues(alpha: 0.88), height: 1.4),
+              style: AppTheme.host(color: AppColors.onPrimary.withValues(alpha: 0.88), height: 1.4),
             ),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: onSignIn,
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
+                backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primaryDeep,
                 minimumSize: const Size.fromHeight(48),
               ),
@@ -402,7 +404,7 @@ class _GuestCard extends StatelessWidget {
               onPressed: () => context.push('/garage'),
               child: Text(
                 'Browse garage offline',
-                style: AppTheme.host(color: Colors.white, fontWeight: FontWeight.w600),
+                style: AppTheme.host(color: AppColors.onPrimary, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -438,10 +440,10 @@ class _HeroCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.backgroundLift,
           borderRadius: BorderRadius.circular(AppRadii.xl),
-          border: Border.all(color: AppColors.border),
-          boxShadow: AppTheme.cardShadow,
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+          boxShadow: AppTheme.softShadow,
         ),
         child: Column(
           children: [
@@ -479,6 +481,7 @@ class _HeroCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
                           ),
                           child: Text(
                             '${membership![0].toUpperCase()}${membership!.substring(1)} plan',
@@ -496,13 +499,21 @@ class _HeroCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                _stat('Orders', '${profile?.totalOrders ?? 0}'),
-                _stat('Spent', money.format(profile?.totalSpent ?? 0)),
-                _stat('Vehicles', '${profile?.vehicleCount ?? 0}'),
-                _stat('Wishlist', '${profile?.wishlistCount ?? 0}'),
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.9)),
+              ),
+              child: Row(
+                children: [
+                  _stat('Orders', '${profile?.totalOrders ?? 0}'),
+                  _stat('Spent', money.format(profile?.totalSpent ?? 0)),
+                  _stat('Vehicles', '${profile?.vehicleCount ?? 0}'),
+                  _stat('Wishlist', '${profile?.wishlistCount ?? 0}'),
+                ],
+              ),
             ),
             if (unread > 0) ...[
               const SizedBox(height: 12),
@@ -545,7 +556,11 @@ class _HeroCard extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 13.5),
+            style: AppTheme.host(
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+              color: AppColors.primaryDeep,
+            ),
           ),
           const SizedBox(height: 2),
           Text(label, style: AppTheme.host(fontSize: 11, color: AppColors.textMuted)),
@@ -602,12 +617,22 @@ class _QuickGrid extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+                  color: AppColors.surface,
+                  boxShadow: AppTheme.cardShadow,
                 ),
                 child: Column(
                   children: [
-                    Icon(t.$1, color: AppColors.primary, size: 22),
-                    const SizedBox(height: 6),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(t.$1, color: AppColors.primary, size: 18),
+                    ),
+                    const SizedBox(height: 8),
                     Text(
                       t.$2,
                       textAlign: TextAlign.center,

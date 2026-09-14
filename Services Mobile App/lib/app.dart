@@ -67,8 +67,10 @@ class _MyGarageServicesAppState extends State<MyGarageServicesApp> with WidgetsB
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_router == null) {
-      _router = createRouter(context.read<AuthController>());
+      final auth = context.read<AuthController>();
+      _router = createRouter(auth);
       AppNavigation.router = _router;
+      auth.onSignedOut = () => _router?.go('/sign-in');
     }
   }
 

@@ -12,6 +12,7 @@ import '../../models/models.dart';
 import '../../providers/cart_controller.dart';
 import '../../providers/shop_catalog_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/home_card_tones.dart';
 import '../../utils/product_search.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
@@ -522,6 +523,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 product: p,
                 priceLabel: money.format(p.price),
                 quantity: qty,
+                tone: homeCardTone(i),
                 onTap: () => _openProduct(p),
                 onAdd: () => _addToCart(p),
                 onRemove: () => _adjustCartQuantity(p, qty - 1),
@@ -981,6 +983,7 @@ class _ProductCard extends StatelessWidget {
     required this.product,
     required this.priceLabel,
     required this.quantity,
+    required this.tone,
     required this.onTap,
     required this.onAdd,
     required this.onRemove,
@@ -989,6 +992,7 @@ class _ProductCard extends StatelessWidget {
   final Product product;
   final String priceLabel;
   final int quantity;
+  final Color tone;
   final VoidCallback onTap;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
@@ -998,10 +1002,10 @@ class _ProductCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 0,
-      color: AppColors.surface,
+      color: tone,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
-        side: const BorderSide(color: AppColors.borderSoft),
+        side: BorderSide(color: AppColors.ink.withValues(alpha: 0.06)),
       ),
       child: InkWell(
         onTap: onTap,
@@ -1013,20 +1017,25 @@ class _ProductCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  product.image.isNotEmpty
-                      ? Image.network(
-                          product.image,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, __, ___) => const ColoredBox(
-                            color: AppColors.surfaceMuted,
-                            child: Icon(Icons.image_not_supported),
+                  Positioned.fill(
+                    child: product.image.isNotEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+                            child: Image.network(
+                              product.image,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.image_not_supported,
+                                color: AppColors.ink.withValues(alpha: 0.28),
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.inventory_2_outlined,
+                            color: AppColors.ink.withValues(alpha: 0.28),
                           ),
-                        )
-                      : const ColoredBox(
-                          color: AppColors.surfaceMuted,
-                          child: Icon(Icons.inventory_2_outlined),
-                        ),
+                  ),
                   // Soft fade so the control stays readable on bright photos.
                   const Positioned(
                     left: 0,

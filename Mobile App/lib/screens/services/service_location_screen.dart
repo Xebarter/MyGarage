@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../data/services_catalog.dart';
+import '../../maps/premium_google_map.dart';
 import '../../providers/auth_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
@@ -35,7 +37,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
   final _address = TextEditingController();
   final _notes = TextEditingController();
   final _api = BuyerApi(ApiClient());
-  GoogleMapController? _map;
+  PremiumMapController? _map;
 
   LatLng _pin = _kampala;
   bool _mapReady = false;
@@ -94,7 +96,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
               'Near ${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
         }
       });
-      await _map?.animateCamera(CameraUpdate.newLatLngZoom(next, 16));
+      _map?.moveTo(next, zoom: 16);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -147,9 +149,11 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
 
     setState(() => _busy = true);
     try {
+      final catalog = categoryById(widget.categoryId);
       final request = await _api.createServiceRequest({
         'customerId': cid,
         'service': widget.serviceName,
+        'category': catalog?.title ?? widget.categoryId,
         'categoryId': widget.categoryId,
         'location': locationLabel,
         'notes': _notes.text.trim(),
@@ -178,18 +182,20 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: GoogleMap(
+            child: PremiumGoogleMap(
               initialCameraPosition: CameraPosition(target: _pin, zoom: 15),
               myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              compassEnabled: false,
-              mapToolbarEnabled: false,
-              zoomControlsEnabled: false,
+              padding: EdgeInsets.only(
+                top: 88,
+                bottom: 300 + bottomInset,
+                left: 12,
+                right: 12,
+              ),
               onMapCreated: (c) {
                 _map = c;
                 setState(() => _mapReady = true);
                 if (!_locating) {
-                  c.animateCamera(CameraUpdate.newLatLngZoom(_pin, 16));
+                  c.moveTo(_pin, zoom: 16);
                 }
               },
               onCameraMove: _onCameraMove,

@@ -51,7 +51,7 @@ class AppRadii {
 class AppTheme {
   AppTheme._();
 
-  static String get fontFamily => GoogleFonts.hostGrotesk().fontFamily!;
+  static String get fontFamily => GoogleFonts.hostGrotesk().fontFamily ?? 'sans-serif';
 
   static TextStyle host({
     double? fontSize,

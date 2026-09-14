@@ -71,7 +71,7 @@ export function PortalPendingScreen({
   const handleSignOut = async () => {
     onSignOutCleanup();
     await supabase.auth.signOut();
-    window.location.href = `/auth?role=${authRole}&next=${encodeURIComponent(authNext)}`;
+    window.location.href = '/';
   };
 
   if (loading) {

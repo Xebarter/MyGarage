@@ -462,6 +462,22 @@ class BuyerApi {
     );
   }
 
+  /// Stops provider search while the request is still pending.
+  Future<void> cancelServiceRequestSearch({
+    required String requestId,
+    required String customerId,
+  }) {
+    return _client.post(
+      '/api/buyer/service-requests/$requestId',
+      body: {
+        'action': 'cancel',
+        'customerId': customerId,
+      },
+      auth: true,
+      parser: (_) => true,
+    ).then((_) {});
+  }
+
   Future<Map<String, dynamic>> createPaytotaCheckout(Map<String, dynamic> body) {
     return _client.post(
       '/api/paytota/checkout',

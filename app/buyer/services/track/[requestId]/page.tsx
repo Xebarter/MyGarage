@@ -123,6 +123,7 @@ export default function ServiceTrackPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const id = (typeof window !== 'undefined' && localStorage.getItem('currentBuyerId')) || '';
@@ -162,6 +163,28 @@ export default function ServiceTrackPage() {
       setRefreshing(false);
     }
   }, [requestId, customerId]);
+
+  const stopSearch = useCallback(async () => {
+    if (!requestId || !customerId || cancelling) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/buyer/service-requests/${encodeURIComponent(requestId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', customerId }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(json.error || 'Could not stop the search.');
+        return;
+      }
+      await load();
+    } catch {
+      setError('Could not stop the search.');
+    } finally {
+      setCancelling(false);
+    }
+  }, [requestId, customerId, cancelling, load]);
 
   useEffect(() => {
     void load();
@@ -612,14 +635,35 @@ export default function ServiceTrackPage() {
               </ul>
             </div>
 
-            {data?.request?.status === 'pending' && pendingOffer ? (
-              <Alert className="mt-2 border-primary/25 bg-primary/[0.04]">
-                <Radio className="h-4 w-4 text-primary" />
-                <AlertTitle className="text-foreground">Provider notification</AlertTitle>
-                <AlertDescription>
-                  A provider is being notified now. If they do not respond in time, we automatically try the next best match.
-                </AlertDescription>
-              </Alert>
+            {data?.request?.status === 'pending' ? (
+              <div className="mt-4 space-y-3">
+                {pendingOffer ? (
+                  <Alert className="border-primary/25 bg-primary/[0.04]">
+                    <Radio className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-foreground">Provider notification</AlertTitle>
+                    <AlertDescription>
+                      A provider is being notified now. If they decline or do not respond in time, we keep searching for the next available professional until you stop.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert className="border-primary/25 bg-primary/[0.04]">
+                    <Radio className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-foreground">Still searching</AlertTitle>
+                    <AlertDescription>
+                      No provider accepted yet. We keep looking for an available professional until someone accepts or you stop the search.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full rounded-xl"
+                  disabled={cancelling}
+                  onClick={() => void stopSearch()}
+                >
+                  {cancelling ? 'Stopping…' : 'Stop searching'}
+                </Button>
+              </div>
             ) : null}
           </div>
         </Card>

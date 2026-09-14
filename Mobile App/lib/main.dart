@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'config.dart';
+import 'maps/ensure_maps_js.dart';
 import 'providers/auth_controller.dart';
 import 'providers/cart_controller.dart';
 import 'providers/shop_catalog_controller.dart';
@@ -13,6 +14,7 @@ import 'providers/shop_catalog_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _loadEnv();
+  await ensureGoogleMapsJs(AppConfig.googleMapsApiKey);
 
   if (kDebugMode) {
     debugPrint('[MyGarage] API_URL=${AppConfig.apiUrl}');

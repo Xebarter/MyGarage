@@ -150,9 +150,11 @@ export default function BuyerGaragePage() {
       if (!resolvedCustomerId && email) {
         const customerRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
         if (customerRes.ok) {
-          const customer = await customerRes.json();
-          resolvedCustomerId = customer.id;
-          localStorage.setItem('currentBuyerId', resolvedCustomerId);
+          const customer = (await customerRes.json()) as { id?: string } | null;
+          if (customer?.id) {
+            resolvedCustomerId = customer.id;
+            localStorage.setItem('currentBuyerId', resolvedCustomerId);
+          }
         }
       }
 

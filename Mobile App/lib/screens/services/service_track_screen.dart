@@ -13,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../config.dart';
+import '../../maps/premium_google_map.dart';
+import '../../maps/premium_map_markers.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
@@ -32,7 +34,7 @@ class ServiceTrackScreen extends StatefulWidget {
 class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   final _api = BuyerApi(ApiClient());
   Timer? _poll;
-  GoogleMapController? _mapController;
+  PremiumMapController? _mapController;
 
   BuyerServiceRequest? _request;
   ServiceProviderContact? _providerContact;
@@ -45,10 +47,16 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   String? _lastRouteKey;
   bool _follow = true;
   String? _lastFollowKey;
+  bool _programmaticCamera = false;
+  BitmapDescriptor? _youIcon;
+  BitmapDescriptor? _providerIcon;
+  LatLng? _lastProvider;
+  double _providerHeading = 0;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_prepareMarkers());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load();
       _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
@@ -59,6 +67,18 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   void dispose() {
     _poll?.cancel();
     super.dispose();
+  }
+
+  Future<void> _prepareMarkers() async {
+    try {
+      final you = await PremiumMapMarkers.destinationPin(AppColors.ink);
+      final provider = await PremiumMapMarkers.vehicle(AppColors.primary);
+      if (!mounted) return;
+      setState(() {
+        _youIcon = you;
+        _providerIcon = provider;
+      });
+    } catch (_) {}
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -105,13 +125,44 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
     }
   }
 
+  Future<void> _stopSearch() async {
+    final auth = context.read<AuthController>();
+    final customerId = auth.customerId;
+    if (customerId == null || customerId.isEmpty) return;
+    try {
+      await _api.cancelServiceRequestSearch(
+        requestId: widget.requestId,
+        customerId: customerId,
+      );
+      _poll?.cancel();
+      if (!mounted) return;
+      context.go('/services');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not stop search.'))),
+      );
+    }
+  }
+
   void _maybeFollowProvider(LatLng provider) {
+    if (_lastProvider != null) {
+      final moved = math.max(
+        (provider.latitude - _lastProvider!.latitude).abs(),
+        (provider.longitude - _lastProvider!.longitude).abs(),
+      );
+      if (moved > 0.00004) {
+        _providerHeading = bearingDegrees(_lastProvider!, provider);
+      }
+    }
+    _lastProvider = provider;
     if (!_follow || _mapController == null) return;
     final key =
         '${provider.latitude.toStringAsFixed(4)},${provider.longitude.toStringAsFixed(4)}';
     if (key == _lastFollowKey) return;
     _lastFollowKey = key;
-    _mapController!.animateCamera(CameraUpdate.newLatLng(provider));
+    _programmaticCamera = true;
+    _mapController!.moveTo(provider);
   }
 
   Future<void> _fetchRoute(LatLng from, LatLng to) async {
@@ -156,16 +207,8 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   void _fit(LatLng a, LatLng b) {
     final c = _mapController;
     if (c == null) return;
-    final south = math.min(a.latitude, b.latitude);
-    final west = math.min(a.longitude, b.longitude);
-    final north = math.max(a.latitude, b.latitude);
-    final east = math.max(a.longitude, b.longitude);
-    c.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
-        96,
-      ),
-    );
+    _programmaticCamera = true;
+    c.fitPoints(a, b, padding: 96);
   }
 
   String _headline(BuyerServiceRequest r) {
@@ -262,35 +305,31 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
         Marker(
           markerId: const MarkerId('you'),
           position: dest,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          icon: _youIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: const InfoWindow(title: 'You'),
+          anchor: const Offset(0.5, 0.92),
         ),
       if (provider != null && !searching)
         Marker(
           markerId: const MarkerId('provider'),
           position: provider,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: _providerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           infoWindow: InfoWindow(title: name),
+          rotation: _providerHeading,
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
           zIndexInt: 2,
         ),
     };
 
-    final polylines = <Polyline>{
-      if (_route.length > 1 && !searching) ...[
-        Polyline(
-          polylineId: const PolylineId('route-case'),
-          points: _route,
-          color: AppColors.primaryDeep.withValues(alpha: 0.35),
-          width: 8,
-        ),
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: _route,
-          color: AppColors.primary,
-          width: 5,
-        ),
-      ],
-    };
+    final polylines = premiumRoutePolylines(
+      points: searching ? const [] : _route,
+      core: AppColors.primary,
+    );
+
+    final circles = searching && dest != null
+        ? premiumSearchCircles(center: dest, color: AppColors.primary)
+        : <Circle>{};
 
     final etaLabel = [
       if (_etaMinutes != null) '$_etaMinutes min',
@@ -302,16 +341,18 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: GoogleMap(
+            child: PremiumGoogleMap(
               initialCameraPosition: CameraPosition(target: center, zoom: searching ? 15 : 14.2),
               markers: markers,
               polylines: polylines,
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-              mapToolbarEnabled: false,
-              compassEnabled: false,
+              circles: circles,
+              padding: EdgeInsets.only(top: 88, bottom: 300 + padBottom, left: 12, right: 12),
               onCameraMoveStarted: () {
-                // User panned — keep follow until they toggle.
+                if (_programmaticCamera) {
+                  _programmaticCamera = false;
+                  return;
+                }
+                if (_follow) setState(() => _follow = false);
               },
               onMapCreated: (c) {
                 _mapController = c;
@@ -364,6 +405,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
                       setState(() => _follow = !_follow);
                       if (_follow && provider != null) {
                         _lastFollowKey = null;
+                        _programmaticCamera = true;
                         _maybeFollowProvider(provider);
                       } else if (dest != null && provider != null) {
                         _fit(dest, provider);
@@ -440,6 +482,18 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
                       ),
                     ],
                   ),
+                  if (request.status == 'pending') ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      'We keep searching until a provider accepts — or you stop.',
+                      style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.35),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _stopSearch,
+                      child: const Text('Stop searching'),
+                    ),
+                  ],
                   if (!searching && _providerContact != null) ...[
                     const SizedBox(height: 14),
                     Row(

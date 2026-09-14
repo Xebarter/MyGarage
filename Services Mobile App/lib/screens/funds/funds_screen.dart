@@ -68,7 +68,11 @@ class _FundsScreenState extends State<FundsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PayoutPrefsSheet(initial: current),
+      barrierColor: AppColors.ink.withValues(alpha: 0.46),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 12),
+        child: PayoutPrefsSheet(initial: current),
+      ),
     );
     if (updated == null || !mounted) return;
     try {

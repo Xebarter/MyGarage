@@ -3,7 +3,7 @@
     "short_name": "mygarage_services",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F5F2EB",
+    "background_color": "#236B5C",
     "theme_color": "#236B5C",
     "description": "A new Flutter project.",
     "orientation": "portrait-primary",

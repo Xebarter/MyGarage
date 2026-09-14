@@ -46,6 +46,20 @@ class VendorProfile {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'address': address,
+        'rating': rating,
+        'totalProducts': totalProducts,
+        'vendorVerified': vendorVerified,
+        'servicesVerified': servicesVerified,
+        'serviceOfferings': serviceOfferings,
+        'imageUrl': imageUrl,
+      };
+
   VendorProfile copyWith({
     String? name,
     String? phone,

@@ -117,6 +117,28 @@ class DispatchOffer {
   final DateTime? assignedAt;
   final ServiceRequest? request;
 
+  factory DispatchOffer.fromPush(Map<String, dynamic> data) {
+    final assignmentId = data['assignmentId']?.toString() ?? '';
+    final requestId = data['requestId']?.toString() ?? '';
+    return DispatchOffer(
+      assignmentId: assignmentId,
+      requestId: requestId,
+      providerId: data['providerId']?.toString() ?? '',
+      request: ServiceRequest(
+        id: requestId,
+        customerId: '',
+        category: '',
+        service: (data['service']?.toString() ?? '').trim().isEmpty
+            ? 'Job offer'
+            : data['service'].toString(),
+        location: data['location']?.toString() ?? '',
+        status: 'pending',
+        destinationLat: double.tryParse(data['destinationLat']?.toString() ?? ''),
+        destinationLng: double.tryParse(data['destinationLng']?.toString() ?? ''),
+      ),
+    );
+  }
+
   factory DispatchOffer.fromJson(Map<String, dynamic> json) {
     final assignment = (json['assignment'] as Map<String, dynamic>?) ?? json;
     final requestJson = json['request'] as Map<String, dynamic>?;

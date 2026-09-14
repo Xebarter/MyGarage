@@ -5,7 +5,7 @@ export type DirectionsResult = {
   path: MapPoint[];
   distanceMeters: number | null;
   durationSeconds: number | null;
-  source: 'google' | 'curved';
+  source: 'google' | 'osrm' | 'curved';
 };
 
 type GoogleDirectionsResponse = {
@@ -66,19 +66,50 @@ function haversineMeters(a: MapPoint, b: MapPoint): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+async function fetchOsrmDirections(from: MapPoint, to: MapPoint): Promise<DirectionsResult | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { next: { revalidate: 30 } });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      code?: string;
+      routes?: Array<{
+        distance?: number;
+        duration?: number;
+        geometry?: { coordinates?: [number, number][] };
+      }>;
+    };
+    const route = json.routes?.[0];
+    const coords = route?.geometry?.coordinates;
+    if (json.code !== 'Ok' || !coords?.length) return null;
+    return {
+      path: coords.map(([lng, lat]) => ({ lat, lng })),
+      distanceMeters: typeof route.distance === 'number' ? Math.round(route.distance) : null,
+      durationSeconds: typeof route.duration === 'number' ? Math.round(route.duration) : null,
+      source: 'osrm',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function curvedFallback(from: MapPoint, to: MapPoint): DirectionsResult {
+  const meters = haversineMeters(from, to);
+  return {
+    path: buildCurvedRouteCoordinates(from, to, 48),
+    distanceMeters: Math.round(meters),
+    durationSeconds: Math.round((meters / 1000 / 25) * 3600),
+    source: 'curved',
+  };
+}
+
 export async function fetchGoogleDirections(
   from: MapPoint,
   to: MapPoint,
 ): Promise<DirectionsResult> {
   const key = getGoogleMapsApiKey();
   if (!key) {
-    const path = buildCurvedRouteCoordinates(from, to, 48);
-    return {
-      path,
-      distanceMeters: Math.round(haversineMeters(from, to)),
-      durationSeconds: Math.round((haversineMeters(from, to) / 1000 / 25) * 3600),
-      source: 'curved',
-    };
+    return (await fetchOsrmDirections(from, to)) ?? curvedFallback(from, to);
   }
 
   const params = new URLSearchParams({
@@ -108,12 +139,6 @@ export async function fetchGoogleDirections(
       source: 'google',
     };
   } catch {
-    const path = buildCurvedRouteCoordinates(from, to, 48);
-    return {
-      path,
-      distanceMeters: Math.round(haversineMeters(from, to)),
-      durationSeconds: Math.round((haversineMeters(from, to) / 1000 / 25) * 3600),
-      source: 'curved',
-    };
+    return (await fetchOsrmDirections(from, to)) ?? curvedFallback(from, to);
   }
 }

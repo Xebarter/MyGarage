@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
+import '../maps/premium_google_map.dart';
+import '../maps/premium_map_markers.dart';
 import '../models/service_request.dart';
 import '../providers/dispatch_controller.dart';
 import '../theme/app_theme.dart';
@@ -31,10 +33,12 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
   late Duration _remaining;
   Timer? _timer;
   bool _busy = false;
+  BitmapDescriptor? _pinIcon;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadPin());
     final assigned = widget.offer.assignedAt ?? DateTime.now();
     final elapsed = DateTime.now().difference(assigned);
     _remaining = _window - elapsed;
@@ -46,6 +50,14 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
         if (_remaining.isNegative) _remaining = Duration.zero;
       });
     });
+  }
+
+  Future<void> _loadPin() async {
+    try {
+      final icon = await PremiumMapMarkers.destinationPin(AppColors.ink);
+      if (!mounted) return;
+      setState(() => _pinIcon = icon);
+    } catch (_) {}
   }
 
   @override
@@ -102,19 +114,18 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
           if (widget.compactMap && dest != null)
             SizedBox(
               height: 140,
-              child: GoogleMap(
-                initialCameraPosition: CameraPosition(target: dest, zoom: 14.5),
+              child: PremiumGoogleMap(
+                initialCameraPosition: CameraPosition(target: dest, zoom: 14.8),
                 markers: {
                   Marker(
                     markerId: const MarkerId('customer'),
                     position: dest,
+                    icon: _pinIcon ?? BitmapDescriptor.defaultMarker,
                     infoWindow: const InfoWindow(title: 'Customer'),
+                    anchor: const Offset(0.5, 0.92),
                   ),
                 },
-                zoomControlsEnabled: false,
-                myLocationButtonEnabled: false,
                 liteModeEnabled: true,
-                mapToolbarEnabled: false,
                 scrollGesturesEnabled: false,
                 rotateGesturesEnabled: false,
                 tiltGesturesEnabled: false,

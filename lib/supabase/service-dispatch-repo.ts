@@ -28,6 +28,8 @@ export type BuyerServiceRequestFullRow = {
   completed_at: string | null;
   buyer_contact_phone: string | null;
   buyer_contact_name: string | null;
+  destination_lat?: number | null;
+  destination_lng?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -91,6 +93,21 @@ export async function updateAssignmentResponse(
   if (error) throw new Error(error.message);
 }
 
+/** Expire any open offers when the buyer stops searching / cancels. */
+export async function expirePendingAssignmentsForRequest(requestId: string): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("service_request_assignments")
+    .update({
+      response: "expired",
+      responded_at: new Date().toISOString(),
+      response_note: "buyer_cancelled",
+    })
+    .eq("request_id", requestId)
+    .eq("response", "pending");
+  if (error) throw new Error(error.message);
+}
+
 export async function updateBuyerRequestDispatchFields(
   requestId: string,
   patch: {
@@ -107,13 +124,133 @@ export async function updateBuyerRequestDispatchFields(
   if (error) throw new Error(error.message);
 }
 
-type VendorDispatchRow = { id: string; rating: number | string; service_offerings: string[] | null };
+export type VendorDispatchRow = {
+  id: string;
+  rating: number | string;
+  service_offerings: string[] | null;
+  dispatch_seen_at?: string | null;
+};
+
+export type DispatchListingRow = {
+  vendorId: string;
+  categoryId: string;
+  serviceName: string;
+};
+
+function isMissingColumnError(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const msg = (error.message || "").toLowerCase();
+  const code = (error.code || "").toUpperCase();
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    msg.includes("does not exist") ||
+    msg.includes("schema cache") ||
+    msg.includes("could not find")
+  );
+}
 
 export async function listVendorsForDispatch(): Promise<VendorDispatchRow[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase.from("vendors").select("id, rating, service_offerings").order("rating", { ascending: false });
+  const full = await supabase
+    .from("vendors")
+    .select("id, rating, service_offerings, dispatch_seen_at")
+    .order("rating", { ascending: false });
+  if (!full.error) {
+    return (full.data as VendorDispatchRow[]) ?? [];
+  }
+
+  const slim = await supabase.from("vendors").select("id, rating, service_offerings").order("rating", { ascending: false });
+  if (!slim.error) {
+    return ((slim.data as VendorDispatchRow[]) ?? []).map((v) => ({ ...v, dispatch_seen_at: null }));
+  }
+
+  const bare = await supabase.from("vendors").select("id, rating").order("rating", { ascending: false });
+  if (bare.error) throw new Error(bare.error.message);
+  return ((bare.data as Array<{ id: string; rating: number | string }>) ?? []).map((v) => ({
+    id: v.id,
+    rating: v.rating,
+    service_offerings: [],
+    dispatch_seen_at: null,
+  }));
+}
+
+export async function touchVendorDispatchSeen(vendorId: string): Promise<void> {
+  const id = vendorId.trim();
+  if (!id) return;
+  try {
+    const supabase = createAdminClient();
+    const { error } = await supabase.from("vendors").update({ dispatch_seen_at: new Date().toISOString() }).eq("id", id);
+    if (error && !isMissingColumnError(error)) {
+      console.error("touchVendorDispatchSeen failed:", error.message);
+    }
+  } catch (error) {
+    console.error("touchVendorDispatchSeen failed:", error);
+  }
+}
+
+export async function listActiveVendorListingsForDispatch(): Promise<DispatchListingRow[]> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("vendor_service_listings")
+      .select("vendor_id, category_id, service_name")
+      .eq("status", "active");
+    if (error) return [];
+    return ((data as Array<{ vendor_id: string; category_id: string; service_name: string }> | null) ?? []).map((row) => ({
+      vendorId: String(row.vendor_id),
+      categoryId: String(row.category_id ?? ""),
+      serviceName: String(row.service_name ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function listPendingRequestIdsNeedingOffer(): Promise<string[]> {
+  const supabase = createAdminClient();
+  const { data: pending, error } = await supabase
+    .from("buyer_service_requests")
+    .select("id")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(80);
   if (error) throw new Error(error.message);
-  return (data as VendorDispatchRow[]) ?? [];
+  const ids = ((pending as Array<{ id: string }> | null) ?? []).map((row) => row.id);
+  if (ids.length === 0) return [];
+
+  const { data: open, error: openErr } = await supabase
+    .from("service_request_assignments")
+    .select("request_id")
+    .eq("response", "pending")
+    .in("request_id", ids);
+  if (openErr) throw new Error(openErr.message);
+  const blocked = new Set(((open as Array<{ request_id: string }> | null) ?? []).map((row) => row.request_id));
+  return ids.filter((id) => !blocked.has(id));
+}
+
+export async function expirePendingAssignmentsForOfflineVendors(onlineVendorIds: Set<string>): Promise<string[]> {
+  if (onlineVendorIds.size === 0) return [];
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("service_request_assignments")
+    .select("id, request_id, provider_id")
+    .eq("response", "pending");
+  if (error) throw new Error(error.message);
+
+  const requestIds = new Set<string>();
+  for (const row of data ?? []) {
+    const providerId = String(row.provider_id ?? "");
+    if (!providerId || onlineVendorIds.has(providerId)) continue;
+    const { error: updErr } = await supabase
+      .from("service_request_assignments")
+      .update({ response: "expired", responded_at: new Date().toISOString() })
+      .eq("id", row.id)
+      .eq("response", "pending");
+    if (updErr) throw new Error(updErr.message);
+    requestIds.add(row.request_id as string);
+  }
+  return [...requestIds];
 }
 
 export async function expireStalePendingAssignments(timeoutSeconds: number): Promise<string[]> {
@@ -169,6 +306,21 @@ export async function listProviderIdsWithActiveFulfillment(): Promise<Set<string
   return ids;
 }
 
+export async function listProviderIdsWithPendingOffer(): Promise<Set<string>> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("service_request_assignments")
+    .select("provider_id")
+    .eq("response", "pending");
+  if (error) throw new Error(error.message);
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    const pid = row.provider_id as string | null;
+    if (pid) ids.add(pid);
+  }
+  return ids;
+}
+
 export async function getPendingAssignmentForVendor(vendorId: string): Promise<
   (ServiceRequestAssignmentRow & { request: BuyerServiceRequestFullRow }) | null
 > {
@@ -188,6 +340,6 @@ export async function getPendingAssignmentForVendor(vendorId: string): Promise<
   if (!data) return null;
   const assignment = data as ServiceRequestAssignmentRow;
   const request = await getBuyerServiceRequestFullRow(assignment.request_id);
-  if (!request) return null;
+  if (!request || request.status !== "pending") return null;
   return { ...assignment, request };
 }

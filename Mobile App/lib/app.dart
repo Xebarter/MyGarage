@@ -39,7 +39,11 @@ class _MyGarageBuyerAppState extends State<MyGarageBuyerApp> with WidgetsBinding
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _router ??= createRouter(context.read<AuthController>());
+    if (_router == null) {
+      final auth = context.read<AuthController>();
+      _router = createRouter(auth);
+      auth.onSignedOut = () => _router?.go('/services');
+    }
   }
 
   @override

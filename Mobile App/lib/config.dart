@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
@@ -33,18 +32,16 @@ class AppConfig {
   ///
   /// Priority:
   /// 1. `--dart-define=API_URL=...` (compile-time)
-  /// 2. Flutter **web** → always local Next (`http://localhost:3000`)
-  /// 3. `assets/app.env` / production defaults for native
+  /// 2. `assets/app.env` (`API_URL` / `EXPO_PUBLIC_API_URL`)
+  /// 3. Production default `https://www.mygarage.ug`
+  ///
+  /// For local Next.js on Chrome, set `API_URL=http://localhost:3000` in
+  /// `assets/app.env` and run `npm run dev` in the MyGarage web app.
   ///
   static String get apiUrl {
     const fromDefine = String.fromEnvironment('API_URL');
     if (fromDefine.isNotEmpty) {
       return normalizeApiUrl(fromDefine);
-    }
-
-    // Browser must never use a phone-LAN IP from an old build.
-    if (kIsWeb) {
-      return 'http://localhost:3000';
     }
 
     final value = _env('API_URL') ?? _env('EXPO_PUBLIC_API_URL');

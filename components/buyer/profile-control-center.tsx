@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   BarChart3,
@@ -119,7 +119,6 @@ function healthBadge(status: string) {
 }
 
 export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const resolvedTab = tabParam === 'subscriptions' ? 'membership' : tabParam;
@@ -236,7 +235,7 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
     localStorage.removeItem('currentBuyerEmail');
     localStorage.removeItem('currentBuyerName');
     await supabase.auth.signOut();
-    router.push('/auth?role=buyer');
+    window.location.href = '/';
   };
 
   const savePreferredContact = async (preferredContactMethod: string) => {
@@ -286,7 +285,7 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
       localStorage.removeItem('currentBuyerId');
       localStorage.removeItem('currentBuyerEmail');
       localStorage.removeItem('currentBuyerName');
-      window.location.href = '/auth?role=buyer';
+      window.location.href = '/';
     }
   };
 

@@ -727,6 +727,7 @@ function BuyerServicesPageInner() {
         body: JSON.stringify({
           customerId,
           category: selectedCategory,
+          categoryId: selectedCategoryMeta?.id,
           service: selectedService,
           location: resolvedLocation,
           ...coords,

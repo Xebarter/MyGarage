@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
   BarChart3,
@@ -177,7 +177,6 @@ function VendorSidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; o
 
 export function VendorSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const portalChrome = useVendorPortalChrome();
   const [localMobileMenuOpen, setLocalMobileMenuOpen] = useState(false);
   const mobileMenuOpen = portalChrome?.mobileNavOpen ?? localMobileMenuOpen;
@@ -217,7 +216,7 @@ export function VendorSidebar() {
     setVendorName('');
     setVendorEmail('');
     await supabase.auth.signOut();
-    router.push('/auth?role=vendor&next=/vendor');
+    window.location.href = '/';
   };
 
   return (

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     if (email) {
       const customer = await getCustomerByEmail(email);
       if (!customer) {
-        return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+        return NextResponse.json(null);
       }
       return NextResponse.json(customer);
     }

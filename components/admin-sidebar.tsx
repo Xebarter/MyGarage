@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   Package,
   ShoppingCart,
@@ -38,7 +38,6 @@ type AdminSidebarProps = {
 
 export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
@@ -48,7 +47,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
   const handleLogout = async () => {
     onMobileClose?.();
     await supabase.auth.signOut();
-    router.push('/auth?role=admin&next=/admin');
+    window.location.href = '/';
   };
 
   return (

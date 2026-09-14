@@ -17,6 +17,7 @@ class AuthController extends ChangeNotifier {
   }
 
   final BuyerApi _buyerApi;
+  VoidCallback? onSignedOut;
 
   AuthStatus status = AuthStatus.unknown;
   User? user;
@@ -115,8 +116,15 @@ class AuthController extends ChangeNotifier {
         email: email.trim(),
         password: password,
         data: {'full_name': name.trim(), 'name': name.trim()},
+        emailRedirectTo: oauthRedirectTo(),
       );
       user = res.user;
+      if (res.session == null && user != null) {
+        errorMessage =
+            'Check your email to confirm this account, then return to the app to sign in.';
+        status = AuthStatus.unauthenticated;
+        return;
+      }
       await refreshProfile();
     } on AuthException catch (e) {
       errorMessage = e.message;
@@ -243,5 +251,6 @@ class AuthController extends ChangeNotifier {
     errorMessage = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
+    onSignedOut?.call();
   }
 }

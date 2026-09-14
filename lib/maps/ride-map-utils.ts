@@ -1,10 +1,10 @@
 export type MapPoint = { lat: number; lng: number };
 
-export const ROUTE_CORE_COLOR = '#2563EB';
+export const ROUTE_CORE_COLOR = '#1E4ED8';
 export const ROUTE_CASING_COLOR = '#FFFFFF';
 export const ROUTE_SHADOW_COLOR = 'rgba(15, 23, 42, 0.22)';
-export const PICKUP_PIN_COLOR = '#111827';
-export const PROVIDER_PIN_COLOR = '#2563EB';
+export const PICKUP_PIN_COLOR = '#0F172A';
+export const PROVIDER_PIN_COLOR = '#1E4ED8';
 
 export function getRideTileUrl(dark: boolean): string {
   return dark

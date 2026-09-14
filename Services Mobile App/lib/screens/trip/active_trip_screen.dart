@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config.dart';
+import '../../maps/premium_google_map.dart';
+import '../../maps/premium_map_markers.dart';
 import '../../models/service_request.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/dispatch_controller.dart';
@@ -27,7 +29,7 @@ class ActiveTripScreen extends StatefulWidget {
 }
 
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
-  GoogleMapController? _mapController;
+  PremiumMapController? _mapController;
   bool _busy = false;
   bool _loading = true;
   String? _loadError;
@@ -39,10 +41,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   ServiceRequest? _loadedJob;
   bool _followYou = true;
   String? _lastFollowKey;
+  bool _programmaticCamera = false;
   double? _lastBreadcrumbLat;
   double? _lastBreadcrumbLng;
   BitmapDescriptor? _youIcon;
   BitmapDescriptor? _customerIcon;
+  LatLng? _lastYou;
+  double _youHeading = 0;
 
   @override
   void initState() {
@@ -53,8 +58,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
   Future<void> _prepareMarkers() async {
     try {
-      _youIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
-      _customerIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+      final you = await PremiumMapMarkers.vehicle(AppColors.primary);
+      final customer = await PremiumMapMarkers.destinationPin(AppColors.ink);
+      if (!mounted) return;
+      setState(() {
+        _youIcon = you;
+        _customerIcon = customer;
+      });
     } catch (_) {}
   }
 
@@ -105,12 +115,23 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   void _maybeFollow(LatLng provider) {
+    if (_lastYou != null) {
+      final moved = math.max(
+        (provider.latitude - _lastYou!.latitude).abs(),
+        (provider.longitude - _lastYou!.longitude).abs(),
+      );
+      if (moved > 0.00004) {
+        _youHeading = bearingDegrees(_lastYou!, provider);
+      }
+    }
+    _lastYou = provider;
     if (!_followYou || _mapController == null) return;
     final key =
         '${provider.latitude.toStringAsFixed(4)},${provider.longitude.toStringAsFixed(4)}';
     if (key == _lastFollowKey) return;
     _lastFollowKey = key;
-    _mapController!.animateCamera(CameraUpdate.newLatLng(provider));
+    _programmaticCamera = true;
+    _mapController!.moveTo(provider);
   }
 
   Future<void> _fetchRoute(LatLng from, LatLng to) async {
@@ -168,15 +189,12 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     final north = math.max(a.latitude, b.latitude);
     final east = math.max(a.longitude, b.longitude);
     if ((north - south).abs() < 0.0001 && (east - west).abs() < 0.0001) {
-      c.animateCamera(CameraUpdate.newLatLngZoom(a, 15));
+      _programmaticCamera = true;
+      c.moveTo(a, zoom: 15);
       return;
     }
-    c.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
-        80,
-      ),
-    );
+    _programmaticCamera = true;
+    c.fitPoints(a, b);
   }
 
   Future<void> _advance(ServiceRequest job) async {
@@ -303,6 +321,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
             title: 'Customer',
             snippet: job.buyerContactName.isNotEmpty ? job.buyerContactName : job.location,
           ),
+          anchor: const Offset(0.5, 0.92),
         ),
       if (provider != null)
         Marker(
@@ -310,6 +329,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           position: provider,
           icon: _youIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           infoWindow: const InfoWindow(title: 'You'),
+          rotation: _youHeading,
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
           zIndexInt: 2,
         ),
     };
@@ -319,24 +341,11 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         Polyline(
           polylineId: const PolylineId('trail'),
           points: List<LatLng>.from(_breadcrumb),
-          color: AppColors.textMuted,
-          width: 4,
-          patterns: [PatternItem.dash(16), PatternItem.gap(10)],
+          color: AppColors.primary.withValues(alpha: 0.35),
+          width: 3,
+          patterns: [PatternItem.dash(14), PatternItem.gap(8)],
         ),
-      if (_route.length > 1) ...[
-        Polyline(
-          polylineId: const PolylineId('route-case'),
-          points: _route,
-          color: AppColors.primaryDeep.withValues(alpha: 0.35),
-          width: 9,
-        ),
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: _route,
-          color: AppColors.primary,
-          width: 5,
-        ),
-      ],
+      ...premiumRoutePolylines(points: _route, core: AppColors.primary),
     };
 
     final etaShort = [
@@ -359,22 +368,25 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: GoogleMap(
+            child: PremiumGoogleMap(
               initialCameraPosition: CameraPosition(target: center, zoom: 14.5),
               markers: markers,
               polylines: polylines,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              compassEnabled: false,
-              mapToolbarEnabled: false,
-              zoomControlsEnabled: false,
-              onCameraMoveStarted: () {},
+              myLocationEnabled: false,
+              padding: const EdgeInsets.only(top: 88, bottom: 320, left: 12, right: 12),
+              onCameraMoveStarted: () {
+                if (_programmaticCamera) {
+                  _programmaticCamera = false;
+                  return;
+                }
+                if (_followYou) setState(() => _followYou = false);
+              },
               onMapCreated: (c) {
                 _mapController = c;
                 if (dest != null && provider != null) {
                   _fitCamera(dest, provider);
                 } else if (provider != null) {
-                  c.animateCamera(CameraUpdate.newLatLngZoom(provider, 15));
+                  c.moveTo(provider, zoom: 15);
                 }
               },
             ),
@@ -430,6 +442,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                         setState(() => _followYou = !_followYou);
                         if (_followYou && provider != null) {
                           _lastFollowKey = null;
+                          _programmaticCamera = true;
                           _maybeFollow(provider);
                         }
                       },

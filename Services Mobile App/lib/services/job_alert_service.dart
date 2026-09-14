@@ -66,68 +66,76 @@ class JobAlertService with WidgetsBindingObserver {
 
   Future<void> init() async {
     if (_initialized) return;
-    _initialized = true;
     WidgetsBinding.instance.addObserver(this);
     HardwareKeyboard.instance.addHandler(_volumeHandler);
 
-    await _player.setReleaseMode(ReleaseMode.loop);
-    await _player.setVolume(0.75);
-    await _player.setAudioContext(
-      AudioContext(
-        iOS: AudioContextIOS(
-          // defaultToSpeaker is only valid with playAndRecord.
-          category: AVAudioSessionCategory.playback,
-          options: const {AVAudioSessionOptions.duckOthers},
-        ),
-        android: const AudioContextAndroid(
-          isSpeakerphoneOn: true,
-          stayAwake: true,
-          contentType: AndroidContentType.sonification,
-          usageType: AndroidUsageType.alarm,
-          audioFocus: AndroidAudioFocus.gainTransientMayDuck,
-        ),
-      ),
-    );
-
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-    await _notifications.initialize(
-      settings: const InitializationSettings(android: androidInit, iOS: iosInit),
-      onDidReceiveNotificationResponse: _onNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
-    );
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      final android = _notifications.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      await android?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          _channelId,
-          'Incoming jobs',
-          description: 'Alerts when a job offer arrives',
-          importance: Importance.max,
-          playSound: true,
-          enableVibration: true,
-          showBadge: true,
+    try {
+      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.setVolume(0.75);
+      await _player.setAudioContext(
+        AudioContext(
+          iOS: AudioContextIOS(
+            // defaultToSpeaker is only valid with playAndRecord.
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: true,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.alarm,
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
         ),
       );
+    } catch (e, st) {
+      debugPrint('JobAlertService audio init failed: $e\n$st');
+    }
+
+    try {
+      // Must be a drawable resource name, not @mipmap/... — the plugin looks
+      // up `res/drawable` and a missing icon throws, which used to kill launch.
+      const androidInit = AndroidInitializationSettings('ic_stat_notify');
+      const iosInit = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+      await _notifications.initialize(
+        settings: const InitializationSettings(android: androidInit, iOS: iosInit),
+        onDidReceiveNotificationResponse: _onNotificationResponse,
+        onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
+      );
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final android = _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        await android?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            'Incoming jobs',
+            description: 'Alerts when a job offer arrives',
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+            showBadge: true,
+          ),
+        );
+      }
+
+      final launch = await _notifications.getNotificationAppLaunchDetails();
+      final response = launch?.notificationResponse;
+      if (launch?.didNotificationLaunchApp == true && response != null) {
+        Future<void>.delayed(const Duration(milliseconds: 400), () {
+          _onNotificationResponse(response);
+        });
+      }
+    } catch (e, st) {
+      debugPrint('JobAlertService notifications init failed: $e\n$st');
     }
 
     _native.setMethodCallHandler(_onNativeCall);
-
-    // Catch launch from a notification action while the process was dead.
-    final launch = await _notifications.getNotificationAppLaunchDetails();
-    final response = launch?.notificationResponse;
-    if (launch?.didNotificationLaunchApp == true && response != null) {
-      // Defer slightly so providers are mounted.
-      Future<void>.delayed(const Duration(milliseconds: 400), () {
-        _onNotificationResponse(response);
-      });
-    }
+    _initialized = true;
   }
 
   Future<dynamic> _onNativeCall(MethodCall call) async {
@@ -166,21 +174,23 @@ class JobAlertService with WidgetsBindingObserver {
     await init();
     try {
       await Permission.notification.request();
+      await Permission.ignoreBatteryOptimizations.request();
     } catch (e) {
       debugPrint('JobAlertService permissions: $e');
     }
   }
 
-  Future<void> startForOffer(DispatchOffer offer) async {
+  Future<void> startForOffer(DispatchOffer offer, {bool inAppSound = true}) async {
     await init();
     if (_activeOfferId == offer.assignmentId && (_ringing || _silenced)) {
       // Same offer — ensure notification stays, but do not re-blast audio if silenced.
-      if (!_silenced && !_ringing) {
+      if (inAppSound && !_silenced && !_ringing) {
         _ringing = true;
         _pausedForBackground = false;
         unawaited(_startSound());
         unawaited(_startVibration());
       }
+      unawaited(_showOfferNotification(offer));
       return;
     }
 
@@ -188,11 +198,13 @@ class JobAlertService with WidgetsBindingObserver {
     _activeOffer = offer;
     _silenced = false;
     _pausedForBackground = false;
-    _ringing = true;
+    _ringing = inAppSound;
 
     unawaited(ensurePermissions());
-    unawaited(_startSound());
-    unawaited(_startVibration());
+    if (inAppSound) {
+      unawaited(_startSound());
+      unawaited(_startVibration());
+    }
     unawaited(_showOfferNotification(offer));
   }
 
@@ -337,8 +349,8 @@ class JobAlertService with WidgetsBindingObserver {
       channelDescription: 'Alerts when a job offer arrives',
       importance: Importance.max,
       priority: Priority.max,
-      category: AndroidNotificationCategory.message,
-      fullScreenIntent: false,
+      category: AndroidNotificationCategory.call,
+      fullScreenIntent: true,
       visibility: NotificationVisibility.public,
       ongoing: true,
       autoCancel: false,

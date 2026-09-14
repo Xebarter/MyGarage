@@ -6,6 +6,7 @@ import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../models/models.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/home_card_tones.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
 import '../../widgets/neighbor_tab_swipe.dart';
@@ -185,8 +186,15 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
         itemCount: _products.length,
         itemBuilder: (context, i) {
           final p = _products[i];
+          final tone = homeCardTone(i);
           return Card(
             clipBehavior: Clip.antiAlias,
+            elevation: 0,
+            color: tone,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.md),
+              side: BorderSide(color: AppColors.ink.withValues(alpha: 0.06)),
+            ),
             child: InkWell(
               onTap: () => context.push('/product/${p.id}', extra: p),
               child: Column(
@@ -194,17 +202,20 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                 children: [
                   Expanded(
                     child: p.image.isNotEmpty
-                        ? Image.network(
-                            p.image,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const ColoredBox(
-                              color: AppColors.surfaceMuted,
-                              child: Icon(Icons.image_not_supported),
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+                            child: Image.network(
+                              p.image,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.image_not_supported,
+                                color: AppColors.ink.withValues(alpha: 0.28),
+                              ),
                             ),
                           )
-                        : const ColoredBox(
-                            color: AppColors.surfaceMuted,
-                            child: Icon(Icons.inventory_2_outlined),
+                        : Icon(
+                            Icons.inventory_2_outlined,
+                            color: AppColors.ink.withValues(alpha: 0.28),
                           ),
                   ),
                   Padding(

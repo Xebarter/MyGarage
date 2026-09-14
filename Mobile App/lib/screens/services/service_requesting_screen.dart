@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../maps/premium_google_map.dart';
+import '../../maps/premium_map_markers.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
@@ -37,6 +39,9 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   Timer? _poll;
   Timer? _tipTimer;
   late final AnimationController _radar;
+  PremiumMapController? _map;
+  BitmapDescriptor? _pinIcon;
+  LatLng? _lastCameraTarget;
 
   BuyerServiceRequest? _request;
   String _status = 'Finding help nearby';
@@ -62,6 +67,15 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
       });
     });
     unawaited(_pollStatus());
+    unawaited(_loadPin());
+  }
+
+  Future<void> _loadPin() async {
+    try {
+      final icon = await PremiumMapMarkers.destinationPin(AppColors.primary);
+      if (!mounted) return;
+      setState(() => _pinIcon = icon);
+    } catch (_) {}
   }
 
   @override
@@ -113,6 +127,31 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
     }
   }
 
+  Future<void> _cancelSearch() async {
+    final auth = context.read<AuthController>();
+    final customerId = auth.customerId;
+    if (customerId == null) {
+      if (mounted) context.go('/services');
+      return;
+    }
+    try {
+      await _api.cancelServiceRequestSearch(
+        requestId: widget.requestId,
+        customerId: customerId,
+      );
+      _poll?.cancel();
+      _tipTimer?.cancel();
+      _radar.stop();
+      if (!mounted) return;
+      context.go('/services');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not cancel search.'))),
+      );
+    }
+  }
+
   LatLng get _center {
     final r = _request;
     if (r?.destinationLat != null && r?.destinationLng != null) {
@@ -125,28 +164,39 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   Widget build(BuildContext context) {
     final padBottom = MediaQuery.paddingOf(context).bottom;
     final dest = _center;
+    if (_map != null &&
+        (_lastCameraTarget == null ||
+            (dest.latitude - _lastCameraTarget!.latitude).abs() > 0.00025 ||
+            (dest.longitude - _lastCameraTarget!.longitude).abs() > 0.00025)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _lastCameraTarget = dest;
+        _map?.moveTo(dest, zoom: 15.5);
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
           Positioned.fill(
-            child: GoogleMap(
+            child: PremiumGoogleMap(
               initialCameraPosition: CameraPosition(target: dest, zoom: 15),
+              padding: EdgeInsets.only(top: 72, bottom: 280 + padBottom, left: 12, right: 12),
               markers: {
                 Marker(
                   markerId: const MarkerId('you'),
                   position: dest,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  icon: _pinIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                   infoWindow: const InfoWindow(title: 'Pickup'),
+                  anchor: const Offset(0.5, 0.92),
                 ),
               },
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-              mapToolbarEnabled: false,
-              compassEnabled: false,
+              circles: premiumSearchCircles(center: dest, color: AppColors.primary),
               onMapCreated: (c) {
-                c.animateCamera(CameraUpdate.newLatLngZoom(dest, 15.5));
+                _map = c;
+                c.moveTo(dest, zoom: 15.5);
+                _lastCameraTarget = dest;
               },
             ),
           ),
@@ -177,8 +227,8 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   shape: const CircleBorder(),
                   elevation: 3,
                   child: IconButton(
-                    tooltip: 'Cancel',
-                    onPressed: () => context.go('/services'),
+                    tooltip: 'Stop search',
+                    onPressed: _cancelSearch,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ),
@@ -307,9 +357,14 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   ],
                   const SizedBox(height: 10),
                   Text(
-                    'We’ll notify you the moment a provider accepts.',
+                    'We’ll keep looking until a provider accepts — or you stop the search.',
                     textAlign: TextAlign.center,
                     style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton(
+                    onPressed: _cancelSearch,
+                    child: const Text('Stop searching'),
                   ),
                 ],
               ),

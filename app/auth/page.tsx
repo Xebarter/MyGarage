@@ -324,9 +324,11 @@ function AuthForm() {
       try {
         const res = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
         if (res.ok) {
-          const c = (await res.json()) as { id: string; phone?: string };
-          localStorage.setItem("currentBuyerId", c.id);
-          if (c.phone) localStorage.setItem("currentBuyerPhone", c.phone);
+          const c = (await res.json()) as { id?: string; phone?: string } | null;
+          if (c?.id) {
+            localStorage.setItem("currentBuyerId", c.id);
+            if (c.phone) localStorage.setItem("currentBuyerPhone", c.phone);
+          }
         }
       } catch {
         /* ignore */
@@ -338,15 +340,17 @@ function AuthForm() {
     const name = email.split("@")[0] || "Buyer";
     const existingRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
     if (existingRes.ok) {
-      const c = (await existingRes.json()) as { id: string };
-      const put = await fetch(`/api/customers/${c.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneNorm }),
-      });
-      if (!put.ok) throw new Error("Could not update your phone number.");
-      localStorage.setItem("currentBuyerId", c.id);
-      return;
+      const c = (await existingRes.json()) as { id?: string } | null;
+      if (c?.id) {
+        const put = await fetch(`/api/customers/${c.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phoneNorm }),
+        });
+        if (!put.ok) throw new Error("Could not update your phone number.");
+        localStorage.setItem("currentBuyerId", c.id);
+        return;
+      }
     }
     const post = await fetch("/api/customers", {
       method: "POST",
@@ -370,9 +374,11 @@ function AuthForm() {
     const name = email.split("@")[0] || "Buyer";
     const existingRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
     if (existingRes.ok) {
-      const c = (await existingRes.json()) as { id: string };
-      localStorage.setItem("currentBuyerId", c.id);
-      return;
+      const c = (await existingRes.json()) as { id?: string } | null;
+      if (c?.id) {
+        localStorage.setItem("currentBuyerId", c.id);
+        return;
+      }
     }
     const post = await fetch("/api/customers", {
       method: "POST",

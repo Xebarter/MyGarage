@@ -61,7 +61,8 @@ export default function BuyerSupportPage() {
       if (!email) return;
       const byEmail = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
       if (!byEmail.ok) return;
-      const customer = await byEmail.json();
+      const customer = (await byEmail.json()) as { id?: string } | null;
+      if (!customer?.id) return;
       setCustomerId(customer.id);
       localStorage.setItem('currentBuyerId', customer.id);
     } catch (error) {

@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api/api_client.dart';
 import '../api/vendor_api.dart';
 import '../auth/google_auth.dart';
+import '../auth/session_backup.dart';
 import '../config.dart';
 import '../models/vendor_profile.dart';
 import '../utils/user_facing_error.dart';
@@ -23,8 +27,12 @@ class AuthController extends ChangeNotifier {
   /// Only set for intentional auth actions (sign-in failures), not background recovery.
   String? errorMessage;
   bool busy = false;
+  VoidCallback? onSignedOut;
+  bool _explicitSignOut = false;
+  bool _recovering = false;
+  String? _cachedUserId;
 
-  String? get vendorId => user?.id;
+  String? get vendorId => user?.id ?? vendor?.id ?? _cachedUserId;
 
   Future<void> _init() async {
     if (!AppConfig.isSupabaseConfigured) {
@@ -34,62 +42,174 @@ class AuthController extends ChangeNotifier {
       return;
     }
 
+    await _restoreCachedSession();
+
     final client = Supabase.instance.client;
-    // Session is restored from secure storage by Supabase.initialize / onAuthStateChange.
-    user = client.auth.currentUser;
-    client.auth.onAuthStateChange.listen((data) async {
-      final event = data.event;
-      user = data.session?.user;
+    user = client.auth.currentUser ?? user;
+    final session = client.auth.currentSession;
+    if (session != null) {
+      await SessionBackup.persistSession(session);
+      _cachedUserId = session.user.id;
+    }
 
-      if (user == null) {
-        vendor = null;
-        // Token refresh failures can emit signedOut briefly — treat as unauthenticated only
-        // when we truly signed out.
-        if (event == AuthChangeEvent.signedOut) {
-          status = AuthStatus.unauthenticated;
-          notifyListeners();
-        }
-        return;
-      }
+    if (user != null || vendor != null || _cachedUserId != null) {
+      _applySignedInStatus();
+      notifyListeners();
+      unawaited(refreshVendor(quiet: true));
+    }
 
-      // Refresh success / initial session — reload vendor quietly.
-      await refreshVendor(quiet: true);
+    client.auth.onAuthStateChange.listen((data) {
+      unawaited(_onAuthEvent(data));
     });
 
-    if (user != null) {
-      await refreshVendor(quiet: true);
+    if (user == null && vendor == null && _cachedUserId == null) {
+      status = AuthStatus.unauthenticated;
+      notifyListeners();
+    }
+  }
+
+  void _applySignedInStatus() {
+    if (vendor != null) {
+      status = vendor!.servicesVerified
+          ? AuthStatus.authenticated
+          : AuthStatus.pendingVerification;
     } else {
-      // Give storage restore a moment (initialSession fires shortly after init).
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      user = client.auth.currentUser;
-      if (user != null) {
-        await refreshVendor(quiet: true);
-      } else {
+      status = AuthStatus.authenticated;
+    }
+  }
+
+  Future<void> _onAuthEvent(AuthState data) async {
+    final event = data.event;
+
+    if (event == AuthChangeEvent.signedOut) {
+      if (_explicitSignOut) {
+        user = null;
+        vendor = null;
+        _cachedUserId = null;
         status = AuthStatus.unauthenticated;
         notifyListeners();
+        return;
       }
+      if (_recovering) return;
+      await _recoverFromBackupIfNeeded();
+      return;
     }
+
+    final session = data.session ?? Supabase.instance.client.auth.currentSession;
+    if (session?.user != null) {
+      user = session!.user;
+      _cachedUserId = user!.id;
+      _explicitSignOut = false;
+      await SessionBackup.persistSession(session);
+      await refreshVendor(quiet: true);
+      return;
+    }
+
+    if (event == AuthChangeEvent.initialSession && !_explicitSignOut) {
+      if (await _recoverFromBackupIfNeeded()) return;
+      if (vendor != null || _cachedUserId != null) {
+        _applySignedInStatus();
+        notifyListeners();
+        return;
+      }
+      status = AuthStatus.unauthenticated;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> _recoverFromBackupIfNeeded() async {
+    if (_explicitSignOut || _recovering) return false;
+    _recovering = true;
+    try {
+      final live = Supabase.instance.client.auth.currentSession;
+      if (live?.user != null) {
+        user = live!.user;
+        _cachedUserId = user!.id;
+        await SessionBackup.persistSession(live);
+        await refreshVendor(quiet: true);
+        return true;
+      }
+
+      final stay = await SessionBackup.staySignedIn();
+      if (!stay && vendor == null && _cachedUserId == null) {
+        return false;
+      }
+
+      final raw = await SessionBackup.readSessionJson();
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          await Supabase.instance.client.auth.recoverSession(raw);
+        } catch (_) {
+          try {
+            await Supabase.instance.client.auth.setInitialSession(raw);
+          } catch (_) {}
+        }
+        user = Supabase.instance.client.auth.currentUser ?? user;
+        final restored = Supabase.instance.client.auth.currentSession;
+        if (restored != null) {
+          await SessionBackup.persistSession(restored);
+        }
+      }
+
+      _cachedUserId = user?.id ?? _cachedUserId ?? await SessionBackup.readUserId();
+      if (user != null || vendor != null || _cachedUserId != null) {
+        _applySignedInStatus();
+        notifyListeners();
+        if (vendorId != null) {
+          unawaited(refreshVendor(quiet: true));
+        }
+        return true;
+      }
+      return false;
+    } finally {
+      _recovering = false;
+    }
+  }
+
+  Future<void> _restoreCachedSession() async {
+    try {
+      _cachedUserId = await SessionBackup.readUserId();
+      final raw = await SessionBackup.readVendorJson();
+      if (raw == null || raw.isEmpty) return;
+      final map = jsonDecode(raw);
+      if (map is! Map) return;
+      vendor = VendorProfile.fromJson(Map<String, dynamic>.from(map));
+      _cachedUserId ??= vendor!.id;
+      _applySignedInStatus();
+    } catch (_) {}
+  }
+
+  Future<void> _persistVendor() async {
+    try {
+      if (vendorId != null) {
+        await SessionBackup.persistUserId(vendorId!);
+      }
+      if (vendor != null) {
+        await SessionBackup.persistVendorJson(jsonEncode(vendor!.toJson()));
+      }
+    } catch (_) {}
   }
 
   /// Soft resume: refresh token if needed and reload vendor without flashing errors.
   Future<void> onAppResumed() async {
-    if (!AppConfig.isSupabaseConfigured) return;
+    if (!AppConfig.isSupabaseConfigured || _explicitSignOut) return;
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
         final expiresAt = session.expiresAt;
         final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        // Refresh when expired or near expiry.
         if (expiresAt == null || expiresAt <= now + 60) {
           try {
             await Supabase.instance.client.auth.refreshSession();
           } catch (_) {
-            /* keep existing session until truly invalid */
+            await _recoverFromBackupIfNeeded();
           }
         }
+      } else {
+        await _recoverFromBackupIfNeeded();
       }
-      user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
+      user = Supabase.instance.client.auth.currentUser ?? user;
+      if (vendorId != null) {
         await refreshVendor(quiet: true);
       }
     } catch (_) {
@@ -107,14 +227,19 @@ class AuthController extends ChangeNotifier {
         password: password,
       );
       user = res.user;
+      _explicitSignOut = false;
+      if (res.session != null) {
+        await SessionBackup.persistSession(res.session!);
+      }
+      _cachedUserId = user?.id ?? _cachedUserId;
       await _vendorApi.bootstrap();
       await refreshVendor();
     } on AuthException catch (e) {
       errorMessage = e.message;
-      status = AuthStatus.unauthenticated;
+      if (vendorId == null) status = AuthStatus.unauthenticated;
     } catch (e) {
       errorMessage = userFacingError(e, fallback: 'Could not sign in. Please try again.');
-      status = AuthStatus.unauthenticated;
+      if (vendorId == null) status = AuthStatus.unauthenticated;
     } finally {
       busy = false;
       notifyListeners();
@@ -135,7 +260,7 @@ class AuthController extends ChangeNotifier {
       }
     } catch (e) {
       errorMessage = googleSignInErrorMessage(e);
-      status = AuthStatus.unauthenticated;
+      if (vendorId == null) status = AuthStatus.unauthenticated;
     } finally {
       busy = false;
       notifyListeners();
@@ -143,10 +268,12 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> refreshVendor({bool quiet = false}) async {
-    final id = user?.id;
+    final id = vendorId;
     if (id == null) {
-      status = AuthStatus.unauthenticated;
-      notifyListeners();
+      if (_explicitSignOut) {
+        status = AuthStatus.unauthenticated;
+        notifyListeners();
+      }
       return;
     }
 
@@ -161,17 +288,17 @@ class AuthController extends ChangeNotifier {
           ? AuthStatus.authenticated
           : AuthStatus.pendingVerification;
       if (!quiet) errorMessage = null;
+      await _persistVendor();
     } catch (e) {
       if (isTransientNetworkError(e)) {
-        // Keep previous gate status if we already knew verification result.
-        if (status == AuthStatus.unknown) {
+        if (vendor != null) {
+          _applySignedInStatus();
+        } else if (status == AuthStatus.unknown) {
           status = AuthStatus.authenticated;
         }
-        if (!quiet) {
-          // Don't pollute auth.errorMessage with network noise on silent recovery paths.
-        }
+      } else if (vendor != null) {
+        _applySignedInStatus();
       } else {
-        // Profile load failed for a real reason — assume pending rather than sign-out.
         status = AuthStatus.pendingVerification;
         if (!quiet) {
           errorMessage = userFacingError(e, fallback: 'Could not load your provider profile.');
@@ -214,6 +341,7 @@ class AuthController extends ChangeNotifier {
 
       vendor = await _vendorApi.updateProfile(body);
       errorMessage = null;
+      await _persistVendor();
     } catch (e) {
       errorMessage = userFacingError(e, fallback: 'Could not save profile.');
       rethrow;
@@ -224,15 +352,20 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    _explicitSignOut = true;
+    await SessionBackup.clear();
     try {
-      await Supabase.instance.client.auth.signOut();
-    } catch (_) {
-      /* still clear local state */
-    }
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
+    try {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
+    } catch (_) {}
     user = null;
     vendor = null;
+    _cachedUserId = null;
     errorMessage = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
+    onSignedOut?.call();
   }
 }
