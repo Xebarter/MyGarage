@@ -59,7 +59,7 @@ Add to `android/local.properties` (created by Flutter):
 GOOGLE_MAPS_API_KEY=your-maps-key
 ```
 
-Enable **Maps SDK for Android** (and iOS) on the key.
+Enable **Maps SDK for Android**, **Maps SDK for iOS**, and **Maps JavaScript API** (Flutter web) on the key. Billing must be enabled on the Google Cloud project.
 
 ## Run
 

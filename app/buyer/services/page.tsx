@@ -327,8 +327,13 @@ function BuyerServicesPageInner() {
   const [payContactPhone, setPayContactPhone] = useState('');
   const [sessionReady, setSessionReady] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   const [priceRanges, setPriceRanges] = useState<ServicePriceRange[]>([]);
+  const [destinationCoords, setDestinationCoords] = useState<{
+    destinationLat: number;
+    destinationLng: number;
+  } | null>(null);
 
   useEffect(() => {
     void bootstrap();
@@ -486,6 +491,7 @@ function BuyerServicesPageInner() {
     if (!window.isSecureContext) {
       setLocationStatus('error');
       setDetectedLocation('');
+      setDestinationCoords(null);
       setLocationAccuracyLabel('');
       setLocationMessage('Location requires a secure connection (HTTPS or localhost). Please switch to manual location.');
       setUseDetectedLocation(false);
@@ -495,6 +501,7 @@ function BuyerServicesPageInner() {
     if (!('geolocation' in navigator)) {
       setLocationStatus('error');
       setDetectedLocation('');
+      setDestinationCoords(null);
       setLocationMessage('Location services are not supported on this device. Use a manual location instead.');
       setUseDetectedLocation(false);
       return;
@@ -527,6 +534,7 @@ function BuyerServicesPageInner() {
 
       const { latitude, longitude, accuracy } = position.coords;
       setDetectedLocation(`Current location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
+      setDestinationCoords({ destinationLat: latitude, destinationLng: longitude });
       setLocationAccuracyLabel(Number.isFinite(accuracy) ? `Approx. accuracy: ${Math.round(accuracy)}m` : '');
       setLocationMessage('Location detected. You can retry for a fresh fix.');
       setLocationStatus('ready');
@@ -534,6 +542,7 @@ function BuyerServicesPageInner() {
       const geolocationError = error as GeolocationPositionError | Error;
       setLocationStatus('error');
       setDetectedLocation('');
+      setDestinationCoords(null);
       setLocationAccuracyLabel('');
 
       if ('code' in geolocationError && geolocationError.code === 1) {
@@ -701,26 +710,42 @@ function BuyerServicesPageInner() {
   }, [activeServiceRequest]);
 
   const submitRequest = async () => {
+    if (submittingRequest) return;
     if (identityMode !== 'buyer' || !selectedService || !resolvedLocation || !customerId) return;
     setSubmitError(null);
+    setSubmittingRequest(true);
     try {
       let coords: { destinationLat: number; destinationLng: number } | Record<string, never> = {};
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 120000,
+      if (
+        useDetectedLocation &&
+        destinationCoords &&
+        Number.isFinite(destinationCoords.destinationLat) &&
+        Number.isFinite(destinationCoords.destinationLng)
+      ) {
+        coords = destinationCoords;
+      } else if (useDetectedLocation) {
+        // Best-effort only — never block submit on a second GPS wait.
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 2500,
+              maximumAge: 120000,
+            });
           });
-        });
-        const la = pos.coords.latitude;
-        const ln = pos.coords.longitude;
-        if (Number.isFinite(la) && Number.isFinite(ln)) {
-          coords = { destinationLat: la, destinationLng: ln };
+          const la = pos.coords.latitude;
+          const ln = pos.coords.longitude;
+          if (Number.isFinite(la) && Number.isFinite(ln)) {
+            coords = { destinationLat: la, destinationLng: ln };
+            setDestinationCoords(coords);
+          }
+        } catch {
+          /* address text still sent */
         }
-      } catch {
-        /* optional — address text still sent */
       }
+
+      const contactPhone = payContactPhone.trim();
+      const contactName = payContactName.trim();
       const response = await fetch('/api/buyer/service-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -730,22 +755,38 @@ function BuyerServicesPageInner() {
           categoryId: selectedCategoryMeta?.id,
           service: selectedService,
           location: resolvedLocation,
+          ...(contactPhone ? { buyerContactPhone: contactPhone } : {}),
+          ...(contactName ? { buyerContactName: contactName } : {}),
           ...coords,
         }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        setSubmitError(body.error || 'Could not submit your request. Try again.');
+        const body = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+        if (body.code === 'PHONE_REQUIRED') {
+          setSubmitError(
+            body.error ||
+              'Add a mobile number on your profile, then try again.',
+          );
+        } else {
+          setSubmitError(body.error || 'Could not submit your request. Try again.');
+        }
         return;
       }
       const raw = (await response.json()) as Record<string, unknown>;
       const created = normalizeBuyerServiceRequest(raw);
-      if (!created) return;
+      if (!created?.id) {
+        setSubmitError('Request was created but could not be opened. Check Your requests below.');
+        if (customerId) void loadServiceData(customerId);
+        return;
+      }
       setRequests((current) => [created, ...current]);
       setIsQuickRequestDialogOpen(false);
       router.push(`/buyer/services/track/${encodeURIComponent(created.id)}`);
     } catch (error) {
       console.error('Failed to create buyer service request:', error);
+      setSubmitError('Could not submit your request. Check your connection and try again.');
+    } finally {
+      setSubmittingRequest(false);
     }
   };
 
@@ -809,7 +850,8 @@ function BuyerServicesPageInner() {
 
   const getMyRating = (providerId: string) => ratings.find((item) => item.providerId === providerId)?.stars || 0;
   const canPressSubmitRequest = Boolean(selectedService && resolvedLocation && (identityMode !== 'buyer' || customerId));
-  const canSubmitQuickRequest = canPressSubmitRequest && quickRequestUiStep === 'location';
+  const canSubmitQuickRequest =
+    canPressSubmitRequest && quickRequestUiStep === 'location' && !submittingRequest;
 
   const goBackToQuickServiceStep = () => {
     serviceAutofillSuppressed.current = true;
@@ -830,6 +872,7 @@ function BuyerServicesPageInner() {
   };
 
   const handleSubmitRequestIntent = () => {
+    if (submittingRequest) return;
     setSubmitError(null);
     if (!selectedService || !resolvedLocation) return;
     if (identityMode !== 'buyer' || !customerId) {
@@ -1402,6 +1445,7 @@ function BuyerServicesPageInner() {
         onRefreshLocation={() => void detectCurrentLocation()}
         canSubmit={canSubmitQuickRequest}
         canPressSubmit={canPressSubmitRequest}
+        submitting={submittingRequest}
         submitError={submitError}
         identityMode={identityMode}
         onSubmit={handleSubmitRequestIntent}

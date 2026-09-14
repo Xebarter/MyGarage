@@ -39,20 +39,25 @@ export async function POST(req: NextRequest) {
     if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
-    if (countPhoneDigits(customer.phone) < 9) {
+    const bodyPhone = typeof body.buyerContactPhone === 'string' ? body.buyerContactPhone.trim() : '';
+    const bodyName = typeof body.buyerContactName === 'string' ? body.buyerContactName.trim() : '';
+    const contactPhone = countPhoneDigits(customer.phone) >= 9 ? customer.phone.trim() : bodyPhone;
+    if (countPhoneDigits(contactPhone) < 9) {
       return NextResponse.json(
         { error: 'A valid mobile number is required to request service.', code: 'PHONE_REQUIRED' },
         { status: 400 },
       );
     }
+    const contactName =
+      bodyName || (customer.name || '').trim() || 'Buyer';
     const created = await createBuyerServiceRequest({
       customerId,
       category,
       service,
       location,
       status: 'pending',
-      buyerContactPhone: customer.phone.trim(),
-      buyerContactName: (customer.name || '').trim() || 'Buyer',
+      buyerContactPhone: contactPhone,
+      buyerContactName: contactName,
       ...(vehicleId ? { vehicleId: String(vehicleId).trim() } : {}),
       ...(destinationLat != null &&
       destinationLng != null &&
@@ -68,6 +73,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
+    console.error('POST /api/buyer/service-requests failed:', error);
     return NextResponse.json({ error: 'Failed to create buyer service request' }, { status: 500 });
   }
 }

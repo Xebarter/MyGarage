@@ -539,16 +539,46 @@ class BuyerApi {
     );
   }
 
-  Future<List<Map<String, dynamic>>> geocodeSuggestions(String q) {
+  Future<List<Map<String, dynamic>>> geocodeSuggestions(
+    String q, {
+    double? lat,
+    double? lng,
+    String? sessionToken,
+    int limit = 6,
+  }) {
+    final query = <String, String>{
+      'q': q,
+      'limit': '$limit',
+    };
+    if (lat != null) query['lat'] = lat.toString();
+    if (lng != null) query['lng'] = lng.toString();
+    if (sessionToken != null && sessionToken.isNotEmpty) {
+      query['sessionToken'] = sessionToken;
+    }
     return _client.get(
       '/api/geocode/suggestions',
-      query: {'q': q},
+      query: query,
       parser: (json) {
         final list = json is List
             ? json
             : (json is Map && json['suggestions'] is List ? json['suggestions'] as List : const []);
         return list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       },
+    );
+  }
+
+  Future<Map<String, dynamic>> geocodePlace(
+    String placeId, {
+    String? sessionToken,
+  }) {
+    final query = <String, String>{'placeId': placeId};
+    if (sessionToken != null && sessionToken.isNotEmpty) {
+      query['sessionToken'] = sessionToken;
+    }
+    return _client.get(
+      '/api/geocode/place',
+      query: query,
+      parser: (json) => Map<String, dynamic>.from(json as Map),
     );
   }
 }

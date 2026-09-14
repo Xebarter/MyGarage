@@ -196,6 +196,7 @@ export type BuyerServiceQuickRequestDialogProps = {
   onRefreshLocation: () => void;
   canSubmit: boolean;
   canPressSubmit: boolean;
+  submitting?: boolean;
   submitError: string | null;
   identityMode: 'buyer' | 'guest';
   onSubmit: () => void;
@@ -228,6 +229,7 @@ export function BuyerServiceQuickRequestDialog({
   onRefreshLocation,
   canSubmit,
   canPressSubmit,
+  submitting = false,
   submitError,
   identityMode,
   onSubmit,
@@ -500,16 +502,25 @@ export function BuyerServiceQuickRequestDialog({
                 <button
                   type="button"
                   onClick={onSubmit}
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || submitting}
                   className={cn(
                     'inline-flex min-h-[54px] w-full touch-manipulation items-center justify-center gap-2 rounded-2xl px-4 text-base font-bold transition active:scale-[0.99] sm:min-h-12 sm:text-sm',
-                    canSubmit
+                    canSubmit && !submitting
                       ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90'
                       : 'cursor-not-allowed bg-muted text-muted-foreground shadow-none',
                   )}
                 >
-                  {identityMode !== 'buyer' ? 'Continue to sign in' : 'Submit request'}
-                  <ArrowRight className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" aria-hidden />
+                      Sending request…
+                    </>
+                  ) : (
+                    <>
+                      {identityMode !== 'buyer' ? 'Continue to sign in' : 'Submit request'}
+                      <ArrowRight className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
+                    </>
+                  )}
                 </button>
                 {!canPressSubmit ? (
                   <p className="text-center text-[11px] leading-relaxed text-muted-foreground">

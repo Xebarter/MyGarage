@@ -116,6 +116,21 @@ GoRouter createRouter(AuthController auth) {
                   Uri.decodeComponent(state.pathParameters['categoryName']!),
             ),
           ),
+          // Static paths before `/service/:categoryId` so "requesting" / "track"
+          // are not swallowed as category ids.
+          GoRoute(
+            path: '/service/requesting',
+            builder: (context, state) {
+              final requestId = state.uri.queryParameters['requestId'] ?? '';
+              return ServiceRequestingScreen(requestId: requestId);
+            },
+          ),
+          GoRoute(
+            path: '/service/track/:requestId',
+            builder: (context, state) => ServiceTrackScreen(
+              requestId: state.pathParameters['requestId']!,
+            ),
+          ),
           GoRoute(
             path: '/service/:categoryId',
             builder: (context, state) => ServiceCategoryScreen(
@@ -131,19 +146,6 @@ GoRouter createRouter(AuthController auth) {
                 serviceName: service,
               );
             },
-          ),
-          GoRoute(
-            path: '/service/requesting',
-            builder: (context, state) {
-              final requestId = state.uri.queryParameters['requestId'] ?? '';
-              return ServiceRequestingScreen(requestId: requestId);
-            },
-          ),
-          GoRoute(
-            path: '/service/track/:requestId',
-            builder: (context, state) => ServiceTrackScreen(
-              requestId: state.pathParameters['requestId']!,
-            ),
           ),
           GoRoute(
             path: '/checkout',

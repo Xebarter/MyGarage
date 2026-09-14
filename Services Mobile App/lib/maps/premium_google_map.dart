@@ -1,31 +1,30 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:latlong2/latlong.dart' as ll;
 
-import '../theme/app_theme.dart';
+import 'premium_map_style.dart';
 
 typedef PremiumMapCreatedCallback = void Function(PremiumMapController controller);
 
-/// Camera handle for OSM-backed [PremiumGoogleMap] (Google Maps JS key is expired).
+/// Camera handle for [PremiumGoogleMap] (Google Maps SDK).
 class PremiumMapController {
-  fm.MapController? _map;
-  double _zoom = 14.5;
+  GoogleMapController? _map;
   EdgeInsets _padding = EdgeInsets.zero;
 
-  void _attach(fm.MapController map, double zoom, EdgeInsets padding) {
+  void _attach(GoogleMapController map, EdgeInsets padding) {
     _map = map;
-    _zoom = zoom;
     _padding = padding;
   }
 
   void moveTo(LatLng target, {double? zoom}) {
-    final z = zoom ?? _map?.camera.zoom ?? _zoom;
-    _zoom = z;
-    _map?.move(ll.LatLng(target.latitude, target.longitude), z);
+    final map = _map;
+    if (map == null) return;
+    if (zoom != null) {
+      map.animateCamera(CameraUpdate.newLatLngZoom(target, zoom));
+    } else {
+      map.animateCamera(CameraUpdate.newLatLng(target));
+    }
   }
 
   void fitPoints(LatLng a, LatLng b, {double padding = 80}) {
@@ -39,23 +38,28 @@ class PremiumMapController {
       moveTo(a, zoom: 15);
       return;
     }
-    final pad = _padding == EdgeInsets.zero
-        ? EdgeInsets.all(padding)
-        : _padding;
-    map.fitCamera(
-      fm.CameraFit.bounds(
-        bounds: ll.LatLngBounds(
-          ll.LatLng(south, west),
-          ll.LatLng(north, east),
+    final edgePad = _padding == EdgeInsets.zero
+        ? padding
+        : [
+            padding,
+            _padding.left,
+            _padding.right,
+            _padding.top,
+            _padding.bottom,
+          ].reduce(math.max);
+    map.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(south, west),
+          northeast: LatLng(north, east),
         ),
-        padding: pad,
-        maxZoom: 16,
+        edgePad,
       ),
     );
   }
 }
 
-/// Muted Carto/OSM trip map. Same marker/polyline API as the old Google widget.
+/// Premium styled Google Map with the same marker/polyline API used across trip screens.
 class PremiumGoogleMap extends StatefulWidget {
   const PremiumGoogleMap({
     super.key,
@@ -97,20 +101,7 @@ class PremiumGoogleMap extends StatefulWidget {
 }
 
 class _PremiumGoogleMapState extends State<PremiumGoogleMap> {
-  final fm.MapController _map = fm.MapController();
   final PremiumMapController _handle = PremiumMapController();
-  Timer? _idle;
-  bool _notifiedCreated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _handle._attach(
-      _map,
-      widget.initialCameraPosition.zoom,
-      widget.padding,
-    );
-  }
 
   @override
   void didUpdateWidget(covariant PremiumGoogleMap oldWidget) {
@@ -118,196 +109,37 @@ class _PremiumGoogleMapState extends State<PremiumGoogleMap> {
     _handle._padding = widget.padding;
   }
 
-  @override
-  void dispose() {
-    _idle?.cancel();
-    super.dispose();
-  }
-
-  int get _flags {
-    if (widget.liteModeEnabled) return fm.InteractiveFlag.none;
-    var flags = fm.InteractiveFlag.none;
-    if (widget.scrollGesturesEnabled) {
-      flags |= fm.InteractiveFlag.drag | fm.InteractiveFlag.flingAnimation;
-    }
-    if (widget.zoomGesturesEnabled) {
-      flags |= fm.InteractiveFlag.pinchZoom |
-          fm.InteractiveFlag.doubleTapZoom |
-          fm.InteractiveFlag.scrollWheelZoom;
-    }
-    if (widget.rotateGesturesEnabled) {
-      flags |= fm.InteractiveFlag.rotate;
-    }
-    return flags;
-  }
-
-  void _onPositionChanged(fm.MapCamera camera, bool hasGesture) {
-    widget.onCameraMove?.call(
-      CameraPosition(
-        target: LatLng(camera.center.latitude, camera.center.longitude),
-        zoom: camera.zoom,
-      ),
-    );
-    if (hasGesture) widget.onCameraMoveStarted?.call();
-    _idle?.cancel();
-    _idle = Timer(const Duration(milliseconds: 180), () {
-      widget.onCameraIdle?.call();
-    });
+  void _onCreated(GoogleMapController controller) {
+    _handle._attach(controller, widget.padding);
+    widget.onMapCreated?.call(_handle);
   }
 
   @override
   Widget build(BuildContext context) {
-    final start = widget.initialCameraPosition.target;
-    return Stack(
-      children: [
-        fm.FlutterMap(
-          mapController: _map,
-          options: fm.MapOptions(
-            initialCenter: ll.LatLng(start.latitude, start.longitude),
-            initialZoom: widget.initialCameraPosition.zoom,
-            minZoom: 4,
-            maxZoom: 19,
-            backgroundColor: const Color(0xFFF3F5F8),
-            interactionOptions: fm.InteractionOptions(flags: _flags),
-            onMapReady: () {
-              if (_notifiedCreated) return;
-              _notifiedCreated = true;
-              widget.onMapCreated?.call(_handle);
-            },
-            onPositionChanged: _onPositionChanged,
-          ),
-          children: [
-            fm.TileLayer(
-              urlTemplate:
-                  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-              subdomains: const ['a', 'b', 'c', 'd'],
-              userAgentPackageName: 'ug.mygarage.services',
-            ),
-            if (widget.circles.isNotEmpty)
-              fm.CircleLayer(
-                circles: [
-                  for (final c in widget.circles)
-                    fm.CircleMarker(
-                      point: ll.LatLng(c.center.latitude, c.center.longitude),
-                      radius: c.radius,
-                      useRadiusInMeter: true,
-                      color: c.fillColor,
-                      borderColor: c.strokeColor,
-                      borderStrokeWidth: c.strokeWidth.toDouble(),
-                    ),
-                ],
-              ),
-            if (widget.polylines.isNotEmpty)
-              fm.PolylineLayer(
-                polylines: [
-                  for (final line in widget.polylines)
-                    fm.Polyline(
-                      points: [
-                        for (final p in line.points)
-                          ll.LatLng(p.latitude, p.longitude),
-                      ],
-                      color: line.color,
-                      strokeWidth: line.width.toDouble(),
-                    ),
-                ],
-              ),
-            fm.MarkerLayer(
-              markers: [
-                for (final m in widget.markers) _osmMarker(m),
-              ],
-            ),
-          ],
-        ),
-        const Positioned(
-          left: 10,
-          bottom: 8,
-          child: IgnorePointer(
-            child: Text(
-              '© OpenStreetMap · CARTO',
-              style: TextStyle(
-                fontSize: 9,
-                color: Color(0x99000000),
-                height: 1,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  fm.Marker _osmMarker(Marker m) {
-    final vehicle = m.markerId.value == 'provider';
-    return fm.Marker(
-      point: ll.LatLng(m.position.latitude, m.position.longitude),
-      width: vehicle ? 44 : 44,
-      height: vehicle ? 44 : 56,
-      alignment: vehicle ? Alignment.center : Alignment.bottomCenter,
-      child: vehicle
-          ? Transform.rotate(
-              angle: m.rotation * math.pi / 180,
-              child: const _VehicleMark(),
-            )
-          : const _PinMark(),
-    );
-  }
-}
-
-class _PinMark extends StatelessWidget {
-  const _PinMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: AppColors.ink,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: const [
-              BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3)),
-            ],
-          ),
-          child: const Center(
-            child: CircleAvatar(radius: 5, backgroundColor: Colors.white),
-          ),
-        ),
-        Container(width: 3, height: 10, color: AppColors.ink),
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: AppColors.ink,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 1.5),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VehicleMark extends StatelessWidget {
-  const _VehicleMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2.5),
-        boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2)),
-        ],
-      ),
-      child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
+    return GoogleMap(
+      initialCameraPosition: widget.initialCameraPosition,
+      onMapCreated: _onCreated,
+      style: kPremiumMapStyle,
+      markers: widget.markers,
+      polylines: widget.polylines,
+      circles: widget.circles,
+      myLocationEnabled: widget.myLocationEnabled,
+      myLocationButtonEnabled: false,
+      liteModeEnabled: widget.liteModeEnabled,
+      padding: widget.padding,
+      scrollGesturesEnabled: widget.scrollGesturesEnabled,
+      zoomGesturesEnabled: widget.zoomGesturesEnabled,
+      rotateGesturesEnabled: widget.rotateGesturesEnabled,
+      tiltGesturesEnabled: widget.tiltGesturesEnabled,
+      zoomControlsEnabled: false,
+      mapToolbarEnabled: false,
+      compassEnabled: false,
+      indoorViewEnabled: false,
+      trafficEnabled: false,
+      buildingsEnabled: false,
+      onCameraMove: widget.onCameraMove,
+      onCameraIdle: widget.onCameraIdle,
+      onCameraMoveStarted: widget.onCameraMoveStarted,
     );
   }
 }

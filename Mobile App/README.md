@@ -17,7 +17,7 @@ flutter run
 | `API_URL` | Next.js API base — use `https://www.mygarage.ug` or `http://YOUR_LAN_IP:3000` |
 | `SUPABASE_URL` | Same as web `NEXT_PUBLIC_SUPABASE_URL` |
 | `SUPABASE_ANON_KEY` | Same as web anon key |
-| `GOOGLE_MAPS_API_KEY` | Maps SDK key |
+| `GOOGLE_MAPS_API_KEY` | Maps SDK key (Android/iOS + Maps JavaScript API for web) |
 | `AUTH_DEEP_LINK_URI` | Default `mygarage://login-callback` |
 | `AUTH_REDIRECT_URI` | HTTPS OAuth bridge (default `{API_URL}/auth/mobile-callback`) |
 

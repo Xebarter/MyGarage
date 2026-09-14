@@ -33,7 +33,10 @@ class AppConfig {
 
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY']?.trim() ?? '';
 
-  static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() ?? '';
+  static String get googleMapsApiKey =>
+      dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() ??
+      dotenv.env['NEXT_PUBLIC_GOOGLE_MAPS_API_KEY']?.trim() ??
+      '';
 
   /// Custom scheme the HTTPS OAuth bridge opens to return into the native app.
   static String get authDeepLinkUri {
