@@ -29,6 +29,7 @@ class ServiceRequestingScreen extends StatefulWidget {
 class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
     with TickerProviderStateMixin {
   static const _kampala = LatLng(0.3476, 32.5825);
+  static const _searchTimeoutSeconds = 150; // 2.5 minutes
   static const _tips = [
     'Matching you with a nearby professional…',
     'Checking who’s available in your area…',
@@ -49,6 +50,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   String? _error;
   int _tipIndex = 0;
   int _seconds = 0;
+  bool _expired = false;
 
   @override
   void initState() {
@@ -57,7 +59,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
       ..repeat();
     _poll = Timer.periodic(const Duration(seconds: 3), (_) => _pollStatus());
     _tipTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
+      if (!mounted || _expired) return;
       setState(() {
         _seconds++;
         if (_seconds % 4 == 0) {
@@ -65,6 +67,9 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
           _tip = _tips[_tipIndex];
         }
       });
+      if (_seconds >= _searchTimeoutSeconds) {
+        unawaited(_pollStatus());
+      }
     });
     unawaited(_pollStatus());
     unawaited(_loadPin());
@@ -86,6 +91,17 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
     super.dispose();
   }
 
+  void _markExpired({required String statusText, required String tip}) {
+    _poll?.cancel();
+    _tipTimer?.cancel();
+    _radar.stop();
+    setState(() {
+      _expired = true;
+      _status = statusText;
+      _tip = tip;
+    });
+  }
+
   Future<void> _pollStatus() async {
     final auth = context.read<AuthController>();
     final customerId = auth.customerId;
@@ -105,10 +121,18 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
         _error = null;
       });
 
+      if (status == 'expired') {
+        _markExpired(
+          statusText: 'No provider found',
+          tip: 'This search expired after 2.5 minutes. Request again to keep looking.',
+        );
+        return;
+      }
       if (status == 'cancelled' || status == 'canceled') {
-        setState(() => _status = 'Request cancelled');
-        _poll?.cancel();
-        _radar.stop();
+        _markExpired(
+          statusText: 'Request cancelled',
+          tip: 'You can request again whenever you’re ready.',
+        );
         return;
       }
       if (hasProvider ||
@@ -152,6 +176,10 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
     }
   }
 
+  void _requestAgain() {
+    context.go('/services');
+  }
+
   LatLng get _center {
     final r = _request;
     if (r?.destinationLat != null && r?.destinationLng != null) {
@@ -174,6 +202,9 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
         _map?.moveTo(dest, zoom: 15.5);
       });
     }
+
+    final remaining = (_searchTimeoutSeconds - _seconds).clamp(0, _searchTimeoutSeconds);
+    final progress = _expired ? 1.0 : (_seconds / _searchTimeoutSeconds).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -200,23 +231,23 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
               },
             ),
           ),
-          // Searching radar overlay (SafeBoda-style pulse)
-          IgnorePointer(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _radar,
-                builder: (context, _) {
-                  return CustomPaint(
-                    size: const Size(280, 280),
-                    painter: _RadarPainter(
-                      progress: _radar.value,
-                      color: AppColors.primary,
-                    ),
-                  );
-                },
+          if (!_expired)
+            IgnorePointer(
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _radar,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      size: const Size(280, 280),
+                      painter: _RadarPainter(
+                        progress: _radar.value,
+                        color: AppColors.primary,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -227,8 +258,8 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   shape: const CircleBorder(),
                   elevation: 3,
                   child: IconButton(
-                    tooltip: 'Stop search',
-                    onPressed: _cancelSearch,
+                    tooltip: _expired ? 'Back' : 'Stop search',
+                    onPressed: _expired ? _requestAgain : _cancelSearch,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ),
@@ -268,10 +299,15 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppColors.primarySoft,
+                          color: _expired
+                              ? AppColors.danger.withValues(alpha: 0.12)
+                              : AppColors.primarySoft,
                           borderRadius: BorderRadius.circular(AppRadii.md),
                         ),
-                        child: const Icon(Icons.radar_rounded, color: AppColors.primary),
+                        child: Icon(
+                          _expired ? Icons.timer_off_rounded : Icons.radar_rounded,
+                          color: _expired ? AppColors.danger : AppColors.primary,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -343,9 +379,10 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
+                      value: progress,
                       minHeight: 4,
                       backgroundColor: AppColors.borderSoft,
-                      color: AppColors.primary,
+                      color: _expired ? AppColors.danger : AppColors.primary,
                     ),
                   ),
                   if (_error != null) ...[
@@ -357,15 +394,25 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   ],
                   const SizedBox(height: 10),
                   Text(
-                    'We’ll keep looking until a provider accepts — or you stop the search.',
+                    _expired
+                        ? 'Start a new request to search for providers again.'
+                        : remaining > 0
+                            ? 'Searching for up to ${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')} — or stop anytime.'
+                            : 'Finishing search…',
                     textAlign: TextAlign.center,
                     style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 14),
-                  OutlinedButton(
-                    onPressed: _cancelSearch,
-                    child: const Text('Stop searching'),
-                  ),
+                  if (_expired)
+                    FilledButton(
+                      onPressed: _requestAgain,
+                      child: const Text('Request again'),
+                    )
+                  else
+                    OutlinedButton(
+                      onPressed: _cancelSearch,
+                      child: const Text('Stop searching'),
+                    ),
                 ],
               ),
             ),

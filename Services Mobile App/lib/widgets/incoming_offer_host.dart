@@ -122,7 +122,7 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
       barrierDismissible: false,
       barrierLabel: 'Incoming job offer',
       barrierColor: AppColors.ink,
-      transitionDuration: const Duration(milliseconds: 280),
+      transitionDuration: Duration.zero,
       pageBuilder: (context, animation, secondary) {
         return SafeArea(
           child: IncomingOfferScreen(
@@ -169,26 +169,20 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
     if (_responding) return;
     _responding = true;
     try {
-      // Capture id before respond clears the offer.
-      final knownId = _dispatch?.offer?.requestId.isNotEmpty == true
-          ? _dispatch!.offer!.requestId
-          : _dispatch?.offer?.request?.id;
+      final dispatch = context.read<DispatchController>();
+      final knownId = dispatch.offer?.requestId.isNotEmpty == true
+          ? dispatch.offer!.requestId
+          : dispatch.offer?.request?.id;
 
-      final tripId = await context.read<DispatchController>().respondToOffer(action);
-      await JobAlertService.instance.stop();
+      // Instant: clear offer, stop ringer, seed active job (accept).
+      final handle = dispatch.respondToOfferNow(action);
       if (!mounted) return;
 
       if (action == 'accept') {
-        final id = (tripId != null && tripId.isNotEmpty)
-            ? tripId
+        final dest = (handle.tripId != null && handle.tripId!.isNotEmpty)
+            ? handle.tripId
             : knownId;
-        final job = context.read<DispatchController>().activeJob;
-        final dest = (id != null && id.isNotEmpty) ? id : job?.id;
         if (dest != null && dest.isNotEmpty) {
-          // After the dialog is fully torn down, navigate on the next frame so
-          // GoRouter/root navigator are free (builder context + general dialog).
-          await Future<void>.delayed(const Duration(milliseconds: 16));
-          if (!mounted) return;
           _openTrip(dest);
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -196,17 +190,22 @@ class _IncomingOfferHostState extends State<IncomingOfferHost>
           );
         }
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(userFacingError(e, fallback: 'Could not respond to this offer.')),
-        ),
-      );
-      final still = context.read<DispatchController>().offer;
-      if (still != null) {
-        _presentedOfferId = null;
-        _onDispatchChanged();
+
+      // Confirm with server in the background of this flow.
+      try {
+        await handle.done;
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userFacingError(e, fallback: 'Could not respond to this offer.')),
+          ),
+        );
+        final still = context.read<DispatchController>().offer;
+        if (still != null) {
+          _presentedOfferId = null;
+          _onDispatchChanged();
+        }
       }
     } finally {
       _responding = false;

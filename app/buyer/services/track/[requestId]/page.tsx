@@ -72,7 +72,7 @@ function formatStatusLabel(status: string) {
 
 function statusBadgeProps(status: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string } {
   const s = status.toLowerCase();
-  if (s === 'cancelled') return { variant: 'destructive' };
+  if (s === 'cancelled' || s === 'expired') return { variant: 'destructive' };
   if (s === 'completed') return { variant: 'secondary', className: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-400' };
   if (s === 'in_progress' || s === 'matched') return { variant: 'default' };
   if (s === 'pending') return { variant: 'outline', className: 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200' };
@@ -193,6 +193,22 @@ export default function ServiceTrackPage() {
   const loadRef = useRef(load);
   loadRef.current = load;
 
+  // When search window ends, refresh so the server can mark the request expired.
+  useEffect(() => {
+    const createdAt = data?.request?.createdAt;
+    const status = data?.request?.status;
+    if (!createdAt || status !== 'pending') return;
+    const createdMs = Date.parse(createdAt);
+    if (!Number.isFinite(createdMs)) return;
+    const SEARCH_TIMEOUT_MS = 150_000;
+    const remaining = createdMs + SEARCH_TIMEOUT_MS - Date.now();
+    const delay = Math.max(0, remaining) + 250;
+    const timer = window.setTimeout(() => {
+      void loadRef.current();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [data?.request?.createdAt, data?.request?.status]);
+
   useEffect(() => {
     if (!requestId.trim() || !customerId.trim() || !data?.request) return;
     const supabase = createClient();
@@ -273,19 +289,22 @@ export default function ServiceTrackPage() {
         { key: 'done', label: 'Completed', description: 'Service finished', done: false, active: false },
       ];
     }
-    if (r.status === 'cancelled') {
+    if (r.status === 'cancelled' || r.status === 'expired') {
+      const timedOut = r.status === 'expired';
       return [
         {
           key: 'search',
           label: 'Finding a provider',
-          description: 'We looked for an available provider',
+          description: timedOut ? 'We searched for about 2.5 minutes' : 'We looked for an available provider',
           done: true,
           active: false,
         },
         {
           key: 'cancel',
-          label: 'No providers available right now',
-          description: 'Try again shortly or choose a different service',
+          label: timedOut ? 'No provider found in time' : 'Search stopped',
+          description: timedOut
+            ? 'Request again to keep looking for a nearby professional'
+            : 'Try again shortly or choose a different service',
           done: true,
           active: true,
         },
@@ -642,7 +661,7 @@ export default function ServiceTrackPage() {
                     <Radio className="h-4 w-4 text-primary" />
                     <AlertTitle className="text-foreground">Provider notification</AlertTitle>
                     <AlertDescription>
-                      A provider is being notified now. If they decline or do not respond in time, we keep searching for the next available professional until you stop.
+                      A provider is being notified now. If they decline or do not respond in time, we keep searching until someone accepts or this request expires after 2.5 minutes.
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -650,7 +669,7 @@ export default function ServiceTrackPage() {
                     <Radio className="h-4 w-4 text-primary" />
                     <AlertTitle className="text-foreground">Still searching</AlertTitle>
                     <AlertDescription>
-                      No provider accepted yet. We keep looking for an available professional until someone accepts or you stop the search.
+                      No provider accepted yet. We keep looking for up to 2.5 minutes, or until you stop the search.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -662,6 +681,23 @@ export default function ServiceTrackPage() {
                   onClick={() => void stopSearch()}
                 >
                   {cancelling ? 'Stopping…' : 'Stop searching'}
+                </Button>
+              </div>
+            ) : null}
+
+            {data?.request?.status === 'expired' || data?.request?.status === 'cancelled' ? (
+              <div className="mt-4 space-y-3">
+                {data.request.status === 'expired' ? (
+                  <Alert className="border-destructive/30 bg-destructive/[0.04]">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <AlertTitle className="text-foreground">Request expired</AlertTitle>
+                    <AlertDescription>
+                      No provider accepted within 2.5 minutes. Request again to start a new search.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <Button type="button" className="h-11 w-full rounded-xl" asChild>
+                  <Link href="/buyer/services">Request again</Link>
                 </Button>
               </div>
             ) : null}

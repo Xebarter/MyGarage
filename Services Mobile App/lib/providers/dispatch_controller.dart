@@ -34,6 +34,8 @@ class DispatchController extends ChangeNotifier {
   String? statusHint;
   bool offline = false;
   String? _lastOfferId;
+  /// While a respond is in flight, ignore this assignment if the poll still returns it.
+  String? _suppressOfferId;
 
   /// Live GPS of the provider device (for map) — may be fresher than server.
   double? liveProviderLat;
@@ -112,8 +114,20 @@ class DispatchController extends ChangeNotifier {
 
     try {
       final state = await _api.getMe(vendorId);
-      offer = state.offer;
-      activeJob = state.activeJob;
+      final nextOffer = state.offer;
+      if (nextOffer != null &&
+          _suppressOfferId != null &&
+          nextOffer.assignmentId == _suppressOfferId) {
+        offer = null;
+      } else {
+        offer = nextOffer;
+      }
+      // Keep optimistic accepted job while respond is in flight.
+      if (state.activeJob != null) {
+        activeJob = state.activeJob;
+      } else if (_suppressOfferId == null) {
+        activeJob = null;
+      }
       unawaited(_persistDutySession(vendorId));
 
       if (offer != null && offer!.assignmentId != _lastOfferId) {
@@ -168,57 +182,163 @@ class DispatchController extends ChangeNotifier {
     }
   }
 
-  /// Accept or decline the current offer.
-  /// Returns the request id when [action] is accept (for trip navigation).
-  Future<String?> respondToOffer(String action) async {
+  /// Instantly applies accept/decline locally and returns trip id (accept).
+  /// Await [OfferResponseHandle.done] for the server confirmation.
+  OfferResponseHandle respondToOfferNow(String action) {
     final vendorId = _vendorId;
     final current = offer;
-    if (vendorId == null || current == null) return null;
+    if (vendorId == null || current == null) {
+      return OfferResponseHandle(
+        tripId: null,
+        done: Future<void>.value(),
+        snapshot: null,
+      );
+    }
 
     final requestId = current.requestId.isNotEmpty
         ? current.requestId
         : (current.request?.id ?? '');
+    final tripId = action == 'accept' && requestId.isNotEmpty ? requestId : null;
 
-    await _api.respond(
-      assignmentId: current.assignmentId,
-      vendorId: vendorId,
+    _applyOfferResponseLocally(
       action: action,
+      offer: current,
+      vendorId: vendorId,
+      requestId: requestId,
     );
 
-    // Always refresh after respond — wait out any in-flight poll first.
-    await _awaitRefreshIdle();
-    await refresh(silent: true);
-
-    if (action != 'accept' || requestId.isEmpty) return null;
-
-    // Ensure we have an active job for the trip screen (poll race / lag).
-    if (activeJob == null || activeJob!.id != requestId) {
+    final done = () async {
       try {
-        final job = await loadJob(requestId);
-        if (job != null && job.isActive) {
-          activeJob = job;
-          _ensureLocationUpdates();
-          notifyListeners();
+        await _api.respond(
+          assignmentId: current.assignmentId,
+          vendorId: vendorId,
+          action: action,
+        );
+        try {
+          await refresh(silent: true);
+          if (action == 'accept' && requestId.isNotEmpty) {
+            await _hydrateAcceptedJob(requestId);
+          }
+        } finally {
+          _suppressOfferId = null;
         }
-      } catch (_) {
-        // Still navigate — trip screen will load by id.
+      } catch (e) {
+        _restoreOffer(current, clearActiveOnAccept: action == 'accept');
+        rethrow;
       }
-    } else {
-      _ensureLocationUpdates();
-    }
+    }();
 
-    // Optimistic seed so the map has a marker while GPS starts.
-    liveProviderLat ??= activeJob?.providerLat;
-    liveProviderLng ??= activeJob?.providerLng;
-
-    return requestId;
+    return OfferResponseHandle(
+      tripId: tripId,
+      done: done,
+      snapshot: current,
+    );
   }
 
-  Future<void> _awaitRefreshIdle() async {
-    var spins = 0;
-    while (_refreshing && spins < 40) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      spins++;
+  /// Accept or decline — local UI updates immediately; awaits server confirm.
+  /// Prefer [respondToOfferNow] when the caller must navigate before the network.
+  Future<String?> respondToOffer(String action) async {
+    final handle = respondToOfferNow(action);
+    await handle.done;
+    return handle.tripId;
+  }
+
+  void _applyOfferResponseLocally({
+    required String action,
+    required DispatchOffer offer,
+    required String vendorId,
+    required String requestId,
+  }) {
+    _suppressOfferId = offer.assignmentId;
+    this.offer = null;
+    _lastOfferId = null;
+    unawaited(JobAlertService.instance.stop());
+
+    if (action == 'accept' && requestId.isNotEmpty) {
+      activeJob = _seedAcceptedJob(offer, vendorId: vendorId, requestId: requestId);
+      liveProviderLat ??= activeJob?.providerLat;
+      liveProviderLng ??= activeJob?.providerLng;
+      _ensureLocationUpdates();
+    }
+    notifyListeners();
+  }
+
+  void _restoreOffer(DispatchOffer snapshot, {required bool clearActiveOnAccept}) {
+    _suppressOfferId = null;
+    offer = snapshot;
+    _lastOfferId = snapshot.assignmentId;
+    if (clearActiveOnAccept) {
+      final seededId = snapshot.requestId.isNotEmpty
+          ? snapshot.requestId
+          : snapshot.request?.id;
+      if (activeJob != null &&
+          seededId != null &&
+          seededId.isNotEmpty &&
+          activeJob!.id == seededId) {
+        activeJob = null;
+        _stopLocationUpdates();
+        liveProviderLat = null;
+        liveProviderLng = null;
+      }
+    }
+    notifyListeners();
+    unawaited(JobAlertService.instance.startForOffer(snapshot));
+  }
+
+  ServiceRequest _seedAcceptedJob(
+    DispatchOffer offer, {
+    required String vendorId,
+    required String requestId,
+  }) {
+    final r = offer.request;
+    if (r != null) {
+      return ServiceRequest(
+        id: r.id.isNotEmpty ? r.id : requestId,
+        customerId: r.customerId,
+        category: r.category,
+        service: r.service,
+        location: r.location,
+        status: 'matched',
+        providerId: vendorId,
+        vehicleId: r.vehicleId,
+        buyerContactPhone: r.buyerContactPhone,
+        buyerContactName: r.buyerContactName,
+        destinationLat: r.destinationLat,
+        destinationLng: r.destinationLng,
+        providerLat: r.providerLat,
+        providerLng: r.providerLng,
+        acceptedAt: DateTime.now(),
+        arrivedAt: r.arrivedAt,
+        startedAt: r.startedAt,
+        completedAt: r.completedAt,
+        createdAt: r.createdAt,
+        updatedAt: DateTime.now(),
+      );
+    }
+    return ServiceRequest(
+      id: requestId,
+      customerId: '',
+      category: '',
+      service: 'Job',
+      location: '',
+      status: 'matched',
+      providerId: vendorId,
+      acceptedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _hydrateAcceptedJob(String requestId) async {
+    try {
+      final job = await loadJob(requestId);
+      if (job != null && job.isActive) {
+        activeJob = job;
+        _ensureLocationUpdates();
+        liveProviderLat ??= job.providerLat;
+        liveProviderLng ??= job.providerLng;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Trip screen can load by id if hydration fails.
     }
   }
 
@@ -351,4 +471,18 @@ class DispatchController extends ChangeNotifier {
     stop();
     super.dispose();
   }
+}
+
+/// Result of an optimistic offer response — UI can navigate using [tripId]
+/// immediately, then await [done] for server confirmation.
+class OfferResponseHandle {
+  const OfferResponseHandle({
+    required this.tripId,
+    required this.done,
+    required this.snapshot,
+  });
+
+  final String? tripId;
+  final Future<void> done;
+  final DispatchOffer? snapshot;
 }

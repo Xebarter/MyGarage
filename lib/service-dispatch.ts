@@ -11,6 +11,7 @@ import {
   listPendingRequestIdsNeedingOffer,
   listProviderIdsWithActiveFulfillment,
   listProviderIdsWithPendingOffer,
+  listStalePendingSearchRequestIds,
   listVendorsForDispatch,
   type DispatchListingRow,
   type VendorDispatchRow,
@@ -25,6 +26,15 @@ export const DISPATCH_OFFER_TIMEOUT_SECONDS = 90;
 /** After decline/expire, wait before offering the same provider again so we keep searching without spamming. */
 export const DISPATCH_REOFFER_COOLDOWN_SECONDS = 45;
 export const DISPATCH_ONLINE_WINDOW_MS = 120_000;
+/** Whole-search timeout: if no provider accepts within this window, the request expires. */
+export const DISPATCH_SEARCH_TIMEOUT_SECONDS = 150; // 2.5 minutes
+
+export function isBuyerSearchTimedOut(createdAt: string | Date | null | undefined, now = Date.now()): boolean {
+  if (createdAt == null) return false;
+  const t = typeof createdAt === "string" ? Date.parse(createdAt) : createdAt.getTime();
+  if (!Number.isFinite(t)) return false;
+  return now - t >= DISPATCH_SEARCH_TIMEOUT_SECONDS * 1000;
+}
 
 function parseRating(v: number | string): number {
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -151,9 +161,33 @@ export function rankProviderIdsForRequest(
   return [...pool].sort((a, b) => b.score - a.score).map((s) => s.id);
 }
 
+/** Mark pending searches older than DISPATCH_SEARCH_TIMEOUT_SECONDS as expired. */
+export async function expireStalePendingSearches(): Promise<string[]> {
+  const ids = await listStalePendingSearchRequestIds(DISPATCH_SEARCH_TIMEOUT_SECONDS);
+  for (const rid of ids) {
+    await expirePendingAssignmentsForRequest(rid, "search_expired");
+    await updateBuyerRequestDispatchFields(rid, {
+      status: "expired",
+      provider_id: null,
+    });
+  }
+  return ids;
+}
+
+async function expireSearchIfTimedOut(requestId: string, createdAt: string): Promise<boolean> {
+  if (!isBuyerSearchTimedOut(createdAt)) return false;
+  await expirePendingAssignmentsForRequest(requestId, "search_expired");
+  await updateBuyerRequestDispatchFields(requestId, {
+    status: "expired",
+    provider_id: null,
+  });
+  return true;
+}
+
 export async function processStaleOffers(): Promise<void> {
+  await expireStalePendingSearches();
   const expiredTimeout = await expireStalePendingAssignments(DISPATCH_OFFER_TIMEOUT_SECONDS);
-  const unassigned = await listPendingRequestIdsNeedingOffer();
+  const unassigned = await listPendingRequestIdsNeedingOffer(DISPATCH_SEARCH_TIMEOUT_SECONDS);
   const requestIds = [...new Set([...expiredTimeout, ...unassigned])];
   for (const rid of requestIds) {
     await offerNextProviderIfNeeded(rid);
@@ -172,7 +206,7 @@ export async function processStaleOffersBestEffort(): Promise<void> {
 /**
  * Providers temporarily skipped for this request.
  * Declined/expired are soft-excluded only during cooldown so search continues
- * until a match or the buyer cancels (status leaves pending).
+ * until a match, the buyer cancels, or the search times out (status leaves pending).
  */
 async function getExcludedProviderIds(requestId: string, now = Date.now()): Promise<Set<string>> {
   const assignments = await listAssignmentsForRequest(requestId);
@@ -233,8 +267,9 @@ async function assignAndNotify(requestId: string, vendorId: string): Promise<voi
 
 export async function offerNextProviderIfNeeded(requestId: string): Promise<void> {
   const request = await getBuyerServiceRequestFullRow(requestId);
-  // Buyer cancel (or match) stops the search loop.
+  // Buyer cancel, search timeout, or match stops the search loop.
   if (!request || request.status !== "pending") return;
+  if (await expireSearchIfTimedOut(requestId, request.created_at)) return;
 
   const existing = await listAssignmentsForRequest(requestId);
   const hasPending = existing.some((a) => a.response === "pending");
@@ -319,10 +354,14 @@ export async function claimNextOfferForVendor(vendorId: string): Promise<void> {
   if (busy) return;
 
   const current = await getPendingAssignmentForVendor(id);
-  if (current) return;
+  if (current) {
+    if (!(await expireSearchIfTimedOut(current.request.id, current.request.created_at))) {
+      return;
+    }
+  }
 
   const [needing, listings, vendors] = await Promise.all([
-    listPendingRequestIdsNeedingOffer(),
+    listPendingRequestIdsNeedingOffer(DISPATCH_SEARCH_TIMEOUT_SECONDS),
     listActiveVendorListingsForDispatch(),
     listVendorsForDispatch(),
   ]);
@@ -332,6 +371,7 @@ export async function claimNextOfferForVendor(vendorId: string): Promise<void> {
   for (const requestId of needing) {
     const request = await getBuyerServiceRequestFullRow(requestId);
     if (!request || request.status !== "pending") continue;
+    if (await expireSearchIfTimedOut(requestId, request.created_at)) continue;
     if (!vendorMatchesRequest(id, request.category, request.service, listings, offerings)) continue;
     const excluded = await getExcludedProviderIds(requestId);
     if (excluded.has(id)) continue;
@@ -365,6 +405,11 @@ export async function respondToDispatchOffer(
 
   const request = await getBuyerServiceRequestFullRow(assignment.request_id);
   if (!request) return { ok: false, error: "Request not found" };
+
+  if (request.status !== "pending" || (await expireSearchIfTimedOut(request.id, request.created_at))) {
+    await updateAssignmentResponse(assignmentId, "expired", "search_expired");
+    return { ok: false, error: "This request is no longer available" };
+  }
 
   if (action === "decline") {
     await updateAssignmentResponse(assignmentId, "declined");

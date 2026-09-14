@@ -39,7 +39,7 @@ type BuyerServiceRequest = {
   category: string;
   service: string;
   location: string;
-  status: 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
   providerId?: string | null;
   acceptedAt?: string | null;
   arrivedAt?: string | null;
@@ -75,6 +75,7 @@ function statusRank(status: BuyerServiceRequest['status']): number {
     case 'completed':
       return 4;
     case 'cancelled':
+    case 'expired':
       return 5;
     default:
       return 3;
@@ -134,6 +135,12 @@ function serviceStatusPresentation(status: BuyerServiceRequest['status']): {
         borderClass: 'border-l-muted-foreground',
         badgeClass: 'border-border bg-muted text-muted-foreground font-medium',
       };
+    case 'expired':
+      return {
+        label: 'Expired',
+        borderClass: 'border-l-orange-500',
+        badgeClass: 'border-orange-500/35 bg-orange-500/10 text-orange-950 dark:text-orange-100 font-medium',
+      };
     default:
       return {
         label: status,
@@ -150,7 +157,7 @@ function buildServiceHistoryList(requests: BuyerServiceRequest[], tab: ServiceHi
   } else if (tab === 'completed') {
     list = list.filter((r) => r.status === 'completed');
   } else if (tab === 'cancelled') {
-    list = list.filter((r) => r.status === 'cancelled');
+    list = list.filter((r) => r.status === 'cancelled' || r.status === 'expired');
   }
 
   if (tab === 'all') {
@@ -169,7 +176,14 @@ function normalizeBuyerServiceRequest(raw: Record<string, unknown>): BuyerServic
   const id = typeof raw.id === 'string' ? raw.id : null;
   if (!id) return null;
   const statusRaw = String(raw.status ?? '');
-  const allowed: BuyerServiceRequest['status'][] = ['pending', 'matched', 'in_progress', 'completed', 'cancelled'];
+  const allowed: BuyerServiceRequest['status'][] = [
+    'pending',
+    'matched',
+    'in_progress',
+    'completed',
+    'cancelled',
+    'expired',
+  ];
   const status = allowed.includes(statusRaw as BuyerServiceRequest['status'])
     ? (statusRaw as BuyerServiceRequest['status'])
     : 'pending';
@@ -687,7 +701,7 @@ function BuyerServicesPageInner() {
       all: requests.length,
       open,
       completed: requests.filter((r) => r.status === 'completed').length,
-      cancelled: requests.filter((r) => r.status === 'cancelled').length,
+      cancelled: requests.filter((r) => r.status === 'cancelled' || r.status === 'expired').length,
     };
   }, [requests]);
 

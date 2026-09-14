@@ -30,6 +30,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
   late Duration _remaining;
   Timer? _timer;
   bool _expiredHandled = false;
+  bool _closing = false;
   BitmapDescriptor? _pinIcon;
 
   bool _onKey(KeyEvent event) {
@@ -40,6 +41,19 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
       return false;
     }
     return false;
+  }
+
+  void _choose(String action) {
+    if (_closing) return;
+    _closing = true;
+    if (action == 'accept') {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+    // Kill the ringer immediately — don't wait for dialog teardown / network.
+    unawaited(JobAlertService.instance.stop());
+    Navigator.of(context).pop(action);
   }
 
   @override
@@ -280,10 +294,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                           borderRadius: BorderRadius.circular(AppRadii.md),
                         ),
                       ),
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        Navigator.of(context).pop('accept');
-                      },
+                      onPressed: _closing ? null : () => _choose('accept'),
                       child: Text(
                         'Accept job',
                         style: AppTheme.host(
@@ -305,10 +316,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
                           borderRadius: BorderRadius.circular(AppRadii.md),
                         ),
                       ),
-                      onPressed: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.of(context).pop('decline');
-                      },
+                      onPressed: _closing ? null : () => _choose('decline'),
                       child: Text(
                         'Decline',
                         style: AppTheme.host(fontWeight: FontWeight.w700, color: AppColors.danger),

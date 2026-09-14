@@ -433,12 +433,12 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
   };
 
   const upcomingServices = useMemo(
-    () => data?.serviceRequests.filter((r) => !['completed', 'cancelled'].includes(r.status)) ?? [],
+    () => data?.serviceRequests.filter((r) => !['completed', 'cancelled', 'expired'].includes(r.status)) ?? [],
     [data],
   );
 
   const pastServices = useMemo(
-    () => data?.serviceRequests.filter((r) => ['completed', 'cancelled'].includes(r.status)) ?? [],
+    () => data?.serviceRequests.filter((r) => ['completed', 'cancelled', 'expired'].includes(r.status)) ?? [],
     [data],
   );
 

@@ -93,15 +93,18 @@ export async function updateAssignmentResponse(
   if (error) throw new Error(error.message);
 }
 
-/** Expire any open offers when the buyer stops searching / cancels. */
-export async function expirePendingAssignmentsForRequest(requestId: string): Promise<void> {
+/** Expire any open offers when the buyer stops searching / cancels / search times out. */
+export async function expirePendingAssignmentsForRequest(
+  requestId: string,
+  responseNote: string = "buyer_cancelled",
+): Promise<void> {
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("service_request_assignments")
     .update({
       response: "expired",
       responded_at: new Date().toISOString(),
-      response_note: "buyer_cancelled",
+      response_note: responseNote,
     })
     .eq("request_id", requestId)
     .eq("response", "pending");
@@ -207,14 +210,20 @@ export async function listActiveVendorListingsForDispatch(): Promise<DispatchLis
   }
 }
 
-export async function listPendingRequestIdsNeedingOffer(): Promise<string[]> {
+/** Pending requests still inside the search window that have no open provider offer. */
+export async function listPendingRequestIdsNeedingOffer(searchTimeoutSeconds?: number): Promise<string[]> {
   const supabase = createAdminClient();
-  const { data: pending, error } = await supabase
+  let query = supabase
     .from("buyer_service_requests")
     .select("id")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(80);
+  if (searchTimeoutSeconds != null && searchTimeoutSeconds > 0) {
+    const minCreatedAt = new Date(Date.now() - searchTimeoutSeconds * 1000).toISOString();
+    query = query.gte("created_at", minCreatedAt);
+  }
+  const { data: pending, error } = await query;
   if (error) throw new Error(error.message);
   const ids = ((pending as Array<{ id: string }> | null) ?? []).map((row) => row.id);
   if (ids.length === 0) return [];
@@ -227,6 +236,21 @@ export async function listPendingRequestIdsNeedingOffer(): Promise<string[]> {
   if (openErr) throw new Error(openErr.message);
   const blocked = new Set(((open as Array<{ request_id: string }> | null) ?? []).map((row) => row.request_id));
   return ids.filter((id) => !blocked.has(id));
+}
+
+/** Pending buyer searches older than the search timeout (eligible to expire). */
+export async function listStalePendingSearchRequestIds(timeoutSeconds: number): Promise<string[]> {
+  const supabase = createAdminClient();
+  const cutoff = new Date(Date.now() - timeoutSeconds * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("buyer_service_requests")
+    .select("id")
+    .eq("status", "pending")
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return ((data as Array<{ id: string }> | null) ?? []).map((row) => row.id);
 }
 
 export async function expirePendingAssignmentsForOfflineVendors(onlineVendorIds: Set<string>): Promise<string[]> {

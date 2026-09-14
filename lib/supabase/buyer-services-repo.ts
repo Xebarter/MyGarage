@@ -11,7 +11,7 @@ export interface BuyerServiceRequest {
   category: string;
   service: string;
   location: string;
-  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled" | "expired";
   providerId: string | null;
   vehicleId: string | null;
   acceptedAt: Date | null;
@@ -44,7 +44,7 @@ type BuyerServiceRequestRow = {
   category: string;
   service: string;
   location: string;
-  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "matched" | "in_progress" | "completed" | "cancelled" | "expired";
   provider_id: string | null;
   vehicle_id: string | null;
   accepted_at: string | null;

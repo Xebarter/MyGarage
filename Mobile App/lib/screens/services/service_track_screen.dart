@@ -217,6 +217,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
     if (s == 'matched') return 'Provider is on the way';
     if (s == 'in_progress') return 'Service in progress';
     if (s == 'completed') return 'Service completed';
+    if (s == 'expired') return 'No provider found';
     if (s == 'cancelled' || s == 'canceled') return 'Request cancelled';
     return 'Tracking your request';
   }
@@ -227,6 +228,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
     if (s == 'matched') return 'En route';
     if (s == 'in_progress') return 'Working';
     if (s == 'completed') return 'Done';
+    if (s == 'expired') return 'Expired';
     if (s == 'cancelled' || s == 'canceled') return 'Cancelled';
     return s.isEmpty ? 'Active' : '${s[0].toUpperCase()}${s.substring(1)}';
   }
@@ -290,8 +292,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
     final provider = (request.providerLat != null && request.providerLng != null)
         ? LatLng(request.providerLat!, request.providerLng!)
         : null;
-    final searching =
-        request.status == 'pending' || provider == null && request.status != 'completed';
+    final searching = request.status == 'pending';
     final center = provider ?? dest ?? const LatLng(0.3476, 32.5825);
     final phone = _providerContact?.phone ?? '';
     final name = (_providerContact?.businessName?.isNotEmpty == true)
@@ -485,13 +486,29 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
                   if (request.status == 'pending') ...[
                     const SizedBox(height: 14),
                     Text(
-                      'We keep searching until a provider accepts — or you stop.',
+                      'We search for up to 2.5 minutes — or until you stop.',
                       style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.35),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: _stopSearch,
                       child: const Text('Stop searching'),
+                    ),
+                  ],
+                  if (request.status == 'expired' ||
+                      request.status == 'cancelled' ||
+                      request.status == 'canceled') ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      request.status == 'expired'
+                          ? 'No provider accepted within 2.5 minutes. Request again to keep looking.'
+                          : 'This search was stopped. Request again when you’re ready.',
+                      style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.35),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => context.go('/services'),
+                      child: const Text('Request again'),
                     ),
                   ],
                   if (!searching && _providerContact != null) ...[

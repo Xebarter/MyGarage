@@ -69,18 +69,26 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
   Future<void> _respond(String action) async {
     if (_busy) return;
     setState(() => _busy = true);
-    try {
-      final knownId = widget.offer.requestId.isNotEmpty
-          ? widget.offer.requestId
-          : widget.offer.request?.id;
-      final tripId = await context.read<DispatchController>().respondToOffer(action);
-      if (!mounted) return;
-      if (action == 'accept') {
-        final id = (tripId != null && tripId.isNotEmpty) ? tripId : knownId;
-        if (id != null && id.isNotEmpty) {
-          context.go('/trip/$id');
-        }
+    final dispatch = context.read<DispatchController>();
+    final knownId = widget.offer.requestId.isNotEmpty
+        ? widget.offer.requestId
+        : widget.offer.request?.id;
+
+    // Instant local clear + stop alert; navigate before network.
+    final handle = dispatch.respondToOfferNow(action);
+    if (!mounted) return;
+
+    if (action == 'accept') {
+      final id = (handle.tripId != null && handle.tripId!.isNotEmpty)
+          ? handle.tripId
+          : knownId;
+      if (id != null && id.isNotEmpty) {
+        context.go('/trip/$id');
       }
+    }
+
+    try {
+      await handle.done;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
