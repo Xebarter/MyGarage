@@ -127,8 +127,8 @@ export async function POST(req: NextRequest) {
 
     const lineTotals = parsedItems.map((item) => Math.round(Number(item.price) * Number(item.quantity)));
     const subtotal = lineTotals.reduce((sum, v) => sum + v, 0);
-    const tax = Math.round(subtotal * 0.08);
-    const total = subtotal + tax;
+    const tax = 0;
+    const total = subtotal;
 
     const minUgx = getPaytotaMinPurchaseUgx();
     if (minUgx != null && total < minUgx) {
@@ -187,7 +187,6 @@ export async function POST(req: NextRequest) {
       name: item.name,
       price: String(lineTotals[idx]!),
     }));
-    if (tax > 0) paytotaProducts.push({ name: "Tax", price: String(tax) });
 
     const purchasePayload: Record<string, unknown> = {
       client: {

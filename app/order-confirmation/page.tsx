@@ -122,10 +122,6 @@ export default function OrderConfirmationPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium text-foreground">UGX {order.subtotal.toFixed(0)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax</span>
-                <span className="font-medium text-foreground">UGX {order.tax.toFixed(0)}</span>
-              </div>
               <div className="flex justify-between text-sm font-semibold text-base pt-2 border-t border-border">
                 <span className="text-foreground">Total</span>
                 <span className="text-foreground">UGX {order.total.toFixed(0)}</span>
@@ -133,20 +129,14 @@ export default function OrderConfirmationPage() {
             </div>
           </div>
 
-          {/* Shipping Information */}
           <div className="bg-card rounded-lg border border-border p-8 mb-8">
             <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Truck className="w-5 h-5 text-primary" />
-              Shipping Information
+              Contact information
             </h3>
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-muted-foreground uppercase tracking-wide font-medium mb-1">Recipient</p>
                 <p className="text-foreground font-medium">{order.customerName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground uppercase tracking-wide font-medium mb-1">Address</p>
-                <p className="text-foreground">{order.shippingAddress}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground uppercase tracking-wide font-medium mb-1">Email</p>

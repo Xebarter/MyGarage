@@ -48,8 +48,7 @@ export default function CartPage() {
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = Math.round(subtotal * 0.08);
-  const total = subtotal + tax;
+  const total = subtotal;
 
   if (loading) {
     return (
@@ -160,14 +159,6 @@ export default function CartPage() {
                   <div className="flex justify-between text-muted-foreground">
                     <span>Subtotal</span>
                     <span>UGX {subtotal.toFixed(0)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Tax (8%)</span>
-                    <span>UGX {tax.toFixed(0)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Shipping</span>
-                    <span>FREE</span>
                   </div>
                 </div>
 

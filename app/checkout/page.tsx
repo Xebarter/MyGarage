@@ -18,7 +18,6 @@ export default function CheckoutPage() {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
-    shippingAddress: '',
     promoCode: '',
   });
 
@@ -33,12 +32,10 @@ export default function CheckoutPage() {
     setLoading(false);
   }, [router]);
 
-  const { lineTotals, subtotal, tax, total } = useMemo(() => {
+  const { lineTotals, subtotal, total } = useMemo(() => {
     const nextLineTotals = cartItems.map((item) => Math.round(Number(item.price) * Number(item.quantity)));
     const nextSubtotal = nextLineTotals.reduce((sum, v) => sum + v, 0);
-    const nextTax = Math.round(nextSubtotal * 0.08);
-    const nextTotal = nextSubtotal + nextTax;
-    return { lineTotals: nextLineTotals, subtotal: nextSubtotal, tax: nextTax, total: nextTotal };
+    return { lineTotals: nextLineTotals, subtotal: nextSubtotal, total: nextSubtotal };
   }, [cartItems]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -63,7 +60,6 @@ export default function CheckoutPage() {
           customerName: formData.customerName,
           customerEmail: formData.customerEmail,
           customerPhone: formData.customerPhone,
-          shippingAddress: formData.shippingAddress,
           successRedirect: undefined,
           failureRedirect: undefined,
         }),
@@ -204,14 +200,6 @@ export default function CheckoutPage() {
                     <span>Subtotal</span>
                     <span className="text-foreground font-medium">UGX {subtotal.toFixed(0)}</span>
                   </div>
-                  <div className="flex justify-between text-muted-foreground text-sm">
-                    <span>Tax (8%)</span>
-                    <span className="text-foreground font-medium">UGX {tax.toFixed(0)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground text-sm">
-                    <span>Shipping</span>
-                    <span className="text-foreground font-medium">FREE</span>
-                  </div>
                   <div className="flex justify-between items-center pt-3 border-t border-border mt-2">
                     <span className="text-base font-semibold text-foreground">Total</span>
                     <span className="text-2xl font-bold text-foreground">UGX {total.toFixed(0)}</span>
@@ -223,9 +211,8 @@ export default function CheckoutPage() {
             {/* Checkout Form */}
             <div className="order-2 lg:order-1 lg:col-span-2">
               <form id="checkoutForm" onSubmit={handleSubmit} className="space-y-6">
-                {/* Shipping Information */}
                 <div className="bg-card rounded-2xl border border-border p-5 sm:p-6">
-                  <h2 className="text-lg font-semibold text-foreground mb-4">Shipping Information</h2>
+                  <h2 className="text-lg font-semibold text-foreground mb-4">Contact information</h2>
 
                   <div className="space-y-4">
                     <div>
@@ -281,25 +268,6 @@ export default function CheckoutPage() {
                         }}
                         className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
                         placeholder="2567XXXXXXXX"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="shippingAddress" className="block text-sm font-medium text-foreground mb-2">
-                        Shipping Address
-                      </label>
-                      <textarea
-                        id="shippingAddress"
-                        required
-                        rows={4}
-                        autoComplete="street-address"
-                        value={formData.shippingAddress}
-                        onChange={(e) => {
-                          setFormError(null);
-                          setFormData({ ...formData, shippingAddress: e.target.value });
-                        }}
-                        className="w-full px-4 py-3 border border-border rounded-xl bg-background text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
-                        placeholder="Street address, city, state, ZIP"
                       />
                     </div>
                   </div>
