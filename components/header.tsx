@@ -173,7 +173,7 @@ function HeaderProfileMenuBody({
         <div className="space-y-0.5 p-2">
           <ProfileMenuItem href="/buyer" icon={ShoppingBag} label="Buyer" accent="buyer" />
           <ProfileMenuItem href="/vendor" icon={Store} label="Vendor" accent="vendor" />
-          <ProfileMenuItem href="/services/orders" icon={Wrench} label="Services" accent="services" />
+          <ProfileMenuItem href="/services/orders" icon={Wrench} label="Service Provider" accent="services" />
           {userHasAdminPortalAccess(authUser) ? (
             <ProfileMenuItem href="/admin" icon={Shield} label="Admin" accent="admin" />
           ) : null}
@@ -196,7 +196,7 @@ function HeaderProfileMenuBody({
         <ProfileMenuItem
           href="/auth?role=services&next=/services/orders"
           icon={Wrench}
-          label="Services"
+          label="Service Provider"
           accent="services"
         />
       </div>
