@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ChevronDown,
   ChevronRight,
@@ -152,9 +152,11 @@ function ProfileMenuItem({
 function HeaderProfileMenuBody({
   authUser,
   onSignOut,
+  returnTo,
 }: {
   authUser: User | null;
   onSignOut: () => void;
+  returnTo?: string;
 }) {
   if (authUser) {
     const email = authUser.email ?? '';
@@ -191,7 +193,7 @@ function HeaderProfileMenuBody({
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Sign in</p>
       </div>
       <div className="space-y-0.5 p-2">
-        <ProfileMenuItem href="/auth?role=buyer&next=/buyer" icon={ShoppingBag} label="Buyer" accent="buyer" />
+        <ProfileMenuItem href={`/auth?role=buyer&next=${encodeURIComponent(returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/buyer')}`} icon={ShoppingBag} label="Buyer" accent="buyer" />
         <ProfileMenuItem href="/auth?role=vendor&next=/vendor" icon={Store} label="Vendor" accent="vendor" />
         <ProfileMenuItem
           href="/auth?role=services&next=/services/orders"
@@ -206,6 +208,11 @@ function HeaderProfileMenuBody({
 
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
+  const authReturnTo =
+    pathname && pathname.startsWith('/') && !pathname.startsWith('//') && !pathname.startsWith('/auth')
+      ? pathname
+      : '/buyer';
   const [pinned, setPinned] = useState(false)
   const [hoverOpen, setHoverOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -284,6 +291,7 @@ export function Header() {
 
   const suggestionsBlurCloseTimerRef = useRef<number | null>(null);
   const mobileSearchFieldRef = useRef<HTMLDivElement | null>(null);
+  const mobileSearchRowRef = useRef<HTMLDivElement | null>(null);
   const [mobileSuggestLayout, setMobileSuggestLayout] = useState<{ top: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
@@ -566,6 +574,7 @@ export function Header() {
   const servicesChrome = useServicesPortalChrome();
   const accountPortalChrome = buyerChrome ?? vendorChrome ?? servicesChrome;
   const inAccountPortal = accountPortalChrome != null;
+  const inBuyerPortal = buyerChrome != null;
   const accountPortalHome = buyerChrome
     ? '/buyer'
     : vendorChrome
@@ -573,6 +582,33 @@ export function Header() {
       : servicesChrome
         ? '/services'
         : '/';
+
+  const setBuyerMobileNavInsetTop = buyerChrome?.setMobileNavInsetTop;
+
+  useLayoutEffect(() => {
+    if (!setBuyerMobileNavInsetTop) return;
+    const el = mobileSearchRowRef.current;
+    if (!el) return;
+
+    const update = () => {
+      if (window.matchMedia('(min-width: 768px)').matches) return;
+      const bottom = Math.max(0, Math.round(el.getBoundingClientRect().bottom));
+      setBuyerMobileNavInsetTop(bottom);
+    };
+
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
+    };
+  }, [setBuyerMobileNavInsetTop]);
 
   const open = pinned || hoverOpen
 
@@ -690,31 +726,33 @@ export function Header() {
         <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3">
           <div className="flex items-center justify-between h-14">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                aria-label={
-                  inAccountPortal
-                    ? accountPortalChrome?.mobileNavOpen
-                      ? 'Close portal navigation'
-                      : 'Open portal navigation'
-                    : 'Open categories'
-                }
-                aria-expanded={inAccountPortal ? accountPortalChrome?.mobileNavOpen : open}
-                onMouseEnter={inAccountPortal ? undefined : handleHoverOpen}
-                onMouseLeave={inAccountPortal ? undefined : scheduleHoverClose}
-                onClick={handleMobileLeadingAction}
-                className="inline-flex shrink-0 items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
-              >
-                {inAccountPortal ? (
-                  accountPortalChrome?.mobileNavOpen ? (
-                    <X className="h-5 w-5" aria-hidden />
+              {!inBuyerPortal ? (
+                <button
+                  type="button"
+                  aria-label={
+                    inAccountPortal
+                      ? accountPortalChrome?.mobileNavOpen
+                        ? 'Close portal navigation'
+                        : 'Open portal navigation'
+                      : 'Open categories'
+                  }
+                  aria-expanded={inAccountPortal ? accountPortalChrome?.mobileNavOpen : open}
+                  onMouseEnter={inAccountPortal ? undefined : handleHoverOpen}
+                  onMouseLeave={inAccountPortal ? undefined : scheduleHoverClose}
+                  onClick={handleMobileLeadingAction}
+                  className="inline-flex shrink-0 items-center justify-center rounded-md p-2 hover:bg-accent hover:text-accent-foreground transition"
+                >
+                  {inAccountPortal ? (
+                    accountPortalChrome?.mobileNavOpen ? (
+                      <X className="h-5 w-5" aria-hidden />
+                    ) : (
+                      <LayoutDashboard className="h-5 w-5" aria-hidden />
+                    )
                   ) : (
-                    <LayoutDashboard className="h-5 w-5" aria-hidden />
-                  )
-                ) : (
-                  <Menu className="h-5 w-5" aria-hidden />
-                )}
-              </button>
+                    <Menu className="h-5 w-5" aria-hidden />
+                  )}
+                </button>
+              ) : null}
               <Link href={accountPortalHome} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
                 <Image
                   src="/icon0.svg"
@@ -770,7 +808,7 @@ export function Header() {
                 </button>
                 {profileMenuOpen ? (
                   <div className={profileMenuPanelClass}>
-                    <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} />
+                    <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} returnTo={authReturnTo} />
                   </div>
                 ) : null}
               </div>
@@ -915,7 +953,7 @@ export function Header() {
               </button>
               {profileMenuOpen ? (
                 <div className={profileMenuPanelClass}>
-                  <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} />
+                  <HeaderProfileMenuBody authUser={authUser} onSignOut={handleSignOut} returnTo={authReturnTo} />
                 </div>
               ) : null}
             </div>
@@ -923,17 +961,35 @@ export function Header() {
         </div>
       </div>
     </header>
-    <div className="md:hidden sticky top-0 z-40 border-t border-b border-border bg-background">
-      <div className="mx-auto w-full max-w-none px-2 sm:px-2.5 md:px-3 py-2 flex items-center gap-2">
-        <Link
-          href="/buyer/services"
-          className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"
-        >
-          <Siren className="h-4 w-4" />
-          <span>SOS</span>
-        </Link>
+    <div
+      ref={mobileSearchRowRef}
+      className="sticky top-0 z-40 border-t border-b border-border bg-background/95 backdrop-blur-md md:hidden"
+    >
+      <div className="mx-auto flex w-full max-w-none items-center gap-2 px-2 py-2 sm:px-2.5">
+        {inBuyerPortal ? (
+          <button
+            type="button"
+            aria-label={buyerChrome.mobileNavOpen ? 'Close account menu' : 'Open account menu'}
+            aria-expanded={buyerChrome.mobileNavOpen}
+            onClick={() => {
+              if (open) closeSidebar();
+              buyerChrome.toggleMobileNav();
+            }}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background text-foreground shadow-sm transition hover:bg-accent"
+          >
+            {buyerChrome.mobileNavOpen ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
+          </button>
+        ) : (
+          <Link
+            href="/buyer/services"
+            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"
+          >
+            <Siren className="h-4 w-4" />
+            <span>SOS</span>
+          </Link>
+        )}
         <form
-          className="flex flex-1 items-center"
+          className="flex min-w-0 flex-1 items-center"
           onSubmit={(e) => {
             e.preventDefault();
             if (activeSuggestIndex >= 0 && suggestionActions[activeSuggestIndex]) {
@@ -1004,6 +1060,15 @@ export function Header() {
             ) : null}
           </div>
         </form>
+        {inBuyerPortal ? (
+          <Link
+            href="/buyer/services"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-2.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 animate-pulse"
+          >
+            <Siren className="h-4 w-4" />
+            <span>SOS</span>
+          </Link>
+        ) : null}
       </div>
     </div>
     </>

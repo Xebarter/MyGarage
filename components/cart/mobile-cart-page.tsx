@@ -27,7 +27,7 @@ export function MobileCartPage() {
           <div className="flex h-[88px] w-[88px] items-center justify-center rounded-full bg-primary/10 text-primary">
             <ShoppingBag className="h-10 w-10" aria-hidden />
           </div>
-          <p className="mt-5 text-xl font-bold tracking-tight text-[#0B1220]">Your cart is empty</p>
+          <p className="mt-5 text-xl font-bold tracking-tight text-[#12241C]">Your cart is empty</p>
           <p className="mt-2 text-sm leading-relaxed text-[#475569]">
             Browse the shop and add parts you need — they will show up here with photos and totals.
           </p>
@@ -63,7 +63,7 @@ export function MobileCartPage() {
                 const key = cartLineKey(item);
                 return (
                   <li key={key}>
-                    <article className="rounded-[18px] border border-[#EEF2F7] bg-white p-3 shadow-[0_8px_20px_rgba(11,18,32,0.05)]">
+                    <article className="rounded-[18px] border border-[#EEF2F7] bg-white p-3 shadow-[0_8px_20px_rgba(18,36,28,0.05)]">
                       <div className="flex items-start gap-3">
                         <Link
                           href={`/products/${item.id}`}
@@ -79,12 +79,12 @@ export function MobileCartPage() {
                         </Link>
                         <div className="min-w-0 flex-1">
                           <Link href={`/products/${item.id}`} className="block">
-                            <p className="line-clamp-2 text-[15px] font-bold leading-snug tracking-tight text-[#0B1220]">
+                            <p className="line-clamp-2 text-[15px] font-bold leading-snug tracking-tight text-[#12241C]">
                               {item.name}
                             </p>
                           </Link>
                           {item.variantLabel ? (
-                            <p className="mt-1 text-xs text-[#8B9BB0]">{item.variantLabel}</p>
+                            <p className="mt-1 text-xs text-[#7A8B82]">{item.variantLabel}</p>
                           ) : null}
                           <p className="mt-1.5 text-[13px] font-medium text-[#475569]">{formatUgx(item.price)}</p>
                           <p className="mt-2.5 text-base font-bold tracking-tight text-primary">
@@ -94,7 +94,7 @@ export function MobileCartPage() {
                         <button
                           type="button"
                           aria-label="Remove"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center text-[#8B9BB0]"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center text-[#7A8B82]"
                           onClick={() => removeCartLine(key)}
                         >
                           <Trash2 className="h-[22px] w-[22px]" aria-hidden />
@@ -105,7 +105,7 @@ export function MobileCartPage() {
                           <button
                             type="button"
                             aria-label="Decrease quantity"
-                            className="flex h-9 w-9 items-center justify-center text-[#0B1220]"
+                            className="flex h-9 w-9 items-center justify-center text-[#12241C]"
                             onClick={() => setCartLineQuantity(key, item.quantity - 1)}
                           >
                             <Minus className="h-5 w-5" aria-hidden />
@@ -114,13 +114,13 @@ export function MobileCartPage() {
                           <button
                             type="button"
                             aria-label="Increase quantity"
-                            className="flex h-9 w-9 items-center justify-center text-[#0B1220]"
+                            className="flex h-9 w-9 items-center justify-center text-[#12241C]"
                             onClick={() => setCartLineQuantity(key, item.quantity + 1)}
                           >
                             <Plus className="h-5 w-5" aria-hidden />
                           </button>
                         </div>
-                        <p className="text-xs font-semibold text-[#8B9BB0]">Qty {item.quantity}</p>
+                        <p className="text-xs font-semibold text-[#7A8B82]">Qty {item.quantity}</p>
                       </div>
                     </article>
                   </li>
@@ -129,13 +129,13 @@ export function MobileCartPage() {
             </ul>
           </div>
 
-          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-[#EEF2F7] bg-white px-4 pb-3 pt-3.5 shadow-[0_-4px_24px_rgba(11,18,32,0.08)]">
+          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-[#EEF2F7] bg-white px-4 pb-3 pt-3.5 shadow-[0_-4px_24px_rgba(18,36,28,0.08)]">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-[13px] font-medium text-[#475569]">Subtotal</p>
-                <p className="text-[22px] font-extrabold tracking-tight text-[#0B1220]">{formatUgx(subtotal)}</p>
+                <p className="text-[22px] font-extrabold tracking-tight text-[#12241C]">{formatUgx(subtotal)}</p>
               </div>
-              <p className="text-[13px] font-semibold text-[#8B9BB0]">
+              <p className="text-[13px] font-semibold text-[#7A8B82]">
                 {unitCount === 1 ? '1 item' : `${unitCount} items`}
               </p>
             </div>

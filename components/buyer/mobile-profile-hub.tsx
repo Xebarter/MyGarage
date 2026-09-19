@@ -174,20 +174,21 @@ export function MobileProfileHub() {
           <>
             {error ? <p className="mb-2 px-1 text-[13px] text-[#B91C1C]">{error}</p> : null}
 
-            <section className="relative overflow-hidden rounded-[22px] bg-[#0B1220] p-[18px] text-slate-50 shadow-[0_12px_28px_rgba(11,18,32,0.16)]">
-              <div className="absolute inset-x-0 top-0 h-[3px] bg-blue-500" />
+            <section className="relative overflow-hidden rounded-[22px] border border-primary/15 bg-gradient-to-br from-primary/[0.14] via-[#FFF6EA] to-white p-[18px] text-[#12241C] shadow-[0_12px_28px_rgba(18,36,28,0.06)]">
+              <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#E8C56B]/30 blur-2xl" aria-hidden />
+              <div className="absolute inset-x-0 top-0 h-[3px] bg-[#E8C56B]" aria-hidden />
               <div className="relative flex items-center gap-3.5">
-                <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[18px] border border-blue-500/40 bg-white/6 text-2xl font-bold text-blue-300">
+                <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[18px] border border-primary/25 bg-primary/10 text-2xl font-bold text-primary">
                   {(name[0] || 'M').toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-lg font-bold">{name}</p>
-                  <p className="truncate text-[13px] text-slate-400">{displayEmail}</p>
+                  <p className="truncate text-[13px] text-[#7A8B82]">{displayEmail}</p>
                   {profile?.customer.phone ? (
-                    <p className="text-[13px] text-slate-300">{profile.customer.phone}</p>
+                    <p className="text-[13px] text-[#7A8B82]">{profile.customer.phone}</p>
                   ) : null}
                   {membership ? (
-                    <span className="mt-1.5 inline-flex rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11.5px] font-bold text-blue-200">
+                    <span className="mt-1.5 inline-flex rounded-full bg-primary/12 px-2.5 py-0.5 text-[11.5px] font-bold text-[#087A53]">
                       {membership[0]!.toUpperCase()}
                       {membership.slice(1)} plan
                     </span>
@@ -206,15 +207,15 @@ export function MobileProfileHub() {
                   className="mt-3 flex items-center gap-2 rounded-[10px] bg-[#FEF3C7] px-3 py-2.5"
                 >
                   <Bell className="h-[18px] w-[18px] text-[#B45309]" aria-hidden />
-                  <span className="flex-1 text-[13px] font-semibold text-[#0B1220]">
+                  <span className="flex-1 text-[13px] font-semibold text-[#12241C]">
                     You have {unread} unread alert{unread === 1 ? '' : 's'}
                   </span>
-                  <ChevronRight className="h-4 w-4 text-[#8B9BB0]" aria-hidden />
+                  <ChevronRight className="h-4 w-4 text-[#7A8B82]" aria-hidden />
                 </Link>
               ) : null}
             </section>
 
-            <p className="mt-5 px-1 text-[13px] font-bold tracking-wide text-[#8B9BB0]">Quick access</p>
+            <p className="mt-5 px-1 text-[13px] font-bold tracking-wide text-[#7A8B82]">Quick access</p>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {QUICK.map((item) => (
                 <Link
@@ -223,19 +224,19 @@ export function MobileProfileHub() {
                   className="flex flex-col items-center rounded-[14px] border border-border bg-white px-1.5 py-3.5"
                 >
                   <item.icon className="h-[22px] w-[22px] text-primary" aria-hidden />
-                  <span className="mt-1.5 text-center text-xs font-semibold text-[#0B1220]">{item.label}</span>
+                  <span className="mt-1.5 text-center text-xs font-semibold text-[#12241C]">{item.label}</span>
                 </Link>
               ))}
               <button
                 type="button"
                 onClick={() => openConciergeChat()}
-                className="flex flex-col items-center justify-center rounded-[14px] border border-[#236B5C]/20 bg-[#DDEEE8] px-1.5 py-3.5"
+                className="flex flex-col items-center justify-center rounded-[14px] border border-[#0E9A6A]/20 bg-[#D3F6E6] px-1.5 py-3.5"
               >
-                <span className="text-center text-xs font-semibold text-[#16483E]">Concierge</span>
+                <span className="text-center text-xs font-semibold text-[#087A53]">Concierge</span>
               </button>
             </div>
 
-            <p className="mt-6 px-1 text-[13px] font-bold tracking-wide text-[#8B9BB0]">Account center</p>
+            <p className="mt-6 px-1 text-[13px] font-bold tracking-wide text-[#7A8B82]">Account center</p>
             <div className="mt-2 space-y-2">
               {HUB.map((item) => (
                 <Link
@@ -247,8 +248,8 @@ export function MobileProfileHub() {
                     <item.icon className="h-[22px] w-[22px]" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-[#0B1220]">{item.title}</span>
-                    <span className="block text-[12.5px] text-[#8B9BB0]">
+                    <span className="block text-[15px] font-bold text-[#12241C]">{item.title}</span>
+                    <span className="block text-[12.5px] text-[#7A8B82]">
                       {item.title === 'Alerts' && unread > 0
                         ? `${unread} unread · preferences`
                         : item.subtitle}
@@ -259,7 +260,7 @@ export function MobileProfileHub() {
                       {unread}
                     </span>
                   ) : null}
-                  <ChevronRight className="h-5 w-5 text-[#8B9BB0]" aria-hidden />
+                  <ChevronRight className="h-5 w-5 text-[#7A8B82]" aria-hidden />
                 </Link>
               ))}
             </div>
@@ -286,18 +287,19 @@ function localStorageName(): string {
 
 function GuestCard() {
   return (
-    <div className="rounded-[22px] bg-gradient-to-br from-[#1E3A8A] to-[#1E4ED8] p-[22px] text-white shadow-[0_12px_28px_rgba(11,18,32,0.12)]">
+    <div className="relative overflow-hidden rounded-[22px] border border-primary/15 bg-gradient-to-br from-primary/[0.14] via-[#FFF6EA] to-white p-[22px] text-[#12241C] shadow-[0_12px_28px_rgba(18,36,28,0.06)]">
+      <div className="absolute inset-x-0 top-0 h-[3px] bg-[#E8C56B]" aria-hidden />
       <p className="text-[22px] font-bold tracking-tight">Welcome to MyGarage</p>
-      <p className="mt-2 text-[15px] leading-relaxed text-white/88">
+      <p className="mt-2 text-[15px] leading-relaxed text-[#7A8B82]">
         Sign in to manage vehicles, orders, membership, documents, and preferences in one place.
       </p>
       <Link
         href="/auth?role=buyer&next=/buyer/profile"
-        className="mt-[18px] flex h-12 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-[#1E3A8A]"
+        className="mt-[18px] flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
       >
         Sign in
       </Link>
-      <Link href="/buyer/garage" className="mt-2.5 flex h-10 w-full items-center justify-center text-sm font-semibold text-white">
+      <Link href="/buyer/garage" className="mt-2.5 flex h-10 w-full items-center justify-center text-sm font-semibold text-primary">
         Browse garage offline
       </Link>
     </div>
@@ -306,9 +308,9 @@ function GuestCard() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/10 bg-white/6 px-1.5 py-2 text-center">
-      <p className="truncate text-[13.5px] font-bold text-white">{value}</p>
-      <p className="mt-0.5 text-[11px] font-semibold text-slate-400">{label}</p>
+    <div className="min-w-0 rounded-xl border border-black/[0.06] bg-white/70 px-1.5 py-2 text-center">
+      <p className="truncate text-[13.5px] font-bold text-[#12241C]">{value}</p>
+      <p className="mt-0.5 text-[11px] font-semibold text-[#7A8B82]">{label}</p>
     </div>
   );
 }
@@ -337,7 +339,7 @@ export function MobileProfileSectionChrome({
         <Link href="/buyer/profile" className="mb-3 inline-block text-sm font-semibold text-primary">
           ← Profile
         </Link>
-        <h1 className="mb-3 text-lg font-bold text-[#0B1220]">{SECTION_TITLES[tab] ?? 'Profile'}</h1>
+        <h1 className="mb-3 text-lg font-bold text-[#12241C]">{SECTION_TITLES[tab] ?? 'Profile'}</h1>
         {children}
       </div>
     </MobileAppPage>

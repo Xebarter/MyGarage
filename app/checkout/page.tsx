@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { AddressAutocomplete } from '@/components/location/address-autocomplete';
 import { CheckCircle2, ShieldCheck, Wallet, CreditCard, Tag } from 'lucide-react';
+import { rememberAuthNext } from '@/lib/auth-next';
+import { createClient } from '@/lib/supabase/client';
 import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
+import { clearCheckoutDraft, loadCheckoutDraft, saveCheckoutDraft } from '@/lib/checkout-draft';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -18,19 +22,37 @@ export default function CheckoutPage() {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
+    shippingAddress: '',
     promoCode: '',
   });
 
   useEffect(() => {
-    const items = JSON.parse(localStorage.getItem('cartItems') || '[]');
-    if (items.length === 0) {
+    const items = JSON.parse(localStorage.getItem('cartItems') || '[]') as CartLineItem[];
+    if (!Array.isArray(items) || items.length === 0) {
       router.push('/cart');
       setLoading(false);
       return;
     }
     setCartItems(items);
+    const draft = loadCheckoutDraft();
+    const savedName = localStorage.getItem('currentBuyerName') || '';
+    const savedEmail = localStorage.getItem('currentBuyerEmail') || '';
+    const savedPhone = localStorage.getItem('currentBuyerPhone') || '';
+    setFormData((prev) => ({
+      ...prev,
+      customerName: draft?.customerName || prev.customerName || savedName,
+      customerEmail: draft?.customerEmail || prev.customerEmail || savedEmail,
+      customerPhone: draft?.customerPhone || prev.customerPhone || savedPhone,
+      shippingAddress: draft?.shippingAddress || prev.shippingAddress,
+      promoCode: draft?.promoCode || prev.promoCode,
+    }));
     setLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    if (loading) return;
+    saveCheckoutDraft(formData);
+  }, [formData, loading]);
 
   const { lineTotals, subtotal, total } = useMemo(() => {
     const nextLineTotals = cartItems.map((item) => Math.round(Number(item.price) * Number(item.quantity)));
@@ -44,6 +66,17 @@ export default function CheckoutPage() {
     setSubmitting(true);
 
     try {
+      saveCheckoutDraft(formData);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        rememberAuthNext('/checkout');
+        router.push(`/auth?role=buyer&next=${encodeURIComponent('/checkout')}`);
+        return;
+      }
+
       const checkoutItems = cartItems.map((item) => ({
         productId: item.id,
         name: item.variantLabel ? `${item.name} (${item.variantLabel})` : item.name,
@@ -60,6 +93,7 @@ export default function CheckoutPage() {
           customerName: formData.customerName,
           customerEmail: formData.customerEmail,
           customerPhone: formData.customerPhone,
+          shippingAddress: formData.shippingAddress.trim() || undefined,
           successRedirect: undefined,
           failureRedirect: undefined,
         }),
@@ -73,6 +107,7 @@ export default function CheckoutPage() {
       const payment = await response.json();
       // Clear cart immediately to prevent accidental double checkout on mobile.
       localStorage.removeItem('cartItems');
+      clearCheckoutDraft();
       localStorage.setItem('currentBuyerName', formData.customerName);
       localStorage.setItem('currentBuyerEmail', formData.customerEmail);
       localStorage.setItem(
@@ -162,7 +197,7 @@ export default function CheckoutPage() {
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Checkout</h1>
               <p className="text-sm text-muted-foreground">
-                Enter your details once, then complete payment securely with Paytota.
+                Enter your details once, then complete payment securely.
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
@@ -270,6 +305,28 @@ export default function CheckoutPage() {
                         placeholder="2567XXXXXXXX"
                       />
                     </div>
+
+                    <div>
+                      <label htmlFor="shippingAddress" className="block text-sm font-medium text-foreground mb-2">
+                        Delivery address
+                      </label>
+                      <AddressAutocomplete
+                        id="shippingAddress"
+                        name="shippingAddress"
+                        required
+                        value={formData.shippingAddress}
+                        onChange={(shippingAddress) => {
+                          setFormError(null);
+                          setFormData({ ...formData, shippingAddress });
+                        }}
+                        onPlaceSelect={(place) => {
+                          setFormError(null);
+                          setFormData((prev) => ({ ...prev, shippingAddress: place.label }));
+                        }}
+                        placeholder="Search e.g. Ntinda, Kololo, Acacia Mall…"
+                        inputClassName="h-12 rounded-xl"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -280,7 +337,7 @@ export default function CheckoutPage() {
                     Payment Information
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    You will be redirected to the secure Paytota checkout to complete payment.
+                    You will be redirected to a secure checkout to complete payment.
                   </p>
                 </div>
 
@@ -333,7 +390,7 @@ export default function CheckoutPage() {
                     disabled={submitting}
                     className="w-full bg-primary text-primary-foreground py-4 rounded-xl hover:bg-primary/90 transition font-semibold disabled:opacity-50"
                   >
-                    {submitting ? 'Preparing secure checkout...' : 'Continue to Paytota'}
+                    {submitting ? 'Preparing secure checkout...' : 'Continue to Payment'}
                   </button>
                 </div>
               </form>
@@ -355,7 +412,7 @@ export default function CheckoutPage() {
                 disabled={submitting}
                 className="flex-shrink-0 bg-primary text-primary-foreground px-4 py-3 rounded-xl hover:bg-primary/90 transition font-semibold disabled:opacity-50"
               >
-                {submitting ? 'Preparing...' : 'Pay with Paytota'}
+                {submitting ? 'Preparing...' : 'Continue to Payment'}
               </button>
             </div>
           </div>

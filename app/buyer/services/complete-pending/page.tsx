@@ -45,7 +45,16 @@ export default function CompletePendingServiceRequestPage() {
         });
 
         if (!response.ok) {
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          const body = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            code?: string;
+            requestId?: string;
+          };
+          if (body.code === 'ACTIVE_REQUEST_EXISTS' && body.requestId) {
+            clearPendingBuyerServiceRequest();
+            router.replace(`/buyer/services/track/${encodeURIComponent(body.requestId)}`);
+            return;
+          }
           setError(body.error || 'Could not submit your request.');
           return;
         }

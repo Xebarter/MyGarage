@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config.dart';
 import '../../maps/premium_google_map.dart';
 import '../../maps/premium_map_markers.dart';
+import '../../maps/map_coords.dart';
 import '../../models/service_request.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/dispatch_controller.dart';
@@ -320,13 +321,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       );
     }
 
-    final dest = (job.destinationLat != null && job.destinationLng != null)
-        ? LatLng(job.destinationLat!, job.destinationLng!)
-        : null;
+    final dest = parseLatLng(job.destinationLat, job.destinationLng);
     final providerLat = dispatch.liveProviderLat ?? job.providerLat;
     final providerLng = dispatch.liveProviderLng ?? job.providerLng;
-    final provider =
-        (providerLat != null && providerLng != null) ? LatLng(providerLat, providerLng) : null;
+    final provider = parseLatLng(providerLat, providerLng);
     final center = provider ?? dest ?? const LatLng(0.3476, 32.5825);
 
     if (provider != null) {

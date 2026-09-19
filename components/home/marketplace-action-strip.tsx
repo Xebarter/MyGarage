@@ -46,7 +46,7 @@ export function MarketplaceActionStrip({
             className={cn(
               'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition',
               selectedCategory === 'all'
-                ? 'bg-[#0B1220] text-white'
+                ? 'bg-[#12241C] text-white'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -71,7 +71,7 @@ export function MarketplaceActionStrip({
                   className={cn(
                     'shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition',
                     selectedCategory === category
-                      ? 'bg-[#0B1220] text-white'
+                      ? 'bg-[#12241C] text-white'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >

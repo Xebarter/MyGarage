@@ -47,16 +47,16 @@ export function MobileProductDetail({
         </div>
 
         <div className="px-5 py-5">
-          <h1 className="text-[22px] font-bold leading-snug text-[#0B1220]">{product.name}</h1>
+          <h1 className="text-[22px] font-bold leading-snug text-[#12241C]">{product.name}</h1>
           <p className="mt-2 text-lg font-bold text-primary">
             {displayPrice == null ? '—' : formatUgx(displayPrice)}
           </p>
-          {product.brand ? <p className="mt-2 text-sm text-[#8B9BB0]">{product.brand}</p> : null}
+          {product.brand ? <p className="mt-2 text-sm text-[#7A8B82]">{product.brand}</p> : null}
           {product.category ? <p className="mt-1 text-[13px] text-[#475569]">{product.category}</p> : null}
 
           {options ? <div className="mt-5">{options}</div> : null}
 
-          <p className="mt-4 whitespace-pre-wrap text-[15px] leading-[1.45] text-[#0B1220]">
+          <p className="mt-4 whitespace-pre-wrap text-[15px] leading-[1.45] text-[#12241C]">
             {product.description?.trim() ? product.description : 'No description available.'}
           </p>
 
@@ -81,7 +81,7 @@ export function MobileProductDetail({
       </div>
 
       {snack ? (
-        <div className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 rounded-xl bg-[#0B1220] px-4 py-3 text-sm text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 rounded-xl bg-[#12241C] px-4 py-3 text-sm text-white shadow-lg">
           <p>Added to cart</p>
           <Link href="/cart" className="shrink-0 font-semibold text-[#93C5FD]">
             View

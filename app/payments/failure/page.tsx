@@ -27,8 +27,16 @@ export default function PaymentFailurePage() {
         <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm">
           <XCircle className="mx-auto mb-4 h-12 w-12 text-destructive" />
           <h1 className="mb-2 text-2xl font-bold text-foreground">Payment did not complete</h1>
-          <p className="text-sm text-muted-foreground">Returning you to the MyGarage app…</p>
-          <MobileAppPaymentReturn status="failure" checkoutId={params.checkoutId} />
+          <p className="text-sm text-muted-foreground">
+            The payment did not go through. Close this tab and return to MyGarage.
+          </p>
+          <MobileAppPaymentReturn
+            status="failure"
+            checkoutId={params.checkoutId}
+            kind={params.kind}
+            servicePaymentId={params.servicePaymentId}
+            requestId={params.requestId}
+          />
         </div>
       </main>
     );

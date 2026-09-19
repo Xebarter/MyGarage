@@ -162,7 +162,7 @@ class _CartHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$lineCount $productWord · $count $unitWord',
+                  '$lineCount $productWord, $count $unitWord',
                   style: AppTheme.host(
                     color: AppColors.textMuted,
                     fontSize: 13,

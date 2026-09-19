@@ -11,9 +11,11 @@ import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../maps/premium_google_map.dart';
 import '../../maps/premium_map_markers.dart';
+import '../../maps/map_coords.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/active_service_request.dart';
 import '../../utils/user_facing_error.dart';
 
 /// Ride-hailing style “searching for driver” screen with radar + status sheet.
@@ -51,12 +53,21 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   int _tipIndex = 0;
   int _seconds = 0;
   bool _expired = false;
+  bool _restarting = false;
 
   @override
   void initState() {
     super.initState();
-    _radar = AnimationController(vsync: this, duration: const Duration(seconds: 2))
-      ..repeat();
+    _radar = AnimationController(vsync: this, duration: const Duration(seconds: 2));
+    _startSearchLoop();
+    unawaited(_pollStatus());
+    unawaited(_loadPin());
+  }
+
+  void _startSearchLoop() {
+    _poll?.cancel();
+    _tipTimer?.cancel();
+    _radar.repeat();
     _poll = Timer.periodic(const Duration(seconds: 3), (_) => _pollStatus());
     _tipTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _expired) return;
@@ -71,8 +82,6 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
         unawaited(_pollStatus());
       }
     });
-    unawaited(_pollStatus());
-    unawaited(_loadPin());
   }
 
   Future<void> _loadPin() async {
@@ -176,16 +185,45 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
     }
   }
 
-  void _requestAgain() {
-    context.go('/services');
+  Future<void> _requestAgain() async {
+    if (_restarting) return;
+    final auth = context.read<AuthController>();
+    final customerId = auth.customerId;
+    if (customerId == null) {
+      if (mounted) context.go('/services');
+      return;
+    }
+    setState(() => _restarting = true);
+    try {
+      await _api.restartServiceRequestSearch(
+        requestId: widget.requestId,
+        customerId: customerId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _expired = false;
+        _seconds = 0;
+        _tipIndex = 0;
+        _status = 'Finding help nearby';
+        _tip = _tips.first;
+        _error = null;
+        _restarting = false;
+      });
+      _startSearchLoop();
+      unawaited(_pollStatus());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _restarting = false);
+      if (redirectIfActiveRequestExists(context, e)) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not restart this search.'))),
+      );
+    }
   }
 
   LatLng get _center {
     final r = _request;
-    if (r?.destinationLat != null && r?.destinationLng != null) {
-      return LatLng(r!.destinationLat!, r.destinationLng!);
-    }
-    return _kampala;
+    return parseLatLng(r?.destinationLat, r?.destinationLng) ?? _kampala;
   }
 
   @override
@@ -259,7 +297,9 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   elevation: 3,
                   child: IconButton(
                     tooltip: _expired ? 'Back' : 'Stop search',
-                    onPressed: _expired ? _requestAgain : _cancelSearch,
+                    onPressed: _expired
+                        ? () => context.go('/services')
+                        : _cancelSearch,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ),
@@ -395,7 +435,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   const SizedBox(height: 10),
                   Text(
                     _expired
-                        ? 'Start a new request to search for providers again.'
+                        ? 'Request again to keep looking from here.'
                         : remaining > 0
                             ? 'Searching for up to ${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')} — or stop anytime.'
                             : 'Finishing search…',
@@ -405,8 +445,8 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                   const SizedBox(height: 14),
                   if (_expired)
                     FilledButton(
-                      onPressed: _requestAgain,
-                      child: const Text('Request again'),
+                      onPressed: _restarting ? null : _requestAgain,
+                      child: Text(_restarting ? 'Starting search…' : 'Request again'),
                     )
                   else
                     OutlinedButton(

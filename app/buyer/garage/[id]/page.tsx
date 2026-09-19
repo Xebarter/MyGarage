@@ -162,7 +162,7 @@ export default function BuyerGarageVehiclePage() {
             actions={
               <>
                 <Button
-                  className="h-10 rounded-full bg-[#236B5C] text-[#F7FBF9] hover:bg-[#16483E]"
+                  className="h-10 rounded-full bg-[#0E9A6A] text-[#FFFBF4] hover:bg-[#087A53]"
                   onClick={() => openConciergeChat({ vehicleId })}
                 >
                   Concierge
@@ -192,7 +192,7 @@ export default function BuyerGarageVehiclePage() {
 
           <Card className={BUYER_SURFACE}>
             <div className="grid grid-cols-1 md:grid-cols-3">
-              <div className="relative aspect-[16/10] min-h-[200px] overflow-hidden bg-[#0B1220] md:col-span-1 md:aspect-auto md:min-h-[240px]">
+              <div className="relative aspect-[16/10] min-h-[200px] overflow-hidden bg-[#12241C] md:col-span-1 md:aspect-auto md:min-h-[240px]">
                 <GarageVehiclePhoto
                   src={vehicleImageSrc(vehicle)}
                   alt={vehicleTitle(vehicle)}

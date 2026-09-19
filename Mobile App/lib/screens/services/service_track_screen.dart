@@ -15,9 +15,11 @@ import '../../api/buyer_api.dart';
 import '../../config.dart';
 import '../../maps/premium_google_map.dart';
 import '../../maps/premium_map_markers.dart';
+import '../../maps/map_coords.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/active_service_request.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
 
@@ -40,6 +42,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   ServiceProviderContact? _providerContact;
   String? _error;
   bool _loading = true;
+  bool _restarting = false;
 
   List<LatLng> _route = [];
   int? _etaMinutes;
@@ -122,6 +125,30 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
           _error = userFacingError(e, fallback: 'Could not load live tracking.');
         });
       }
+    }
+  }
+
+  Future<void> _requestAgain() async {
+    if (_restarting) return;
+    final auth = context.read<AuthController>();
+    final customerId = auth.customerId;
+    if (customerId == null || customerId.isEmpty) return;
+    setState(() => _restarting = true);
+    try {
+      await _api.restartServiceRequestSearch(
+        requestId: widget.requestId,
+        customerId: customerId,
+      );
+      if (!mounted) return;
+      setState(() => _restarting = false);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _restarting = false);
+      if (redirectIfActiveRequestExists(context, e)) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not restart this search.'))),
+      );
     }
   }
 
@@ -286,12 +313,8 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
       );
     }
 
-    final dest = (request.destinationLat != null && request.destinationLng != null)
-        ? LatLng(request.destinationLat!, request.destinationLng!)
-        : null;
-    final provider = (request.providerLat != null && request.providerLng != null)
-        ? LatLng(request.providerLat!, request.providerLng!)
-        : null;
+    final dest = parseLatLng(request.destinationLat, request.destinationLng);
+    final provider = parseLatLng(request.providerLat, request.providerLng);
     final searching = request.status == 'pending';
     final center = provider ?? dest ?? const LatLng(0.3476, 32.5825);
     final phone = _providerContact?.phone ?? '';
@@ -507,8 +530,8 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
                     ),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: () => context.go('/services'),
-                      child: const Text('Request again'),
+                      onPressed: _restarting ? null : _requestAgain,
+                      child: Text(_restarting ? 'Starting search…' : 'Request again'),
                     ),
                   ],
                   if (!searching && _providerContact != null) ...[

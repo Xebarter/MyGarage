@@ -137,10 +137,17 @@ class BuyerApi {
   Future<Map<String, dynamic>> createSubscription({
     required String customerId,
     required String planTier,
+    String? customerPhone,
   }) {
     return _client.post(
       '/api/buyer/subscriptions',
-      body: {'customerId': customerId, 'planTier': planTier},
+      body: {
+        'customerId': customerId,
+        'planTier': planTier,
+        'platform': 'mobile',
+        if (customerPhone != null && customerPhone.trim().isNotEmpty)
+          'customerPhone': customerPhone.trim(),
+      },
       auth: true,
       parser: (json) =>
           json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
@@ -427,6 +434,21 @@ class BuyerApi {
     );
   }
 
+  Future<List<BuyerServiceRequest>> listServiceRequests(String customerId) {
+    return _client.get(
+      '/api/buyer/service-requests',
+      query: {'customerId': customerId},
+      auth: true,
+      parser: (json) {
+        final list = json is List ? json : const [];
+        return list
+            .whereType<Map>()
+            .map((e) => BuyerServiceRequest.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      },
+    );
+  }
+
   Future<BuyerServiceRequest> createServiceRequest(Map<String, dynamic> body) {
     return _client.post(
       '/api/buyer/service-requests',
@@ -464,6 +486,22 @@ class BuyerApi {
     );
   }
 
+  /// Restarts provider search on an expired or cancelled request (same id).
+  Future<void> restartServiceRequestSearch({
+    required String requestId,
+    required String customerId,
+  }) {
+    return _client.post(
+      '/api/buyer/service-requests/$requestId',
+      body: {
+        'action': 'restart',
+        'customerId': customerId,
+      },
+      auth: true,
+      parser: (_) => true,
+    ).then((_) {});
+  }
+
   /// Stops provider search while the request is still pending.
   Future<void> cancelServiceRequestSearch({
     required String requestId,
@@ -486,6 +524,45 @@ class BuyerApi {
       body: {...body, 'platform': 'mobile'},
       auth: true,
       parser: (json) => Map<String, dynamic>.from(json as Map),
+    );
+  }
+
+  Future<void> activateSubscription({required String checkoutId}) async {
+    await _client.post(
+      '/api/buyer/subscriptions/activate',
+      body: {'checkoutId': checkoutId},
+      auth: true,
+      parser: (_) => true,
+    );
+  }
+
+  Future<Map<String, dynamic>> createServicePayment({
+    required String customerId,
+    required String customerName,
+    required String customerEmail,
+    required String customerPhone,
+    String? servicePaymentId,
+    String? requestId,
+    double? amount,
+    String? providerId,
+  }) {
+    return _client.post(
+      '/api/paytota/service-payment',
+      body: {
+        'customerId': customerId,
+        'customerName': customerName,
+        'customerEmail': customerEmail,
+        'customerPhone': customerPhone,
+        'platform': 'mobile',
+        if (servicePaymentId != null && servicePaymentId.isNotEmpty)
+          'servicePaymentId': servicePaymentId,
+        if (requestId != null && requestId.isNotEmpty) 'requestId': requestId,
+        if (amount != null) 'amount': amount,
+        if (providerId != null && providerId.isNotEmpty) 'providerId': providerId,
+      },
+      auth: true,
+      parser: (json) =>
+          json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
     );
   }
 
@@ -688,6 +765,25 @@ class BuyerApi {
       auth: true,
       allowError: true,
       parser: (json) => ConciergeActResult.fromJson(
+        json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
+      ),
+    );
+  }
+
+  Future<ConciergeShopHome> loadConciergeShop() {
+    return _client.get(
+      '/api/buyer/concierge/products',
+      parser: (json) => ConciergeShopHome.fromJson(
+        json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
+      ),
+    );
+  }
+
+  Future<ConciergeProductBrowse> searchConciergeProducts(Map<String, dynamic> body) {
+    return _client.post(
+      '/api/buyer/concierge/products',
+      body: body,
+      parser: (json) => ConciergeProductBrowse.fromJson(
         json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
       ),
     );

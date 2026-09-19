@@ -1,16 +1,22 @@
 import {
+  getConciergeProductDetail,
+  getConciergeShopHome,
   resolveConciergeService,
   resolveQuoteLines,
   searchConciergeCatalog,
+  searchConciergeProducts,
 } from "@/lib/concierge/catalog";
 import type {
   ConciergeChatTurn,
   ConciergePendingAction,
+  ConciergeProductBrowse,
+  ConciergeProductDetailView,
   ConciergeQuoteLine,
+  ConciergeShopDepartment,
 } from "@/lib/concierge/types";
 
 const MAX_HISTORY = 12;
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 5;
 const XAI_RESPONSES_URL = "https://api.x.ai/v1/responses";
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -133,14 +139,52 @@ export function classifyGrokError(error: unknown): GrokFailure {
 }
 
 const TOOL_PARAMS = {
+  list_shop_categories: {
+    name: "list_shop_categories",
+    description:
+      "List MyGarage shop departments and their part groups. Use when the buyer wants to browse the store, asks what you sell, or needs a category to pick from.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+  },
+  search_products: {
+    name: "search_products",
+    description:
+      "Browse and search published shop products. Use for parts, accessories, brands, categories, price filters, and 'show more' with offset. Prefer this over guessing names. Include the vehicle make/model in query when they want parts for their car.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search text, e.g. oil filter or brake pads." },
+        category: { type: "string", description: "Shop department or subcategory, e.g. BRAKING SYSTEM or Brake Pads." },
+        brand: { type: "string" },
+        minPrice: { type: "number" },
+        maxPrice: { type: "number" },
+        offset: { type: "number", description: "Skip this many ranked results for pagination." },
+        sort: {
+          type: "string",
+          enum: ["relevance", "price_asc", "price_desc", "newest"],
+        },
+      },
+    },
+  },
+  get_product: {
+    name: "get_product",
+    description: "Load one product's details and a few related items. Use a product id from search_products.",
+    parameters: {
+      type: "object",
+      properties: {
+        productId: { type: "string" },
+      },
+      required: ["productId"],
+    },
+  },
   search_catalog: {
     name: "search_catalog",
     description:
-      "Search MyGarage products and bookable services. Always search before quoting parts or naming a service to book.",
+      "Search both shop products and bookable services. Use when the buyer might want either a part or a mechanic.",
     parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "Buyer search text, e.g. oil filter Corolla or oil service." },
+        category: { type: "string" },
       },
       required: ["query"],
     },
@@ -148,7 +192,7 @@ const TOOL_PARAMS = {
   propose_quote: {
     name: "propose_quote",
     description:
-      "Propose adding catalog products to the cart. Only use product ids returned by search_catalog. Buyer must confirm before anything is added.",
+      "Propose buying catalog products. Only use product ids returned by search_products or search_catalog. Buyer must confirm. After confirm the app adds them to the cart and can open checkout.",
     parameters: {
       type: "object",
       properties: {
@@ -208,9 +252,13 @@ const GROQ_TOOLS = Object.values(TOOL_PARAMS).map((tool) => ({
 type ToolSession = {
   allowedProductIds: string[];
   pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
   canBook: boolean;
   defaultLocation: string;
   defaultVehicleId: string | null;
+  vehicleHint: string;
 };
 
 type GrokOutputItem = {
@@ -261,8 +309,16 @@ function systemInstruction(contextJson: string, canBook: boolean, defaultLocatio
     "End with one light question when it fits.",
     "Answer from the JSON vehicle context when it is provided. Never invent mileage, documents, service dates, or part SKUs.",
     "If context is missing or the buyer is a guest, say you can still search parts and services, and that garage answers and booking need a signed-in account.",
-    "Prices are UGX. Prefer catalog search over guessing product names.",
-    "When the buyer wants parts, search_catalog then propose_quote.",
+    "Prices are UGX.",
+    "Search the shop only when they want a part, a brand, a department, parts for their car, or to browse the store.",
+    "Do not search products for garage questions, bookings, or small talk.",
+    "When they ask what you sell or say browse, call list_shop_categories (that also loads featured parts).",
+    "When they name a part, brand, department, or want parts for their car, call search_products. Include make and model from context when they say for my car.",
+    "The app renders product cards from your last search. Keep the spoken reply to one or two sentences and do not paste a catalog.",
+    "Use get_product when they ask about a specific item you already found.",
+    "Use offset on search_products when they ask to see more.",
+    "When they want to buy, order, or check out a found part, search then propose_quote with those product ids. The app adds them to the cart and opens checkout after they confirm.",
+    "If they only want a part saved for later, still propose_quote; they can choose add to cart only.",
     "When they want a mechanic or roadside help, search_catalog then propose_booking.",
     canBook
       ? `Booking is allowed. Default service location if they do not give one: ${defaultLocation || "(none saved — ask for an area or address)"}.`
@@ -329,11 +385,101 @@ async function runTool(
   args: Record<string, unknown>,
   session: ToolSession,
 ): Promise<unknown> {
+  if (name === "list_shop_categories") {
+    const home = await getConciergeShopHome();
+    session.shopCategories = home.departments;
+    session.productBrowse = home.browse;
+    for (const product of home.browse.products) session.allowedProductIds.push(product.id);
+    return {
+      departments: home.departments.map((dept) => ({ title: dept.title, groups: dept.children })),
+      featured: home.browse.products.map((row) => ({
+        id: row.id,
+        name: row.name,
+        price: row.price,
+        brand: row.brand,
+        category: row.category,
+      })),
+    };
+  }
+  if (name === "search_products") {
+    const browse = await searchConciergeProducts({
+      query: typeof args.query === "string" ? args.query : "",
+      category: typeof args.category === "string" ? args.category : undefined,
+      brand: typeof args.brand === "string" ? args.brand : undefined,
+      minPrice: typeof args.minPrice === "number" ? args.minPrice : undefined,
+      maxPrice: typeof args.maxPrice === "number" ? args.maxPrice : undefined,
+      offset: typeof args.offset === "number" ? args.offset : undefined,
+      sort:
+        args.sort === "price_asc" || args.sort === "price_desc" || args.sort === "newest" || args.sort === "relevance"
+          ? args.sort
+          : "relevance",
+      vehicleHint: session.vehicleHint,
+    });
+    for (const product of browse.products) session.allowedProductIds.push(product.id);
+    session.productBrowse = browse;
+    if (browse.departments?.length) session.shopCategories = browse.departments;
+    return {
+      title: browse.title,
+      total: browse.total,
+      offset: browse.offset,
+      hasMore: browse.hasMore,
+      departments: browse.departments?.map((dept) => dept.title),
+      products: browse.products.map((row) => ({
+        id: row.id,
+        name: row.name,
+        price: row.price,
+        brand: row.brand,
+        category: row.category,
+      })),
+    };
+  }
+  if (name === "get_product") {
+    const productId = typeof args.productId === "string" ? args.productId : "";
+    const detail = await getConciergeProductDetail(productId);
+    if (!detail) return { error: "Product not found or unpublished." };
+    session.allowedProductIds.push(detail.product.id);
+    for (const related of detail.related) session.allowedProductIds.push(related.id);
+    session.productDetail = { ...detail.product, related: detail.related };
+    session.productBrowse = {
+      title: "Related parts",
+      total: detail.related.length,
+      offset: 0,
+      hasMore: false,
+      products: detail.related,
+    };
+    return {
+      product: {
+        id: detail.product.id,
+        name: detail.product.name,
+        price: detail.product.price,
+        brand: detail.product.brand,
+        category: detail.product.category,
+        description: detail.product.description,
+      },
+      related: detail.related.map((row) => ({ id: row.id, name: row.name, price: row.price })),
+    };
+  }
   if (name === "search_catalog") {
     const query = typeof args.query === "string" ? args.query : "";
-    const result = await searchConciergeCatalog(query);
+    const result = await searchConciergeCatalog(query, {
+      category: typeof args.category === "string" ? args.category : undefined,
+      vehicleHint: session.vehicleHint,
+    });
     for (const product of result.products) session.allowedProductIds.push(product.id);
-    return result;
+    if (result.browse.products.length > 0) {
+      session.productBrowse = result.browse;
+      if (result.browse.departments?.length) session.shopCategories = result.browse.departments;
+    }
+    return {
+      products: result.products.map((row) => ({
+        id: row.id,
+        name: row.name,
+        price: row.price,
+        brand: row.brand,
+        category: row.category,
+      })),
+      services: result.services,
+    };
   }
   if (name === "propose_quote") {
     const rawItems = Array.isArray(args.items) ? args.items : [];
@@ -407,7 +553,13 @@ async function runXaiChat(
   history: ConciergeChatTurn[],
   message: string,
   session: ToolSession,
-): Promise<{ reply: string; pendingAction: ConciergePendingAction | null }> {
+): Promise<{
+  reply: string;
+  pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
+}> {
   const last = history[history.length - 1];
   const historyTurns =
     last?.role === "user" && last.content.trim() === message.trim() ? history.slice(0, -1) : history;
@@ -428,9 +580,9 @@ async function runXaiChat(
     const calls = functionCalls(response);
     if (calls.length === 0) {
       const reply = softenReply(
-        outputText(response) || "I can look up parts, your garage, or book a service. What do you need?",
+        outputText(response) || "I can look up parts, browse the shop, check your garage, or book a service. What do you need?",
       );
-      return { reply, pendingAction: session.pendingAction };
+      return { reply, pendingAction: session.pendingAction, productBrowse: session.productBrowse, productDetail: session.productDetail, shopCategories: session.shopCategories };
     }
     input.push(...calls);
     for (const call of calls) {
@@ -445,8 +597,13 @@ async function runXaiChat(
   return {
     reply: session.pendingAction
       ? "If that looks right, tap Confirm and I will take care of it."
-      : "What can I help you with for the car?",
+      : session.productBrowse?.products.length
+        ? "Those parts are on the cards below. Tap one to open it, or tell me which to add."
+        : "What can I help you with for the car?",
     pendingAction: session.pendingAction,
+    productBrowse: session.productBrowse,
+    productDetail: session.productDetail,
+    shopCategories: session.shopCategories,
   };
 }
 
@@ -456,7 +613,13 @@ async function runGroqChat(
   history: ConciergeChatTurn[],
   message: string,
   session: ToolSession,
-): Promise<{ reply: string; pendingAction: ConciergePendingAction | null }> {
+): Promise<{
+  reply: string;
+  pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
+}> {
   const last = history[history.length - 1];
   const historyTurns =
     last?.role === "user" && last.content.trim() === message.trim() ? history.slice(0, -1) : history;
@@ -481,9 +644,9 @@ async function runGroqChat(
     if (calls.length === 0) {
       const reply = softenReply(
         (choice?.content || "").trim() ||
-          "I can look up parts, your garage, or book a service. What do you need?",
+          "I can look up parts, browse the shop, check your garage, or book a service. What do you need?",
       );
-      return { reply, pendingAction: session.pendingAction };
+      return { reply, pendingAction: session.pendingAction, productBrowse: session.productBrowse, productDetail: session.productDetail, shopCategories: session.shopCategories };
     }
     messages.push({
       role: "assistant",
@@ -502,8 +665,13 @@ async function runGroqChat(
   return {
     reply: session.pendingAction
       ? "If that looks right, tap Confirm and I will take care of it."
-      : "What can I help you with for the car?",
+      : session.productBrowse?.products.length
+        ? "Those parts are on the cards below. Tap one to open it, or tell me which to add."
+        : "What can I help you with for the car?",
     pendingAction: session.pendingAction,
+    productBrowse: session.productBrowse,
+    productDetail: session.productDetail,
+    shopCategories: session.shopCategories,
   };
 }
 
@@ -514,7 +682,14 @@ export async function runConciergeChat(input: {
   canBook: boolean;
   defaultLocation: string;
   defaultVehicleId: string | null;
-}): Promise<{ reply: string; pendingAction: ConciergePendingAction | null }> {
+  vehicleHint?: string;
+}): Promise<{
+  reply: string;
+  pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
+}> {
   const apiKey = grokApiKey();
   if (!apiKey) {
     throw new Error("GROK_UNAVAILABLE");
@@ -523,9 +698,13 @@ export async function runConciergeChat(input: {
   const session: ToolSession = {
     allowedProductIds: [],
     pendingAction: null,
+    productBrowse: null,
+    productDetail: null,
+    shopCategories: null,
     canBook: input.canBook,
     defaultLocation: input.defaultLocation,
     defaultVehicleId: input.defaultVehicleId,
+    vehicleHint: input.vehicleHint?.trim() || "",
   };
   const instructions = systemInstruction(input.contextJson, input.canBook, input.defaultLocation);
   const prior = input.history.slice(-MAX_HISTORY);

@@ -32,7 +32,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
+import { AddressAutocomplete } from '@/components/location/address-autocomplete';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -112,7 +112,7 @@ function formatCurrency(amount: number, currency = 'UGX') {
 function healthBadge(status: string) {
   const map: Record<string, string> = {
     excellent: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    good: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
+    good: 'bg-teal-500/15 text-teal-700 dark:text-teal-300',
     attention: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
     critical: 'bg-red-500/15 text-red-700 dark:text-red-300',
   };
@@ -474,15 +474,17 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
   return (
     <div className="space-y-5 pb-10">
       {embed ? null : (
-        <ProfileHero
-          name={profile.customer.name}
-          email={profile.customer.email}
-          createdAt={profile.customer.createdAt}
-          totalOrders={profile.customer.totalOrders}
-          totalSpent={formatCurrency(profile.customer.totalSpent)}
-          wishlistItems={profile.stats.wishlistItems ?? 0}
-          serviceRequests={profile.stats.serviceRequests ?? 0}
-        />
+        <div className="px-4 pt-4 md:px-8 md:pt-6">
+          <ProfileHero
+            name={profile.customer.name}
+            email={profile.customer.email}
+            createdAt={profile.customer.createdAt}
+            totalOrders={profile.customer.totalOrders}
+            totalSpent={formatCurrency(profile.customer.totalSpent)}
+            wishlistItems={profile.stats.wishlistItems ?? 0}
+            serviceRequests={profile.stats.serviceRequests ?? 0}
+          />
+        </div>
       )}
 
       <div className={cn('space-y-5', embed ? 'px-0' : 'px-4 md:px-8')}>
@@ -516,7 +518,7 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
               <TabsTrigger
                 key={section.id}
                 value={section.id}
-                className="shrink-0 gap-1.5 rounded-full border border-border/80 bg-background px-3.5 py-2 text-sm data-[state=active]:border-[#0B1220] data-[state=active]:bg-[#0B1220] data-[state=active]:text-white">
+                className="shrink-0 gap-1.5 rounded-full border border-border/80 bg-background px-3.5 py-2 text-sm data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <section.icon className="h-4 w-4" />
                 {section.label}
                 {section.id === 'notifications' && unreadNotificationCount > 0 ? (
@@ -559,7 +561,14 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
               <div className="md:col-span-2">
                 <Label>Address</Label>
                 {editing ? (
-                  <Textarea className="mt-2" value={profileForm.address} onChange={(e) => setProfileForm((p) => ({ ...p, address: e.target.value }))} />
+                  <div className="mt-2">
+                    <AddressAutocomplete
+                      value={profileForm.address}
+                      onChange={(address) => setProfileForm((p) => ({ ...p, address }))}
+                      onPlaceSelect={(place) => setProfileForm((p) => ({ ...p, address: place.label }))}
+                      placeholder="Search e.g. Ntinda, Kololo, Acacia Mall…"
+                    />
+                  </div>
                 ) : (
                   <p className="mt-2 whitespace-pre-wrap">{profileForm.address || '—'}</p>
                 )}

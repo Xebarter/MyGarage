@@ -246,7 +246,8 @@ class _ShopScreenState extends State<ShopScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(milliseconds: 1600),
+          duration: const Duration(seconds: 2),
+          persist: false,
           action: SnackBarAction(
             label: 'View',
             onPressed: () => context.go('/cart'),
@@ -369,7 +370,7 @@ class _ShopScreenState extends State<ShopScreen> {
       floating: true,
       snap: true,
       pinned: false,
-      centerTitle: true,
+      centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 0,
       backgroundColor: AppColors.background,
@@ -1049,7 +1050,7 @@ class _ProductCard extends StatelessWidget {
                           end: Alignment.bottomCenter,
                           colors: [
                             Color(0x00000000),
-                            Color(0x1A0B1220),
+                            Color(0x1A12241C),
                           ],
                         ),
                       ),

@@ -10,11 +10,11 @@ import {
   MapPin,
   Navigation,
   PencilLine,
-  Sparkles,
   Wrench,
   X,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { AddressAutocomplete, type AddressPlace } from '@/components/location/address-autocomplete';
 import { serviceCardSurfaceClass, serviceCardTone, SERVICE_EMERGENCY_TONE, serviceEmergencySurfaceClass } from '@/lib/service-card-tones';
 import { cn } from '@/lib/utils';
 
@@ -98,8 +98,7 @@ function CategoryHeroCard({
           </span>
         ) : null}
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-            <Sparkles className="h-3 w-3" aria-hidden />
+          <p className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
             Your category
           </p>
           <p className="mt-1.5 text-base font-bold leading-snug tracking-tight text-foreground">{title}</p>
@@ -140,7 +139,7 @@ function ServiceOptionCard({
         <span
           className={cn(
             'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105',
-            isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-white/50 text-[#0B1220]',
+            isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-white/50 text-[#12241C]',
           )}
           aria-hidden
         >
@@ -159,7 +158,7 @@ function ServiceOptionCard({
             'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
             isSelected
               ? 'bg-primary/15 text-primary'
-              : 'bg-white/50 text-[#0B1220]/70 group-hover:text-[#0B1220]',
+              : 'bg-white/50 text-[#12241C]/70 group-hover:text-[#12241C]',
           )}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
@@ -193,6 +192,7 @@ export type BuyerServiceQuickRequestDialogProps = {
   detectedLocation: string;
   manualLocation: string;
   onManualLocationChange: (value: string) => void;
+  onManualPlaceSelect?: (place: AddressPlace) => void;
   onRefreshLocation: () => void;
   canSubmit: boolean;
   canPressSubmit: boolean;
@@ -227,6 +227,7 @@ export function BuyerServiceQuickRequestDialog({
   detectedLocation,
   manualLocation,
   onManualLocationChange,
+  onManualPlaceSelect,
   onRefreshLocation,
   canSubmit,
   canPressSubmit,
@@ -358,7 +359,7 @@ export function BuyerServiceQuickRequestDialog({
                         <MapPin className="h-11 w-11 text-primary drop-shadow-sm" strokeWidth={1.65} aria-hidden />
                         {locationStatus === 'detecting' ? (
                           <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-card shadow-lg">
-                            <Loader2 className="h-4 w-4 animate-spin text-sky-600 dark:text-sky-400" aria-hidden />
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden />
                           </span>
                         ) : locationStatus === 'ready' && useDetectedLocation ? (
                           <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-lg">
@@ -391,7 +392,7 @@ export function BuyerServiceQuickRequestDialog({
                       )}
                     >
                       <Navigation
-                        className={cn('h-5 w-5 shrink-0', useDetectedLocation ? 'text-sky-600 dark:text-sky-400' : 'opacity-70')}
+                        className={cn('h-5 w-5 shrink-0', useDetectedLocation ? 'text-primary' : 'opacity-70')}
                         aria-hidden
                       />
                       <span className="truncate">Use GPS</span>
@@ -467,7 +468,7 @@ export function BuyerServiceQuickRequestDialog({
                           {locationStatus === 'detecting' ? (
                             <Loader2 className="h-4 w-4 animate-spin text-sky-600" aria-hidden />
                           ) : (
-                            <Navigation className="h-4 w-4 text-sky-600 dark:text-sky-400" aria-hidden />
+                            <Navigation className="h-4 w-4 text-primary" aria-hidden />
                           )}
                           Refresh location
                         </button>
@@ -486,13 +487,13 @@ export function BuyerServiceQuickRequestDialog({
                           <PencilLine className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
                           Area or address
                         </label>
-                        <input
+                        <AddressAutocomplete
                           id="quick-request-manual-location"
                           value={manualLocation}
-                          onChange={(e) => onManualLocationChange(e.target.value)}
-                          placeholder="e.g. Ntinda, near Capital Shoppers"
-                          autoComplete="street-address"
-                          className="min-h-[52px] w-full rounded-xl border border-amber-500/20 bg-background/95 px-4 py-3 text-base text-foreground shadow-inner placeholder:text-muted-foreground focus-visible:border-amber-500/40 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-amber-500/20 sm:text-sm"
+                          onChange={onManualLocationChange}
+                          onPlaceSelect={onManualPlaceSelect}
+                          placeholder="Search e.g. Ntinda, Kololo, Acacia Mall…"
+                          inputClassName="min-h-[52px] rounded-xl border-amber-500/20 bg-background/95 shadow-inner focus:ring-amber-500/20"
                         />
                       </div>
                     </div>

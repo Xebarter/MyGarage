@@ -27,8 +27,16 @@ export default function PaymentCancelPage() {
         <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm">
           <CircleSlash className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <h1 className="mb-2 text-2xl font-bold text-foreground">Payment cancelled</h1>
-          <p className="text-sm text-muted-foreground">Returning you to the MyGarage app…</p>
-          <MobileAppPaymentReturn status="cancel" checkoutId={params.checkoutId} />
+          <p className="text-sm text-muted-foreground">
+            No charge was made. Close this tab and return to MyGarage.
+          </p>
+          <MobileAppPaymentReturn
+            status="cancel"
+            checkoutId={params.checkoutId}
+            kind={params.kind}
+            servicePaymentId={params.servicePaymentId}
+            requestId={params.requestId}
+          />
         </div>
       </main>
     );

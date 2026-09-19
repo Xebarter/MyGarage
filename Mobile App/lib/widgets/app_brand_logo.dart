@@ -54,19 +54,17 @@ String cleanDisplayTitle(String title) {
   return cleaned.isEmpty ? title.trim() : cleaned;
 }
 
-/// AppBar / page title: centered brand mark + page label.
+/// AppBar / page title: left-aligned page label.
 class AppBarTitle extends StatelessWidget {
   const AppBarTitle(
     this.label, {
     super.key,
     this.maxLines = 1,
-    this.logoSize = 26,
     this.cleanTitle = false,
   });
 
   final String label;
   final int maxLines;
-  final double logoSize;
   /// When true, strips trailing "(…)" from [label].
   final bool cleanTitle;
 
@@ -81,46 +79,31 @@ class AppBarTitle extends StatelessWidget {
         );
     final text = cleanTitle ? cleanDisplayTitle(label) : label;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        AppBrandLogo(size: logoSize),
-        const SizedBox(width: 10),
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.55,
-          ),
-          child: Text(
-            text,
-            maxLines: maxLines,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: style.copyWith(
-              fontSize: (style.fontSize ?? 22) - 2,
-              height: 1.15,
-            ),
-          ),
-        ),
-      ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.left,
+        style: style,
+      ),
     );
   }
 }
 
-/// In-body page header (scrolls with content): logo + title, both centered.
+/// In-body page header (scrolls with content).
 class PageBrandHeader extends StatelessWidget {
   const PageBrandHeader({
     super.key,
     required this.title,
     this.subtitle,
-    this.logoSize = 28,
     this.titleSize = 26,
     this.padding = const EdgeInsets.fromLTRB(20, 16, 20, 8),
   });
 
   final String title;
   final String? subtitle;
-  final double logoSize;
   final double titleSize;
   final EdgeInsetsGeometry padding;
 
@@ -129,39 +112,27 @@ class PageBrandHeader extends StatelessWidget {
     return Padding(
       padding: padding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AppBrandLogo(size: logoSize),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.host(
-                      fontSize: titleSize,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                ),
-              ],
+          Text(
+            title,
+            textAlign: TextAlign.left,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.host(
+              fontSize: titleSize,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
             ),
           ),
           if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               subtitle!,
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               style: AppTheme.host(
                 fontSize: 14,
-                height: 1.4,
+                height: 1.35,
                 color: AppColors.textSecondary,
               ),
             ),

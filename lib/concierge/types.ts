@@ -14,6 +14,40 @@ export type ConciergeQuoteLine = {
   vendorId?: string;
 };
 
+export type ConciergeProductCard = {
+  id: string;
+  name: string;
+  price: number;
+  compareAtPrice?: number | null;
+  image: string;
+  category: string;
+  brand: string;
+  href: string;
+};
+
+export type ConciergeProductBrowse = {
+  title: string;
+  query?: string;
+  category?: string;
+  total: number;
+  offset: number;
+  hasMore: boolean;
+  products: ConciergeProductCard[];
+  departments?: ConciergeShopDepartment[];
+};
+
+export type ConciergeProductDetailView = ConciergeProductCard & {
+  description: string;
+  sku?: string;
+  subcategory?: string;
+  related?: ConciergeProductCard[];
+};
+
+export type ConciergeShopDepartment = {
+  title: string;
+  children: string[];
+};
+
 export type ConciergePendingQuote = {
   type: "quote";
   lines: ConciergeQuoteLine[];
@@ -34,6 +68,9 @@ export type ConciergePendingAction = ConciergePendingQuote | ConciergePendingBoo
 export type ConciergeChatResponse = {
   reply: string;
   pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
   configured: true;
 };
 
@@ -55,6 +92,8 @@ export type ConciergeActError = {
   error: string;
   code?: string;
   field?: "location" | "phone" | "sign_in" | "service";
+  requestId?: string;
+  trackPath?: string;
 };
 
 export type ConciergeActResult = ConciergeActQuoteResult | ConciergeActBookResult | ConciergeActError;

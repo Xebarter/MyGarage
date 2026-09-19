@@ -26,28 +26,28 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
     iconBg: Color(0xFFF0D8D5),
   ),
   'fix-my-car': AccentPair(
-    accent: Color(0xFF3D5F7A),
-    fill: Color(0xFFE8EEF3),
-    border: Color(0xFFC5D3DE),
-    iconBg: Color(0xFFD5E1EA),
+    accent: Color(0xFFC47A2C),
+    fill: Color(0xFFF8E9C8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF3E7C8),
   ),
   'service-my-car': AccentPair(
-    accent: Color(0xFF2E7D5B),
-    fill: Color(0xFFE3F3EB),
-    border: Color(0xFFB7DCC8),
-    iconBg: Color(0xFFC9E6D6),
+    accent: Color(0xFF0E9A6A),
+    fill: Color(0xFFD3F6E6),
+    border: Color(0xFFA8DCC4),
+    iconBg: Color(0xFFC4EED8),
   ),
   'tyres-battery': AccentPair(
-    accent: Color(0xFFB07D2E),
-    fill: Color(0xFFF6EFE0),
-    border: Color(0xFFE6D3A8),
-    iconBg: Color(0xFFEEE0C0),
+    accent: Color(0xFFD4A017),
+    fill: Color(0xFFF8EFC8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF3E7C8),
   ),
   'car-wash-cleaning': AccentPair(
-    accent: Color(0xFF2E7A7A),
-    fill: Color(0xFFE3F1F1),
-    border: Color(0xFFB5D6D6),
-    iconBg: Color(0xFFC7E2E2),
+    accent: Color(0xFF1A9A8A),
+    fill: Color(0xFFD8F3E6),
+    border: Color(0xFFA8DCC8),
+    iconBg: Color(0xFFC4EED8),
   ),
   'body-repair-painting': AccentPair(
     accent: Color(0xFF6E6458),
@@ -56,22 +56,22 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
     iconBg: Color(0xFFE6DFD4),
   ),
   'ac-cooling': AccentPair(
-    accent: Color(0xFF3D7A8A),
-    fill: Color(0xFFE6F1F4),
-    border: Color(0xFFB8D5DE),
-    iconBg: Color(0xFFCBE2E8),
+    accent: Color(0xFF0E9A8A),
+    fill: Color(0xFFD8F3E6),
+    border: Color(0xFFA8DCC8),
+    iconBg: Color(0xFFC4EED8),
   ),
   'security-tracking': AccentPair(
-    accent: Color(0xFF1F4A48),
-    fill: Color(0xFFE4EEED),
-    border: Color(0xFFB8CECC),
-    iconBg: Color(0xFFC9DCDA),
+    accent: Color(0xFF087A53),
+    fill: Color(0xFFDFF6EA),
+    border: Color(0xFFA8DCC4),
+    iconBg: Color(0xFFC4EED8),
   ),
   'documents-insurance': AccentPair(
-    accent: Color(0xFF2F6B62),
-    fill: Color(0xFFE4F0ED),
-    border: Color(0xFFB6D4CE),
-    iconBg: Color(0xFFC8E0DB),
+    accent: Color(0xFF0E9A6A),
+    fill: Color(0xFFD3F6E6),
+    border: Color(0xFFA8DCC4),
+    iconBg: Color(0xFFC4EED8),
   ),
   'drivers-transport': AccentPair(
     accent: Color(0xFF8B6540),
@@ -86,10 +86,10 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
     iconBg: Color(0xFFEED6CC),
   ),
   'rent-buy-car': AccentPair(
-    accent: Color(0xFF3D5A6E),
-    fill: Color(0xFFE8EEF2),
-    border: Color(0xFFC0D0DA),
-    iconBg: Color(0xFFD0DDE4),
+    accent: Color(0xFF12241C),
+    fill: Color(0xFFF3E7C8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF6EDDF),
   ),
   'upgrade-my-car': AccentPair(
     accent: Color(0xFF7A4A62),
@@ -101,40 +101,40 @@ const Map<String, AccentPair> kServiceCategoryAccents = {
 
 const _fallbackAccents = <AccentPair>[
   AccentPair(
-    accent: Color(0xFF3D5F7A),
-    fill: Color(0xFFE8EEF3),
-    border: Color(0xFFC5D3DE),
-    iconBg: Color(0xFFD5E1EA),
+    accent: Color(0xFF0E9A6A),
+    fill: Color(0xFFD3F6E6),
+    border: Color(0xFFA8DCC4),
+    iconBg: Color(0xFFC4EED8),
   ),
   AccentPair(
-    accent: Color(0xFF2E7D5B),
-    fill: Color(0xFFE3F3EB),
-    border: Color(0xFFB7DCC8),
-    iconBg: Color(0xFFC9E6D6),
+    accent: Color(0xFFD4A017),
+    fill: Color(0xFFF8EFC8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF3E7C8),
   ),
   AccentPair(
-    accent: Color(0xFFB07D2E),
-    fill: Color(0xFFF6EFE0),
-    border: Color(0xFFE6D3A8),
-    iconBg: Color(0xFFEEE0C0),
+    accent: Color(0xFFC47A2C),
+    fill: Color(0xFFF8E9C8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF3E7C8),
   ),
   AccentPair(
-    accent: Color(0xFF6E6458),
-    fill: Color(0xFFF3EFE8),
-    border: Color(0xFFD8D0C4),
-    iconBg: Color(0xFFE6DFD4),
+    accent: Color(0xFF1A9A8A),
+    fill: Color(0xFFD8F3E6),
+    border: Color(0xFFA8DCC8),
+    iconBg: Color(0xFFC4EED8),
   ),
   AccentPair(
-    accent: Color(0xFF2E7A7A),
-    fill: Color(0xFFE3F1F1),
-    border: Color(0xFFB5D6D6),
-    iconBg: Color(0xFFC7E2E2),
+    accent: Color(0xFF12241C),
+    fill: Color(0xFFF3E7C8),
+    border: Color(0xFFE8C56B),
+    iconBg: Color(0xFFF6EDDF),
   ),
   AccentPair(
-    accent: Color(0xFF7A4A62),
-    fill: Color(0xFFF4E8EE),
-    border: Color(0xFFDCC4D0),
-    iconBg: Color(0xFFE8D2DC),
+    accent: Color(0xFFC45A7A),
+    fill: Color(0xFFF8E4EE),
+    border: Color(0xFFE8C4D4),
+    iconBg: Color(0xFFF0D2DC),
   ),
 ];
 
@@ -177,7 +177,7 @@ IconData iconForCategory(String categoryId) {
     case 'rent-buy-car':
       return Icons.directions_car_outlined;
     case 'upgrade-my-car':
-      return Icons.auto_awesome_outlined;
+      return Icons.tune_outlined;
     default:
       return Icons.handyman_outlined;
   }

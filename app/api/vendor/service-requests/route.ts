@@ -10,6 +10,7 @@ import {
 import { recordGarageServiceCompletion, parseGarageCompletionBody } from '@/lib/garage-service';
 import { getActiveFulfillmentRequestForVendor } from '@/lib/supabase/service-dispatch-repo';
 import { listVehicleServiceHistoryByRequestIds } from '@/lib/supabase/vehicle-service-history-repo';
+import { parseMapPoint } from '@/lib/maps/coords';
 import { NextRequest, NextResponse } from 'next/server';
 
 function sameVendor(providerId: unknown, vendorId: string) {
@@ -65,41 +66,27 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Service request not found' }, { status: 404 });
     }
 
-    const pLat = body.providerLat;
-    const pLng = body.providerLng;
-    const hasLive =
-      pLat != null &&
-      pLng != null &&
-      Number.isFinite(Number(pLat)) &&
-      Number.isFinite(Number(pLng));
-
-    if (hasLive) {
+    const livePoint = parseMapPoint(body.providerLat, body.providerLng);
+    if (livePoint) {
       if (!vendorId) {
         return NextResponse.json({ error: 'vendorId is required to update live location' }, { status: 400 });
       }
       if (!sameVendor(existing.providerId, vendorId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      const updated = await updateBuyerServiceRequestProviderLocation(id, Number(pLat), Number(pLng));
+      const updated = await updateBuyerServiceRequestProviderLocation(id, livePoint.lat, livePoint.lng);
       return NextResponse.json(updated);
     }
 
-    const dLat = body.destinationLat;
-    const dLng = body.destinationLng;
-    const hasDest =
-      dLat != null &&
-      dLng != null &&
-      Number.isFinite(Number(dLat)) &&
-      Number.isFinite(Number(dLng));
-
-    if (hasDest && existing.destinationLat == null) {
+    const destPoint = parseMapPoint(body.destinationLat, body.destinationLng);
+    if (destPoint && existing.destinationLat == null) {
       if (!vendorId) {
         return NextResponse.json({ error: 'vendorId is required' }, { status: 400 });
       }
       if (!sameVendor(existing.providerId, vendorId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      const updated = await updateBuyerServiceRequestDestinationCoords(id, Number(dLat), Number(dLng));
+      const updated = await updateBuyerServiceRequestDestinationCoords(id, destPoint.lat, destPoint.lng);
       return NextResponse.json(updated);
     }
 

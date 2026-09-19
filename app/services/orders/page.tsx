@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ServiceTripMap } from '@/components/service-trip-map';
+import { parseMapPoint } from '@/lib/maps/coords';
 import {
   ProviderGarageCompletionDialog,
   type GarageCompletionPayload,
@@ -572,23 +573,9 @@ export default function ServiceOrdersPage() {
             </div>
             <div className="mt-4 overflow-hidden rounded-xl border border-border/60 shadow-md">
               <ServiceTripMap
-                destination={
-                  activeRequest.destinationLat != null &&
-                  activeRequest.destinationLng != null &&
-                  Number.isFinite(activeRequest.destinationLat) &&
-                  Number.isFinite(activeRequest.destinationLng)
-                    ? { lat: activeRequest.destinationLat, lng: activeRequest.destinationLng }
-                    : null
-                }
+                destination={parseMapPoint(activeRequest.destinationLat, activeRequest.destinationLng)}
                 destinationAddress={activeRequest.location}
-                provider={
-                  activeRequest.providerLat != null &&
-                  activeRequest.providerLng != null &&
-                  Number.isFinite(activeRequest.providerLat) &&
-                  Number.isFinite(activeRequest.providerLng)
-                    ? { lat: activeRequest.providerLat, lng: activeRequest.providerLng }
-                    : null
-                }
+                provider={parseMapPoint(activeRequest.providerLat, activeRequest.providerLng)}
                 mode="auto"
                 providerLabel="You"
                 destinationLabel="Buyer"

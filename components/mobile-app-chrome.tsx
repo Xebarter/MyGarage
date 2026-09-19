@@ -25,7 +25,7 @@ export function MobileAppBar({
   const showBack = Boolean(backHref || onBack);
 
   const backClass =
-    'absolute left-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[#0B1220]';
+    'absolute left-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[#12241C]';
 
   return (
     <header className={cn('z-30 bg-[#F2F4F8]', sticky && 'sticky top-0')}>
@@ -53,9 +53,9 @@ export function MobileAppBar({
             alt=""
             width={26}
             height={26}
-            className="h-[26px] w-[26px] shrink-0 rounded-[6px] border border-[#EEF2F7] object-contain shadow-[0_2px_6px_rgba(11,18,32,0.06)]"
+            className="h-[26px] w-[26px] shrink-0 rounded-[6px] border border-[#EEF2F7] object-contain shadow-[0_2px_6px_rgba(18,36,28,0.06)]"
           />
-          <span className="truncate text-xl font-bold tracking-tight text-[#0B1220]">{title}</span>
+          <span className="truncate text-xl font-bold tracking-tight text-[#12241C]">{title}</span>
         </div>
 
         {actions ? <div className="absolute right-2 top-1/2 -translate-y-1/2">{actions}</div> : null}

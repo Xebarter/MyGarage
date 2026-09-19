@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,21 +18,20 @@ import {
   type ServicePriceRange,
 } from '@/lib/format-service-price';
 import {
-  ArrowRight,
   ArrowUpRight,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock3,
-  CreditCard,
   History,
   MapPin,
   RefreshCw,
   Search,
-  Sparkles,
   Wrench,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseMapPoint } from '@/lib/maps/coords';
 import Link from 'next/link';
 
 type BuyerServiceRequest = {
@@ -50,21 +49,20 @@ type BuyerServiceRequest = {
   createdAt: string;
 };
 
-type ServiceProviderProfile = {
-  id: string;
-  name: string;
-  location: string;
-  services: string[];
-  rating: number;
-  jobsCompleted: number;
-};
-
 type BuyerProviderRating = {
   providerId: string;
   stars: number;
 };
 
-type ServiceHistoryTab = 'all' | 'open' | 'completed' | 'cancelled';
+type ServiceHistoryTab = 'all' | 'open' | 'completed';
+
+function isUnfulfilledBuyerServiceStatus(status: BuyerServiceRequest['status']): boolean {
+  return status === 'expired' || status === 'cancelled';
+}
+
+function isRunningBuyerServiceStatus(status: BuyerServiceRequest['status']): boolean {
+  return status === 'pending' || status === 'matched' || status === 'in_progress';
+}
 
 function statusRank(status: BuyerServiceRequest['status']): number {
   switch (status) {
@@ -153,13 +151,11 @@ function serviceStatusPresentation(status: BuyerServiceRequest['status']): {
 }
 
 function buildServiceHistoryList(requests: BuyerServiceRequest[], tab: ServiceHistoryTab): BuyerServiceRequest[] {
-  let list = [...requests];
+  let list = requests.filter((r) => !isUnfulfilledBuyerServiceStatus(r.status));
   if (tab === 'open') {
     list = list.filter((r) => r.status === 'pending' || r.status === 'matched' || r.status === 'in_progress');
   } else if (tab === 'completed') {
     list = list.filter((r) => r.status === 'completed');
-  } else if (tab === 'cancelled') {
-    list = list.filter((r) => r.status === 'cancelled' || r.status === 'expired');
   }
 
   if (tab === 'all') {
@@ -242,80 +238,88 @@ const PAY_CONTACT_NAME_KEY = 'servicePaymentContactName';
 const PAY_CONTACT_EMAIL_KEY = 'servicePaymentContactEmail';
 const PAY_CONTACT_PHONE_KEY = 'servicePaymentContactPhone';
 
-function ServiceProgressTimeline({ status }: { status: BuyerServiceRequest['status'] }) {
-  const steps = [
-    { id: 'accepted', label: 'Request accepted', short: 'Accepted', done: status !== 'pending' },
-    {
-      id: 'enroute',
-      label: 'Provider en route',
-      short: 'En route',
-      done: status === 'in_progress' || status === 'completed',
-    },
-    { id: 'done', label: 'Service completed', short: 'Completed', done: status === 'completed' },
-    { id: 'paid', label: 'Payment confirmed', short: 'Paid', done: status === 'completed' },
-  ] as const;
+function CompletedRequestStrip({
+  request,
+  index,
+  expanded,
+  onToggle,
+  isBuyer,
+}: {
+  request: BuyerServiceRequest;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  isBuyer: boolean;
+}) {
+  const pres = serviceStatusPresentation(request.status);
+  const when = formatHistoryWhen(request.completedAt || request.createdAt);
+  const panelId = `completed-request-${request.id}`;
 
   return (
-    <ol className="grid gap-3 sm:grid-cols-2 sm:gap-2 xl:grid-cols-4">
-      {steps.map((step, index) => (
-        <li
-          key={step.id}
-          className={cn(
-            'relative flex items-start gap-3 rounded-xl p-3',
-            serviceCardSurfaceClass,
-            step.done && 'ring-1 ring-primary/20',
-          )}
-          style={{ backgroundColor: serviceCardTone(index) }}
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border-l-[3px] transition',
+        serviceCardSurfaceClass,
+        pres.borderClass,
+      )}
+      style={{ backgroundColor: serviceCardTone(index) }}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left sm:px-4"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug text-foreground">
+          {request.service}
+        </span>
+        <Badge variant="outline" className={cn('h-6 shrink-0 px-2 text-[10px] sm:text-xs', pres.badgeClass)}>
+          {pres.label}
+        </Badge>
+        <time
+          className="hidden shrink-0 text-[10px] text-muted-foreground sm:block sm:text-xs"
+          dateTime={request.completedAt || request.createdAt}
+          title={when.full}
         >
-          <span
-            className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums',
-              step.done
-                ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
-                : 'bg-muted text-muted-foreground ring-1 ring-border/80',
-            )}
-            aria-hidden
-          >
-            {step.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-          </span>
-          <div className="min-w-0 pt-0.5">
-            <p className={cn('text-sm font-semibold leading-snug', step.done ? 'text-foreground' : 'text-muted-foreground')}>
-              <span className="sm:hidden">{step.short}</span>
-              <span className="hidden sm:inline">{step.label}</span>
-            </p>
-          </div>
-        </li>
-      ))}
-    </ol>
+          {when.primary}
+        </time>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
+            expanded && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+      {expanded ? (
+        <div id={panelId} className="space-y-3 border-t border-border/50 px-3.5 py-3 sm:px-4">
+          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              {request.category || 'General'}
+              {request.location ? (
+                <>
+                  <span className="text-muted-foreground/50"> · </span>
+                  {request.location}
+                </>
+              ) : null}
+            </span>
+          </p>
+          <p className="text-[10px] text-muted-foreground sm:text-xs">Finished {when.full}</p>
+          {isBuyer ? (
+            <Button asChild size="sm" variant="outline" className="h-9 gap-1">
+              <Link href={`/buyer/services/track/${encodeURIComponent(request.id)}`}>
+                View job
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
-
-const providerDirectory: ServiceProviderProfile[] = [
-  {
-    id: 'sp-1',
-    name: 'Kampala Auto Rescue',
-    location: 'Kampala',
-    services: ['Towing & recovery', 'Jump-start', 'Fuel delivery', 'Battery sales & installation'],
-    rating: 4.8,
-    jobsCompleted: 312,
-  },
-  {
-    id: 'sp-2',
-    name: 'Prime Mechanics UG',
-    location: 'Wakiso',
-    services: ['Engine repair', 'Brake systems', 'Suspension & steering', 'Oil service'],
-    rating: 4.6,
-    jobsCompleted: 227,
-  },
-  {
-    id: 'sp-3',
-    name: 'CleanRide Detailing',
-    location: 'Kampala',
-    services: ['Basic wash', 'Detailing', 'Ceramic coating'],
-    rating: 4.9,
-    jobsCompleted: 418,
-  },
-];
 
 function BuyerServicesPageInner() {
   const searchParams = useSearchParams();
@@ -341,8 +345,8 @@ function BuyerServicesPageInner() {
   const [requests, setRequests] = useState<BuyerServiceRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [historyTab, setHistoryTab] = useState<ServiceHistoryTab>('all');
+  const [expandedCompletedId, setExpandedCompletedId] = useState<string | null>(null);
   const [ratings, setRatings] = useState<BuyerProviderRating[]>([]);
-  const [paying, setPaying] = useState(false);
   const [identityMode, setIdentityMode] = useState<'buyer' | 'guest'>('guest');
   const [payContactName, setPayContactName] = useState('');
   const [payContactEmail, setPayContactEmail] = useState('');
@@ -556,8 +560,12 @@ function BuyerServicesPageInner() {
       }
 
       const { latitude, longitude, accuracy } = position.coords;
-      setDetectedLocation(`Current location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`);
-      setDestinationCoords({ destinationLat: latitude, destinationLng: longitude });
+      const point = parseMapPoint(latitude, longitude);
+      if (!point) {
+        throw new Error('location_unavailable');
+      }
+      setDetectedLocation(`Current location (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)})`);
+      setDestinationCoords({ destinationLat: point.lat, destinationLng: point.lng });
       setLocationAccuracyLabel(Number.isFinite(accuracy) ? `Approx. accuracy: ${Math.round(accuracy)}m` : '');
       setLocationMessage('Location detected. You can retry for a fresh fix.');
       setLocationStatus('ready');
@@ -601,16 +609,6 @@ function BuyerServicesPageInner() {
   useEffect(() => {
     detectCurrentLocation();
   }, []);
-
-  const persistPayContact = useCallback(() => {
-    try {
-      if (payContactName.trim()) localStorage.setItem(PAY_CONTACT_NAME_KEY, payContactName.trim());
-      if (payContactEmail.trim()) localStorage.setItem(PAY_CONTACT_EMAIL_KEY, payContactEmail.trim());
-      if (payContactPhone.trim()) localStorage.setItem(PAY_CONTACT_PHONE_KEY, payContactPhone.trim());
-    } catch {
-      /* ignore */
-    }
-  }, [payContactName, payContactEmail, payContactPhone]);
 
   const bootstrap = async () => {
     try {
@@ -688,13 +686,6 @@ function BuyerServicesPageInner() {
     }
   };
 
-  const matchingProviders = useMemo(() => {
-    const needle = selectedService.toLowerCase();
-    return providerDirectory
-      .filter((provider) => provider.services.some((service) => service.toLowerCase().includes(needle.split(' ')[0])))
-      .sort((a, b) => b.rating - a.rating);
-  }, [selectedService]);
-
   const requestStats = useMemo(() => {
     const pending = requests.filter((item) => item.status === 'pending').length;
     const active = requests.filter((item) => item.status === 'matched' || item.status === 'in_progress').length;
@@ -703,49 +694,55 @@ function BuyerServicesPageInner() {
   }, [requests]);
 
   const historyCounts = useMemo(() => {
-    const open = requests.filter(
+    const listed = requests.filter((r) => !isUnfulfilledBuyerServiceStatus(r.status));
+    const open = listed.filter(
       (r) => r.status === 'pending' || r.status === 'matched' || r.status === 'in_progress',
     ).length;
     return {
-      all: requests.length,
+      all: listed.length,
       open,
-      completed: requests.filter((r) => r.status === 'completed').length,
-      cancelled: requests.filter((r) => r.status === 'cancelled' || r.status === 'expired').length,
+      completed: listed.filter((r) => r.status === 'completed').length,
     };
   }, [requests]);
 
-  const activeServiceRequest = useMemo(() => {
-    return requests.find((item) => item.status === 'matched' || item.status === 'in_progress' || item.status === 'completed');
-  }, [requests]);
+  const runningServiceRequest = useMemo(
+    () => requests.find((item) => isRunningBuyerServiceStatus(item.status)) ?? null,
+    [requests],
+  );
 
-  const activeServiceProvider = useMemo(() => {
-    if (!activeServiceRequest) return null;
-    const needle = activeServiceRequest.service.toLowerCase().split(' ')[0];
-    return providerDirectory.find((provider) => provider.services.some((service) => service.toLowerCase().includes(needle))) ?? null;
-  }, [activeServiceRequest]);
+  const completedRequests = useMemo(
+    () => requests.filter((item) => item.status === 'completed'),
+    [requests],
+  );
 
-  const paymentSummary = useMemo(() => {
-    if (!activeServiceRequest) return null;
-    const base = activeServiceRequest.status === 'completed' ? 130000 : activeServiceRequest.status === 'in_progress' ? 95000 : 50000;
-    const platformFee = Math.round(base * 0.05);
-    const total = base + platformFee;
-    return { base, platformFee, total };
-  }, [activeServiceRequest]);
+  useEffect(() => {
+    if (runningServiceRequest && isQuickRequestDialogOpen) {
+      setIsQuickRequestDialogOpen(false);
+    }
+  }, [runningServiceRequest, isQuickRequestDialogOpen]);
+
+  useEffect(() => {
+    setExpandedCompletedId(null);
+  }, [historyTab]);
 
   const submitRequest = async () => {
     if (submittingRequest) return;
     if (identityMode !== 'buyer' || !selectedService || !resolvedLocation || !customerId) return;
+    if (runningServiceRequest) {
+      setSubmitError('You already have a service in progress. Finish or cancel it before booking another.');
+      setIsQuickRequestDialogOpen(false);
+      router.push(`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`);
+      return;
+    }
     setSubmitError(null);
     setSubmittingRequest(true);
     try {
       let coords: { destinationLat: number; destinationLng: number } | Record<string, never> = {};
-      if (
-        useDetectedLocation &&
-        destinationCoords &&
-        Number.isFinite(destinationCoords.destinationLat) &&
-        Number.isFinite(destinationCoords.destinationLng)
-      ) {
-        coords = destinationCoords;
+      const stored = destinationCoords
+        ? parseMapPoint(destinationCoords.destinationLat, destinationCoords.destinationLng)
+        : null;
+      if (stored) {
+        coords = { destinationLat: stored.lat, destinationLng: stored.lng };
       } else if (useDetectedLocation) {
         // Best-effort only — never block submit on a second GPS wait.
         try {
@@ -758,7 +755,7 @@ function BuyerServicesPageInner() {
           });
           const la = pos.coords.latitude;
           const ln = pos.coords.longitude;
-          if (Number.isFinite(la) && Number.isFinite(ln)) {
+          if (parseMapPoint(la, ln)) {
             coords = { destinationLat: la, destinationLng: ln };
             setDestinationCoords(coords);
           }
@@ -785,12 +782,21 @@ function BuyerServicesPageInner() {
         }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+        const body = (await response.json().catch(() => ({}))) as { error?: string; code?: string; requestId?: string };
         if (body.code === 'PHONE_REQUIRED') {
           setSubmitError(
             body.error ||
               'Add a mobile number on your profile, then try again.',
           );
+        } else if (body.code === 'ACTIVE_REQUEST_EXISTS') {
+          setSubmitError(
+            body.error ||
+              'You already have a service in progress. Finish or cancel it before booking another.',
+          );
+          setIsQuickRequestDialogOpen(false);
+          if (body.requestId) {
+            router.push(`/buyer/services/track/${encodeURIComponent(body.requestId)}`);
+          }
         } else {
           setSubmitError(body.error || 'Could not submit your request. Try again.');
         }
@@ -814,65 +820,6 @@ function BuyerServicesPageInner() {
     }
   };
 
-  const canPayForService = useMemo(() => {
-    const name = payContactName.trim();
-    const email = payContactEmail.trim();
-    const phone = payContactPhone.replace(/\D/g, '');
-    return Boolean(name && email && phone.length >= 9);
-  }, [payContactName, payContactEmail, payContactPhone]);
-
-  const payForActiveService = async () => {
-    if (!activeServiceRequest || !paymentSummary || !customerId || paying || !canPayForService) return;
-    persistPayContact();
-    setPaying(true);
-    try {
-      const response = await fetch('/api/paytota/service-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId: activeServiceRequest.id,
-          customerId,
-          customerName: payContactName.trim(),
-          customerEmail: payContactEmail.trim().toLowerCase(),
-          customerPhone: payContactPhone.trim(),
-          amount: paymentSummary.total,
-        }),
-      });
-      if (!response.ok) return;
-      const payload = await response.json();
-      if (payload.checkoutUrl) {
-        window.location.href = payload.checkoutUrl;
-      }
-    } catch (error) {
-      console.error('Failed to initialize service payment:', error);
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const rateProvider = async (providerId: string, stars: number) => {
-    if (!customerId) return;
-    try {
-      const response = await fetch('/api/buyer/provider-ratings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, providerId, stars }),
-      });
-      if (!response.ok) return;
-      const saved = (await response.json()) as BuyerProviderRating;
-      setRatings((current) => {
-        const existing = current.find((item) => item.providerId === providerId);
-        if (existing) {
-          return current.map((item) => (item.providerId === providerId ? { ...item, stars: saved.stars } : item));
-        }
-        return [...current, { providerId: saved.providerId, stars: saved.stars }];
-      });
-    } catch (error) {
-      console.error('Failed to save provider rating:', error);
-    }
-  };
-
-  const getMyRating = (providerId: string) => ratings.find((item) => item.providerId === providerId)?.stars || 0;
   const canPressSubmitRequest = Boolean(selectedService && resolvedLocation && (identityMode !== 'buyer' || customerId));
   const canSubmitQuickRequest =
     canPressSubmitRequest && quickRequestUiStep === 'location' && !submittingRequest;
@@ -908,6 +855,11 @@ function BuyerServicesPageInner() {
   };
 
   const openCategoryRequest = (categoryTitle: string) => {
+    if (runningServiceRequest) {
+      setIsQuickRequestDialogOpen(false);
+      router.push(`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`);
+      return;
+    }
     setSelectedCategory(categoryTitle);
     serviceAutofillSuppressed.current = true;
     setSelectedService('');
@@ -926,15 +878,34 @@ function BuyerServicesPageInner() {
       <div className="md:hidden">
         <MobileBuyerServicesBrowse
           activeRequest={
-            activeServiceRequest
+            runningServiceRequest
               ? {
-                  id: activeServiceRequest.id,
-                  service: activeServiceRequest.service,
-                  statusLabel: serviceStatusPresentation(activeServiceRequest.status).label,
+                  id: runningServiceRequest.id,
+                  service: runningServiceRequest.service,
+                  statusLabel: serviceStatusPresentation(runningServiceRequest.status).label,
                 }
               : null
           }
+          pastJobs={completedRequests.map((request) => {
+            const when = formatHistoryWhen(request.completedAt || request.createdAt);
+            return {
+              id: request.id,
+              service: request.service,
+              category: request.category,
+              location: request.location,
+              whenLabel: when.primary,
+              whenFull: when.full,
+            };
+          })}
+          expandedJobId={expandedCompletedId}
+          onToggleJob={(id) =>
+            setExpandedCompletedId((current) => (current === id ? null : id))
+          }
           onSelectService={(categoryTitle, serviceName) => {
+            if (runningServiceRequest) {
+              router.push(`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`);
+              return;
+            }
             serviceAutofillSuppressed.current = false;
             setSelectedCategory(categoryTitle);
             setSelectedService(serviceName);
@@ -1013,160 +984,43 @@ function BuyerServicesPageInner() {
           </div>
         </header>
 
-        {activeServiceRequest ? (
-          <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]">
-            <div className="border-b border-border/60 bg-muted/20 px-4 py-3.5 sm:px-6 sm:py-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'border text-[10px] sm:text-xs',
-                      serviceStatusPresentation(activeServiceRequest.status).badgeClass,
-                    )}
-                  >
-                    {serviceStatusPresentation(activeServiceRequest.status).label}
-                  </Badge>
-                  <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground sm:text-2xl">
-                    {activeServiceRequest.service}
-                  </h2>
-                  <p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground sm:text-sm">
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <span className="line-clamp-2">
-                      {activeServiceRequest.category}
-                      <span className="text-muted-foreground/50"> · </span>
-                      {activeServiceRequest.location}
-                    </span>
-                  </p>
-                </div>
-                <div className="shrink-0 rounded-xl border border-border/70 bg-card px-3.5 py-2.5 text-xs shadow-sm sm:text-sm">
-                  <p className="font-semibold text-foreground">{activeServiceProvider?.name || 'Matching provider'}</p>
-                  <p className="mt-0.5 text-muted-foreground">
-                    {activeServiceProvider ? `${activeServiceProvider.rating.toFixed(1)}★ rating` : 'We will notify you shortly'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4 p-4 sm:p-6">
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Progress</p>
-                <ServiceProgressTimeline status={activeServiceRequest.status} />
-              </div>
-
-              {paymentSummary ? (
-                <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <CreditCard className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                      Payment summary
-                    </p>
-                    <p className="text-base font-bold tabular-nums text-foreground">
-                      UGX {paymentSummary.total.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3 sm:text-sm">
-                    <div
-                      className="rounded-lg px-3 py-2"
-                      style={{ backgroundColor: serviceCardTone(0) }}
-                    >
-                      <p className="text-muted-foreground">Service</p>
-                      <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.base.toLocaleString()}</p>
-                    </div>
-                    <div
-                      className="rounded-lg px-3 py-2"
-                      style={{ backgroundColor: serviceCardTone(1) }}
-                    >
-                      <p className="text-muted-foreground">Platform fee</p>
-                      <p className="mt-0.5 font-semibold tabular-nums">UGX {paymentSummary.platformFee.toLocaleString()}</p>
-                    </div>
-                    <div
-                      className="rounded-lg px-3 py-2 ring-1 ring-primary/20"
-                      style={{ backgroundColor: serviceCardTone(2) }}
-                    >
-                      <p className="text-primary/80">Total due</p>
-                      <p className="mt-0.5 font-bold tabular-nums text-foreground">
-                        UGX {paymentSummary.total.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-background/90 p-3.5 sm:p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checkout contact</p>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <input
-                        value={payContactName}
-                        onChange={(e) => setPayContactName(e.target.value)}
-                        onBlur={persistPayContact}
-                        placeholder="Full name"
-                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                        autoComplete="name"
-                      />
-                      <input
-                        type="email"
-                        value={payContactEmail}
-                        onChange={(e) => setPayContactEmail(e.target.value)}
-                        onBlur={persistPayContact}
-                        placeholder="Email"
-                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                        autoComplete="email"
-                      />
-                      <input
-                        type="tel"
-                        value={payContactPhone}
-                        onChange={(e) => setPayContactPhone(e.target.value)}
-                        onBlur={persistPayContact}
-                        placeholder="Mobile (07… or 256…)"
-                        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                        autoComplete="tel"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={payForActiveService}
-                    disabled={paying || !canPayForService}
-                    className="mt-4 min-h-11 w-full sm:w-auto"
-                  >
-                    {paying ? 'Redirecting to checkout…' : 'Pay now'}
-                  </Button>
-                </div>
-              ) : null}
-
-              {identityMode === 'buyer' ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    [
-                      { href: '/buyer/orders', label: 'Orders' },
-                      { href: '/buyer/support', label: 'Support' },
-                      { href: '/buyer/addresses', label: 'Locations' },
-                    ] as const
-                  ).map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="flex min-h-11 items-center justify-center rounded-xl border border-border/70 bg-background px-2 text-center text-xs font-medium transition hover:bg-muted/40 sm:text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground sm:text-sm">
-                  <Link href="/auth?role=buyer&next=/buyer" className="font-semibold text-primary underline-offset-4 hover:underline">
-                    Sign in
-                  </Link>
-                  <span className="hidden sm:inline"> to sync requests across devices.</span>
-                  <span className="sm:hidden"> to sync across devices.</span>
-                </p>
-              )}
-            </div>
-          </Card>
-        ) : (
-          <section
-            id="quick-request"
-            className="scroll-mt-24 rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
-            aria-labelledby="new-request-heading"
+        {runningServiceRequest ? (
+          <Link
+            href={`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`}
+            className={cn(
+              "flex items-center gap-3 rounded-xl border-l-[3px] px-3.5 py-2.5 transition hover:brightness-[0.98] sm:px-4",
+              serviceCardSurfaceClass,
+              serviceStatusPresentation(runningServiceRequest.status).borderClass,
+            )}
+            style={{ backgroundColor: serviceCardTone(0) }}
           >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "h-6 px-2 text-[10px] sm:text-xs",
+                    serviceStatusPresentation(runningServiceRequest.status).badgeClass,
+                  )}
+                >
+                  {serviceStatusPresentation(runningServiceRequest.status).label}
+                </Badge>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Live</span>
+              </div>
+              <p className="mt-1 truncate text-sm font-semibold text-foreground sm:text-base">
+                {runningServiceRequest.service}
+              </p>
+            </div>
+            <span className="hidden shrink-0 text-sm font-medium text-foreground sm:inline">Track</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          </Link>
+        ) : null}
+
+        <section
+          id="quick-request"
+          className="scroll-mt-24 rounded-2xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
+          aria-labelledby="new-request-heading"
+        >
             <div className="border-b border-border/60 px-4 py-4 sm:px-6">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1174,11 +1028,22 @@ function BuyerServicesPageInner() {
                     What do you need?
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                    Choose a category below.
+                    {runningServiceRequest ? (
+                      <>
+                        Only one service can run at a time.{' '}
+                        <Link
+                          href={`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`}
+                          className="font-semibold text-primary underline-offset-4 hover:underline"
+                        >
+                          Open current request
+                        </Link>
+                      </>
+                    ) : (
+                      'Choose a category below.'
+                    )}
                   </p>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary sm:text-xs">
-                  <Sparkles className="h-3 w-3" aria-hidden />
+                <span className="inline-flex shrink-0 items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary sm:text-xs">
                   2 steps
                 </span>
               </div>
@@ -1258,7 +1123,6 @@ function BuyerServicesPageInner() {
               )}
             </div>
           </section>
-        )}
 
         <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]">
           <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3.5 sm:px-6 sm:py-4">
@@ -1268,7 +1132,7 @@ function BuyerServicesPageInner() {
               </span>
               <div className="min-w-0">
                 <h2 className="text-base font-bold tracking-tight sm:text-lg">Your requests</h2>
-                <p className="hidden text-xs text-muted-foreground sm:block">Open jobs appear first · tap to track live</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Open jobs first · completed stay collapsed until you open them</p>
               </div>
             </div>
             {identityMode === 'buyer' && customerId ? (
@@ -1313,7 +1177,6 @@ function BuyerServicesPageInner() {
                       { value: 'all' as const, label: 'All', short: 'All' },
                       { value: 'open' as const, label: 'In progress', short: 'Open' },
                       { value: 'completed' as const, label: 'Completed', short: 'Done' },
-                      { value: 'cancelled' as const, label: 'Cancelled', short: 'Cancelled' },
                     ] as const
                   ).map((tab) => (
                     <TabsTrigger
@@ -1330,7 +1193,7 @@ function BuyerServicesPageInner() {
                   ))}
                 </TabsList>
 
-                {(['all', 'open', 'completed', 'cancelled'] as const).map((tab) => {
+                {(['all', 'open', 'completed'] as const).map((tab) => {
                   const tabItems = buildServiceHistoryList(requests, tab);
                   return (
                     <TabsContent key={tab} value={tab} className="mt-0 outline-none">
@@ -1341,36 +1204,51 @@ function BuyerServicesPageInner() {
                               ? 'No requests yet'
                               : tab === 'open'
                                 ? 'Nothing in progress'
-                                : tab === 'completed'
-                                  ? 'No completed jobs'
-                                  : 'No cancelled requests'}
+                                : 'No completed jobs'}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
                             {tab === 'all' ? 'Book your first service above — it only takes a minute.' : 'Try another filter.'}
                           </p>
-                          {tab === 'all' && !activeServiceRequest ? (
+                          {tab === 'all' && !runningServiceRequest ? (
                             <Button asChild variant="outline" className="mt-4 min-h-11" size="sm">
                               <Link href="#quick-request">Browse categories</Link>
                             </Button>
                           ) : null}
                         </div>
                       ) : (
-                        <ul className="space-y-2.5 p-0">
+                        <ul className="space-y-2 p-0">
                           {tabItems.map((request, index) => {
+                            if (request.status === 'completed') {
+                              return (
+                                <li key={request.id}>
+                                  <CompletedRequestStrip
+                                    request={request}
+                                    index={index}
+                                    expanded={expandedCompletedId === request.id}
+                                    onToggle={() =>
+                                      setExpandedCompletedId((current) =>
+                                        current === request.id ? null : request.id,
+                                      )
+                                    }
+                                    isBuyer={identityMode === 'buyer'}
+                                  />
+                                </li>
+                              );
+                            }
                             const pres = serviceStatusPresentation(request.status);
                             const when = formatHistoryWhen(request.createdAt);
                             return (
                               <li key={request.id}>
                                 <div
                                   className={cn(
-                                    'group rounded-xl border-l-[3px] p-3.5 transition active:scale-[0.995] sm:p-4',
+                                    'group rounded-xl border-l-[3px] px-3.5 py-2.5 transition active:scale-[0.995] sm:px-4',
                                     serviceCardSurfaceClass,
                                     pres.borderClass,
                                   )}
                                   style={{ backgroundColor: serviceCardTone(index) }}
                                 >
-                                  <div className="flex items-start gap-3">
-                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                  <div className="flex items-center gap-3">
+                                    <div className="min-w-0 flex-1">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <Badge
                                           variant="outline"
@@ -1386,27 +1264,21 @@ function BuyerServicesPageInner() {
                                           {when.primary}
                                         </time>
                                       </div>
-                                      <h3 className="line-clamp-2 text-sm font-bold leading-snug text-foreground sm:text-base">
+                                      <h3 className="mt-1 truncate text-sm font-semibold leading-snug text-foreground sm:text-base">
                                         {request.service}
                                       </h3>
-                                      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground" title={request.location}>
-                                        {request.category || 'General'}
-                                        <span className="text-muted-foreground/50"> · </span>
-                                        {request.location}
-                                      </p>
                                     </div>
                                     {identityMode === 'buyer' ? (
                                       <Button
                                         asChild
                                         size="sm"
-                                        variant={request.status === 'completed' ? 'outline' : 'default'}
-                                        className="h-10 shrink-0 gap-1 px-3"
+                                        className="h-9 shrink-0 gap-1 px-3"
                                       >
                                         <Link
                                           href={`/buyer/services/track/${encodeURIComponent(request.id)}`}
-                                          aria-label={request.status === 'completed' ? 'View details' : 'Track request'}
+                                          aria-label="Track request"
                                         >
-                                          <span>{request.status === 'completed' ? 'Details' : 'Track'}</span>
+                                          <span>Track</span>
                                           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
                                         </Link>
                                       </Button>
@@ -1460,13 +1332,26 @@ function BuyerServicesPageInner() {
           goBackToQuickServiceStep();
         }}
         useDetectedLocation={useDetectedLocation}
-        onUseDetectedLocation={setUseDetectedLocation}
+        onUseDetectedLocation={(value) => {
+          setUseDetectedLocation(value);
+          if (!value) setDestinationCoords(null);
+        }}
         locationStatus={locationStatus}
         locationMessage={locationMessage}
         locationAccuracyLabel={locationAccuracyLabel}
         detectedLocation={detectedLocation}
         manualLocation={manualLocation}
-        onManualLocationChange={setManualLocation}
+        onManualLocationChange={(value) => {
+          setManualLocation(value);
+          setDestinationCoords(null);
+        }}
+        onManualPlaceSelect={(place) => {
+          setManualLocation(place.label);
+          const point = parseMapPoint(place.lat, place.lng);
+          if (point) {
+            setDestinationCoords({ destinationLat: point.lat, destinationLng: point.lng });
+          }
+        }}
         onRefreshLocation={() => void detectCurrentLocation()}
         canSubmit={canSubmitQuickRequest}
         canPressSubmit={canPressSubmitRequest}

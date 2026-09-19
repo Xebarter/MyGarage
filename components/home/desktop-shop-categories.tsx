@@ -53,7 +53,7 @@ export function DesktopShopCategories({
               />
             </div>
             <div className="px-3.5 py-3.5">
-              <p className="truncate text-sm font-semibold tracking-tight text-[#0B1220]">
+              <p className="truncate text-sm font-semibold tracking-tight text-[#12241C]">
                 {formatCategoryLabel(tile.category)}
               </p>
               <p className="mt-0.5 text-xs text-[#64748B]">

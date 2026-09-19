@@ -1,3 +1,5 @@
+import { parseMapPoint as parseLatLng } from '@/lib/maps/coords';
+
 export type AddressSuggestion = {
   id: string;
   title: string;
@@ -64,6 +66,7 @@ type NominatimResult = {
   class?: string;
 };
 
+/** Kampala bias for nearby ranking. */
 const KAMPALA_CENTER = { lat: 0.3476, lng: 32.5825 };
 const NEARBY_BIAS_RADIUS_M = 35_000;
 const DEFAULT_BIAS_RADIUS_M = 80_000;
@@ -407,4 +410,84 @@ export async function fetchPlaceDetails(
   if (fromLegacy) return fromLegacy;
 
   throw new Error('Could not resolve this place');
+}
+
+async function geocodeWithGoogle(query: string): Promise<PlaceDetails | null> {
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) return null;
+  const tryOnce = async (withCountry: boolean) => {
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('address', query);
+    url.searchParams.set('key', apiKey);
+    url.searchParams.set('region', 'ug');
+    url.searchParams.set('language', 'en');
+    if (withCountry) url.searchParams.set('components', 'country:UG');
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      status?: string;
+      results?: Array<{
+        formatted_address?: string;
+        geometry?: { location?: { lat?: number; lng?: number } };
+      }>;
+    };
+    if (data.status !== 'OK') return null;
+    const first = data.results?.[0];
+    const point = parseLatLng(first?.geometry?.location?.lat, first?.geometry?.location?.lng);
+    if (!point) return null;
+    return { label: first?.formatted_address?.trim() || query, lat: point.lat, lng: point.lng };
+  };
+  return (await tryOnce(true)) ?? (await tryOnce(false));
+}
+
+async function geocodeWithNominatim(query: string): Promise<PlaceDetails | null> {
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('q', query);
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('countrycodes', 'ug');
+  const res = await fetch(url.toString(), {
+    headers: {
+      'User-Agent': 'MyGarage/1.0 (service dispatch geocoding)',
+      Accept: 'application/json',
+    },
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { lat?: string; lon?: string; display_name?: string }[];
+  const first = data[0];
+  const point = parseLatLng(first?.lat, first?.lon);
+  if (!point) return null;
+  return { label: first?.display_name?.trim() || query, lat: point.lat, lng: point.lng };
+}
+
+/** Turn a typed address into coordinates, preferring Google then OpenStreetMap. */
+export async function geocodeAddress(query: string): Promise<PlaceDetails | null> {
+  const q = query.trim();
+  if (q.length < 3) return null;
+  try {
+    const google = await geocodeWithGoogle(q);
+    if (google) return google;
+  } catch {
+    /* fall through */
+  }
+  try {
+    return await geocodeWithNominatim(q);
+  } catch {
+    return null;
+  }
+}
+
+/** Use explicit GPS when valid; otherwise geocode the address text. */
+export async function resolveServiceDestination(input: {
+  lat?: unknown;
+  lng?: unknown;
+  location?: string | null;
+}): Promise<{ lat: number; lng: number } | null> {
+  const parsed = parseLatLng(input.lat, input.lng);
+  if (parsed) return parsed;
+  const location = input.location?.trim() ?? '';
+  if (location.length < 3) return null;
+  const geo = await geocodeAddress(location);
+  return geo ? { lat: geo.lat, lng: geo.lng } : null;
 }

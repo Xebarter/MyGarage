@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,52 +11,14 @@ import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../data/services_catalog.dart';
 import '../../maps/premium_google_map.dart';
+import '../../maps/map_coords.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
-
-class _PlaceSuggestion {
-  const _PlaceSuggestion({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.label,
-    this.placeId,
-    this.lat,
-    this.lng,
-  });
-
-  final String id;
-  final String title;
-  final String subtitle;
-  final String label;
-  final String? placeId;
-  final double? lat;
-  final double? lng;
-
-  factory _PlaceSuggestion.fromJson(Map<String, dynamic> json) {
-    final title = (json['title'] as String?)?.trim() ?? '';
-    final subtitle = (json['subtitle'] as String?)?.trim() ?? '';
-    final label = (json['label'] as String?)?.trim().isNotEmpty == true
-        ? (json['label'] as String).trim()
-        : [title, subtitle].where((s) => s.isNotEmpty).join(', ');
-    final latRaw = json['lat'];
-    final lngRaw = json['lng'];
-    return _PlaceSuggestion(
-      id: (json['id'] as String?)?.trim().isNotEmpty == true
-          ? (json['id'] as String).trim()
-          : (json['placeId'] as String?)?.trim() ?? label,
-      title: title.isNotEmpty ? title : label,
-      subtitle: subtitle,
-      label: label,
-      placeId: (json['placeId'] as String?)?.trim(),
-      lat: latRaw is num ? latRaw.toDouble() : double.tryParse('$latRaw'),
-      lng: lngRaw is num ? lngRaw.toDouble() : double.tryParse('$lngRaw'),
-    );
-  }
-}
+import '../../utils/active_service_request.dart';
+import '../../widgets/place_autocomplete_field.dart';
 
 /// Uber / SafeBoda style location picker: full-bleed map, center pin, bottom sheet CTA.
 class ServiceLocationScreen extends StatefulWidget {
@@ -89,26 +50,18 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
   bool _busy = false;
   bool _movingMap = false;
   bool _suppressAddressRewrite = false;
-  bool _loadingSuggestions = false;
   String? _status;
-  String _sessionToken = _newSessionToken();
-  List<_PlaceSuggestion> _suggestions = const [];
   List<Vehicle> _vehicles = const [];
   String? _selectedVehicleId;
-  Timer? _suggestDebounce;
-  int _suggestSeq = 0;
-
-  static String _newSessionToken() {
-    final r = math.Random();
-    return '${DateTime.now().microsecondsSinceEpoch}-${r.nextInt(1 << 32)}';
-  }
 
   @override
   void initState() {
     super.initState();
-    _address.addListener(_onAddressChanged);
     unawaited(_bootstrapLocation());
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadVehicles());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadVehicles();
+      _bounceIfOpenRequest();
+    });
   }
 
   Future<void> _loadVehicles() async {
@@ -134,10 +87,25 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
     }
   }
 
+  Future<void> _bounceIfOpenRequest() async {
+    if (!mounted) return;
+    final cid = context.read<AuthController>().customerId;
+    if (cid == null || cid.isEmpty) return;
+    try {
+      final list = await _api.listServiceRequests(cid);
+      final open = firstOpenBuyerServiceRequest(list);
+      if (!mounted || open == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only one service can run at a time.')),
+      );
+      context.go(requestingPathFor(open.id));
+    } catch (_) {
+      // Create still enforces one-at-a-time.
+    }
+  }
+
   @override
   void dispose() {
-    _suggestDebounce?.cancel();
-    _address.removeListener(_onAddressChanged);
     _address.dispose();
     _notes.dispose();
     _addressFocus.dispose();
@@ -171,7 +139,8 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      final next = LatLng(pos.latitude, pos.longitude);
+      final next = parseLatLng(pos.latitude, pos.longitude);
+      if (next == null) return;
       if (!mounted) return;
       setState(() {
         _pin = next;
@@ -215,107 +184,28 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
     });
   }
 
-  void _onAddressChanged() {
-    if (_suppressAddressRewrite) return;
-    final q = _address.text.trim();
-    _suggestDebounce?.cancel();
-    if (q.length < 2 || q.startsWith('Near ')) {
-      if (_suggestions.isNotEmpty || _loadingSuggestions) {
-        setState(() {
-          _suggestions = const [];
-          _loadingSuggestions = false;
-        });
-      }
-      return;
-    }
-    _suggestDebounce = Timer(const Duration(milliseconds: 320), () {
-      unawaited(_fetchSuggestions(q));
-    });
-  }
-
-  Future<void> _fetchSuggestions(String q) async {
-    final seq = ++_suggestSeq;
-    if (mounted) setState(() => _loadingSuggestions = true);
-    try {
-      final rows = await _api.geocodeSuggestions(
-        q,
-        lat: _pin.latitude,
-        lng: _pin.longitude,
-        sessionToken: _sessionToken,
-        limit: 7,
-      );
-      if (!mounted || seq != _suggestSeq) return;
-      final mapped = rows.map(_PlaceSuggestion.fromJson).where((s) => s.label.isNotEmpty).toList();
-      setState(() {
-        _suggestions = mapped;
-        _loadingSuggestions = false;
-      });
-    } catch (_) {
-      if (!mounted || seq != _suggestSeq) return;
-      setState(() {
-        _suggestions = const [];
-        _loadingSuggestions = false;
-      });
-    }
-  }
-
-  Future<void> _selectSuggestion(_PlaceSuggestion suggestion) async {
-    HapticFeedback.selectionClick();
-    _suggestDebounce?.cancel();
-    _suggestSeq++;
-    _addressFocus.unfocus();
-
-    setState(() {
-      _busy = true;
-      _loadingSuggestions = false;
-      _suggestions = const [];
-      _status = 'Setting pickup…';
-      _suppressAddressRewrite = true;
-    });
-
-    try {
-      double? lat = suggestion.lat;
-      double? lng = suggestion.lng;
-      var label = suggestion.label;
-
-      final placeId = suggestion.placeId?.trim();
-      if ((lat == null || lng == null) && placeId != null && placeId.isNotEmpty) {
-        final place = await _api.geocodePlace(placeId, sessionToken: _sessionToken);
-        final placeLat = place['lat'];
-        final placeLng = place['lng'];
-        lat = placeLat is num ? placeLat.toDouble() : double.tryParse('$placeLat');
-        lng = placeLng is num ? placeLng.toDouble() : double.tryParse('$placeLng');
-        final placeLabel = (place['label'] as String?)?.trim();
-        if (placeLabel != null && placeLabel.isNotEmpty) label = placeLabel;
-      }
-
-      if (lat == null || lng == null) {
-        throw Exception('Could not resolve that place on the map.');
-      }
-
-      final next = LatLng(lat, lng);
-      if (!mounted) return;
-      _address.removeListener(_onAddressChanged);
-      _address.text = label;
-      _address.addListener(_onAddressChanged);
-      setState(() {
-        _pin = next;
-        _status = 'Pickup set to ${suggestion.title}';
-        _sessionToken = _newSessionToken();
-      });
-      _map?.moveTo(next, zoom: 16.5);
-    } catch (e) {
-      if (!mounted) return;
+  Future<void> _applyPlace(PlacePick pick) async {
+    final lat = pick.lat;
+    final lng = pick.lng;
+    if (lat == null || lng == null) {
       setState(() {
         _suppressAddressRewrite = false;
-        _status = userFacingError(e, fallback: 'Could not set that place. Try another.');
+        _status = 'Could not set that place. Try another.';
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(userFacingError(e, fallback: 'Could not set that place.'))),
+        const SnackBar(content: Text('Could not set that place.')),
       );
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      return;
     }
+
+    final next = LatLng(lat, lng);
+    setState(() {
+      _pin = next;
+      _status = 'Pickup set to ${pick.title ?? pick.label}';
+      _suppressAddressRewrite = true;
+    });
+    _map?.moveTo(next, zoom: 16.5);
   }
 
   Future<void> _submit() async {
@@ -358,6 +248,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
       context.go('/service/requesting?requestId=${Uri.encodeComponent(request.id)}');
     } catch (e) {
       if (!mounted) return;
+      if (redirectIfActiveRequestExists(context, e)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(userFacingError(e, fallback: 'Could not request service.'))),
       );
@@ -466,7 +357,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
           if (_locating && !_mapReady)
             const Positioned.fill(
               child: ColoredBox(
-                color: Color(0x88F2F4F8),
+                color: Color(0x88FFF6EA),
                 child: Center(child: CircularProgressIndicator()),
               ),
             ),
@@ -482,10 +373,10 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
                 status: _status,
                 busy: _busy,
                 bottomInset: bottomInset,
-                suggestions: _suggestions,
-                loadingSuggestions: _loadingSuggestions,
+                originLat: _pin.latitude,
+                originLng: _pin.longitude,
                 onConfirm: _submit,
-                onSelectSuggestion: _selectSuggestion,
+                onSelectPlace: _applyPlace,
                 onAddressEdited: () {
                   if (_suppressAddressRewrite) {
                     setState(() => _suppressAddressRewrite = false);
@@ -512,10 +403,10 @@ class _ConfirmSheet extends StatelessWidget {
     required this.status,
     required this.busy,
     required this.bottomInset,
-    required this.suggestions,
-    required this.loadingSuggestions,
+    required this.originLat,
+    required this.originLng,
     required this.onConfirm,
-    required this.onSelectSuggestion,
+    required this.onSelectPlace,
     required this.onAddressEdited,
     required this.vehicles,
     required this.selectedVehicleId,
@@ -529,10 +420,10 @@ class _ConfirmSheet extends StatelessWidget {
   final String? status;
   final bool busy;
   final double bottomInset;
-  final List<_PlaceSuggestion> suggestions;
-  final bool loadingSuggestions;
+  final double originLat;
+  final double originLng;
   final VoidCallback onConfirm;
-  final ValueChanged<_PlaceSuggestion> onSelectSuggestion;
+  final ValueChanged<PlacePick> onSelectPlace;
   final VoidCallback onAddressEdited;
   final List<Vehicle> vehicles;
   final String? selectedVehicleId;
@@ -581,71 +472,23 @@ class _ConfirmSheet extends StatelessWidget {
               style: AppTheme.host(fontSize: 13.5, color: AppColors.primary, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 14),
-            TextField(
+            PlaceAutocompleteField(
               controller: address,
               focusNode: addressFocus,
+              enabled: !busy,
+              originLat: originLat,
+              originLng: originLng,
+              shouldSearch: (q) => !q.startsWith('Near '),
               onChanged: (_) => onAddressEdited(),
-              decoration: InputDecoration(
+              onPlaceSelected: onSelectPlace,
+              decoration: const InputDecoration(
                 labelText: 'Landmark or address',
                 hintText: 'Search e.g. Acacia Mall, Kisementi…',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: loadingSuggestions
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
+                prefixIcon: Icon(Icons.search_rounded),
                 filled: true,
                 fillColor: AppColors.surfaceMuted,
               ),
-              maxLines: 1,
-              textInputAction: TextInputAction.search,
             ),
-            if (suggestions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: Material(
-                  color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(AppRadii.md),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: suggestions.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      color: AppColors.border.withValues(alpha: 0.8),
-                    ),
-                    itemBuilder: (context, index) {
-                      final s = suggestions[index];
-                      return ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.place_outlined, color: AppColors.primary),
-                        title: Text(
-                          s.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.host(fontSize: 14, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: s.subtitle.isEmpty
-                            ? null
-                            : Text(
-                                s.subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
-                              ),
-                        onTap: busy ? null : () => onSelectSuggestion(s),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 10),
             if (vehicles.isNotEmpty) ...[
               Text('Vehicle', style: AppTheme.host(fontSize: 13, fontWeight: FontWeight.w700)),

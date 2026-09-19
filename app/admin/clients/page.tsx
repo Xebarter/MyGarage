@@ -41,7 +41,6 @@ import {
   RefreshCw,
   Search,
   ShoppingBag,
-  Sparkles,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -390,10 +389,7 @@ export default function AdminClientsPage() {
               <Users className="h-6 w-6" />
             </div>
             <div className="min-w-0">
-              <p className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                CRM
-              </p>
+              <p className="text-xs font-medium text-primary">CRM</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">Clients</h1>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Product buyers and service clients in one directory — search, segment by behavior, then open the drawer
@@ -1112,7 +1108,7 @@ export default function AdminClientsPage() {
                           {detailLoading ? '…' : detail.payments.length}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          This includes recorded Paytota events available in the current data layer.
+                          This includes recorded payment events available in the current data layer.
                         </p>
                       </div>
                     </div>

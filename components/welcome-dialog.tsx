@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { resetPageScrollSoon } from '@/lib/reset-page-scroll';
 import {
   AUTH_WELCOME_DURATION_MS,
   AUTH_WELCOME_EVENT,
@@ -75,6 +76,7 @@ export function WelcomeDialogHost() {
 
   const goTo = (href: string) => {
     dismiss();
+    resetPageScrollSoon();
     if (pathname === href) return;
     router.push(href);
   };
@@ -89,6 +91,7 @@ export function WelcomeDialogHost() {
       <DialogContent
         showCloseButton={false}
         className="overflow-hidden rounded-2xl p-0 sm:max-w-md"
+        onCloseAutoFocus={(event) => event.preventDefault()}
         onPointerDownOutside={() => dismiss()}
         onEscapeKeyDown={() => dismiss()}
       >

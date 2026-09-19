@@ -18,6 +18,13 @@ import {
   updateAssignmentResponse,
   updateBuyerRequestDispatchFields,
 } from "@/lib/supabase/service-dispatch-repo";
+import {
+  ACTIVE_BUYER_SERVICE_EXISTS_CODE,
+  ACTIVE_BUYER_SERVICE_EXISTS_MESSAGE,
+  findOpenBuyerServiceRequest,
+  updateBuyerServiceRequestProviderLocation,
+} from "@/lib/supabase/buyer-services-repo";
+import { parseMapPoint } from "@/lib/maps/coords";
 import { listVendorIdsWithPushTokens } from "@/lib/supabase/vendor-push-tokens-repo";
 import { notifyVendorOfJobOfferBestEffort } from "@/lib/push/send-job-offer";
 import { cleanServiceDisplayTitle, resolveBuyerServiceCategory } from "@/lib/services-catalog";
@@ -208,12 +215,21 @@ export async function processStaleOffersBestEffort(): Promise<void> {
  * Declined/expired are soft-excluded only during cooldown so search continues
  * until a match, the buyer cancels, or the search times out (status leaves pending).
  */
-async function getExcludedProviderIds(requestId: string, now = Date.now()): Promise<Set<string>> {
+async function getExcludedProviderIds(
+  requestId: string,
+  now = Date.now(),
+  searchStartedAt?: string | null,
+): Promise<Set<string>> {
   const assignments = await listAssignmentsForRequest(requestId);
   const excluded = new Set<string>();
   const latestTerminal = new Map<string, number>();
+  const searchStart = searchStartedAt ? Date.parse(searchStartedAt) : NaN;
 
   for (const a of assignments) {
+    const assignedAt = Date.parse(a.assigned_at);
+    if (Number.isFinite(searchStart) && Number.isFinite(assignedAt) && assignedAt < searchStart - 500) {
+      continue;
+    }
     if (a.response === "pending") continue;
     if (a.response === "accepted") {
       excluded.add(a.provider_id);
@@ -276,7 +292,7 @@ export async function offerNextProviderIfNeeded(requestId: string): Promise<void
   if (hasPending) return;
 
   const previouslyOffered = new Set(existing.map((a) => a.provider_id));
-  const excluded = await getExcludedProviderIds(requestId);
+  const excluded = await getExcludedProviderIds(requestId, Date.now(), request.created_at);
   const [busyProviders, pendingOfferProviders, vendors, listings, pushVendors] = await Promise.all([
     listProviderIdsWithActiveFulfillment(),
     listProviderIdsWithPendingOffer(),
@@ -345,6 +361,67 @@ export async function cancelBuyerServiceSearch(
   return { ok: true };
 }
 
+/**
+ * Buyer restarts an expired or cancelled search on the same request
+ * (same service, location, and id — no new catalog booking).
+ */
+export async function restartBuyerServiceSearch(
+  requestId: string,
+  customerId: string,
+): Promise<{ ok: boolean; error?: string; code?: string; requestId?: string }> {
+  const request = await getBuyerServiceRequestFullRow(requestId);
+  if (!request) return { ok: false, error: "Request not found" };
+  if (request.customer_id !== customerId) {
+    return { ok: false, error: "Request not found" };
+  }
+  const status = request.status.toLowerCase();
+  if (status !== "expired" && status !== "cancelled" && status !== "canceled") {
+    return { ok: false, error: "This request cannot be restarted" };
+  }
+
+  await processStaleOffersBestEffort();
+  const open = await findOpenBuyerServiceRequest(customerId, requestId);
+  if (open) {
+    return {
+      ok: false,
+      error: ACTIVE_BUYER_SERVICE_EXISTS_MESSAGE,
+      code: ACTIVE_BUYER_SERVICE_EXISTS_CODE,
+      requestId: open.id,
+    };
+  }
+
+  await expirePendingAssignmentsForRequest(requestId, "search_restarted");
+  const now = new Date().toISOString();
+  try {
+    await updateBuyerRequestDispatchFields(requestId, {
+      status: "pending",
+      provider_id: null,
+      accepted_at: null,
+      arrived_at: null,
+      started_at: null,
+      completed_at: null,
+      created_at: now,
+    });
+  } catch (error) {
+    const open = await findOpenBuyerServiceRequest(customerId, requestId);
+    if (open) {
+      return {
+        ok: false,
+        error: ACTIVE_BUYER_SERVICE_EXISTS_MESSAGE,
+        code: ACTIVE_BUYER_SERVICE_EXISTS_CODE,
+        requestId: open.id,
+      };
+    }
+    throw error;
+  }
+  try {
+    await startDispatchForNewRequest(requestId);
+  } catch (dispatchError) {
+    console.error("restartBuyerServiceSearch dispatch failed:", dispatchError);
+  }
+  return { ok: true };
+}
+
 /** Assign the oldest matching pending job to a provider who is currently polling. */
 export async function claimNextOfferForVendor(vendorId: string): Promise<void> {
   const id = vendorId.trim();
@@ -373,7 +450,7 @@ export async function claimNextOfferForVendor(vendorId: string): Promise<void> {
     if (!request || request.status !== "pending") continue;
     if (await expireSearchIfTimedOut(requestId, request.created_at)) continue;
     if (!vendorMatchesRequest(id, request.category, request.service, listings, offerings)) continue;
-    const excluded = await getExcludedProviderIds(requestId);
+    const excluded = await getExcludedProviderIds(requestId, Date.now(), request.created_at);
     if (excluded.has(id)) continue;
     try {
       await assignAndNotify(requestId, id);
@@ -392,6 +469,7 @@ export async function respondToDispatchOffer(
   assignmentId: string,
   vendorId: string,
   action: "accept" | "decline",
+  coords?: { lat?: unknown; lng?: unknown },
 ): Promise<{ ok: boolean; error?: string }> {
   await processStaleOffers();
 
@@ -433,6 +511,10 @@ export async function respondToDispatchOffer(
     provider_id: vendorId,
     accepted_at: now,
   });
+  const point = parseMapPoint(coords?.lat, coords?.lng);
+  if (point) {
+    await updateBuyerServiceRequestProviderLocation(request.id, point.lat, point.lng);
+  }
   return { ok: true };
 }
 
@@ -441,12 +523,24 @@ export async function advanceRequestStage(
   requestId: string,
   stage: "arrived" | "started" | "completed",
 ): Promise<void> {
+  const row = await getBuyerServiceRequestFullRow(requestId);
   const now = new Date().toISOString();
   if (stage === "arrived") {
     await updateBuyerRequestDispatchFields(requestId, { arrived_at: now, status: "matched" });
-  } else if (stage === "started") {
-    await updateBuyerRequestDispatchFields(requestId, { started_at: now, status: "in_progress" });
-  } else {
-    await updateBuyerRequestDispatchFields(requestId, { completed_at: now, status: "completed" });
+    return;
   }
+  if (stage === "started") {
+    await updateBuyerRequestDispatchFields(requestId, {
+      started_at: now,
+      status: "in_progress",
+      ...(row?.arrived_at ? {} : { arrived_at: now }),
+    });
+    return;
+  }
+  await updateBuyerRequestDispatchFields(requestId, {
+    completed_at: now,
+    status: "completed",
+    ...(row?.arrived_at ? {} : { arrived_at: now }),
+    ...(row?.started_at ? {} : { started_at: now }),
+  });
 }

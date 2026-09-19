@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 export const BUYER_PAGE_MAX = 'mx-auto w-full max-w-6xl';
 
 export const BUYER_SURFACE =
-  'gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-[0_10px_30px_rgba(11,18,32,0.05)] ring-1 ring-black/[0.03]';
+  'gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-[0_10px_30px_rgba(18,36,28,0.05)] ring-1 ring-black/[0.03]';
 
 export function BuyerPageShell({
   children,
@@ -96,7 +96,7 @@ export function BuyerStatTile({
   icon: LucideIcon;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-[0_8px_24px_rgba(11,18,32,0.04)] ring-1 ring-black/[0.03]">
+    <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-[0_8px_24px_rgba(18,36,28,0.04)] ring-1 ring-black/[0.03]">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -147,7 +147,7 @@ export function BuyerFilterChip({
       className={cn(
         'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold transition',
         active
-          ? 'border-[#0B1220] bg-[#0B1220] text-white shadow-sm'
+          ? 'border-[#12241C] bg-[#12241C] text-white shadow-sm'
           : 'border-border/80 bg-background text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground',
       )}
     >

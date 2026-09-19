@@ -1,7 +1,11 @@
 import { createBuyerServiceRequest, getBuyerServiceRequests, getCustomer } from '@/lib/db';
-import { serializeBuyerServiceRequest } from '@/lib/supabase/buyer-services-repo';
-import { startDispatchForNewRequest } from '@/lib/service-dispatch';
+import {
+  ActiveBuyerServiceExistsError,
+  serializeBuyerServiceRequest,
+} from '@/lib/supabase/buyer-services-repo';
+import { processStaleOffersBestEffort, startDispatchForNewRequest } from '@/lib/service-dispatch';
 import { resolveBuyerServiceCategory } from '@/lib/services-catalog';
+import { resolveServiceDestination } from '@/lib/geocode/address-suggestions';
 import { NextRequest, NextResponse } from 'next/server';
 
 function countPhoneDigits(value: string): number {
@@ -15,6 +19,7 @@ export async function GET(req: NextRequest) {
     if (!customerId) {
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
     }
+    await processStaleOffersBestEffort();
     const requests = await getBuyerServiceRequests(customerId);
     return NextResponse.json(requests.map(serializeBuyerServiceRequest));
   } catch (error) {
@@ -52,6 +57,12 @@ export async function POST(req: NextRequest) {
     }
     const contactName =
       bodyName || (customer.name || '').trim() || 'Buyer';
+    const dest = await resolveServiceDestination({
+      lat: destinationLat,
+      lng: destinationLng,
+      location,
+    });
+    await processStaleOffersBestEffort();
     const created = await createBuyerServiceRequest({
       customerId,
       category,
@@ -62,12 +73,7 @@ export async function POST(req: NextRequest) {
       buyerContactName: contactName,
       ...(bookingNotes ? { notes: bookingNotes } : {}),
       ...(vehicleId ? { vehicleId: String(vehicleId).trim() } : {}),
-      ...(destinationLat != null &&
-      destinationLng != null &&
-      Number.isFinite(destinationLat) &&
-      Number.isFinite(destinationLng)
-        ? { destinationLat, destinationLng }
-        : {}),
+      ...(dest ? { destinationLat: dest.lat, destinationLng: dest.lng } : {}),
     });
     try {
       await startDispatchForNewRequest(created.id);
@@ -76,6 +82,12 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(serializeBuyerServiceRequest(created), { status: 201 });
   } catch (error) {
+    if (error instanceof ActiveBuyerServiceExistsError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code, requestId: error.requestId },
+        { status: 409 },
+      );
+    }
     console.error('POST /api/buyer/service-requests failed:', error);
     return NextResponse.json({ error: 'Failed to create buyer service request' }, { status: 500 });
   }

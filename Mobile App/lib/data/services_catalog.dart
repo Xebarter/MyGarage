@@ -3,7 +3,13 @@ import '../models/models.dart';
 CatalogService _svc(String name, int defaultPriceUgx) =>
     CatalogService(name: name, defaultPriceUgx: defaultPriceUgx);
 
-/// Local catalog used for discovery (same content as former Expo services-catalog).
+/// Buyer Play Store ids that differ from the shared web catalog.
+const Map<String, String> _categoryIdAliases = {
+  'body-paint': 'body-repair-painting',
+  'inspection-paperwork': 'documents-insurance',
+};
+
+/// Same catalog as `lib/services-catalog.ts` on the web app.
 final List<ServiceCategory> userServiceCategories = [
   ServiceCategory(
     id: 'emergency-help',
@@ -78,38 +84,120 @@ final List<ServiceCategory> userServiceCategories = [
       _svc('Interior cleaning', 35000),
       _svc('Full detailing', 120000),
       _svc('Engine cleaning', 50000),
+      _svc('Mobile car wash (come to me)', 40000),
     ],
   ),
   ServiceCategory(
-    id: 'body-paint',
+    id: 'body-repair-painting',
     emoji: '🎨',
-    title: 'Body & Paint',
-    useWhen: 'Appearance and bodywork',
+    title: 'Body Repair & Painting',
+    useWhen: 'Use when: physical damage',
     priority: 'optional',
     services: [
-      _svc('Dent repair', 150000),
-      _svc('Scratch repair', 80000),
-      _svc('Full respray estimate', 500000),
-      _svc('Bumper repair', 120000),
+      _svc('Dent removal', 150000),
+      _svc('Scratch repair', 100000),
+      _svc('Full painting', 800000),
+      _svc('Bumper repair', 200000),
+      _svc('Accident repair', 500000),
     ],
   ),
   ServiceCategory(
-    id: 'inspection-paperwork',
-    emoji: '📋',
-    title: 'Inspection & Paperwork',
-    useWhen: 'Compliance and documentation',
+    id: 'ac-cooling',
+    emoji: '❄️',
+    title: 'Air Conditioning & Cooling',
+    useWhen: 'Simple mental model for users',
+    priority: 'common',
+    services: [
+      _svc('AC repair', 120000),
+      _svc('AC gas refill', 80000),
+      _svc('Car overheating', 100000),
+      _svc('Radiator issues', 110000),
+    ],
+  ),
+  ServiceCategory(
+    id: 'security-tracking',
+    emoji: '🔐',
+    title: 'Security & Tracking',
+    useWhen: 'High relevance in Uganda',
     priority: 'optional',
     services: [
-      _svc('Pre-purchase inspection', 100000),
-      _svc('Insurance assessment support', 80000),
-      _svc('Roadworthy checklist', 60000),
+      _svc('Install car tracker', 250000),
+      _svc('Install alarm', 180000),
+      _svc('Anti-theft systems', 300000),
+      _svc('Track my car', 50000),
+    ],
+  ),
+  ServiceCategory(
+    id: 'documents-insurance',
+    emoji: '📄',
+    title: 'Documents & Insurance',
+    useWhen: 'Non-technical but essential',
+    priority: 'optional',
+    services: [
+      _svc('Motor insurance', 150000),
+      _svc('Renew insurance', 80000),
+      _svc('Transfer ownership', 120000),
+      _svc('Road license', 60000),
+      _svc('Driving permit help', 70000),
+    ],
+  ),
+  ServiceCategory(
+    id: 'drivers-transport',
+    emoji: '🚘',
+    title: 'Drivers & Transport',
+    useWhen: 'Human + mobility layer',
+    priority: 'optional',
+    services: [
+      _svc('Hire driver', 80000),
+      _svc('Learn driving', 200000),
+      _svc('Chauffeur services', 150000),
+    ],
+  ),
+  ServiceCategory(
+    id: 'fuel-delivery',
+    emoji: '⛽',
+    title: 'Fuel & Delivery',
+    useWhen: 'Convenience',
+    priority: 'common',
+    services: [
+      _svc('Fuel delivery', 35000),
+      _svc('Oil delivery', 40000),
+      _svc('Battery delivery', 45000),
+    ],
+  ),
+  ServiceCategory(
+    id: 'rent-buy-car',
+    emoji: '🚙',
+    title: 'Rent or Buy a Car',
+    useWhen: 'Marketplace layer',
+    priority: 'optional',
+    services: [
+      _svc('Rent a car', 150000),
+      _svc('Hire car with driver', 250000),
+      _svc('Buy a car', 0),
+      _svc('Sell a car', 0),
+    ],
+  ),
+  ServiceCategory(
+    id: 'upgrade-my-car',
+    emoji: '⭐',
+    title: 'Upgrade My Car',
+    useWhen: 'Lifestyle category',
+    priority: 'optional',
+    services: [
+      _svc('Install music system', 200000),
+      _svc('Tint windows', 120000),
+      _svc('Car wrapping', 400000),
+      _svc('Interior upgrades', 250000),
+      _svc('Lights upgrade', 100000),
     ],
   ),
 ];
 
 ServiceCategory? categoryById(String id) {
+  final canonical = _categoryIdAliases[id] ?? id;
   for (final c in userServiceCategories) {
-    if (c.id == id) return c;
+    if (c.id == canonical) return c;
   }
   return null;
 }

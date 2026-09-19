@@ -619,7 +619,7 @@ export async function PATCH(req: NextRequest) {
 
       const payout = await createPayout(payload);
       const executionUrl = String(payout.execution_url ?? "");
-      if (!executionUrl) throw new Error("Missing execution_url from Paytota payout response");
+      if (!executionUrl) throw new Error("Missing execution_url from payout response");
 
       const executePayload =
         payoutAccount.account_type === "bank_account"
@@ -688,10 +688,11 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update disbursement";
     console.error("[PATCH /api/admin/payments]", error);
-    const isPaytota = message.includes("Paytota");
+    const isProviderError =
+      /payment request failed|payout response|paytota/i.test(message);
     return NextResponse.json(
       { error: message },
-      { status: isPaytota ? 502 : 500 },
+      { status: isProviderError ? 502 : 500 },
     );
   }
 }

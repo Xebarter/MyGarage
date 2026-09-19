@@ -52,7 +52,7 @@ export function MobileShopProductCard({
           <div className="absolute bottom-2 right-2 z-10">
             <div
               className={cn(
-                'flex h-[34px] items-center rounded-full border shadow-[0_3px_10px_rgba(11,18,32,0.12)]',
+                'flex h-[34px] items-center rounded-full border shadow-[0_3px_10px_rgba(18,36,28,0.12)]',
                 inCart ? 'border-primary bg-primary' : 'border-border bg-white',
               )}
             >
@@ -104,7 +104,7 @@ export function MobileShopProductCard({
           </div>
         </div>
         <div className="px-2.5 pb-[11px] pt-2.5">
-          <p className="line-clamp-2 text-[13px] font-semibold leading-[1.25] text-[#0B1220]">
+          <p className="line-clamp-2 text-[13px] font-semibold leading-[1.25] text-[#12241C]">
             {product.name}
           </p>
           <p className="mt-1.5 text-[13px] font-bold text-primary">{formatPrice(product.price)}</p>

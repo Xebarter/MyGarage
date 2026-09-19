@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -238,9 +239,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   onPressed: () async {
                                     await context.read<CartController>().add(p);
                                     if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Added to cart')),
-                                    );
+                                    ScaffoldMessenger.of(context)
+                                      ..clearSnackBars()
+                                      ..showSnackBar(
+                                        SnackBar(
+                                          content: Text('${p.name} added to cart'),
+                                          behavior: SnackBarBehavior.floating,
+                                          duration: const Duration(seconds: 2),
+                                          persist: false,
+                                          action: SnackBarAction(
+                                            label: 'View',
+                                            onPressed: () => context.go('/cart'),
+                                          ),
+                                        ),
+                                      );
                                   },
                                   child: const Text('Add to cart'),
                                 ),

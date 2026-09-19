@@ -212,10 +212,10 @@ export function ProductDetailClient({ initialProduct }: { initialProduct: Produc
         <div className="space-y-4">
           {product.variantOptions.map((opt) => (
             <div key={opt.id}>
-              <p className="text-sm font-semibold text-[#0B1220]">
+              <p className="text-sm font-semibold text-[#12241C]">
                 {opt.name}
                 {selectionByOptionId[opt.id] ? (
-                  <span className="ml-2 font-normal text-[#8B9BB0]">
+                  <span className="ml-2 font-normal text-[#7A8B82]">
                     · {opt.values.find((v) => v.id === selectionByOptionId[opt.id])?.label ?? ''}
                   </span>
                 ) : null}
@@ -265,7 +265,7 @@ export function ProductDetailClient({ initialProduct }: { initialProduct: Produc
         </div>
       ) : variantList.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-[#0B1220]">Choose an option</p>
+          <p className="text-sm font-semibold text-[#12241C]">Choose an option</p>
           {variantList.map((v) => {
             const isActive = selectedVariant?.id === v.id;
             return (

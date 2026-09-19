@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Bolt } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bolt, ChevronDown, MapPin } from 'lucide-react';
 
 import {
   cleanServiceDisplayTitle,
@@ -18,12 +18,27 @@ type ActiveRequestSummary = {
   statusLabel: string;
 };
 
+export type PastJobSummary = {
+  id: string;
+  service: string;
+  category: string;
+  location: string;
+  whenLabel: string;
+  whenFull: string;
+};
+
 export function MobileBuyerServicesBrowse({
   onSelectService,
   activeRequest,
+  pastJobs = [],
+  expandedJobId = null,
+  onToggleJob,
 }: {
   onSelectService: (categoryTitle: string, serviceName: string) => void;
   activeRequest?: ActiveRequestSummary | null;
+  pastJobs?: PastJobSummary[];
+  expandedJobId?: string | null;
+  onToggleJob?: (id: string) => void;
 }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
@@ -50,14 +65,14 @@ export function MobileBuyerServicesBrowse({
       <header className="px-5 pb-2 pt-4">
         <div className="flex items-center justify-center gap-3">
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0B1220] text-[11px] font-extrabold tracking-tight text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#12241C] text-[11px] font-extrabold tracking-tight text-white"
             aria-hidden
           >
             MG
           </span>
-          <h1 className="text-[26px] font-bold tracking-tight text-[#0B1220]">Services</h1>
+          <h1 className="text-[26px] font-bold tracking-tight text-[#12241C]">Services</h1>
         </div>
-        <p className="mt-2 text-center text-[14px] leading-relaxed text-[#8B9BB0]">
+        <p className="mt-2 text-center text-[14px] leading-relaxed text-[#7A8B82]">
           Get help now or book the right repair when you need it.
         </p>
       </header>
@@ -76,7 +91,7 @@ export function MobileBuyerServicesBrowse({
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1E4ED8]">
                 Active request
               </p>
-              <p className="mt-1 truncate text-[15px] font-semibold text-[#0B1220]">
+              <p className="mt-1 truncate text-[15px] font-semibold text-[#12241C]">
                 {activeRequest.service}
               </p>
               <p className="mt-0.5 text-[12px] font-medium text-[#475569]">{activeRequest.statusLabel}</p>
@@ -107,7 +122,7 @@ export function MobileBuyerServicesBrowse({
                   <span className="inline-flex rounded-full bg-[#9F2A2A]/12 px-2.5 py-1 text-[11px] font-bold tracking-wide text-[#9F2A2A]">
                     Priority
                   </span>
-                  <p className="mt-2 text-[19px] font-bold leading-snug tracking-tight text-[#0B1220]">
+                  <p className="mt-2 text-[19px] font-bold leading-snug tracking-tight text-[#12241C]">
                     {cleanServiceDisplayTitle(category.title)}
                   </p>
                 </div>
@@ -127,13 +142,13 @@ export function MobileBuyerServicesBrowse({
         <>
           <p
             className={cn(
-              'px-5 text-[13px] font-semibold tracking-wide text-[#8B9BB0]',
+              'px-5 text-[13px] font-semibold tracking-wide text-[#7A8B82]',
               urgent.length > 0 ? 'pb-2.5 pt-3' : 'pb-2.5 pt-2',
             )}
           >
             {urgent.length > 0 ? 'All services' : 'Browse services'}
           </p>
-          <div className="grid grid-cols-2 gap-2.5 px-4 pb-10">
+          <div className={cn('grid grid-cols-2 gap-2.5 px-4', pastJobs.length > 0 ? 'pb-4' : 'pb-10')}>
             {rest.map((category, index) => {
               const muted = category.priority === 'optional';
               return (
@@ -153,7 +168,7 @@ export function MobileBuyerServicesBrowse({
                   >
                     {category.emoji}
                   </span>
-                  <span className="mt-auto line-clamp-2 text-[13px] font-semibold leading-snug text-[#0B1220]">
+                  <span className="mt-auto line-clamp-2 text-[13px] font-semibold leading-snug text-[#12241C]">
                     <span className={muted ? 'text-[#475569]' : undefined}>
                       {cleanServiceDisplayTitle(category.title)}
                     </span>
@@ -163,6 +178,67 @@ export function MobileBuyerServicesBrowse({
             })}
           </div>
         </>
+      ) : null}
+
+      {pastJobs.length > 0 ? (
+        <section className="px-4 pb-10 pt-2" aria-label="Completed services">
+          <p className="px-1 pb-2.5 text-[13px] font-semibold tracking-wide text-[#7A8B82]">Past jobs</p>
+          <ul className="space-y-2">
+            {pastJobs.map((job, index) => {
+              const expanded = expandedJobId === job.id;
+              const panelId = `past-job-${job.id}`;
+              return (
+                <li key={job.id}>
+                  <div
+                    className={cn('overflow-hidden rounded-[14px] border-l-[3px] border-l-[#0E9A6A]', serviceCardSurfaceClass)}
+                    style={{ backgroundColor: serviceCardTone(index) }}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left"
+                      aria-expanded={expanded}
+                      aria-controls={panelId}
+                      onClick={() => onToggleJob?.(job.id)}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[#12241C]">
+                        {job.service}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-[#0E9A6A]/12 px-2 py-0.5 text-[10px] font-semibold text-[#087A53]">
+                        Completed
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 shrink-0 text-[#7A8B82] transition-transform duration-200',
+                          expanded && 'rotate-180',
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                    {expanded ? (
+                      <div id={panelId} className="space-y-2.5 border-t border-black/5 px-3.5 py-3">
+                        <p className="flex items-start gap-1.5 text-[12px] leading-relaxed text-[#475569]">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <span>
+                            {job.category || 'General'}
+                            {job.location ? ` · ${job.location}` : ''}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-[#7A8B82]">Finished {job.whenFull}</p>
+                        <Link
+                          href={`/buyer/services/track/${encodeURIComponent(job.id)}`}
+                          className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#0E9A6A]"
+                        >
+                          View job
+                          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
     </div>
   );
@@ -186,7 +262,7 @@ function MobileCategoryDetail({
         <button
           type="button"
           onClick={onBack}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#0B1220] shadow-sm"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#12241C] shadow-sm"
           aria-label="Back to services"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden />
@@ -195,7 +271,7 @@ function MobileCategoryDetail({
 
       <div className="flex flex-col items-center px-6 pb-3 pt-2">
         <span
-          className="flex h-[72px] w-[72px] items-center justify-center rounded-full border text-[34px] shadow-[0_8px_20px_-2px_rgba(11,18,32,0.05)]"
+          className="flex h-[72px] w-[72px] items-center justify-center rounded-full border text-[34px] shadow-[0_8px_20px_-2px_rgba(18,36,28,0.05)]"
           style={{
             backgroundColor: urgent ? SERVICE_EMERGENCY_TONE : serviceCardTone(1),
             borderColor: urgent ? 'rgba(159,42,42,0.2)' : 'rgba(0,0,0,0.06)',
@@ -211,18 +287,18 @@ function MobileCategoryDetail({
         ) : null}
         <h2
           className={cn(
-            'text-center text-[22px] font-bold leading-snug tracking-tight text-[#0B1220]',
+            'text-center text-[22px] font-bold leading-snug tracking-tight text-[#12241C]',
             urgent ? 'mt-2.5' : 'mt-4',
           )}
         >
           {title}
         </h2>
-        <p className="mt-2 text-center text-[13px] font-semibold text-[#8B9BB0]">
+        <p className="mt-2 text-center text-[13px] font-semibold text-[#7A8B82]">
           {category.services.length === 1 ? '1 service' : `${category.services.length} services`}
         </p>
       </div>
 
-      <p className="px-4 pb-2 text-center text-[13px] font-semibold tracking-wide text-[#8B9BB0]">
+      <p className="px-4 pb-2 text-center text-[13px] font-semibold tracking-wide text-[#7A8B82]">
         Choose a service
       </p>
 
@@ -245,15 +321,15 @@ function MobileCategoryDetail({
                 style={{ backgroundColor: tone }}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold leading-snug text-[#0B1220]">
+                  <span className="block text-[15px] font-semibold leading-snug text-[#12241C]">
                     {service.name}
                   </span>
-                  <span className="mt-1.5 block text-[13px] font-bold text-[#0B1220]/70">
+                  <span className="mt-1.5 block text-[13px] font-bold text-[#12241C]/70">
                     {priceLabel}
                   </span>
                 </span>
                 <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/55 text-[#0B1220]"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/55 text-[#12241C]"
                   aria-hidden
                 >
                   <ArrowRight className="h-[18px] w-[18px]" />

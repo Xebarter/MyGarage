@@ -52,12 +52,16 @@ export async function POST(req: NextRequest) {
     const customerId = typeof body.customerId === "string" ? body.customerId.trim() : "";
     const locationOverride = typeof body.location === "string" ? body.location.trim() : "";
     const phoneOverride = typeof body.phone === "string" ? body.phone.trim() : "";
+    const destinationLat = body.destinationLat != null ? Number(body.destinationLat) : null;
+    const destinationLng = body.destinationLng != null ? Number(body.destinationLng) : null;
 
     const result = await executeConciergeAction({
       customerId,
       action,
       locationOverride,
       phoneOverride,
+      destinationLat: Number.isFinite(destinationLat) ? destinationLat : null,
+      destinationLng: Number.isFinite(destinationLng) ? destinationLng : null,
     });
 
     if (!result.ok) {
@@ -68,7 +72,9 @@ export async function POST(req: NextRequest) {
             ? 403
             : result.code === "CUSTOMER_NOT_FOUND" || result.code === "VEHICLE_NOT_FOUND"
               ? 404
-              : 400;
+              : result.code === "ACTIVE_REQUEST_EXISTS"
+                ? 409
+                : 400;
       return NextResponse.json(result, { status });
     }
     return NextResponse.json(result);

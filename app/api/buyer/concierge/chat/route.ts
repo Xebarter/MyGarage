@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     let canBook = false;
     let defaultLocation = "";
     let defaultVehicleId: string | null = null;
+    let vehicleHint = "";
 
     if (customerId) {
       const customer = await getCustomer(customerId);
@@ -69,6 +70,8 @@ export async function POST(req: NextRequest) {
           vehicleContext: scoped.context,
         });
         defaultVehicleId = scoped.context.vehicle.id;
+        const v = scoped.context.vehicle;
+        vehicleHint = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
       } else {
         const ctx = await getCustomerConciergeContext(customerId);
         contextJson = JSON.stringify({
@@ -78,6 +81,8 @@ export async function POST(req: NextRequest) {
           primary: ctx.primary,
         });
         defaultVehicleId = ctx.primary?.vehicle.id ?? ctx.vehicles[0]?.id ?? null;
+        const v = ctx.primary?.vehicle ?? ctx.vehicles[0];
+        if (v) vehicleHint = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
       }
     }
 
@@ -88,11 +93,15 @@ export async function POST(req: NextRequest) {
       canBook,
       defaultLocation,
       defaultVehicleId,
+      vehicleHint,
     });
 
     return NextResponse.json({
       reply: result.reply,
       pendingAction: result.pendingAction,
+      productBrowse: result.productBrowse,
+      productDetail: result.productDetail,
+      shopCategories: result.shopCategories,
       configured: true,
     });
   } catch (error) {

@@ -1,10 +1,10 @@
 export type MapPoint = { lat: number; lng: number };
 
-export const ROUTE_CORE_COLOR = '#1E4ED8';
-export const ROUTE_CASING_COLOR = '#FFFFFF';
-export const ROUTE_SHADOW_COLOR = 'rgba(15, 23, 42, 0.22)';
-export const PICKUP_PIN_COLOR = '#0F172A';
-export const PROVIDER_PIN_COLOR = '#1E4ED8';
+export const ROUTE_CORE_COLOR = '#0E9A6A';
+export const ROUTE_CASING_COLOR = '#FFFBF4';
+export const ROUTE_SHADOW_COLOR = 'rgba(18, 36, 28, 0.22)';
+export const PICKUP_PIN_COLOR = '#12241C';
+export const PROVIDER_PIN_COLOR = '#0E9A6A';
 
 export function buildCurvedRouteCoordinates(from: MapPoint, to: MapPoint, segments = 42): MapPoint[] {
   const midLat = (from.lat + to.lat) / 2;

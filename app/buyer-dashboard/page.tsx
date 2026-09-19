@@ -10,7 +10,6 @@ import {
   MapPin,
   Package,
   ShoppingBag,
-  Sparkles,
   Truck,
   Wallet,
   Wrench,
@@ -160,31 +159,30 @@ export default function BuyerDashboardPage() {
           </BuyerPageShell>
         ) : (
           <BuyerPageShell>
-            <section className="relative overflow-hidden rounded-[28px] bg-[#0B1220] px-6 py-7 text-slate-50 shadow-[0_18px_40px_rgba(11,18,32,0.18)]">
-              <div className="absolute inset-x-0 top-0 h-[3px] bg-blue-500" />
-              <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" aria-hidden />
-              <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" aria-hidden />
+            <section className="relative overflow-hidden rounded-[28px] border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-[#FFF6EA] to-card px-6 py-7 text-foreground shadow-[0_12px_32px_rgba(18,36,28,0.06)]">
+              <div className="absolute inset-x-0 top-0 h-[3px] bg-[#E8C56B]" />
+              <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-[#E8C56B]/25 blur-3xl" aria-hidden />
+              <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
               <div className="relative flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-blue-500/40 bg-white/6 text-xl font-extrabold text-blue-300">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-primary/25 bg-primary/10 text-xl font-extrabold text-primary">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold text-slate-400">{timeGreeting}</p>
-                  <h1 className="mt-0.5 text-3xl font-extrabold tracking-tight">Welcome back, {greetingName}</h1>
-                  <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-slate-400">
+                  <p className="text-[13px] font-semibold text-[#7A8B82]">{timeGreeting}</p>
+                  <h1 className="mt-0.5 text-3xl font-extrabold tracking-tight text-[#12241C]">
+                    Welcome back, {greetingName}
+                  </h1>
+                  <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-muted-foreground">
                     Orders, deliveries, and services — managed from one account.
                   </p>
                   {buyerEmail ? (
-                    <p className="mt-3 inline-flex rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-slate-300">
+                    <p className="mt-3 inline-flex rounded-full border border-border/70 bg-white/70 px-3 py-1 text-xs text-muted-foreground">
                       {buyerEmail}
                     </p>
                   ) : null}
                 </div>
-                <Button asChild className="hidden shrink-0 bg-white text-[#0B1220] hover:bg-white/90 lg:inline-flex">
-                  <Link href="/buyer/services">
-                    <Sparkles className="h-4 w-4" aria-hidden />
-                    Book service
-                  </Link>
+                <Button asChild className="hidden shrink-0 lg:inline-flex">
+                  <Link href="/buyer/services">Book service</Link>
                 </Button>
               </div>
             </section>
@@ -199,7 +197,7 @@ export default function BuyerDashboardPage() {
                     <Truck className="h-4 w-4" aria-hidden />
                   </span>
                   <span className="min-w-0">
-                    <span className="block font-semibold text-[#0B1220]">
+                    <span className="block font-semibold text-[#12241C]">
                       {stats.active} order{stats.active === 1 ? '' : 's'} in progress
                     </span>
                     <span className="text-xs text-amber-900/70">Track status and delivery details</span>
@@ -234,7 +232,7 @@ export default function BuyerDashboardPage() {
                       key={action.href}
                       href={action.href}
                       className={cn(
-                        'group flex min-h-[7.5rem] flex-col rounded-2xl border p-4 shadow-[0_8px_24px_rgba(11,18,32,0.04)] transition hover:-translate-y-0.5',
+                        'group flex min-h-[7.5rem] flex-col rounded-2xl border p-4 shadow-[0_8px_24px_rgba(18,36,28,0.04)] transition hover:-translate-y-0.5',
                         action.accent
                           ? 'border-primary/20 bg-primary text-primary-foreground hover:bg-primary/92'
                           : 'border-border/70 bg-card ring-1 ring-black/[0.03] hover:border-primary/25',
@@ -258,10 +256,10 @@ export default function BuyerDashboardPage() {
                 <button
                   type="button"
                   onClick={() => openConciergeChat()}
-                  className="group flex min-h-[7.5rem] flex-col rounded-2xl border border-[#236B5C]/20 bg-[#236B5C] p-4 text-left text-[#F7FBF9] shadow-[0_8px_24px_rgba(22,72,62,0.22)] transition hover:-translate-y-0.5 hover:bg-[#16483E]"
+                  className="group flex min-h-[7.5rem] flex-col rounded-2xl border border-[#0E9A6A]/20 bg-[#0E9A6A] p-4 text-left text-[#FFFBF4] shadow-[0_8px_24px_rgba(14,154,106,0.22)] transition hover:-translate-y-0.5 hover:bg-[#087A53]"
                 >
                   <span className="text-sm font-bold">Ask Concierge</span>
-                  <span className="mt-0.5 text-xs text-[#F7FBF9]/80">Answers, parts quotes, booking</span>
+                  <span className="mt-0.5 text-xs text-[#FFFBF4]/80">Answers, parts quotes, booking</span>
                 </button>
               </div>
             </section>

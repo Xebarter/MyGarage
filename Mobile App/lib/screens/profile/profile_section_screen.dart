@@ -10,7 +10,9 @@ import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
+import '../../widgets/place_autocomplete_field.dart';
 import 'profile_screen.dart' show launchExternalUrl;
+import '../checkout/payment_webview_screen.dart';
 
 /// Deep-linkable control-center sections for mobile (web parity).
 class ProfileSectionScreen extends StatefulWidget {
@@ -109,6 +111,76 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
     }
   }
 
+  Future<void> _launchCheckout(Future<Map<String, dynamic>> Function() start) async {
+    setState(() => _saving = true);
+    try {
+      final res = await start();
+      final url = res['checkoutUrl']?.toString() ??
+          res['paymentUrl']?.toString() ??
+          res['url']?.toString();
+      if (url == null || url.isEmpty) {
+        throw Exception(res['error']?.toString() ?? 'No payment URL returned');
+      }
+      if (!mounted) return;
+      final result = await openHostedPayment(context, checkoutUrl: url);
+      if (!mounted) return;
+      if (result == null || result.cancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment cancelled.')),
+        );
+        return;
+      }
+      if (!result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment did not complete. You can try again.')),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment received.')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not start payment.'))),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _payServiceBill(BuyerPayment payment) async {
+    final auth = context.read<AuthController>();
+    final profile = auth.profile;
+    final customerId = auth.customerId;
+    final email = (profile?.email ?? auth.user?.email ?? '').trim();
+    final name = (profile?.name ?? '').trim();
+    final phone = (profile?.phone ?? '').trim();
+    if (customerId == null || email.isEmpty || name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete your profile before paying.')),
+      );
+      return;
+    }
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a phone number on your profile for mobile money.')),
+      );
+      return;
+    }
+    await _launchCheckout(
+      () => _api.createServicePayment(
+        customerId: customerId,
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
+        servicePaymentId: payment.id,
+        requestId: payment.referenceId.isNotEmpty ? payment.referenceId : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -156,9 +228,15 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
       case 'notifications':
         return _NotificationsSection(cc: cc, api: _api, onReload: _load, onSave: _withSave);
       case 'billing':
-        return _BillingSection(cc: cc);
+        return _BillingSection(cc: cc, onPayService: _payServiceBill);
       case 'membership':
-        return _MembershipSection(cc: cc, api: _api, onReload: _load, onSave: _withSave);
+        return _MembershipSection(
+          cc: cc,
+          api: _api,
+          onReload: _load,
+          onSave: _withSave,
+          onLaunchPayment: _launchCheckout,
+        );
       case 'documents':
         return _DocumentsSection(cc: cc, api: _api, onReload: _load);
       case 'services':
@@ -234,10 +312,14 @@ class _AccountSectionState extends State<_AccountSection> {
           decoration: const InputDecoration(labelText: 'Phone'),
         ),
         const SizedBox(height: 10),
-        TextField(
+        PlaceAutocompleteField(
           controller: _address,
           maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Address'),
+          decoration: const InputDecoration(
+            labelText: 'Address',
+            hintText: 'Search e.g. Ntinda, Kololo, Acacia Mall…',
+            prefixIcon: Icon(Icons.place_outlined),
+          ),
         ),
         if (p.defaultAddress != null && p.defaultAddress!.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -508,9 +590,10 @@ class _NotificationsSection extends StatelessWidget {
 }
 
 class _BillingSection extends StatelessWidget {
-  const _BillingSection({required this.cc});
+  const _BillingSection({required this.cc, required this.onPayService});
 
   final BuyerControlCenter cc;
+  final Future<void> Function(BuyerPayment payment) onPayService;
 
   @override
   Widget build(BuildContext context) {
@@ -544,11 +627,23 @@ class _BillingSection extends StatelessWidget {
           ...cc.payments.map(
             (p) => ListTile(
               contentPadding: EdgeInsets.zero,
+              isThreeLine: p.isPayableService,
               title: Text(p.label.isEmpty ? p.source : p.label),
               subtitle: Text('${p.status} · ${p.createdAt}'),
-              trailing: Text(
-                money.format(p.amount),
-                style: AppTheme.host(fontWeight: FontWeight.w700),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    money.format(p.amount),
+                    style: AppTheme.host(fontWeight: FontWeight.w700),
+                  ),
+                  if (p.isPayableService)
+                    TextButton(
+                      onPressed: () => onPayService(p),
+                      child: const Text('Pay'),
+                    ),
+                ],
               ),
             ),
           ),
@@ -563,12 +658,14 @@ class _MembershipSection extends StatelessWidget {
     required this.api,
     required this.onReload,
     required this.onSave,
+    required this.onLaunchPayment,
   });
 
   final BuyerControlCenter cc;
   final BuyerApi api;
   final Future<void> Function() onReload;
   final Future<void> Function(Future<void> Function()) onSave;
+  final Future<void> Function(Future<Map<String, dynamic>> Function()) onLaunchPayment;
 
   @override
   Widget build(BuildContext context) {
@@ -657,16 +754,28 @@ class _MembershipSection extends StatelessWidget {
                   FilledButton(
                     onPressed: isCurrent
                         ? null
-                        : () => onSave(() async {
-                              final res = await api.createSubscription(
+                        : () async {
+                            final auth = context.read<AuthController>();
+                            if (plan.monthlyPrice == 0) {
+                              await onSave(
+                                () async {
+                                  await api.createSubscription(
+                                    customerId: id,
+                                    planTier: plan.tier,
+                                    customerPhone: auth.profile?.phone,
+                                  );
+                                },
+                              );
+                              return;
+                            }
+                            await onLaunchPayment(
+                              () => api.createSubscription(
                                 customerId: id,
                                 planTier: plan.tier,
-                              );
-                              final url = res['checkoutUrl']?.toString();
-                              if (url != null && url.isNotEmpty) {
-                                await launchExternalUrl(url);
-                              }
-                            }),
+                                customerPhone: auth.profile?.phone,
+                              ),
+                            );
+                          },
                     child: Text(isCurrent ? 'Current plan' : 'Choose ${plan.name}'),
                   ),
                 ],

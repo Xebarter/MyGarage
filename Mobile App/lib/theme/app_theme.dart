@@ -2,39 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Design tokens — warm cream, rich forest teal. Premium chroma, not neon.
+/// Design tokens — sunlit ivory, jewel emerald, champagne gold.
 class AppColors {
   AppColors._();
 
-  static const Color primary = Color(0xFF236B5C);
-  static const Color primaryDeep = Color(0xFF16483E);
-  static const Color primarySoft = Color(0xFFDDEEE8);
-  static const Color onPrimary = Color(0xFFF7FBF9);
+  static const Color primary = Color(0xFF0E9A6A);
+  static const Color primaryDeep = Color(0xFF087A53);
+  static const Color primarySoft = Color(0xFFD3F6E6);
+  static const Color onPrimary = Color(0xFFFFFBF4);
 
-  static const Color success = Color(0xFF2E7D5B);
-  static const Color successSoft = Color(0xFFE3F3EB);
-  static const Color warning = Color(0xFFB07D2E);
-  static const Color warningSoft = Color(0xFFF6EFE0);
-  static const Color danger = Color(0xFFB04A44);
-  static const Color dangerSoft = Color(0xFFF6E8E6);
+  static const Color success = Color(0xFF1A9A62);
+  static const Color successSoft = Color(0xFFDFF6EA);
+  static const Color warning = Color(0xFFD4A017);
+  static const Color warningSoft = Color(0xFFF8EFC8);
+  static const Color danger = Color(0xFFD4523E);
+  static const Color dangerSoft = Color(0xFFF8E4DF);
 
-  /// Warm cream page wash.
-  static const Color background = Color(0xFFF5F2EB);
-  static const Color backgroundLift = Color(0xFFFAF7F1);
-  static const Color surface = Color(0xFFFFFDF9);
-  static const Color surfaceHigh = Color(0xFFFFFEFB);
-  static const Color surfaceMuted = Color(0xFFF1EBE3);
+  /// Sunlit ivory page wash.
+  static const Color background = Color(0xFFFFF6EA);
+  static const Color backgroundLift = Color(0xFFFFFBF4);
+  static const Color surface = Color(0xFFFFFEFB);
+  static const Color surfaceHigh = Color(0xFFFFFFFF);
+  static const Color surfaceMuted = Color(0xFFF6EDDF);
 
-  static const Color border = Color(0xFFE4DDD2);
-  static const Color borderSoft = Color(0xFFEFE9E0);
-  static const Color borderStrong = Color(0xFFCFC4B5);
+  static const Color border = Color(0xFFECDCC6);
+  static const Color borderSoft = Color(0xFFF4E9D8);
+  static const Color borderStrong = Color(0xFFD9C4A6);
 
-  static const Color textPrimary = Color(0xFF171C1A);
-  static const Color textSecondary = Color(0xFF4A5551);
-  static const Color textMuted = Color(0xFF7A8581);
+  static const Color textPrimary = Color(0xFF1A241F);
+  static const Color textSecondary = Color(0xFF4A5C54);
+  static const Color textMuted = Color(0xFF7A8B82);
 
-  static const Color glow = Color(0xFFA8C9C0);
-  static const Color ink = Color(0xFF12201C);
+  static const Color glow = Color(0xFFE8C56B);
+  static const Color ink = Color(0xFF12241C);
 }
 
 class AppRadii {
@@ -50,6 +50,14 @@ class AppRadii {
 
 class AppTheme {
   AppTheme._();
+
+  static const SystemUiOverlayStyle systemUi = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.background,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  );
 
   static String get fontFamily => GoogleFonts.hostGrotesk().fontFamily!;
 
@@ -135,8 +143,9 @@ class AppTheme {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        centerTitle: false,
+        titleSpacing: 16,
+        systemOverlayStyle: systemUi,
         titleTextStyle: host(
           fontSize: 22,
           fontWeight: FontWeight.w700,

@@ -20,6 +20,8 @@ class DispatchApi {
     required String assignmentId,
     required String vendorId,
     required String action,
+    double? providerLat,
+    double? providerLng,
   }) {
     return _client.post(
       '/api/services/dispatch/respond',
@@ -27,6 +29,8 @@ class DispatchApi {
         'assignmentId': assignmentId,
         'vendorId': vendorId,
         'action': action,
+        if (providerLat != null) 'providerLat': providerLat,
+        if (providerLng != null) 'providerLng': providerLng,
       },
       parser: (_) => null,
     );

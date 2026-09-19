@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -76,7 +77,10 @@ class _MyGarageBuyerAppState extends State<MyGarageBuyerApp> with WidgetsBinding
             ),
           );
         };
-        return child ?? const SizedBox.shrink();
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: AppTheme.systemUi,
+          child: child ?? const SizedBox.shrink(),
+        );
       },
     );
   }

@@ -124,7 +124,7 @@ export function MobileShopHome({
               onClick={() => setBrowseOpen(true)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-border bg-white"
             >
-              <Menu className="h-[22px] w-[22px] text-[#0B1220]" aria-hidden />
+              <Menu className="h-[22px] w-[22px] text-[#12241C]" aria-hidden />
             </button>
             <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex w-max items-center gap-2 py-0.5 pr-4">
@@ -145,7 +145,7 @@ export function MobileShopHome({
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 px-5 pb-2 pt-1">
-            <p className="text-[13px] font-medium text-[#8B9BB0]">
+            <p className="text-[13px] font-medium text-[#7A8B82]">
               {resultLabel(products.length, matchedServices.length, searchQuery, selectedCategory)}
             </p>
             {hasFilters ? (
@@ -167,10 +167,10 @@ export function MobileShopHome({
             <div className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-primary/10 text-primary">
               <SearchX className="h-7 w-7" aria-hidden />
             </div>
-            <p className="mt-4 text-[17px] font-bold text-[#0B1220]">
+            <p className="mt-4 text-[17px] font-bold text-[#12241C]">
               {hasFilters ? 'No matches' : 'No products yet'}
             </p>
-            <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#8B9BB0]">
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#7A8B82]">
               {hasFilters
                 ? 'Try a different keyword or clear filters.'
                 : 'Check back soon for parts and accessories.'}
@@ -189,7 +189,7 @@ export function MobileShopHome({
             {visibleProducts.length > 0 ? (
               <>
                 {matchedServices.length > 0 ? (
-                  <p className="mb-2.5 px-1 text-[13px] font-semibold text-[#8B9BB0]">Parts</p>
+                  <p className="mb-2.5 px-1 text-[13px] font-semibold text-[#7A8B82]">Parts</p>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2.5">
                   {visibleProducts.map((product, index) => (
@@ -215,7 +215,7 @@ export function MobileShopHome({
       </main>
 
       {snack ? (
-        <div className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 rounded-xl bg-[#0B1220] px-4 py-3 text-sm text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 rounded-xl bg-[#12241C] px-4 py-3 text-sm text-white shadow-lg">
           <p className="min-w-0 flex-1 truncate">{snack} added to cart</p>
           <Link href="/cart" className="shrink-0 font-semibold text-[#93C5FD]">
             View

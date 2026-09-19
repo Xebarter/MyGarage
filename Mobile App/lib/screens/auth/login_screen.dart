@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../config.dart';
+import '../../auth/auth_return_to.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_brand_logo.dart';
@@ -52,11 +53,14 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     final auth = context.read<AuthController>();
     if (auth.status != AuthStatus.authenticated) return;
+    final fromQuery = GoRouterState.of(context).uri.queryParameters['next'];
+    final stored = AuthReturnTo.consumeSync();
+    final next = AuthReturnTo.isSafePath(fromQuery) ? fromQuery : stored;
     if (context.canPop()) {
       context.pop();
-    } else {
-      context.go('/services');
+      return;
     }
+    context.go(next ?? '/services');
   }
 
   Future<void> _submit() async {

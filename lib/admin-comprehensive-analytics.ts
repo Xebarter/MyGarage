@@ -298,8 +298,8 @@ export async function getComprehensiveAdminAnalytics(
     fetchPaytotaCollections(prev.from, prev.to),
   ]);
 
-  if (paytotaCurrent.error) dataNotes.push(`Paytota collections unavailable: ${paytotaCurrent.error}`);
-  if (paytotaPrev.error) dataNotes.push(`Paytota prior period unavailable: ${paytotaPrev.error}`);
+  if (paytotaCurrent.error) dataNotes.push(`Payment collections unavailable: ${paytotaCurrent.error}`);
+  if (paytotaPrev.error) dataNotes.push(`Payment prior period unavailable: ${paytotaPrev.error}`);
 
   const vendors: Vendor[] = vendorsRaw.map((v) => ({
     ...v,
@@ -604,7 +604,7 @@ export async function getComprehensiveAdminAnalytics(
   const payMethods = paymentsInRange.filter((p) => !filters.vendorId || p.vendorId === filters.vendorId);
   const methodGroups = new Map<string, { count: number; amount: number; ok: number }>();
   for (const p of payMethods) {
-    const m = "Paytota";
+    const m = "Payment";
     const g = methodGroups.get(m) ?? { count: 0, amount: 0, ok: 0 };
     g.count += 1;
     if (p.status === "succeeded") {
@@ -856,7 +856,7 @@ export async function getComprehensiveAdminAnalytics(
     alerts.push({
       severity: "critical",
       title: "Elevated payment failures",
-      detail: "Over 20% of tracked payment attempts failed — review Paytota logs and buyer flows.",
+      detail: "Over 20% of tracked payment attempts failed — review payment logs and buyer flows.",
     });
   }
   for (const p of deadStockCandidates.slice(0, 3)) {
@@ -889,7 +889,7 @@ export async function getComprehensiveAdminAnalytics(
   }
 
   dataNotes.push(
-    "Product orders use in-memory order data until migrated; align amounts with Paytota for accounting.",
+    "Product orders use in-memory order data until migrated; align amounts with payments for accounting.",
   );
   dataNotes.push(
     `Gross margin assumed at ${(ESTIMATED_GROSS_MARGIN * 100).toFixed(0)}% for estimates (no COGS table).`,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -101,8 +102,11 @@ class _MyGarageServicesAppState extends State<MyGarageServicesApp> with WidgetsB
           );
         };
 
-        return IncomingOfferHost(
-          child: child ?? const SizedBox.shrink(),
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: AppTheme.systemUi,
+          child: IncomingOfferHost(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

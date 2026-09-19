@@ -629,6 +629,8 @@ export const getAllBuyerServiceRequests = async () => buyerServicesRepo.listAllB
 export const createBuyerServiceRequest = async (payload: buyerServicesRepo.BuyerServiceRequestInsert) => {
   return buyerServicesRepo.insertBuyerServiceRequest(payload);
 };
+export const findOpenBuyerServiceRequest = async (customerId: string, exceptId?: string) =>
+  buyerServicesRepo.findOpenBuyerServiceRequest(customerId, exceptId);
 export const updateBuyerServiceRequestStatus = async (id: string, status: buyerServicesRepo.BuyerServiceRequest["status"]) => {
   return buyerServicesRepo.updateBuyerServiceRequestStatusById(id, status);
 };

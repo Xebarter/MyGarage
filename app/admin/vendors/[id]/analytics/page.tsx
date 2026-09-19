@@ -186,7 +186,7 @@ export default function VendorAnalyticsPage() {
         <Card className="border-border/80 shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md dark:ring-white/[0.06]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Orders</CardTitle>
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <ShoppingBag className="h-4 w-4" />
             </span>
           </CardHeader>

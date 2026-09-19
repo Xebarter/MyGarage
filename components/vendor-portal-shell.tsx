@@ -11,7 +11,7 @@ export function VendorPortalShell({ children }: { children: React.ReactNode }) {
         <Header />
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <VendorSidebar />
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+          <main data-page-scroll className="min-h-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
     </VendorPortalChromeProvider>

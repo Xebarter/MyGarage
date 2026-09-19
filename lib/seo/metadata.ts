@@ -141,7 +141,7 @@ export function buildRootMetadata(): Metadata {
       template: `%s | ${SITE_NAME}`,
     },
     description: DEFAULT_DESCRIPTION,
-    applicationName: SITE_NAME,
+    themeColor: '#FFF6EA',
     authors: [{ name: SITE_NAME, url: siteUrl }],
     creator: SITE_NAME,
     publisher: SITE_NAME,

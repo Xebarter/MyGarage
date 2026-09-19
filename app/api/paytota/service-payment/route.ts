@@ -5,6 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getPaytotaCancelRedirectUrl,
   getPaytotaFailureRedirectUrl,
+  getPaytotaMobileCancelRedirectUrl,
+  getPaytotaMobileFailureRedirectUrl,
+  getPaytotaMobileSuccessRedirectUrl,
   getPaytotaSuccessRedirectUrl,
 } from "@/lib/app-url";
 import {
@@ -36,6 +39,7 @@ export async function POST(req: NextRequest) {
     const customerEmail = String(body?.customerEmail ?? "").trim().toLowerCase();
     const customerPhone = normalizeUgPhone(String(body?.customerPhone ?? "").trim());
     const customerName = String(body?.customerName ?? "").trim();
+    const platform = String(body?.platform ?? "").trim().toLowerCase();
 
     if (!servicePaymentId && !requestId) {
       return NextResponse.json({ error: "servicePaymentId or requestId is required" }, { status: 400 });
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
       if (minUgx != null && amountUgx < minUgx) {
         return NextResponse.json(
           {
-            error: `Payment amount (${amountUgx} UGX) is below the minimum Paytota collection amount (${minUgx} UGX).`,
+            error: `Payment amount (${amountUgx} UGX) is below the minimum payment amount (${minUgx} UGX).`,
           },
           { status: 400 },
         );
@@ -131,19 +135,25 @@ export async function POST(req: NextRequest) {
       reference: `SVC-${servicePaymentId}`,
       skip_capture: getPaytotaSkipCapture(),
       brand_id: brandId,
-      success_redirect: getPaytotaSuccessRedirectUrl({
-        servicePaymentId: payment.id,
-        requestId: payment.request_id,
-      }),
-      failure_redirect: getPaytotaFailureRedirectUrl({
-        servicePaymentId: payment.id,
-        requestId: payment.request_id,
-      }),
-      cancel_redirect: getPaytotaCancelRedirectUrl({
-        servicePaymentId: payment.id,
-        requestId: payment.request_id,
-      }),
     };
+
+    const redirectExtra = {
+      servicePaymentId: String(payment.id),
+      requestId: String(payment.request_id ?? ""),
+      kind: "service",
+    };
+    purchasePayload.success_redirect =
+      platform === "mobile"
+        ? getPaytotaMobileSuccessRedirectUrl(redirectExtra)
+        : getPaytotaSuccessRedirectUrl(redirectExtra);
+    purchasePayload.failure_redirect =
+      platform === "mobile"
+        ? getPaytotaMobileFailureRedirectUrl(redirectExtra)
+        : getPaytotaFailureRedirectUrl(redirectExtra);
+    purchasePayload.cancel_redirect =
+      platform === "mobile"
+        ? getPaytotaMobileCancelRedirectUrl(redirectExtra)
+        : getPaytotaCancelRedirectUrl(redirectExtra);
 
     const methodWhitelist = getPaytotaPaymentMethodWhitelist();
     if (methodWhitelist) purchasePayload.payment_method_whitelist = methodWhitelist;
@@ -169,7 +179,7 @@ export async function POST(req: NextRequest) {
     const providerReference = String(purchase.id ?? "");
     const checkoutUrl = String(purchase.checkout_url ?? "");
     if (!providerReference || !checkoutUrl) {
-      throw new Error("Paytota service payment initialization failed");
+      throw new Error("Payment could not be started. Try again.");
     }
 
     const { error: txError } = await supabase.from("paytota_transactions").insert({

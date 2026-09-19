@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AddressAutocomplete } from '@/components/location/address-autocomplete';
 import { cn } from '@/lib/utils';
 
 interface BuyerAddress {
@@ -177,13 +178,12 @@ export default function BuyerAddressesPage() {
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="address-full">Full address</Label>
-              <Input
+              <AddressAutocomplete
                 id="address-full"
                 value={fullAddress}
-                onChange={(e) => setFullAddress(e.target.value)}
-                placeholder="Street, area, city"
-                className="h-11 rounded-xl"
-                autoComplete="section-shipping street-address"
+                onChange={setFullAddress}
+                onPlaceSelect={(place) => setFullAddress(place.label)}
+                placeholder="Search e.g. Ntinda, Kololo, Acacia Mall…"
               />
             </div>
           </div>

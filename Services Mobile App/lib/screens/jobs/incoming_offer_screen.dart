@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../maps/premium_google_map.dart';
 import '../../maps/premium_map_markers.dart';
+import '../../maps/map_coords.dart';
 import '../../models/service_request.dart';
 import '../../services/job_alert_service.dart';
 import '../../theme/app_theme.dart';
@@ -98,9 +99,7 @@ class _IncomingOfferScreenState extends State<IncomingOfferScreen> {
     final progress = (_remaining.inSeconds / _window.inSeconds).clamp(0.0, 1.0);
     final urgent = _remaining.inSeconds < 20;
     final req = widget.offer.request;
-    final dest = (req?.destinationLat != null && req?.destinationLng != null)
-        ? LatLng(req!.destinationLat!, req.destinationLng!)
-        : null;
+    final dest = parseLatLng(req?.destinationLat, req?.destinationLng);
     final center = dest ?? const LatLng(0.3476, 32.5825);
     final padBottom = MediaQuery.paddingOf(context).bottom;
 

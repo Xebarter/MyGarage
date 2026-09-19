@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     if (minUgx != null && total < minUgx) {
       return NextResponse.json(
         {
-          error: `Order total (${total} UGX) is below the minimum Paytota collection amount (${minUgx} UGX). Use prices in whole UGX or set PAYTOTA_MIN_PURCHASE_UGX=0 to skip this check.`,
+          error: `Order total (${total} UGX) is below the minimum payment amount (${minUgx} UGX).`,
         },
         { status: 400 },
       );
@@ -208,20 +208,21 @@ export async function POST(req: NextRequest) {
     const methodWhitelist = getPaytotaPaymentMethodWhitelist();
     if (methodWhitelist) purchasePayload.payment_method_whitelist = methodWhitelist;
 
+    const redirectExtra = { checkoutId, kind: "product" };
     purchasePayload.success_redirect =
       successRedirect ||
       (platform === "mobile"
-        ? getPaytotaMobileSuccessRedirectUrl({ checkoutId })
-        : getPaytotaSuccessRedirectUrl({ checkoutId }));
+        ? getPaytotaMobileSuccessRedirectUrl(redirectExtra)
+        : getPaytotaSuccessRedirectUrl(redirectExtra));
     purchasePayload.failure_redirect =
       failureRedirect ||
       (platform === "mobile"
-        ? getPaytotaMobileFailureRedirectUrl({ checkoutId })
-        : getPaytotaFailureRedirectUrl({ checkoutId }));
+        ? getPaytotaMobileFailureRedirectUrl(redirectExtra)
+        : getPaytotaFailureRedirectUrl(redirectExtra));
     purchasePayload.cancel_redirect =
       platform === "mobile"
-        ? getPaytotaMobileCancelRedirectUrl({ checkoutId })
-        : getPaytotaCancelRedirectUrl({ checkoutId });
+        ? getPaytotaMobileCancelRedirectUrl(redirectExtra)
+        : getPaytotaCancelRedirectUrl(redirectExtra);
 
     let purchase: Awaited<ReturnType<typeof createPurchase>>;
     try {
@@ -245,7 +246,7 @@ export async function POST(req: NextRequest) {
     const checkoutUrl = String(purchase.checkout_url ?? "");
 
     if (!providerReference || !checkoutUrl) {
-      throw new Error("Paytota purchase response missing id or checkout_url");
+      throw new Error("Payment could not be started. Try again.");
     }
 
     const { error: updateCheckoutError } = await supabase

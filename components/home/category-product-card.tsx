@@ -56,13 +56,13 @@ export function CategoryProductCard({
         />
 
         {product.featured ? (
-          <span className="absolute left-2.5 top-2.5 rounded-md bg-[#0B1220] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
+          <span className="absolute left-2.5 top-2.5 rounded-md bg-[#12241C] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
             Featured
           </span>
         ) : null}
 
         <span
-          className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-white/80 text-[#0B1220] opacity-0 shadow-sm backdrop-blur-sm transition duration-300 group-hover:opacity-100 group-hover:translate-y-0 translate-y-1"
+          className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-white/80 text-[#12241C] opacity-0 shadow-sm backdrop-blur-sm transition duration-300 group-hover:opacity-100 group-hover:translate-y-0 translate-y-1"
           aria-hidden
         >
           <ArrowUpRight className="h-4 w-4" />
@@ -78,13 +78,13 @@ export function CategoryProductCard({
           <span className="block h-4 lg:hidden" aria-hidden />
         )}
 
-        <h3 className="mt-1.5 line-clamp-2 min-h-[2.6rem] text-[15px] font-semibold leading-snug tracking-tight text-[#0B1220] transition-colors lg:min-h-0 lg:text-[14px]">
+        <h3 className="mt-1.5 line-clamp-2 min-h-[2.6rem] text-[15px] font-semibold leading-snug tracking-tight text-[#12241C] transition-colors lg:min-h-0 lg:text-[14px]">
           {product.name}
         </h3>
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <div className="min-w-0">
-            <p className="text-[15px] font-bold tabular-nums tracking-tight text-[#0B1220] sm:text-base">
+            <p className="text-[15px] font-bold tabular-nums tracking-tight text-[#12241C] sm:text-base">
               {formatProductPriceLabel(product)}
             </p>
             {compareAt ? (
@@ -117,14 +117,14 @@ export function FeaturedSpotlightCard({
     <Link
       href={`/products/${product.id}`}
       className={cn(
-        'group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-[#0B1220] text-white',
-        'shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition duration-500 hover:bg-[#0E1628]',
+        'group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-[#12241C] text-white',
+        'shadow-[0_1px_2px_rgba(18,36,28,0.08)] transition duration-500 hover:bg-[#17362C]',
         className,
       )}
     >
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_30%,rgba(37,99,235,0.22),transparent_55%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_30%,rgba(14,154,106,0.28),transparent_55%)]"
           aria-hidden
         />
         <ProductImage
@@ -135,7 +135,7 @@ export function FeaturedSpotlightCard({
           sizes="(max-width: 768px) 100vw, 50vw"
           priority={imagePriority}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#070B14] via-[#070B14]/45 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#10241C] via-[#10241C]/45 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 md:p-7">
           {supplierLine ? (
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">

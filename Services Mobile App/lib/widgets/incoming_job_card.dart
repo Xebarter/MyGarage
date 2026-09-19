@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../maps/premium_google_map.dart';
 import '../maps/premium_map_markers.dart';
+import '../maps/map_coords.dart';
 import '../models/service_request.dart';
 import '../providers/dispatch_controller.dart';
 import '../theme/app_theme.dart';
@@ -104,9 +105,7 @@ class _IncomingJobCardState extends State<IncomingJobCard> {
     final req = widget.offer.request;
     final progress = (_remaining.inSeconds / _window.inSeconds).clamp(0.0, 1.0);
     final urgent = _remaining.inSeconds < 20;
-    final dest = (req?.destinationLat != null && req?.destinationLng != null)
-        ? LatLng(req!.destinationLat!, req.destinationLng!)
-        : null;
+    final dest = parseLatLng(req?.destinationLat, req?.destinationLng);
 
     return Container(
       decoration: BoxDecoration(

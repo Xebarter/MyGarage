@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import '../models/models.dart';
 import '../utils/media_url.dart';
 
 const _cartKey = 'mygarage_cart_v1';
+const _heldCartKey = 'mygarage_cart_held_v1';
 
 class CartController extends ChangeNotifier {
   final List<CartItem> _items = [];
@@ -28,25 +30,26 @@ class CartController extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_cartKey);
-    _items.clear();
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        final list = jsonDecode(raw) as List<dynamic>;
-        for (final e in list) {
-          if (e is Map) {
-            final item = CartItem.fromJson(Map<String, dynamic>.from(e));
-            _items.add(
-              item.copyWith(image: resolveMediaUrl(item.image)),
-            );
-          }
-        }
-      } catch (_) {
-        _items.clear();
-      }
-    }
+    _items
+      ..clear()
+      ..addAll(_decodeItems(prefs.getString(_cartKey)));
+    _held = _decodeItems(prefs.getString(_heldCartKey));
     hydrated = true;
     notifyListeners();
+  }
+
+  List<CartItem> _decodeItems(String? raw) {
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .whereType<Map>()
+          .map((e) => CartItem.fromJson(Map<String, dynamic>.from(e)))
+          .map((item) => item.copyWith(image: resolveMediaUrl(item.image)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> _persist() async {
@@ -54,6 +57,18 @@ class CartController extends ChangeNotifier {
     await prefs.setString(
       _cartKey,
       jsonEncode(_items.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  Future<void> _persistHeld() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_held.isEmpty) {
+      await prefs.remove(_heldCartKey);
+      return;
+    }
+    await prefs.setString(
+      _heldCartKey,
+      jsonEncode(_held.map((e) => e.toJson()).toList()),
     );
   }
 
@@ -107,11 +122,13 @@ class CartController extends ChangeNotifier {
 
   Future<void> holdAndClearForCheckout() async {
     _held = List<CartItem>.from(_items);
+    await _persistHeld();
     await clear();
   }
 
   void confirmHeldCheckout() {
     _held = [];
+    unawaited(_persistHeld());
   }
 
   void restoreHeldCheckout() {
@@ -119,8 +136,9 @@ class CartController extends ChangeNotifier {
     if (_items.isEmpty) {
       _items.addAll(_held);
       notifyListeners();
-      _persist();
+      unawaited(_persist());
     }
     _held = [];
+    unawaited(_persistHeld());
   }
 }

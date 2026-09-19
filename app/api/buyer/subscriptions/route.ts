@@ -61,7 +61,7 @@ async function startPaidSubscriptionCheckout(opts: {
   const minUgx = getPaytotaMinPurchaseUgx();
   if (minUgx != null && total < minUgx) {
     throw new Error(
-      `Subscription price (${total} UGX) is below Paytota minimum (${minUgx} UGX). Set PAYTOTA_MIN_PURCHASE_UGX=0 to skip.`,
+      `Subscription price (${total} UGX) is below the minimum payment amount (${minUgx} UGX).`,
     );
   }
 
@@ -159,7 +159,7 @@ async function startPaidSubscriptionCheckout(opts: {
   const providerReference = String(purchase.id ?? "");
   const checkoutUrl = String(purchase.checkout_url ?? "");
   if (!providerReference || !checkoutUrl) {
-    throw new Error("Paytota purchase response missing id or checkout_url");
+    throw new Error("Payment could not be started. Try again.");
   }
 
   const { error: txError } = await supabase.from("paytota_transactions").insert({

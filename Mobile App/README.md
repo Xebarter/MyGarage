@@ -41,7 +41,7 @@ Enable **Windows Developer Mode** if Flutter reports symlink errors for plugins.
 
 - **Services** — category catalog, location, request, provider tracking (name + photo)
 - **Shop** — product catalog + product detail
-- **Cart / Checkout** — local cart + Paytota hosted payment
+- **Cart / Checkout** — local cart + hosted payment
 - **Garage** — vehicles list + add
 - **Profile / Orders** — auth, orders list
 

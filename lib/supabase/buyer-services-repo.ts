@@ -106,6 +106,32 @@ export type BuyerServiceRequestInsert = Omit<
 
 export type BuyerProviderRatingUpsert = Omit<BuyerProviderRating, "id" | "createdAt" | "updatedAt"> & { id?: string };
 
+export const OPEN_BUYER_SERVICE_STATUSES: BuyerServiceRequest["status"][] = [
+  "pending",
+  "matched",
+  "in_progress",
+];
+
+export const ACTIVE_BUYER_SERVICE_EXISTS_CODE = "ACTIVE_REQUEST_EXISTS";
+
+export const ACTIVE_BUYER_SERVICE_EXISTS_MESSAGE =
+  "You already have a service in progress. Finish or cancel it before booking another.";
+
+export class ActiveBuyerServiceExistsError extends Error {
+  readonly code = ACTIVE_BUYER_SERVICE_EXISTS_CODE;
+  readonly requestId: string;
+
+  constructor(requestId: string) {
+    super(ACTIVE_BUYER_SERVICE_EXISTS_MESSAGE);
+    this.name = "ActiveBuyerServiceExistsError";
+    this.requestId = requestId;
+  }
+}
+
+export function isOpenBuyerServiceStatus(status: string): boolean {
+  return OPEN_BUYER_SERVICE_STATUSES.includes(status as BuyerServiceRequest["status"]);
+}
+
 function rowToBuyerServiceRequest(row: BuyerServiceRequestRow): BuyerServiceRequest {
   return {
     id: row.id,
@@ -158,6 +184,28 @@ function rowToBuyerProviderRating(row: BuyerProviderRatingRow): BuyerProviderRat
   };
 }
 
+export async function findOpenBuyerServiceRequest(
+  customerId: string,
+  exceptId?: string,
+): Promise<BuyerServiceRequest | null> {
+  const id = customerId.trim();
+  if (!id) return null;
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_service_requests")
+    .select("*")
+    .eq("customer_id", id)
+    .in("status", OPEN_BUYER_SERVICE_STATUSES)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (error) {
+    throw new Error(`Supabase find open buyer service request failed: ${error.message}`);
+  }
+  const except = exceptId?.trim() || "";
+  const row = ((data as BuyerServiceRequestRow[] | null) ?? []).find((item) => item.id !== except);
+  return row ? rowToBuyerServiceRequest(row) : null;
+}
+
 export async function listBuyerServiceRequests(customerId: string): Promise<BuyerServiceRequest[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -184,6 +232,13 @@ export async function listAllBuyerServiceRequests(): Promise<BuyerServiceRequest
 }
 
 export async function insertBuyerServiceRequest(request: BuyerServiceRequestInsert): Promise<BuyerServiceRequest> {
+  const nextStatus = request.status ?? "pending";
+  if (isOpenBuyerServiceStatus(nextStatus)) {
+    const open = await findOpenBuyerServiceRequest(request.customerId);
+    if (open) {
+      throw new ActiveBuyerServiceExistsError(open.id);
+    }
+  }
   const supabase = createAdminClient();
   const id = request.id ?? Date.now().toString();
   const row: Record<string, unknown> = {
@@ -192,7 +247,7 @@ export async function insertBuyerServiceRequest(request: BuyerServiceRequestInse
     category: request.category,
     service: request.service,
     location: request.location,
-    status: request.status ?? "pending",
+    status: nextStatus,
     buyer_contact_phone: request.buyerContactPhone,
     buyer_contact_name: request.buyerContactName,
   };
@@ -208,6 +263,12 @@ export async function insertBuyerServiceRequest(request: BuyerServiceRequestInse
   }
   const { data, error } = await supabase.from("buyer_service_requests").insert(row).select("*").single();
   if (error) {
+    if (error.code === "23505") {
+      const open = await findOpenBuyerServiceRequest(request.customerId);
+      if (open) {
+        throw new ActiveBuyerServiceExistsError(open.id);
+      }
+    }
     throw new Error(`Supabase insert buyer service request failed: ${error.message}`);
   }
   return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);

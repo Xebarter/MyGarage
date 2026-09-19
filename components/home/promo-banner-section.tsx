@@ -79,7 +79,7 @@ export function PromoBannerSection({
           sizes="(max-width: 1500px) 100vw, 1500px"
           priority={activeIndex === 0}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070B14]/75 via-[#070B14]/15 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#10241C]/75 via-[#10241C]/15 to-transparent" />
 
         <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 md:p-9">
           <h2 className="line-clamp-2 max-w-3xl text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-3xl md:text-4xl">

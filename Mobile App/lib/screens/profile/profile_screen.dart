@@ -101,7 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SliverAppBar(
               floating: true,
               snap: true,
-              centerTitle: true,
+              centerTitle: false,
               title: const AppBarTitle('Profile'),
               actions: [
                 if (signedIn)

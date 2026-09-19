@@ -333,6 +333,7 @@ class BuyerPayment {
     required this.status,
     required this.source,
     required this.createdAt,
+    this.referenceId = '',
   });
 
   final String id;
@@ -342,6 +343,10 @@ class BuyerPayment {
   final String status;
   final String source;
   final String createdAt;
+  final String referenceId;
+
+  bool get isPayableService =>
+      source == 'service' && (status == 'pending' || status == 'authorized');
 
   factory BuyerPayment.fromJson(Map<String, dynamic> json) {
     return BuyerPayment(
@@ -352,6 +357,7 @@ class BuyerPayment {
       status: _s(json['status']),
       source: _s(json['source']),
       createdAt: _s(json['createdAt']),
+      referenceId: _s(json['referenceId']),
     );
   }
 }

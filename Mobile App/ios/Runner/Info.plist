@@ -83,6 +83,13 @@
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mtnmomo</string>
+		<string>momo</string>
+		<string>airtelmoney</string>
+		<string>tel</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>MyGarage uses your location to show you on the map for service tracking.</string>
 </dict>

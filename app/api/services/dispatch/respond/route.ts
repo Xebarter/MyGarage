@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
     if (!assignmentId || !vendorId || (action !== 'accept' && action !== 'decline')) {
       return NextResponse.json({ error: 'assignmentId, vendorId, and action (accept|decline) are required' }, { status: 400 });
     }
-    const result = await respondToDispatchOffer(assignmentId, vendorId, action);
+    const result = await respondToDispatchOffer(assignmentId, vendorId, action, {
+      lat: body.providerLat,
+      lng: body.providerLng,
+    });
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? 'Failed' }, { status: 400 });
     }

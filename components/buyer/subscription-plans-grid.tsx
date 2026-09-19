@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Crown, Loader2, Sparkles } from 'lucide-react';
+import { Check, Crown, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -203,10 +203,7 @@ function PlanCard({
           ) : isActive ? (
             'Current plan'
           ) : isUpgrade ? (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Subscribe to {plan.name}
-            </>
+            `Subscribe to ${plan.name}`
           ) : (
             `Switch to ${plan.name}`
           )}

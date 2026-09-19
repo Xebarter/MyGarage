@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
@@ -10,6 +11,7 @@ import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
+import '../../widgets/place_autocomplete_field.dart';
 
 mixin _CustomerListMixin<T extends StatefulWidget> on State<T> {
   final api = BuyerApi(ApiClient());
@@ -154,10 +156,14 @@ class _AddressesScreenState extends State<AddressesScreen> with _CustomerListMix
                   const SizedBox(height: 12),
                   TextField(controller: label, decoration: const InputDecoration(labelText: 'Label (Home)')),
                   const SizedBox(height: 8),
-                  TextField(
+                  PlaceAutocompleteField(
                     controller: address,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Full address'),
+                    decoration: const InputDecoration(
+                      labelText: 'Full address',
+                      hintText: 'Search e.g. Ntinda, Kololo, Acacia Mall…',
+                      prefixIcon: Icon(Icons.place_outlined),
+                    ),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -324,9 +330,44 @@ class _SupportScreenState extends State<SupportScreen> with _CustomerListMixin {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Contact MyGarage', style: AppTheme.host(fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 6),
-                            Text('support@mygarage.ug', style: AppTheme.host(fontSize: 13.5)),
-                            Text('+256 support line', style: AppTheme.host(fontSize: 13.5, color: AppColors.textMuted)),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () => launchUrl(Uri.parse('tel:+256752405877')),
+                              child: Text(
+                                '+256 752 405 877',
+                                style: AppTheme.host(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () => launchUrl(Uri.parse('mailto:support@mygarage.ug')),
+                              child: Text('support@mygarage.ug', style: AppTheme.host(fontSize: 13.5)),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () => launchUrl(Uri.parse('tel:+256752405877')),
+                                  icon: const Icon(Icons.call_outlined, size: 16),
+                                  label: const Text('Call'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => launchUrl(
+                                    Uri.parse('https://wa.me/256752405877'),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  icon: const Icon(Icons.chat_outlined, size: 16),
+                                  label: const Text('WhatsApp'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
                             Text('Hours: Mon–Sat 8am–6pm', style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted)),
                           ],
                         ),

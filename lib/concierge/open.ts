@@ -11,7 +11,7 @@ export function openConciergeChat(detail: ConciergeOpenDetail = {}) {
 }
 
 const CONFIRM_RE =
-  /^(yes|yep|yeah|ok|okay|sure|confirm|book it|book them|add them|add it|do it|go ahead|please book|please add)[\s!.]*$/i;
+  /^(yes|yep|yeah|ok|okay|sure|confirm|book it|book them|add them|add it|do it|go ahead|please book|please add|buy it|order it|checkout|check out|pay)[\s!.]*$/i;
 
 export function isConciergeConfirmPhrase(value: string): boolean {
   return CONFIRM_RE.test(value.trim());

@@ -336,6 +336,49 @@ export function getDepartmentTitles(): string[] {
   return sidebarCategories.map((r) => r.title)
 }
 
+function collectNodeTitles(node: SidebarCategoryNode): string[] {
+  const titles = [node.title]
+  if (node.children?.length) {
+    for (const child of node.children) titles.push(...collectNodeTitles(child))
+  }
+  return titles
+}
+
+function findSidebarNode(
+  nodes: SidebarCategoryNode[],
+  pred: (node: SidebarCategoryNode) => boolean,
+): SidebarCategoryNode | null {
+  for (const node of nodes) {
+    if (pred(node)) return node
+    if (node.children?.length) {
+      const hit = findSidebarNode(node.children, pred)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+/** Exact or partial match against the shop sidebar tree; returns that node plus descendants. */
+export function matchSidebarCategoryTitles(query: string): string[] | null {
+  const q = query.trim().toLowerCase()
+  if (!q) return null
+  const exact = findSidebarNode(sidebarCategories, (node) => node.title.trim().toLowerCase() === q)
+  if (exact) return collectNodeTitles(exact)
+  if (q.length < 4) return null
+  const partial = findSidebarNode(sidebarCategories, (node) => {
+    const title = node.title.trim().toLowerCase()
+    return title.includes(q) || q.includes(title)
+  })
+  return partial ? collectNodeTitles(partial) : null
+}
+
+export function listShopDepartments(): { title: string; children: string[] }[] {
+  return sidebarCategories.map((node) => ({
+    title: node.title,
+    children: (node.children ?? []).map((child) => child.title).slice(0, 10),
+  }))
+}
+
 let departmentDescendantTitlesCache: Map<string, Set<string>> | null = null
 
 function buildDepartmentDescendantTitleSets(): Map<string, Set<string>> {

@@ -120,6 +120,7 @@ export async function updateBuyerRequestDispatchFields(
     arrived_at?: string | null;
     started_at?: string | null;
     completed_at?: string | null;
+    created_at?: string;
   },
 ): Promise<void> {
   const supabase = createAdminClient();

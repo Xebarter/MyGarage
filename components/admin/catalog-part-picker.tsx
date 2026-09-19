@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, Search, Sparkles } from 'lucide-react';
+import { Check, ChevronRight, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -272,7 +272,7 @@ export function CatalogPartPicker({
 
       {selectedPick ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
-          <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+          <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-medium text-foreground">{selectedPick.label}</p>
             <p className="text-xs text-muted-foreground">{selectedPick.department}</p>

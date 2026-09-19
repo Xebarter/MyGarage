@@ -27,7 +27,7 @@ export function GarageVehiclePhoto({
 
   if (!url || failed) {
     return (
-      <div className={cn('flex h-full w-full items-center justify-center bg-[#0B1220]/8', className)}>
+      <div className={cn('flex h-full w-full items-center justify-center bg-[#12241C]/8', className)}>
         <Car className={cn('h-8 w-8 text-muted-foreground', iconClassName)} aria-hidden />
       </div>
     );

@@ -23,6 +23,12 @@ import { initFirebaseAnalytics } from "@/lib/firebase/client";
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { createClient } from "@/lib/supabase/client";
 import {
+  consumeAuthNext,
+  isSafeAuthNext,
+  peekAuthNext,
+  rememberAuthNext,
+} from "@/lib/auth-next";
+import {
   clearOAuthWelcomePending,
   consumeOAuthWelcomePending,
   consumeWelcomeNewAccount,
@@ -86,7 +92,8 @@ function AuthForm() {
 
   // Derived directly from the live URL — always up-to-date on client navigation
   const role = searchParams.get("role") || "buyer";
-  const nextPath = searchParams.get("next") || getDefaultNext(role);
+  const requestedNext = searchParams.get("next");
+  const nextPath = isSafeAuthNext(requestedNext) ? requestedNext : getDefaultNext(role);
   const authError = searchParams.get("error") || null;
   const isAdminRole = role === "admin";
 
@@ -109,6 +116,10 @@ function AuthForm() {
       void initFirebaseAnalytics();
     }
   }, []);
+
+  useEffect(() => {
+    if (isSafeAuthNext(requestedNext)) rememberAuthNext(requestedNext);
+  }, [requestedNext]);
 
   useEffect(() => {
     setPhone("");
@@ -189,7 +200,7 @@ function AuthForm() {
           queueAuthWelcomeForUser(user, role);
         }
         setSessionChecked(true);
-        router.replace(await resolvePostAuthDestination());
+        await goToPostAuthDestination();
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Could not finish signing in.");
@@ -300,7 +311,14 @@ function AuthForm() {
         }
       }
     }
-    return nextPath;
+    if (isSafeAuthNext(requestedNext)) return requestedNext;
+    return peekAuthNext() ?? getDefaultNext(role);
+  };
+
+  const goToPostAuthDestination = async () => {
+    const dest = await resolvePostAuthDestination();
+    consumeAuthNext();
+    router.replace(dest);
   };
 
   const persistSessionProfile = async () => {
@@ -430,7 +448,7 @@ function AuthForm() {
       data: { user },
     } = await supabase.auth.getUser();
     queueAuthWelcomeForUser(user, role, options?.isNewAccount ? { isNewAccount: true } : undefined);
-    router.replace(await resolvePostAuthDestination());
+    await goToPostAuthDestination();
     return true;
   }
 
@@ -468,7 +486,7 @@ function AuthForm() {
       consumeOAuthWelcomePending();
       queueAuthWelcomeForUser(user, role, consumeWelcomeNewAccount() ? { isNewAccount: true } : undefined);
       setBuyerFlowStep("signin");
-      router.replace(nextPath);
+      await goToPostAuthDestination();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your phone number.");
     } finally {

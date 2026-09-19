@@ -61,7 +61,7 @@ export function getPaytotaMinPurchaseUgx(): number | null {
   return n;
 }
 
-/** Hint appended when Paytota returns purchase_no_available_payment_method (brand/currency/rules/amount). */
+/** Hint appended when purchase_no_available_payment_method is returned (brand/currency/rules/amount). */
 export function paytotaNoPaymentMethodHint(context: {
   brandId: string;
   currency: string;
@@ -69,28 +69,19 @@ export function paytotaNoPaymentMethodHint(context: {
   amountUgx: number;
   minUgx: number | null;
 }): string {
-  const header = `Paytota saw brand_id=${context.brandId}, currency=${context.currency}, skip_capture=${context.skipCapture}, amount=${context.amountUgx} UGX.`;
-
   if (context.skipCapture) {
-    return `${header} Try PAYTOTA_SKIP_CAPTURE=false unless Paytota enabled holds for this brand.`;
+    return "Payment is not available for this checkout. Please try again.";
   }
 
   if (context.minUgx != null && context.amountUgx < context.minUgx) {
-    return `${header} Your amount is below PAYTOTA_MIN_PURCHASE_UGX (${context.minUgx}); raise prices or set PAYTOTA_MIN_PURCHASE_UGX=0 to skip this app check (Paytota may still reject tiny amounts).`;
+    return `This amount is below the minimum payment of ${context.minUgx} UGX.`;
   }
 
   if (context.amountUgx < 500) {
-    return `${header} Very low UGX totals are often blocked; use whole-number real UGX prices (not decimals like 12.99 interpreted as ~13 UGX).`;
+    return "This amount is too low for mobile money. Use a higher total in whole UGX.";
   }
 
-  // Typical mobile-money totals: failure here is almost always Paytota-side configuration.
-  return (
-    `${header} ` +
-    "Your amount and skip_capture look fine for normal UGX mobile money — Paytota is not exposing any method for this brand. " +
-    "In the Paytota company dashboard: open this brand, enable Uganda / UGX collection methods (MTN MoMo, Airtel Money, etc.), and review rules / limits that might block amounts or flows. " +
-    "Confirm PAYTOTA_SECRET_KEY is from the same environment (test vs live) as PAYTOTA_BRAND_ID — a mismatched key/brand/company produces this error. " +
-    "If it still fails, email Paytota support with exactly: brand_id, currency UGX, skip_capture false, and amount in UGX."
-  );
+  return "No payment method is available for this amount. Please try again or contact support.";
 }
 
 function buildAuthHeaders(secretKey: string, contentType = "application/json"): HeadersInit {
@@ -118,8 +109,8 @@ async function parsePaytotaResponse(res: Response) {
 
     // Paytota sometimes returns validation errors without a stable `error.message` field.
     // Fall back to the raw response body to make debugging possible.
-    const fallback = text?.trim() ? `Paytota request failed (${res.status}): ${text.trim()}` : `Paytota request failed with status ${res.status}`;
-    throw new Error(messageCandidate ? `Paytota request failed (${res.status}): ${messageCandidate}` : fallback);
+    const fallback = text?.trim() ? `Payment request failed (${res.status}): ${text.trim()}` : `Payment request failed with status ${res.status}`;
+    throw new Error(messageCandidate ? `Payment request failed (${res.status}): ${messageCandidate}` : fallback);
   }
   return data ?? {};
 }

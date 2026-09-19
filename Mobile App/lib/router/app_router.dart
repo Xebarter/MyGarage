@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../auth/auth_return_to.dart';
 import '../models/models.dart';
 import '../providers/auth_controller.dart';
 import '../providers/cart_controller.dart';
@@ -28,12 +29,75 @@ import '../screens/shop/shop_screen.dart';
 import '../widgets/app_bottom_nav.dart';
 
 String myGarageDeepLinkKey(Uri uri) {
-  if (uri.scheme != 'mygarage') return '';
-  final host = uri.host;
-  final path = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
-  if (host.isEmpty) return path;
-  if (path.isEmpty) return host;
-  return '$host/$path';
+  if (uri.scheme == 'mygarage') {
+    final host = uri.host;
+    final path = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
+    if (host.isEmpty) return path;
+    if (path.isEmpty) return host;
+    return '$host/$path';
+  }
+
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segments.length >= 2 &&
+      segments[0] == 'checkout' &&
+      (segments[1] == 'complete' || segments[1] == 'failed')) {
+    return 'checkout/${segments[1]}';
+  }
+  if (segments.length == 1 &&
+      (segments[0] == 'complete' || segments[0] == 'failed') &&
+      uri.host == 'checkout') {
+    return 'checkout/${segments[0]}';
+  }
+  return '';
+}
+
+String? authReturnLocation(Uri uri, AuthController auth) {
+  final host = uri.host.toLowerCase();
+  final isAuthCallback = host == 'login-callback' ||
+      (uri.scheme == 'mygarage' && (host == 'auth' || host == 'login-callback'));
+  if (!isAuthCallback) return null;
+
+  final fromQuery = uri.queryParameters['next'];
+  final next = AuthReturnTo.isSafePath(fromQuery)
+      ? fromQuery
+      : AuthReturnTo.consumeSync();
+  if (auth.status == AuthStatus.authenticated) {
+    return next ?? '/services';
+  }
+  if (AuthReturnTo.isSafePath(next)) {
+    return '/login?next=${Uri.encodeComponent(next!)}';
+  }
+  return '/login';
+}
+
+String? paymentReturnLocation(
+  Uri uri,
+  AuthController auth,
+  CartController cart,
+) {
+  final key = myGarageDeepLinkKey(uri);
+  if (key != 'checkout/complete' && key != 'checkout/failed') return null;
+
+  final kind = uri.queryParameters['kind'] ?? '';
+  final requestId = uri.queryParameters['requestId'] ?? '';
+
+  if (key == 'checkout/complete') {
+    cart.confirmHeldCheckout();
+    if (kind == 'subscription') return '/profile/membership';
+    if (kind == 'service') {
+      if (requestId.isNotEmpty) return '/service/track/$requestId';
+      return '/profile/billing';
+    }
+    return auth.status == AuthStatus.authenticated ? '/orders' : '/login';
+  }
+
+  cart.restoreHeldCheckout();
+  if (kind == 'subscription') return '/profile/membership';
+  if (kind == 'service') {
+    if (requestId.isNotEmpty) return '/service/track/$requestId';
+    return '/profile/billing';
+  }
+  return '/checkout';
 }
 
 GoRouter createRouter(AuthController auth, CartController cart) {
@@ -41,23 +105,26 @@ GoRouter createRouter(AuthController auth, CartController cart) {
     initialLocation: '/services',
     refreshListenable: auth,
     redirect: (context, state) {
-      final uri = state.uri;
-      if (uri.scheme == 'mygarage') {
-        final key = myGarageDeepLinkKey(uri);
-        if (key == 'checkout/complete') {
-          cart.confirmHeldCheckout();
-          return auth.status == AuthStatus.authenticated ? '/orders' : '/login';
-        }
-        if (key == 'checkout/failed') {
-          cart.restoreHeldCheckout();
-          return '/checkout';
-        }
-        return null;
+      final authLocation = authReturnLocation(state.uri, auth);
+      if (authLocation != null) return authLocation;
+      final paymentLocation = paymentReturnLocation(state.uri, auth, cart);
+      if (paymentLocation != null) return paymentLocation;
+      if (state.matchedLocation == '/checkout/complete' ||
+          state.matchedLocation == '/checkout/failed') {
+        return paymentReturnLocation(
+              state.uri.replace(path: state.matchedLocation),
+              auth,
+              cart,
+            ) ??
+            '/services';
       }
       if (state.matchedLocation == '/login' &&
           auth.status == AuthStatus.authenticated &&
           !context.canPop()) {
-        return '/services';
+        final fromQuery = state.uri.queryParameters['next'];
+        final stored = AuthReturnTo.consumeSync();
+        final next = AuthReturnTo.isSafePath(fromQuery) ? fromQuery : stored;
+        return next ?? '/services';
       }
       return null;
     },
@@ -170,6 +237,16 @@ GoRouter createRouter(AuthController auth, CartController cart) {
             },
           ),
           GoRoute(
+            path: '/checkout/complete',
+            redirect: (context, state) =>
+                paymentReturnLocation(state.uri, auth, cart) ?? '/orders',
+          ),
+          GoRoute(
+            path: '/checkout/failed',
+            redirect: (context, state) =>
+                paymentReturnLocation(state.uri, auth, cart) ?? '/checkout',
+          ),
+          GoRoute(
             path: '/checkout',
             builder: (context, state) => const CheckoutScreen(),
           ),
@@ -227,6 +304,10 @@ GoRouter createRouter(AuthController auth, CartController cart) {
 Future<bool> ensureSignedIn(BuildContext context) async {
   final auth = context.read<AuthController>();
   if (auth.status == AuthStatus.authenticated && auth.user != null) return true;
-  await context.push('/login');
+  final uri = GoRouterState.of(context).uri;
+  final here = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+  await AuthReturnTo.save(here);
+  if (!context.mounted) return false;
+  await context.push('/login?next=${Uri.encodeComponent(here)}');
   return auth.status == AuthStatus.authenticated && auth.user != null;
 }

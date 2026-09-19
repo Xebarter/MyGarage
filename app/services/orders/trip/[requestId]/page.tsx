@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
+import { parseMapPoint } from '@/lib/maps/coords';
 import { createClient } from '@/lib/supabase/client';
 import { mergeRealtimeRowIntoTripRequest, subscribeToBuyerServiceRequest } from '@/lib/supabase/buyer-service-request-realtime';
 import { cn } from '@/lib/utils';
@@ -106,15 +107,7 @@ export default function ProviderTripPage() {
 
   const destinationPoint = useMemo((): TripMapPoint | null => {
     if (!request) return null;
-    if (
-      request.destinationLat != null &&
-      request.destinationLng != null &&
-      Number.isFinite(request.destinationLat) &&
-      Number.isFinite(request.destinationLng)
-    ) {
-      return { lat: request.destinationLat, lng: request.destinationLng };
-    }
-    return null;
+    return parseMapPoint(request.destinationLat, request.destinationLng);
   }, [request]);
 
   useEffect(() => {
@@ -127,15 +120,16 @@ export default function ProviderTripPage() {
     void fetch(`/api/geocode?q=${encodeURIComponent(q)}`)
       .then((res) => res.json())
       .then(async (data: { lat?: number | null; lng?: number | null }) => {
-        if (cancelled || data.lat == null || data.lng == null) return;
+        const point = parseMapPoint(data.lat, data.lng);
+        if (cancelled || !point) return;
         await fetch('/api/vendor/service-requests', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: request.id,
             vendorId,
-            destinationLat: data.lat,
-            destinationLng: data.lng,
+            destinationLat: point.lat,
+            destinationLng: point.lng,
           }),
         });
         void load();
@@ -156,7 +150,7 @@ export default function ProviderTripPage() {
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        if (!parseMapPoint(lat, lng)) return;
         setMyPos({ lat, lng });
         const now = Date.now();
         const prev = lastSentRef.current;
@@ -183,16 +177,8 @@ export default function ProviderTripPage() {
   }, [vendorId, requestId, request?.status]);
 
   const providerOnMap = useMemo(() => {
-    if (myPos) return myPos;
-    if (
-      request?.providerLat != null &&
-      request?.providerLng != null &&
-      Number.isFinite(request.providerLat) &&
-      Number.isFinite(request.providerLng)
-    ) {
-      return { lat: request.providerLat, lng: request.providerLng };
-    }
-    return null;
+    if (myPos && parseMapPoint(myPos.lat, myPos.lng)) return myPos;
+    return parseMapPoint(request?.providerLat, request?.providerLng);
   }, [myPos, request?.providerLat, request?.providerLng]);
 
   const googleNavUrl = useMemo(() => {

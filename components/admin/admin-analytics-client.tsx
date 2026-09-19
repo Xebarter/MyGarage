@@ -88,7 +88,6 @@ import {
   RotateCcw,
   Search,
   ShoppingCart,
-  Sparkles,
   Star,
   Store,
   Tag,
@@ -998,7 +997,7 @@ function OrdersAnalyticsSection({
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground">Product order statuses</span> reflect in-range shipments with
               line items matching your filters. <span className="font-medium text-foreground">Payment rates</span> come
-              from Paytota collection rows (succeeded vs failed). Open the orders desk for full detail.
+              from payment collection rows (succeeded vs failed). Open the orders desk for full detail.
             </p>
           </div>
         </div>
@@ -1021,7 +1020,7 @@ function OrdersAnalyticsSection({
         </div>
         <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
           <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
-            <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
+            <Wrench className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Service payments</span>
           </div>
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
@@ -1037,7 +1036,7 @@ function OrdersAnalyticsSection({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
             {successPct.toFixed(1)}%
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Share of Paytota collections succeeded</p>
+          <p className="mt-1 text-xs text-muted-foreground">Share of collections succeeded</p>
         </div>
         <div className="rounded-xl border border-rose-500/25 bg-rose-500/6 p-4 shadow-sm dark:bg-rose-500/10">
           <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
@@ -1047,7 +1046,7 @@ function OrdersAnalyticsSection({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
             {failurePct.toFixed(1)}%
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Share of Paytota collections failed</p>
+          <p className="mt-1 text-xs text-muted-foreground">Share of collections failed</p>
         </div>
       </div>
 
@@ -1460,7 +1459,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
         <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/4 dark:ring-white/7 lg:col-span-2">
           <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
             <h4 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
-              <Sparkles className="h-4 w-4 text-fuchsia-500" aria-hidden />
+              <Tag className="h-4 w-4 text-fuchsia-500" aria-hidden />
               Hot codes
             </h4>
             <p className="mt-0.5 text-xs text-muted-foreground">Quick copy for support or social.</p>
@@ -1804,7 +1803,10 @@ export function AdminAnalyticsClient() {
         productCategory: productCategory || undefined,
         serviceCategory: serviceCategory || undefined,
       });
-      const res = await fetch(`/api/admin/analytics${q}`, { cache: 'no-store' });
+      let res = await fetch(`/api/admin-analytics${q}`, { cache: 'no-store' });
+      if (res.status === 404) {
+        res = await fetch(`/api/admin/analytics${q}`, { cache: 'no-store' });
+      }
       const payload = (await res.json().catch(() => ({}))) as
         | AdminComprehensiveAnalytics
         | { error?: string; hint?: string };
@@ -2235,10 +2237,7 @@ export function AdminAnalyticsClient() {
                 <LayoutDashboard className="h-6 w-6" />
               </div>
               <div>
-                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Admin analytics
-                </p>
+                <p className="text-xs font-medium text-primary">Admin analytics</p>
                 <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
                   Platform analytics
                 </h1>
@@ -3195,7 +3194,7 @@ export function AdminAnalyticsClient() {
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/18 text-amber-800 shadow-inner dark:text-amber-200"
                 aria-hidden
               >
-                <Sparkles className="h-5 w-5" />
+                <Wrench className="h-5 w-5" />
               </div>
               <div className="min-w-0 space-y-3">
                 <div>
@@ -3860,7 +3859,7 @@ export function AdminAnalyticsClient() {
                   ) : null}
                   {financeAggregates.highestMarginCategory != null && financeAggregates.highestMarginPct != null ? (
                     <Badge variant="secondary" className="max-w-full gap-1 font-normal">
-                      <Sparkles className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <Trophy className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
                       <span className="truncate">
                         Peak margin category · {financeAggregates.highestMarginCategory} (
                         {financeAggregates.highestMarginPct.toFixed(1)}%)
@@ -3923,7 +3922,7 @@ export function AdminAnalyticsClient() {
                 {formatUgx(data.finance.outstandingVendorBalanceEstimate)}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Vendor balance still owed — reconcile with Paytota and ledger
+                Vendor balance still owed — reconcile with payments and ledger
               </p>
             </div>
           </div>
@@ -4145,7 +4144,7 @@ export function AdminAnalyticsClient() {
                   ) : null}
                   <Badge variant="secondary" className="max-w-full gap-1 font-normal">
                     <Globe className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
-                    <span className="truncate">Paytota rows in range · {data.paytotaRowCount.toLocaleString()}</span>
+                    <span className="truncate">Payment rows in range · {data.paytotaRowCount.toLocaleString()}</span>
                   </Badge>
                 </div>
               </div>
@@ -4240,8 +4239,8 @@ export function AdminAnalyticsClient() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Payment attempts (tracked)</p>
                   <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                    Succeeded vs. failed counts follow Paytota when rows exist in range; otherwise in-memory payment
-                    stats. Row count reflects Paytota payloads loaded for this filter.
+                    Succeeded vs. failed counts follow payment collections when rows exist in range; otherwise in-memory payment
+                    stats. Row count reflects payment payloads loaded for this filter.
                   </p>
                 </div>
               </div>
@@ -4266,7 +4265,7 @@ export function AdminAnalyticsClient() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paytota rows</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Payment rows</p>
                   <p className="text-xl font-bold tabular-nums text-foreground">
                     {data.paytotaRowCount.toLocaleString()}
                   </p>
@@ -4553,7 +4552,7 @@ export function AdminAnalyticsClient() {
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-muted-foreground shadow-inner"
                 aria-hidden
               >
-                <Sparkles className="h-4 w-4" />
+                <Layers2 className="h-4 w-4" />
               </div>
               <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
                 Personalized recommendations for buyers already run on the storefront feed; this admin tab stays focused

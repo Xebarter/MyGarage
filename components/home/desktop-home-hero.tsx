@@ -21,13 +21,13 @@ export function DesktopHomeHero({
   return (
     <section
       aria-label="MyGarage marketplace"
-      className="relative isolate overflow-hidden bg-[#070B14] text-white"
+      className="relative isolate overflow-hidden bg-[#10241C] text-white"
     >
       {/* Atmospheric plane */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_15%_20%,rgba(37,99,235,0.28),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_85%_30%,rgba(56,189,248,0.12),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(7,11,20,0.35)_70%,#070B14_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_15%_20%,rgba(14,154,106,0.38),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_85%_30%,rgba(232,197,107,0.18),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(16,36,28,0.35)_70%,#10241C_100%)]" />
         <div
           className="absolute inset-0 opacity-[0.035]"
           style={{
@@ -59,7 +59,7 @@ export function DesktopHomeHero({
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               href="#browse-categories"
-              className="group inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#0B1220] transition duration-300 hover:bg-white/92"
+              className="group inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#12241C] transition duration-300 hover:bg-white/92"
             >
               Shop the catalog
               <ArrowRight

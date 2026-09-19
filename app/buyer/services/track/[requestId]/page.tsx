@@ -22,10 +22,10 @@ import {
   Phone,
   Radio,
   RefreshCw,
-  Sparkles,
   Car,
 } from 'lucide-react';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
+import { parseMapPoint } from '@/lib/maps/coords';
 import { createClient } from '@/lib/supabase/client';
 import {
   mergeRealtimeRowIntoRequestDetail,
@@ -136,6 +136,7 @@ export default function ServiceTrackPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
     const id = (typeof window !== 'undefined' && localStorage.getItem('currentBuyerId')) || '';
@@ -200,6 +201,37 @@ export default function ServiceTrackPage() {
     }
   }, [requestId, customerId, cancelling, load]);
 
+  const requestAgain = useCallback(async () => {
+    if (!requestId || !customerId || restarting) return;
+    setRestarting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/buyer/service-requests/${encodeURIComponent(requestId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restart', customerId }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+          requestId?: string;
+        };
+        if (json.code === 'ACTIVE_REQUEST_EXISTS' && json.requestId && json.requestId !== requestId) {
+          router.push(`/buyer/services/track/${encodeURIComponent(json.requestId)}`);
+          return;
+        }
+        setError(json.error || 'Could not restart this search.');
+        return;
+      }
+      await load();
+    } catch {
+      setError('Could not restart this search.');
+    } finally {
+      setRestarting(false);
+    }
+  }, [requestId, customerId, restarting, load]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -248,11 +280,7 @@ export default function ServiceTrackPage() {
   useEffect(() => {
     const r = data?.request;
     if (!r) return;
-    const hasStored =
-      r.destinationLat != null &&
-      r.destinationLng != null &&
-      Number.isFinite(Number(r.destinationLat)) &&
-      Number.isFinite(Number(r.destinationLng));
+    const hasStored = Boolean(parseMapPoint(r.destinationLat, r.destinationLng));
     if (hasStored || buyerGeocodeTried.current) return;
     const q = r.location?.trim();
     if (!q || q.length < 3) return;
@@ -260,36 +288,21 @@ export default function ServiceTrackPage() {
     void fetch(`/api/geocode?q=${encodeURIComponent(q)}`)
       .then((res) => res.json())
       .then((j: { lat?: number | null; lng?: number | null }) => {
-        if (j.lat != null && j.lng != null) setGeocodedDest({ lat: j.lat, lng: j.lng });
+        const point = parseMapPoint(j.lat, j.lng);
+        if (point) setGeocodedDest(point);
       });
   }, [data?.request]);
 
   const destinationOnMap = useMemo((): TripMapPoint | null => {
     const r = data?.request;
     if (!r) return null;
-    if (
-      r.destinationLat != null &&
-      r.destinationLng != null &&
-      Number.isFinite(Number(r.destinationLat)) &&
-      Number.isFinite(Number(r.destinationLng))
-    ) {
-      return { lat: Number(r.destinationLat), lng: Number(r.destinationLng) };
-    }
-    return geocodedDest;
+    return parseMapPoint(r.destinationLat, r.destinationLng) ?? geocodedDest;
   }, [data?.request, geocodedDest]);
 
   const providerOnMap = useMemo((): TripMapPoint | null => {
     const r = data?.request;
     if (!r) return null;
-    if (
-      r.providerLat != null &&
-      r.providerLng != null &&
-      Number.isFinite(Number(r.providerLat)) &&
-      Number.isFinite(Number(r.providerLng))
-    ) {
-      return { lat: Number(r.providerLat), lng: Number(r.providerLng) };
-    }
-    return null;
+    return parseMapPoint(r.providerLat, r.providerLng);
   }, [data?.request?.providerLat, data?.request?.providerLng]);
 
   const stages = useMemo(() => {
@@ -523,7 +536,7 @@ export default function ServiceTrackPage() {
                     style={{ backgroundColor: serviceCardTone(1) }}
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/50">
-                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                      <RefreshCw className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last updated</p>
@@ -716,12 +729,17 @@ export default function ServiceTrackPage() {
                     <AlertCircle className="h-4 w-4 text-destructive" />
                     <AlertTitle className="text-foreground">Request expired</AlertTitle>
                     <AlertDescription>
-                      No provider accepted within 2.5 minutes. Request again to start a new search.
+                      No provider accepted within 2.5 minutes. Request again to keep looking from here.
                     </AlertDescription>
                   </Alert>
                 ) : null}
-                <Button type="button" className="h-11 w-full rounded-xl" asChild>
-                  <Link href="/buyer/services">Request again</Link>
+                <Button
+                  type="button"
+                  className="h-11 w-full rounded-xl"
+                  disabled={restarting}
+                  onClick={() => void requestAgain()}
+                >
+                  {restarting ? 'Starting search…' : 'Request again'}
                 </Button>
               </div>
             ) : null}

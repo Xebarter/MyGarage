@@ -213,6 +213,8 @@ class DispatchController extends ChangeNotifier {
           assignmentId: current.assignmentId,
           vendorId: vendorId,
           action: action,
+          providerLat: liveProviderLat,
+          providerLng: liveProviderLng,
         );
         try {
           await refresh(silent: true);

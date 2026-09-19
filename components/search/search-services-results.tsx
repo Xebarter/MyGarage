@@ -59,7 +59,7 @@ export function SearchServicesResults({
                 <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748B]">
                   {cleanServiceDisplayTitle(service.categoryTitle)}
                 </span>
-                <span className="mt-0.5 block line-clamp-2 text-sm font-semibold leading-snug text-[#0B1220]">
+                <span className="mt-0.5 block line-clamp-2 text-sm font-semibold leading-snug text-[#12241C]">
                   {service.name}
                 </span>
               </span>

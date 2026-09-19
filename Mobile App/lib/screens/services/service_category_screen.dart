@@ -47,7 +47,7 @@ class ServiceCategoryScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _ScrollableBackRow(onBack: () => context.pop()),
-                  _CategoryCenteredHero(
+                  _CategoryHero(
                     emoji: cat.emoji,
                     title: title,
                     urgent: urgent,
@@ -62,7 +62,6 @@ class ServiceCategoryScreen extends StatelessWidget {
             sliver: SliverToBoxAdapter(
               child: Text(
                 'Choose a service',
-                textAlign: TextAlign.center,
                 style: AppTheme.host(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -133,8 +132,8 @@ class _ScrollableBackRow extends StatelessWidget {
   }
 }
 
-class _CategoryCenteredHero extends StatelessWidget {
-  const _CategoryCenteredHero({
+class _CategoryHero extends StatelessWidget {
+  const _CategoryHero({
     required this.emoji,
     required this.title,
     required this.urgent,
@@ -151,61 +150,63 @@ class _CategoryCenteredHero extends StatelessWidget {
     final accent = urgent ? AppColors.danger : AppColors.primary;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 56,
+            height: 56,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: urgent
                   ? AppColors.dangerSoft.withValues(alpha: 0.75)
                   : AppColors.primarySoft.withValues(alpha: 0.7),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: accent.withValues(alpha: 0.18)),
-              boxShadow: AppTheme.cardShadow,
             ),
-            child: Text(emoji, style: const TextStyle(fontSize: 34)),
+            child: Text(emoji, style: const TextStyle(fontSize: 26)),
           ),
-          const SizedBox(height: 16),
-          if (urgent) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Text(
-                'Priority',
-                style: AppTheme.host(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.danger,
-                  letterSpacing: 0.2,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (urgent) ...[
+                  Text(
+                    'Priority',
+                    style: AppTheme.host(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.danger,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  title,
+                  textAlign: TextAlign.left,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.host(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                    letterSpacing: -0.3,
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: AppTheme.host(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            serviceCount == 1 ? '1 service' : '$serviceCount services',
-            textAlign: TextAlign.center,
-            style: AppTheme.host(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
+                const SizedBox(height: 4),
+                Text(
+                  serviceCount == 1 ? '1 service' : '$serviceCount services',
+                  textAlign: TextAlign.left,
+                  style: AppTheme.host(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

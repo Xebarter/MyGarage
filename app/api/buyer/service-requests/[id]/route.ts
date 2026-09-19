@@ -1,7 +1,9 @@
-import { getBuyerServiceRequestForCustomer, getBuyerVehicle, getVendor, countProviderCompletedServiceJobs } from '@/lib/db';
+import { getBuyerServiceRequestForCustomer, getBuyerVehicle, getVendor, countProviderCompletedServiceJobs, updateBuyerServiceRequestDestinationCoords } from '@/lib/db';
 import { serializeBuyerServiceRequest } from '@/lib/supabase/buyer-services-repo';
 import { listAssignmentsForRequest } from '@/lib/supabase/service-dispatch-repo';
-import { cancelBuyerServiceSearch, processStaleOffersBestEffort } from '@/lib/service-dispatch';
+import { cancelBuyerServiceSearch, processStaleOffersBestEffort, restartBuyerServiceSearch } from '@/lib/service-dispatch';
+import { parseMapPoint } from '@/lib/maps/coords';
+import { resolveServiceDestination } from '@/lib/geocode/address-suggestions';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,9 +18,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
     }
     await processStaleOffersBestEffort();
-    const request = await getBuyerServiceRequestForCustomer(id, customerId);
+    let request = await getBuyerServiceRequestForCustomer(id, customerId);
     if (!request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!parseMapPoint(request.destinationLat, request.destinationLng)) {
+      const dest = await resolveServiceDestination({ location: request.location });
+      if (dest) {
+        const saved = await updateBuyerServiceRequestDestinationCoords(id, dest.lat, dest.lng);
+        if (saved) request = saved;
+      }
     }
     const assignments = await listAssignmentsForRequest(id);
     const provider =
@@ -79,8 +88,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!customerId) {
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
     }
+    if (action === 'restart') {
+      const result = await restartBuyerServiceSearch(id, customerId);
+      if (!result.ok) {
+        if (result.code === 'ACTIVE_REQUEST_EXISTS') {
+          return NextResponse.json(
+            { error: result.error || 'You already have a service in progress.', code: result.code, requestId: result.requestId },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json({ error: result.error || 'Could not restart search' }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
     if (action !== 'cancel') {
-      return NextResponse.json({ error: 'Unsupported action. Use cancel.' }, { status: 400 });
+      return NextResponse.json({ error: 'Unsupported action. Use cancel or restart.' }, { status: 400 });
     }
 
     const result = await cancelBuyerServiceSearch(id, customerId);

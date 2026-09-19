@@ -10,7 +10,7 @@ Future<void> ensureGoogleMapsJs(String apiKey) async {
   }
   final completer = Completer<void>();
   final script = html.ScriptElement()
-    ..src = 'https://maps.googleapis.com/maps/api/js?key=${Uri.encodeQueryComponent(key)}'
+    ..src = 'https://maps.googleapis.com/maps/api/js?key=${Uri.encodeQueryComponent(key)}&v=weekly&region=UG&language=en'
     ..async = true;
   script.onLoad.listen((_) {
     if (!completer.isCompleted) completer.complete();

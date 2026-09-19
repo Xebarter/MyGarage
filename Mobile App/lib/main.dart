@@ -1,19 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'auth/auth_return_to.dart';
 import 'config.dart';
 import 'maps/ensure_maps_js.dart';
 import 'providers/auth_controller.dart';
 import 'providers/cart_controller.dart';
 import 'providers/shop_catalog_controller.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.systemUi);
   await _loadEnv();
+  await AuthReturnTo.hydrate();
   await ensureGoogleMapsJs(AppConfig.googleMapsApiKey);
 
   if (kDebugMode) {

@@ -25,15 +25,15 @@ function FeaturedWeekSpotlight({
     <Link
       href={`/products/${product.id}`}
       className={cn(
-        'group relative flex aspect-[4/3] max-h-[320px] w-full flex-col overflow-hidden bg-[#0B1220] text-white',
+        'group relative flex aspect-[4/3] max-h-[320px] w-full flex-col overflow-hidden bg-[#12241C] text-white',
         'ring-1 ring-inset ring-white/10 transition duration-500',
         'hover:ring-white/20 sm:max-h-[360px] lg:max-h-none lg:h-full lg:aspect-auto',
         className,
       )}
     >
       <div className="absolute inset-0" aria-hidden>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(56,189,248,0.14),transparent_52%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_80%,rgba(37,99,235,0.16),transparent_48%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(232,197,107,0.18),transparent_52%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_80%,rgba(14,154,106,0.22),transparent_48%)]" />
       </div>
 
       <div className="absolute left-5 top-5 z-10 sm:left-6 sm:top-6">
@@ -53,7 +53,7 @@ function FeaturedWeekSpotlight({
         </div>
       </div>
 
-      <div className="relative border-t border-white/10 bg-[#070B14]/55 px-5 py-4 backdrop-blur-[2px] sm:px-6 sm:py-5">
+      <div className="relative border-t border-white/10 bg-[#10241C]/55 px-5 py-4 backdrop-blur-[2px] sm:px-6 sm:py-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             {brand ? (
@@ -123,7 +123,7 @@ function FeaturedWeekSideCard({
               {label}
             </p>
             <span
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.06] bg-white/70 text-[#0B1220] opacity-0 transition duration-300 group-hover:opacity-100"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.06] bg-white/70 text-[#12241C] opacity-0 transition duration-300 group-hover:opacity-100"
               aria-hidden
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -136,13 +136,13 @@ function FeaturedWeekSideCard({
             </p>
           ) : null}
 
-          <h3 className="mt-1.5 line-clamp-2 text-[14px] font-semibold leading-snug tracking-tight text-[#0B1220] sm:text-[15px]">
+          <h3 className="mt-1.5 line-clamp-2 text-[14px] font-semibold leading-snug tracking-tight text-[#12241C] sm:text-[15px]">
             {product.name}
           </h3>
         </div>
 
         <div className="flex items-end justify-between gap-2 border-t border-black/[0.06] pt-3">
-          <p className="text-[14px] font-semibold tabular-nums tracking-tight text-[#0B1220] sm:text-[15px]">
+          <p className="text-[14px] font-semibold tabular-nums tracking-tight text-[#12241C] sm:text-[15px]">
             {formatProductPriceLabel(product)}
           </p>
           <span className="text-[11px] font-semibold tracking-wide text-primary opacity-0 transition duration-300 group-hover:opacity-100">

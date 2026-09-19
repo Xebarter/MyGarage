@@ -24,6 +24,7 @@ import {
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RangeSelector } from '@/components/analytics/range-selector';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
+import { parseMapPoint } from '@/lib/maps/coords';
 import {
   ProviderGarageCompletionDialog,
   type GarageCompletionPayload,
@@ -106,21 +107,10 @@ function mapCoordsFromRow(row: DispatchRequestRow): {
   destination: TripMapPoint | null;
   provider: TripMapPoint | null;
 } {
-  const destination =
-    row.destination_lat != null &&
-    row.destination_lng != null &&
-    Number.isFinite(Number(row.destination_lat)) &&
-    Number.isFinite(Number(row.destination_lng))
-      ? { lat: Number(row.destination_lat), lng: Number(row.destination_lng) }
-      : null;
-  const provider =
-    row.provider_lat != null &&
-    row.provider_lng != null &&
-    Number.isFinite(Number(row.provider_lat)) &&
-    Number.isFinite(Number(row.provider_lng))
-      ? { lat: Number(row.provider_lat), lng: Number(row.provider_lng) }
-      : null;
-  return { destination, provider };
+  return {
+    destination: parseMapPoint(row.destination_lat, row.destination_lng),
+    provider: parseMapPoint(row.provider_lat, row.provider_lng),
+  };
 }
 
 const CHART_COLORS = ['#3b82f6', '#f59e0b', '#10b981'];
@@ -216,10 +206,30 @@ export default function ServiceProviderDashboardPage() {
     setDispatchBusy(true);
     setDispatchActionError(null);
     try {
+      let providerLat: number | undefined;
+      let providerLng: number | undefined;
+      if (action === 'accept' && typeof navigator !== 'undefined' && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 4000,
+              maximumAge: 15000,
+            });
+          });
+          const point = parseMapPoint(pos.coords.latitude, pos.coords.longitude);
+          if (point) {
+            providerLat = point.lat;
+            providerLng = point.lng;
+          }
+        } catch {
+          /* map still works once the trip page starts watching */
+        }
+      }
       const res = await fetch('/api/services/dispatch/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignmentId, vendorId: id, action }),
+        body: JSON.stringify({ assignmentId, vendorId: id, action, providerLat, providerLng }),
       });
       let acceptErr: string | null = null;
       if (!res.ok && action === 'accept') {
@@ -348,7 +358,7 @@ export default function ServiceProviderDashboardPage() {
   ];
 
   const statusTone: Record<ProviderRequest['status'], string> = {
-    new: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+    new: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     in_progress: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
     completed: 'bg-green-500/10 text-green-700 dark:text-green-300',
   };

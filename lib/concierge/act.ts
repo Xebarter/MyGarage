@@ -1,7 +1,11 @@
 import { createBuyerServiceRequest, getBuyerVehicle, getCustomer } from "@/lib/db";
-import { startDispatchForNewRequest } from "@/lib/service-dispatch";
-import { serializeBuyerServiceRequest } from "@/lib/supabase/buyer-services-repo";
+import { startDispatchForNewRequest, processStaleOffersBestEffort } from "@/lib/service-dispatch";
+import {
+  ActiveBuyerServiceExistsError,
+  serializeBuyerServiceRequest,
+} from "@/lib/supabase/buyer-services-repo";
 import { resolveConciergeService, resolveQuoteLines } from "@/lib/concierge/catalog";
+import { resolveServiceDestination } from "@/lib/geocode/address-suggestions";
 import type { ConciergeActResult, ConciergePendingAction } from "@/lib/concierge/types";
 
 function countPhoneDigits(value: string): number {
@@ -13,6 +17,8 @@ export async function executeConciergeAction(input: {
   action: ConciergePendingAction;
   locationOverride?: string | null;
   phoneOverride?: string | null;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
 }): Promise<ConciergeActResult> {
   if (input.action.type === "quote") {
     const lines = await resolveQuoteLines(
@@ -70,17 +76,38 @@ export async function executeConciergeAction(input: {
     }
   }
 
-  const created = await createBuyerServiceRequest({
-    customerId,
-    category: resolved.categoryTitle,
-    service: resolved.name,
+  const dest = await resolveServiceDestination({
+    lat: input.destinationLat,
+    lng: input.destinationLng,
     location,
-    status: "pending",
-    buyerContactPhone: contactPhone,
-    buyerContactName: (customer.name || "").trim() || "Buyer",
-    ...(input.action.notes ? { notes: input.action.notes } : {}),
-    ...(vehicleId ? { vehicleId } : {}),
   });
+  await processStaleOffersBestEffort();
+  let created;
+  try {
+    created = await createBuyerServiceRequest({
+      customerId,
+      category: resolved.categoryTitle,
+      service: resolved.name,
+      location,
+      status: "pending",
+      buyerContactPhone: contactPhone,
+      buyerContactName: (customer.name || "").trim() || "Buyer",
+      ...(input.action.notes ? { notes: input.action.notes } : {}),
+      ...(vehicleId ? { vehicleId } : {}),
+      ...(dest ? { destinationLat: dest.lat, destinationLng: dest.lng } : {}),
+    });
+  } catch (error) {
+    if (error instanceof ActiveBuyerServiceExistsError) {
+      return {
+        ok: false,
+        error: error.message,
+        code: error.code,
+        requestId: error.requestId,
+        trackPath: `/buyer/services/track/${encodeURIComponent(error.requestId)}`,
+      };
+    }
+    throw error;
+  }
 
   try {
     await startDispatchForNewRequest(created.id);

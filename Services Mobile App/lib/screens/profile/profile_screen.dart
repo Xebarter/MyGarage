@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
+import '../../widgets/place_autocomplete_field.dart';
 import '../../widgets/ui.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -320,9 +321,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: const InputDecoration(labelText: 'Phone'),
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  PlaceAutocompleteField(
                     controller: _address,
-                    decoration: const InputDecoration(labelText: 'Address'),
+                    decoration: const InputDecoration(
+                      labelText: 'Address',
+                      hintText: 'Search e.g. Ntinda, Kololo, Industrial Area…',
+                      prefixIcon: Icon(Icons.place_outlined),
+                    ),
                   ),
                   const SizedBox(height: 22),
                   ElevatedButton(

@@ -22,6 +22,15 @@ const BUYER_NAV_PAGES: { href: string; label: string }[] = [
   { href: '/buyer/support', label: 'Support' },
 ];
 
+export function isBuyerAppPath(pathname: string): boolean {
+  return (
+    pathname === '/buyer' ||
+    pathname.startsWith('/buyer/') ||
+    pathname === '/buyer-dashboard' ||
+    pathname.startsWith('/buyer-dashboard/')
+  );
+}
+
 export function isBuyerGaragePath(pathname: string): boolean {
   return (
     pathname === '/buyer/garage' ||
@@ -51,6 +60,9 @@ type BuyerPortalChromeContextValue = {
   setMobileNavOpen: (open: boolean) => void;
   toggleMobileNav: () => void;
   activePageLabel: string;
+  /** Viewport offset so the drawer sits under the sticky search row. */
+  mobileNavInsetTop: number;
+  setMobileNavInsetTop: (px: number) => void;
 };
 
 const BuyerPortalChromeContext = createContext<BuyerPortalChromeContextValue | null>(null);
@@ -59,6 +71,7 @@ const BuyerPortalChromeContext = createContext<BuyerPortalChromeContextValue | n
 export function BuyerPortalChromeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileNavInsetTop, setMobileNavInsetTop] = useState(112);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -76,8 +89,10 @@ export function BuyerPortalChromeProvider({ children }: { children: ReactNode })
       setMobileNavOpen,
       toggleMobileNav,
       activePageLabel,
+      mobileNavInsetTop,
+      setMobileNavInsetTop,
     }),
-    [mobileNavOpen, toggleMobileNav, activePageLabel],
+    [mobileNavOpen, toggleMobileNav, activePageLabel, mobileNavInsetTop],
   );
 
   return <BuyerPortalChromeContext.Provider value={value}>{children}</BuyerPortalChromeContext.Provider>;

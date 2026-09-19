@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ShoppingCart, Store, User, Wrench } from 'lucide-react';
 
 import { useCartItems } from '@/hooks/use-cart-items';
+import { resetPageScrollSoon } from '@/lib/reset-page-scroll';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -63,7 +64,7 @@ export function MobileAppBottomNav({
         'border-t border-[#EEF2F7] bg-white md:hidden',
         docked
           ? 'relative z-40 shrink-0 shadow-[0_-4px_24px_rgba(11,18,32,0.08)]'
-          : 'fixed inset-x-0 bottom-0 z-40 shadow-[0_-4px_24px_rgba(11,18,32,0.08)]',
+          : 'fixed inset-x-0 bottom-0 z-50 shadow-[0_-4px_24px_rgba(11,18,32,0.08)]',
       )}
       aria-label="App"
     >
@@ -75,6 +76,7 @@ export function MobileAppBottomNav({
             <Link
               key={tab.match}
               href={tab.href}
+              onClick={() => resetPageScrollSoon()}
               className={cn(
                 'relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition',
                 isActive ? 'text-primary' : 'text-muted-foreground',

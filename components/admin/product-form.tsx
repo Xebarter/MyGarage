@@ -10,7 +10,7 @@ import {
   Coins,
   Layers2,
   Store,
-  Sparkles,
+  Eye,
   FileText,
   ChevronRight,
   ImagePlus,
@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -100,6 +101,7 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
     subcategory: "",
     brand: "",
     featured: false,
+    published: true,
     vendorId: "",
     image: DEFAULT_PRODUCT_IMAGE,
     images: [] as string[],
@@ -169,6 +171,7 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
       subcategory: product?.subcategory?.trim() ?? "",
       brand: product?.brand ?? "",
       featured: product?.featured ?? false,
+      published: product?.published !== false,
       vendorId: product?.vendorId ?? vendorId ?? "",
       image: primary,
       images: extra.filter((u) => u !== primary),
@@ -1278,15 +1281,33 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
             <CardHeader className="border-b border-border bg-muted/20 px-5 py-4 sm:px-6">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Sparkles className="h-4 w-4" aria-hidden />
+                  <Eye className="h-4 w-4" aria-hidden />
                 </span>
                 <div>
                   <CardTitle className="text-base">Visibility</CardTitle>
-                  <CardDescription>Homepage placement and featuring.</CardDescription>
+                  <CardDescription>Storefront listing, homepage placement, and featuring.</CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="px-5 py-5 sm:px-6">
+            <CardContent className="space-y-3 px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-background px-4 py-3">
+                <div className="grid gap-1 pr-2 leading-none">
+                  <Label htmlFor="product-published" className="cursor-pointer text-sm font-medium leading-snug">
+                    Listed on storefront
+                  </Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Unpublished products stay in the catalog for ops but are hidden from shoppers.
+                  </p>
+                </div>
+                <Switch
+                  id="product-published"
+                  checked={formData.published}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, published: checked })
+                  }
+                  disabled={loading}
+                />
+              </div>
               <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background px-4 py-3">
                 <Checkbox
                   id="product-featured"
@@ -1340,8 +1361,10 @@ function ProductFormContent({ product, onDismiss, onSaved, vendorId }: ProductFo
             </>
           ) : product ? (
             "Save changes"
-          ) : (
+          ) : formData.published ? (
             "Save and publish"
+          ) : (
+            "Save as draft"
           )}
         </Button>
       </DialogFooter>

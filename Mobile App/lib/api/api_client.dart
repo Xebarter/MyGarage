@@ -6,10 +6,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.code, this.requestId});
 
   final String message;
   final int? statusCode;
+  final String? code;
+  final String? requestId;
+
+  bool get isActiveRequestExists =>
+      code == 'ACTIVE_REQUEST_EXISTS' && (requestId ?? '').trim().isNotEmpty;
 
   @override
   String toString() => message;
@@ -300,7 +305,12 @@ class ApiClient {
       final message = json is Map && json['error'] != null
           ? json['error'].toString()
           : 'Request failed (${res.statusCode})';
-      throw ApiException(message, statusCode: res.statusCode);
+      throw ApiException(
+        message,
+        statusCode: res.statusCode,
+        code: json is Map ? json['code']?.toString() : null,
+        requestId: json is Map ? json['requestId']?.toString() : null,
+      );
     }
 
     if (parser != null) return parser(json);

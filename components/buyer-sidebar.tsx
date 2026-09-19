@@ -22,8 +22,8 @@ import { useBuyerPortalChrome } from '@/components/buyer-portal-chrome';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
-/** Below merged mobile app header (top bar + search row). */
-const BUYER_MOBILE_CHROME_TOP = 'top-28';
+/** Below the sticky mobile search row (measured at runtime). */
+const BUYER_MOBILE_CHROME_TOP_FALLBACK = 56;
 
 type NavItem = {
   href: string;
@@ -98,16 +98,16 @@ function BuyerSidebarUserCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0B1220] text-slate-50',
+        'flex items-center gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-[#FFF6EA] to-white text-[#12241C]',
         compact ? 'px-3 py-2.5' : 'px-3 py-3 shadow-sm',
       )}
     >
-      <Avatar className={cn('shrink-0 border border-white/15', compact ? 'h-9 w-9' : 'h-10 w-10')}>
-        <AvatarFallback className="bg-blue-500/20 text-xs font-semibold text-blue-200">{initials}</AvatarFallback>
+      <Avatar className={cn('shrink-0 border border-primary/20', compact ? 'h-9 w-9' : 'h-10 w-10')}>
+        <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{initials}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{buyerName}</p>
-        <p className="truncate text-[11px] text-slate-400">{buyerEmail}</p>
+        <p className="truncate text-[11px] text-[#7A8B82]">{buyerEmail}</p>
       </div>
     </div>
   );
@@ -140,7 +140,7 @@ function BuyerSidebarNav({
                     className={cn(
                       'group flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors',
                       isActive
-                        ? 'bg-[#0B1220] text-white shadow-sm'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-foreground/90 hover:bg-accent/80 hover:text-foreground',
                     )}
                   >
@@ -148,7 +148,7 @@ function BuyerSidebarNav({
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
                         isActive
-                          ? 'bg-white/12 text-white'
+                          ? 'bg-white/20 text-primary-foreground'
                           : 'bg-muted/80 text-muted-foreground group-hover:bg-background group-hover:text-foreground',
                       )}
                     >
@@ -200,6 +200,7 @@ export function BuyerSidebar() {
   const mobileMenuOpen = portalChrome?.mobileNavOpen ?? localMobileMenuOpen;
   const setMobileMenuOpen = portalChrome?.setMobileNavOpen ?? setLocalMobileMenuOpen;
   const usesMergedMobileHeader = portalChrome != null;
+  const mobileNavInsetTop = portalChrome?.mobileNavInsetTop ?? BUYER_MOBILE_CHROME_TOP_FALLBACK;
   const closeMobile = () => setMobileMenuOpen(false);
   const [buyerName, setBuyerName] = useState('Buyer');
   const [buyerEmail, setBuyerEmail] = useState('No email saved');
@@ -261,8 +262,9 @@ export function BuyerSidebar() {
           aria-label="Close menu backdrop"
           className={cn(
             'fixed inset-x-0 bottom-0 z-40 bg-black/50 backdrop-blur-[2px] md:hidden',
-            usesMergedMobileHeader ? BUYER_MOBILE_CHROME_TOP : 'top-0',
+            !usesMergedMobileHeader && 'top-0',
           )}
+          style={usesMergedMobileHeader ? { top: mobileNavInsetTop } : undefined}
           onClick={closeMobile}
         />
       ) : null}
@@ -270,9 +272,10 @@ export function BuyerSidebar() {
       <aside
         className={cn(
           'fixed left-0 z-50 flex w-[min(100vw-1rem,17.5rem)] flex-col border-r border-border/80 bg-card shadow-2xl transition-transform duration-200 ease-out md:static md:z-auto md:h-full md:w-64 md:translate-x-0 md:shadow-none',
-          usesMergedMobileHeader ? cn('bottom-0', BUYER_MOBILE_CHROME_TOP) : 'inset-y-0',
+          usesMergedMobileHeader ? 'bottom-0' : 'inset-y-0',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
+        style={usesMergedMobileHeader ? { top: mobileNavInsetTop } : undefined}
       >
         <div className="flex h-full min-h-0 flex-col bg-gradient-to-b from-card via-card to-[#F4F7FB]">
           <div

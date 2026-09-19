@@ -359,7 +359,7 @@ function PaymentCollectionCard({ p }: { p: PaymentRecord }) {
 
         {p.flow === 'product_checkout' && !p.checkout && p.lineItems.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-4 py-3.5 text-sm text-muted-foreground">
-            No product checkout is linked to this Paytota transaction.
+            No product checkout is linked to this payment transaction.
           </div>
         ) : null}
 
@@ -503,7 +503,7 @@ function PaymentCollectionCard({ p }: { p: PaymentRecord }) {
           <span className="inline-flex max-w-full items-center gap-2 font-mono text-[11px] text-muted-foreground">
             <CircleDollarSign className="h-4 w-4 shrink-0 opacity-80" />
             <span className="truncate">
-              Paytota <span className="text-muted-foreground/70">ref</span>{' '}
+              Payment <span className="text-muted-foreground/70">ref</span>{' '}
               <span className="text-foreground/80">{p.providerReference || '—'}</span>
             </span>
           </span>
@@ -638,7 +638,7 @@ function DisbursementCard({
         {needsPayoutAccount ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
             This vendor has no default payout account on file. They must add bank or mobile money details
-            before you can execute a Paytota payout.
+            before you can execute a payout.
           </div>
         ) : null}
 
@@ -684,7 +684,7 @@ function DisbursementCard({
 
         {d.paytotaPayout ? (
           <PanelSection
-            title="Paytota payout (outbound)"
+            title="Payout (outbound)"
             icon={<Wallet className="h-3.5 w-3.5" strokeWidth={2} />}
           >
             <dl className="space-y-2">
@@ -700,7 +700,7 @@ function DisbursementCard({
               <MetaRow label="Last update">{formatListDate(d.paytotaPayout.lastEventAt)}</MetaRow>
             </dl>
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Final status is applied when Paytota calls your webhook; use Mark paid / failed only for manual
+              Final status is applied when the payment provider calls your webhook; use Mark paid / failed only for manual
               reconciliation if needed.
             </p>
           </PanelSection>
@@ -731,7 +731,7 @@ function DisbursementCard({
             onClick={onExecute}
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : null}
-            Execute via Paytota
+            Execute payout
           </Button>
           <Button
             size="sm"
@@ -1094,7 +1094,7 @@ export default function AdminPaymentsPage() {
             <div>
               <p className="text-sm font-semibold text-foreground">No collections match</p>
               <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                Try another search, or refresh if you expect new Paytota activity.
+                Try another search, or refresh if you expect new payment activity.
               </p>
             </div>
           </div>
@@ -1188,7 +1188,7 @@ export default function AdminPaymentsPage() {
                   Payments & disbursements
                 </h1>
                 <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-[15px]">
-                  Reconcile Paytota collections, review buyer and seller context, and run the vendor payout
+                  Reconcile collections, review buyer and seller context, and run the vendor payout
                   queue from one workspace.
                 </p>
               </div>
@@ -1248,7 +1248,7 @@ export default function AdminPaymentsPage() {
                   className="h-11 rounded-xl border-border/70 bg-background/80 pl-10 pr-4 shadow-sm transition-shadow focus-visible:ring-primary/20"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search buyer, vendor, product, service, checkout, or Paytota ref"
+                  placeholder="Search buyer, vendor, product, service, checkout, or payment ref"
                   aria-label="Filter payments and disbursements"
                 />
               </div>
@@ -1281,7 +1281,7 @@ export default function AdminPaymentsPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <ArrowDownLeft className="h-5 w-5" />
                 </span>
-                Paytota collections
+                Collections
               </CardTitle>
               <CardDescription className="max-w-lg text-sm leading-relaxed">
                 Each entry shows the buyer, what was purchased, and the vendor or provider who earns the
@@ -1299,7 +1299,7 @@ export default function AdminPaymentsPage() {
                 Disbursement queue
               </CardTitle>
               <CardDescription className="max-w-lg text-sm leading-relaxed">
-                Approve payouts, execute via Paytota, and mark items paid or failed.
+                Approve payouts, execute them, and mark items paid or failed.
               </CardDescription>
             </CardHeader>
             {disbursementsList}
@@ -1331,7 +1331,7 @@ export default function AdminPaymentsPage() {
             <TabsContent value="collections" className="mt-5 outline-none">
               <Card className="overflow-hidden border-border/60 shadow-md ring-1 ring-black/3 dark:ring-white/4">
                 <CardHeader className="border-b border-border/50 bg-muted/30 pb-4">
-                  <CardTitle className="text-base font-semibold">Paytota collections</CardTitle>
+                  <CardTitle className="text-base font-semibold">Collections</CardTitle>
                   <CardDescription className="text-sm">Inbound payments and full buyer/seller context.</CardDescription>
                 </CardHeader>
                 {collectionsList}

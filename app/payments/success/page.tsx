@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { MobileAppPaymentReturn, shouldReturnToMobileApp } from '@/components/payments/mobile-app-return';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 
 type TrackedOrder = { id: string };
@@ -25,8 +26,11 @@ export default function PaymentSuccessPage() {
 
   const checkoutId = params?.checkoutId;
   const servicePaymentId = params?.servicePaymentId;
-  const isSubscription = params?.kind === 'subscription';
+  const requestId = params?.requestId;
+  const kind = params?.kind;
+  const isSubscription = kind === 'subscription';
   const isProductCheckout = Boolean(checkoutId) && !isSubscription && !servicePaymentId;
+  const returnToApp = shouldReturnToMobileApp(new URLSearchParams(params ?? {}));
 
   useEffect(() => {
     if (!checkoutId || !isSubscription || subscriptionActivated) return;
@@ -85,6 +89,27 @@ export default function PaymentSuccessPage() {
     : isProductCheckout
       ? 'Track order'
       : 'My services';
+
+  if (params && returnToApp) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-green-600" />
+          <h1 className="mb-2 text-2xl font-bold text-foreground">Payment received</h1>
+          <p className="text-sm text-muted-foreground">
+            Payment received. Close this tab and return to MyGarage.
+          </p>
+          <MobileAppPaymentReturn
+            status="success"
+            checkoutId={checkoutId}
+            kind={kind}
+            servicePaymentId={servicePaymentId}
+            requestId={requestId}
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>

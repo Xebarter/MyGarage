@@ -129,7 +129,7 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-12 overflow-hidden bg-[#0B1220] text-white md:mt-20">
+    <footer className="relative mt-12 overflow-hidden bg-[#12241C] text-white md:mt-20">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary to-transparent"
         aria-hidden
@@ -148,7 +148,7 @@ export function Footer() {
           {trustHighlights.map(({ icon: Icon, label, detail }) => (
             <div
               key={label}
-              className="flex items-start gap-3.5 bg-[#0B1220] px-1 py-6 sm:px-4 md:py-7"
+              className="flex items-start gap-3.5 bg-[#12241C] px-1 py-6 sm:px-4 md:py-7"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                 <Icon className="h-4 w-4" aria-hidden />

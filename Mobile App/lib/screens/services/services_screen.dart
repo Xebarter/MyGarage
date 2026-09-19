@@ -1,17 +1,61 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../api/api_client.dart';
+import '../../api/buyer_api.dart';
 import '../../data/services_catalog.dart';
 import '../../models/models.dart';
+import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/active_service_request.dart';
 import '../../widgets/app_brand_logo.dart';
 
-class ServicesScreen extends StatelessWidget {
+class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key});
 
-  void _openCategory(BuildContext context, ServiceCategory cat) {
+  @override
+  State<ServicesScreen> createState() => _ServicesScreenState();
+}
+
+class _ServicesScreenState extends State<ServicesScreen> {
+  final _api = BuyerApi(ApiClient());
+  BuyerServiceRequest? _openRequest;
+  bool _loadedOpen = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedOpen) return;
+    _loadedOpen = true;
+    unawaited(_loadOpenRequest());
+  }
+
+  Future<void> _loadOpenRequest() async {
+    final customerId = context.read<AuthController>().customerId;
+    if (customerId == null || customerId.isEmpty) return;
+    try {
+      final list = await _api.listServiceRequests(customerId);
+      if (!mounted) return;
+      setState(() => _openRequest = firstOpenBuyerServiceRequest(list));
+    } catch (_) {
+      // Catalog still works; create/restart APIs enforce one-at-a-time.
+    }
+  }
+
+  void _openCategory(ServiceCategory cat) {
     HapticFeedback.lightImpact();
+    final open = _openRequest;
+    if (open != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only one service can run at a time.')),
+      );
+      context.go(requestingPathFor(open.id));
+      return;
+    }
     context.push('/service/${cat.id}');
   }
 
@@ -34,9 +78,67 @@ class ServicesScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: const PageBrandHeader(
                 title: 'Services',
-                subtitle: 'Get help now or book the right repair when you need it.',
+                subtitle: 'Roadside and repairs',
               ),
             ),
+            if (_openRequest != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Material(
+                    color: AppColors.primarySoft.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    child: InkWell(
+                      onTap: () => context.go(requestingPathFor(_openRequest!.id)),
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Active request',
+                                    style: AppTheme.host(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _openRequest!.service.isEmpty
+                                        ? 'Service in progress'
+                                        : _openRequest!.service,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.host(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'One request at a time',
+                                    style: AppTheme.host(
+                                      fontSize: 12,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_rounded, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (urgent.isNotEmpty)
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -47,7 +149,7 @@ class ServicesScreen extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _EmergencyHeroCard(
                           category: cat,
-                          onTap: () => _openCategory(context, cat),
+                          onTap: () => _openCategory(cat),
                         ),
                       ),
                   ]),
@@ -87,7 +189,7 @@ class ServicesScreen extends StatelessWidget {
                       final cat = rest[i];
                       return _ServiceCategoryTile(
                         category: cat,
-                        onTap: () => _openCategory(context, cat),
+                        onTap: () => _openCategory(cat),
                       );
                     },
                     childCount: rest.length,

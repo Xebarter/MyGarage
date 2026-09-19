@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api/api_client.dart';
 import '../api/buyer_api.dart';
+import '../auth/auth_return_to.dart';
 import '../auth/google_auth.dart';
 import '../config.dart';
 import '../models/models.dart';
@@ -116,7 +117,7 @@ class AuthController extends ChangeNotifier {
         email: email.trim(),
         password: password,
         data: {'full_name': name.trim(), 'name': name.trim()},
-        emailRedirectTo: oauthRedirectTo(),
+        emailRedirectTo: oauthRedirectTo(next: AuthReturnTo.pending),
       );
       user = res.user;
       if (res.session == null && user != null) {
@@ -143,7 +144,7 @@ class AuthController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
-      await signInWithGoogleOAuth();
+      await signInWithGoogleOAuth(next: AuthReturnTo.pending);
       if (!kIsWeb) {
         busy = false;
         notifyListeners();
