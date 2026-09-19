@@ -1,5 +1,18 @@
 import { createBuyerVehicle, getBuyerVehicles } from '@/lib/db';
+import { isVehicleFuelType, isVehicleTransmission, vehicleSpecUpdatesFromBody } from '@/lib/garage';
+import { listLatestServiceHistoryByVehicleIds, serializeVehicleServiceHistory } from '@/lib/supabase/vehicle-service-history-repo';
 import { NextRequest, NextResponse } from 'next/server';
+
+function serializeVehicle(vehicle: Awaited<ReturnType<typeof getBuyerVehicles>>[number]) {
+  return {
+    ...vehicle,
+    imageUrl: vehicle.imageUrl?.trim() || null,
+    nextServiceDate: vehicle.nextServiceDate?.toISOString() ?? null,
+    statusUpdatedAt: vehicle.statusUpdatedAt?.toISOString() ?? null,
+    createdAt: vehicle.createdAt.toISOString(),
+    updatedAt: vehicle.updatedAt.toISOString(),
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +22,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
     }
     const vehicles = await getBuyerVehicles(customerId);
-    return NextResponse.json(vehicles);
+    const latest = await listLatestServiceHistoryByVehicleIds(vehicles.map((v) => v.id));
+    return NextResponse.json(
+      vehicles.map((vehicle) => ({
+        ...serializeVehicle(vehicle),
+        lastService: latest[vehicle.id] ? serializeVehicleServiceHistory(latest[vehicle.id]!) : null,
+      })),
+    );
   } catch {
     return NextResponse.json({ error: 'Failed to fetch buyer vehicles' }, { status: 500 });
   }
@@ -35,8 +54,15 @@ export async function POST(req: NextRequest) {
       imageUrl: imageUrl ? String(imageUrl).trim() : null,
       nickname: nickname ? String(nickname).trim() : null,
       isPrimary: Boolean(isPrimary),
+      vin: body.vin ? String(body.vin).trim() : null,
+      color: body.color ? String(body.color).trim() : null,
+      mileageKm: body.mileageKm != null && Number.isFinite(Number(body.mileageKm)) ? Number(body.mileageKm) : null,
+      fuelType: typeof body.fuelType === 'string' && isVehicleFuelType(body.fuelType) ? body.fuelType : null,
+      transmission:
+        typeof body.transmission === 'string' && isVehicleTransmission(body.transmission) ? body.transmission : null,
+      ...vehicleSpecUpdatesFromBody(body as Record<string, unknown>),
     });
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(serializeVehicle(created), { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Failed to create buyer vehicle' }, { status: 500 });
   }

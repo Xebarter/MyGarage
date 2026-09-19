@@ -18,6 +18,7 @@ import {
   Receipt,
   RefreshCw,
   ShoppingCart,
+  Sparkles,
   SlidersHorizontal,
   UserRound,
   Wrench,
@@ -27,6 +28,7 @@ import { MobileAppPage } from '@/components/mobile-app-chrome';
 import { createClient } from '@/lib/supabase/client';
 import { formatUgx } from '@/lib/format-ugx';
 import { cn } from '@/lib/utils';
+import { openConciergeChat } from '@/lib/concierge/open';
 
 type HubProfile = {
   customer: {
@@ -173,26 +175,27 @@ export function MobileProfileHub() {
           <>
             {error ? <p className="mb-2 px-1 text-[13px] text-[#B91C1C]">{error}</p> : null}
 
-            <section className="rounded-[22px] border border-border bg-white p-[18px] shadow-[0_8px_20px_rgba(11,18,32,0.05)]">
-              <div className="flex items-center gap-3.5">
-                <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-primary/12 text-2xl font-bold text-primary">
+            <section className="relative overflow-hidden rounded-[22px] bg-[#0B1220] p-[18px] text-slate-50 shadow-[0_12px_28px_rgba(11,18,32,0.16)]">
+              <div className="absolute inset-x-0 top-0 h-[3px] bg-blue-500" />
+              <div className="relative flex items-center gap-3.5">
+                <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[18px] border border-blue-500/40 bg-white/6 text-2xl font-bold text-blue-300">
                   {(name[0] || 'M').toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-bold text-[#0B1220]">{name}</p>
-                  <p className="truncate text-[13px] text-[#8B9BB0]">{displayEmail}</p>
+                  <p className="truncate text-lg font-bold">{name}</p>
+                  <p className="truncate text-[13px] text-slate-400">{displayEmail}</p>
                   {profile?.customer.phone ? (
-                    <p className="text-[13px] text-[#475569]">{profile.customer.phone}</p>
+                    <p className="text-[13px] text-slate-300">{profile.customer.phone}</p>
                   ) : null}
                   {membership ? (
-                    <span className="mt-1.5 inline-flex rounded-full bg-primary/12 px-2.5 py-0.5 text-[11.5px] font-bold text-[#1E3A8A]">
+                    <span className="mt-1.5 inline-flex rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11.5px] font-bold text-blue-200">
                       {membership[0]!.toUpperCase()}
                       {membership.slice(1)} plan
                     </span>
                   ) : null}
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-4 gap-1">
+              <div className="relative mt-4 grid grid-cols-4 gap-1.5">
                 <Stat label="Orders" value={`${profile?.customer.totalOrders ?? 0}`} />
                 <Stat label="Spent" value={formatUgx(profile?.customer.totalSpent ?? 0)} />
                 <Stat label="Vehicles" value={`${profile?.stats.vehicles ?? 0}`} />
@@ -224,6 +227,14 @@ export function MobileProfileHub() {
                   <span className="mt-1.5 text-center text-xs font-semibold text-[#0B1220]">{item.label}</span>
                 </Link>
               ))}
+              <button
+                type="button"
+                onClick={() => openConciergeChat()}
+                className="flex flex-col items-center rounded-[14px] border border-[#236B5C]/20 bg-[#DDEEE8] px-1.5 py-3.5"
+              >
+                <Sparkles className="h-[22px] w-[22px] text-[#236B5C]" aria-hidden />
+                <span className="mt-1.5 text-center text-xs font-semibold text-[#16483E]">Concierge</span>
+              </button>
             </div>
 
             <p className="mt-6 px-1 text-[13px] font-bold tracking-wide text-[#8B9BB0]">Account center</p>
@@ -297,9 +308,9 @@ function GuestCard() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 text-center">
-      <p className="truncate text-[13.5px] font-bold text-[#0B1220]">{value}</p>
-      <p className="mt-0.5 text-[11px] text-[#8B9BB0]">{label}</p>
+    <div className="min-w-0 rounded-xl border border-white/10 bg-white/6 px-1.5 py-2 text-center">
+      <p className="truncate text-[13.5px] font-bold text-white">{value}</p>
+      <p className="mt-0.5 text-[11px] font-semibold text-slate-400">{label}</p>
     </div>
   );
 }

@@ -40,6 +40,7 @@ export default function CompletePendingServiceRequestPage() {
             category: pending.category,
             service: pending.service,
             location: pending.location,
+            ...(pending.vehicleId ? { vehicleId: pending.vehicleId } : {}),
           }),
         });
 

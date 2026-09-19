@@ -20,6 +20,8 @@ class ServiceRequest {
     this.completedAt,
     this.createdAt,
     this.updatedAt,
+    this.garageReport,
+    this.vehicle,
   });
 
   final String id;
@@ -42,6 +44,8 @@ class ServiceRequest {
   final DateTime? completedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final GarageReport? garageReport;
+  final CustomerVehicle? vehicle;
 
   bool get isActive => status == 'matched' || status == 'in_progress';
 
@@ -98,6 +102,77 @@ class ServiceRequest {
       completedAt: parseDate(_pick(json, 'completedAt', 'completed_at')),
       createdAt: parseDate(_pick(json, 'createdAt', 'created_at')),
       updatedAt: parseDate(_pick(json, 'updatedAt', 'updated_at')),
+      garageReport: json['garageReport'] is Map
+          ? GarageReport.fromJson(Map<String, dynamic>.from(json['garageReport'] as Map))
+          : null,
+      vehicle: json['vehicle'] is Map
+          ? CustomerVehicle.fromJson(Map<String, dynamic>.from(json['vehicle'] as Map))
+          : null,
+    );
+  }
+}
+
+class GarageReport {
+  GarageReport({
+    this.notes = '',
+    this.findings = '',
+    this.recommendations = '',
+    this.partsUsed = '',
+    this.odometerKm,
+    this.photoUrls = const [],
+  });
+
+  final String notes;
+  final String findings;
+  final String recommendations;
+  final String partsUsed;
+  final int? odometerKm;
+  final List<String> photoUrls;
+
+  factory GarageReport.fromJson(Map<String, dynamic> json) {
+    final photos = json['photoUrls'] ?? json['photo_urls'];
+    return GarageReport(
+      notes: json['notes']?.toString() ?? '',
+      findings: json['findings']?.toString() ?? '',
+      recommendations: json['recommendations']?.toString() ?? '',
+      partsUsed: json['partsUsed']?.toString() ?? json['parts_used']?.toString() ?? '',
+      odometerKm: (json['odometerKm'] as num?)?.toInt() ?? (json['odometer_km'] as num?)?.toInt(),
+      photoUrls: photos is List ? photos.map((e) => e.toString()).where((e) => e.isNotEmpty).toList() : const [],
+    );
+  }
+}
+
+class CustomerVehicle {
+  CustomerVehicle({
+    required this.id,
+    required this.make,
+    required this.model,
+    required this.year,
+    this.licensePlate,
+    this.nickname,
+  });
+
+  final String id;
+  final String make;
+  final String model;
+  final int year;
+  final String? licensePlate;
+  final String? nickname;
+
+  String get label {
+    final nick = nickname?.trim();
+    if (nick != null && nick.isNotEmpty) return nick;
+    return '$year $make $model';
+  }
+
+  factory CustomerVehicle.fromJson(Map<String, dynamic> json) {
+    return CustomerVehicle(
+      id: json['id']?.toString() ?? '',
+      make: json['make']?.toString() ?? '',
+      model: json['model']?.toString() ?? '',
+      year: (json['year'] as num?)?.toInt() ?? 0,
+      licensePlate: json['licensePlate']?.toString() ?? json['license_plate']?.toString(),
+      nickname: json['nickname']?.toString(),
     );
   }
 }

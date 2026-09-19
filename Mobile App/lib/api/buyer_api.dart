@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../config.dart';
-import '../models/buyer_control_center.dart';
+import '../models/buyer_control_center.dart' hide VehicleDocument;
+import '../models/concierge.dart';
 import '../models/models.dart';
 import 'api_client.dart';
 
@@ -539,6 +541,79 @@ class BuyerApi {
     );
   }
 
+  Future<Vehicle> updateVehicle(String id, Map<String, dynamic> body) {
+    return _client.put(
+      '/api/buyer/vehicles/$id',
+      body: body,
+      auth: true,
+      parser: (json) => Vehicle.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+  }
+
+  Future<void> deleteVehicle(String id) {
+    return _client.delete(
+      '/api/buyer/vehicles/$id',
+      auth: true,
+      parser: (_) => true,
+    ).then((_) {});
+  }
+
+  Future<({Vehicle? vehicle, List<VehicleServiceLog> history})> getVehicleServiceHistory(String id) {
+    return _client.get(
+      '/api/buyer/vehicles/$id/service-history',
+      auth: true,
+      parser: (json) {
+        final map = json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{};
+        final vehicleJson = map['vehicle'];
+        final historyJson = map['history'];
+        return (
+          vehicle: vehicleJson is Map ? Vehicle.fromJson(Map<String, dynamic>.from(vehicleJson)) : null,
+          history: historyJson is List
+              ? historyJson
+                  .whereType<Map>()
+                  .map((e) => VehicleServiceLog.fromJson(Map<String, dynamic>.from(e)))
+                  .toList()
+              : <VehicleServiceLog>[],
+        );
+      },
+    );
+  }
+
+  Future<List<VehicleDocument>> listVehicleDocuments({
+    required String customerId,
+    required String vehicleId,
+  }) {
+    return _client.get(
+      '/api/buyer/vehicle-documents',
+      query: {'customerId': customerId, 'vehicleId': vehicleId},
+      auth: true,
+      parser: (json) {
+        final list = json is List ? json : const [];
+        return list
+            .whereType<Map>()
+            .map((e) => VehicleDocument.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      },
+    );
+  }
+
+  Future<VehicleDocument> createVehicleDocument(Map<String, dynamic> body) {
+    return _client.post(
+      '/api/buyer/vehicle-documents',
+      body: body,
+      auth: true,
+      parser: (json) => VehicleDocument.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+  }
+
+  Future<String> uploadVehicleImage(List<int> bytes, String filename) {
+    return _client.postMultipart(
+      '/api/uploads/vehicle-image',
+      files: [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
+      parser: (json) => (json as Map<String, dynamic>)['url']?.toString() ?? '',
+    );
+  }
+
   Future<List<Map<String, dynamic>>> geocodeSuggestions(
     String q, {
     double? lat,
@@ -579,6 +654,30 @@ class BuyerApi {
       '/api/geocode/place',
       query: query,
       parser: (json) => Map<String, dynamic>.from(json as Map),
+    );
+  }
+
+  Future<ConciergeChatResult> chatConcierge(Map<String, dynamic> body) {
+    return _client.post(
+      '/api/buyer/concierge/chat',
+      body: body,
+      auth: true,
+      allowError: true,
+      parser: (json) => ConciergeChatResult.fromJson(
+        json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
+      ),
+    );
+  }
+
+  Future<ConciergeActResult> actConcierge(Map<String, dynamic> body) {
+    return _client.post(
+      '/api/buyer/concierge/act',
+      body: body,
+      auth: true,
+      allowError: true,
+      parser: (json) => ConciergeActResult.fromJson(
+        json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
+      ),
     );
   }
 }

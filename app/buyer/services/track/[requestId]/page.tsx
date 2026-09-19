@@ -23,6 +23,7 @@ import {
   Radio,
   RefreshCw,
   Sparkles,
+  Car,
 } from 'lucide-react';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
 import { createClient } from '@/lib/supabase/client';
@@ -50,6 +51,7 @@ type RequestDetail = {
   location: string;
   status: string;
   providerId: string | null;
+  vehicleId?: string | null;
   acceptedAt: string | null;
   arrivedAt: string | null;
   startedAt: string | null;
@@ -62,6 +64,15 @@ type RequestDetail = {
   destinationLng?: number | null;
   providerLat?: number | null;
   providerLng?: number | null;
+};
+
+type LinkedVehicle = {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string | null;
+  nickname: string | null;
 };
 
 type ProviderContact = { id: string; name: string; phone: string };
@@ -114,6 +125,7 @@ export default function ServiceTrackPage() {
     request: RequestDetail;
     assignments: Assignment[];
     providerContact: ProviderContact | null;
+    vehicle: LinkedVehicle | null;
   } | null>(null);
   const [geocodedDest, setGeocodedDest] = useState<TripMapPoint | null>(null);
   const [routeMeta, setRouteMeta] = useState<{
@@ -148,11 +160,13 @@ export default function ServiceTrackPage() {
         request: RequestDetail;
         assignments: Assignment[];
         providerContact?: ProviderContact | null;
+        vehicle?: LinkedVehicle | null;
       };
       setData({
         request: json.request,
         assignments: json.assignments ?? [],
         providerContact: json.providerContact ?? null,
+        vehicle: json.vehicle ?? null,
       });
       setError(null);
     } catch {
@@ -444,6 +458,16 @@ export default function ServiceTrackPage() {
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
                       <span>{data?.request.location ?? '—'}</span>
                     </p>
+                    {data?.vehicle ? (
+                      <Link
+                        href={`/buyer/garage/${encodeURIComponent(data.vehicle.id)}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                      >
+                        <Car className="h-3.5 w-3.5" />
+                        {data.vehicle.nickname || `${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model}`}
+                        {data.vehicle.licensePlate ? ` · ${data.vehicle.licensePlate}` : ''}
+                      </Link>
+                    ) : null}
                     {data?.request?.category ? (
                       <p className="text-xs font-medium text-muted-foreground/90">
                         <span className="text-muted-foreground/60">Category</span>{' '}

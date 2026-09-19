@@ -9,8 +9,28 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ProductImage } from '@/components/product-image';
+import {
+  BUYER_SURFACE,
+  BuyerEmptyState,
+  BuyerPageHeader,
+  BuyerPageShell,
+} from '@/components/buyer/buyer-page-chrome';
 import { ChevronDown, Heart, Package, Search, Trash2, ExternalLink, ChevronRight } from 'lucide-react';
+import { formatUgx } from '@/lib/format-ugx';
+import { homeCardTone } from '@/lib/home-card-tones';
 import { cn } from '@/lib/utils';
+
+const DEFAULT_PRODUCT_IMAGE = '/products/default.jpg';
+
+function usableWishlistImage(value: unknown): string | null | undefined {
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (t && t !== DEFAULT_PRODUCT_IMAGE) return t;
+    return null;
+  }
+  if (value === null) return null;
+  return undefined;
+}
 
 interface WishlistItem {
   id: string;
@@ -23,14 +43,12 @@ interface WishlistItem {
 
 function WishlistCardSkeleton() {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="flex gap-4 p-4">
-        <Skeleton className="h-28 w-28 shrink-0 rounded-xl md:h-32 md:w-32" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2 py-0.5">
-          <Skeleton className="h-4 w-2/3 max-w-[200px]" />
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-auto h-6 w-28" />
-        </div>
+    <Card className={cn(BUYER_SURFACE, 'overflow-hidden')}>
+      <Skeleton className="aspect-[4/3] w-full rounded-none" />
+      <div className="flex flex-col gap-2 p-4">
+        <Skeleton className="h-4 w-2/3 max-w-[200px]" />
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-2 h-6 w-28" />
       </div>
     </Card>
   );
@@ -87,12 +105,7 @@ export default function BuyerWishlistPage() {
         name: String(item.productName ?? ''),
         price: Number(item.priceSnapshot) || 0,
         category: String(item.categorySnapshot || 'General'),
-        imageUrl:
-          typeof item.imageUrl === 'string' && item.imageUrl.trim()
-            ? item.imageUrl.trim()
-            : item.imageUrl === null
-              ? null
-              : undefined,
+        imageUrl: usableWishlistImage(item.imageUrl),
       }));
       setItems(mapped);
     } catch (error) {
@@ -160,49 +173,42 @@ export default function BuyerWishlistPage() {
   const hasQueryNoHits = !loading && customerId && items.length > 0 && filtered.length === 0;
 
   return (
-    <div className="space-y-8 p-6 md:p-8 md:pb-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Wishlist</h1>
-            {!loading && customerId ? (
-              <Badge variant="secondary" className="font-normal">
+    <BuyerPageShell>
+      <BuyerPageHeader
+        eyebrow="Saved"
+        title="Wishlist"
+        description="Parts and products you save from the storefront, ready to revisit with photos and prices."
+        actions={
+          !loading && customerId ? (
+            <>
+              <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
                 {items.length} {items.length === 1 ? 'item' : 'items'}
               </Badge>
-            ) : null}
-          </div>
-          <p className="max-w-xl text-sm text-muted-foreground">
-            Items you save from the storefront appear here with photos and quick links. Use the heart on any product
-            card while you shop.
-          </p>
-        </div>
-        {!loading && customerId ? (
-          <Button asChild variant="outline" size="sm" className="shrink-0 gap-1">
-            <Link href="/">
-              Continue shopping
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+              <Button asChild variant="outline" className="h-10 gap-1 rounded-full">
+                <Link href="/">
+                  Continue shopping
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </>
+          ) : null
+        }
+      />
 
       {showSignedOut ? (
-        <Card className="border-dashed bg-muted/30 p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Heart className="h-6 w-6" />
-          </div>
-          <h2 className="mt-4 text-lg font-semibold text-foreground">Sign in to use your wishlist</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Create an account or sign in as a buyer so saved products sync here across visits.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={Heart}
+            title="Sign in to use your wishlist"
+            description="Create an account or sign in as a buyer so saved products sync here across visits."
+          >
             <Button asChild>
               <Link href="/auth">Sign in or register</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/">Browse store</Link>
             </Button>
-          </div>
+          </BuyerEmptyState>
         </Card>
       ) : null}
 
@@ -210,7 +216,7 @@ export default function BuyerWishlistPage() {
         <div className="relative max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-11 pl-9"
+            className="h-11 rounded-xl pl-9"
             placeholder="Search by name or category…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -220,7 +226,7 @@ export default function BuyerWishlistPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-1 lg:max-w-3xl">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <WishlistCardSkeleton />
           <WishlistCardSkeleton />
           <WishlistCardSkeleton />
@@ -228,11 +234,11 @@ export default function BuyerWishlistPage() {
       ) : null}
 
       {!loading && customerId ? (
-        <Collapsible open={manualOpen} onOpenChange={setManualOpen} className="rounded-xl border border-border bg-card/50">
+        <Collapsible open={manualOpen} onOpenChange={setManualOpen} className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_8px_24px_rgba(11,18,32,0.04)]">
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/50"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-sm font-semibold text-foreground hover:bg-muted/40"
             >
               <span>Add a note manually (optional)</span>
               <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', manualOpen && 'rotate-180')} />
@@ -265,98 +271,103 @@ export default function BuyerWishlistPage() {
       ) : null}
 
       {hasQueryNoHits ? (
-        <Card className="p-8 text-center">
-          <p className="font-medium text-foreground">No matches</p>
-          <p className="mt-1 text-sm text-muted-foreground">Try a different search or clear the filter.</p>
-          <Button variant="outline" className="mt-4" type="button" onClick={() => setQuery('')}>
-            Clear search
-          </Button>
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={Search}
+            title="No matches"
+            description="Try a different search or clear the filter."
+          >
+            <Button variant="outline" type="button" onClick={() => setQuery('')}>
+              Clear search
+            </Button>
+          </BuyerEmptyState>
         </Card>
       ) : null}
 
       {showEmpty && !hasQueryNoHits ? (
-        <Card className="overflow-hidden border-dashed">
-          <div className="flex flex-col items-center px-6 py-12 text-center md:flex-row md:items-center md:gap-10 md:px-10 md:text-left">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Package className="h-10 w-10" />
-            </div>
-            <div className="mt-6 md:mt-0">
-              <h2 className="text-lg font-semibold text-foreground">Your wishlist is empty</h2>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Tap the heart on products while browsing to save them here with pictures and prices.
-              </p>
-              <Button asChild className="mt-6">
-                <Link href="/">Browse products</Link>
-              </Button>
-            </div>
-          </div>
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={Package}
+            title="Your wishlist is empty"
+            description="Tap the heart on products while browsing to save them here with pictures and prices."
+          >
+            <Button asChild>
+              <Link href="/">Browse products</Link>
+            </Button>
+          </BuyerEmptyState>
         </Card>
       ) : null}
 
       {!loading && customerId && filtered.length > 0 ? (
-        <ul className="grid list-none gap-4 p-0 lg:max-w-3xl">
-          {filtered.map((item) => {
-            const hasImage = Boolean(item.imageUrl?.trim());
+        <ul className="grid list-none gap-4 p-0 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((item, index) => {
+            const imageSrc = item.imageUrl?.trim() || '';
+            const hasImage = Boolean(imageSrc);
+            const productHref = item.productId ? `/products/${item.productId}` : null;
             return (
               <li key={item.id}>
-                <Card className="overflow-hidden p-0 transition hover:border-primary/20 hover:shadow-sm">
-                  <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-stretch">
-                    <div className="relative mx-auto h-36 w-full max-w-[200px] shrink-0 overflow-hidden rounded-xl bg-muted sm:mx-0 sm:h-32 sm:w-32 sm:max-w-none md:h-36 md:w-36">
-                      {hasImage ? (
-                        <ProductImage
-                          src={item.imageUrl!}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 200px, 144px"
-                        />
+                <Card className={cn(BUYER_SURFACE, 'flex h-full flex-col transition hover:-translate-y-0.5 hover:border-primary/20')}>
+                  <div
+                    className="relative aspect-[4/3] w-full overflow-hidden"
+                    style={{ backgroundColor: homeCardTone(index) }}
+                  >
+                    {hasImage ? (
+                      <ProductImage
+                        src={imageSrc}
+                        alt={item.name}
+                        fill
+                        className="object-contain p-4 sm:p-5"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center">
+                        <Heart className="h-10 w-10 text-muted-foreground/70" aria-hidden />
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {item.productId ? 'No photo' : 'Manual entry'}
+                        </span>
+                      </div>
+                    )}
+                    {productHref ? (
+                      <Link href={productHref} className="absolute inset-0 z-10" aria-label={`View ${item.name}`} />
+                    ) : null}
+                  </div>
+
+                  <div className="flex min-h-0 flex-1 flex-col p-4">
+                    <div className="flex flex-1 flex-col gap-1">
+                      {productHref ? (
+                        <Link
+                          href={productHref}
+                          className="line-clamp-2 text-base font-semibold leading-snug text-foreground hover:underline"
+                        >
+                          {item.name}
+                        </Link>
                       ) : (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-muted to-muted/60 px-2 text-center">
-                          <Heart className="h-8 w-8 text-muted-foreground/70" aria-hidden />
-                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {item.productId ? 'No photo' : 'Manual entry'}
-                          </span>
-                        </div>
+                        <p className="line-clamp-2 text-base font-semibold leading-snug text-foreground">{item.name}</p>
                       )}
+                      <p className="text-sm text-muted-foreground">{item.category || 'General'}</p>
+                      <p className="mt-2 text-lg font-extrabold tabular-nums tracking-tight text-foreground">{formatUgx(item.price)}</p>
                     </div>
 
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex flex-1 flex-col gap-1 sm:pr-2">
-                        {item.productId ? (
-                          <Link
-                            href={`/products/${item.productId}`}
-                            className="text-base font-semibold leading-snug text-foreground hover:underline"
-                          >
-                            {item.name}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {productHref ? (
+                        <Button asChild size="sm" className="gap-1.5 rounded-full">
+                          <Link href={productHref}>
+                            View product
+                            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
                           </Link>
-                        ) : (
-                          <p className="text-base font-semibold leading-snug text-foreground">{item.name}</p>
-                        )}
-                        <p className="text-sm text-muted-foreground">{item.category || 'General'}</p>
-                        <p className="mt-2 text-lg font-bold tabular-nums text-foreground">UGX {item.price.toFixed(0)}</p>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4 sm:mt-auto sm:border-0 sm:pt-0">
-                        {item.productId ? (
-                          <Button asChild size="sm" className="gap-1.5">
-                            <Link href={`/products/${item.productId}`}>
-                              View product
-                              <ExternalLink className="h-3.5 w-3.5 opacity-80" />
-                            </Link>
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={removingId === item.id}
-                          onClick={() => void removeItemAsync(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Remove
                         </Button>
-                      </div>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={removingId === item.id}
+                        onClick={() => void removeItemAsync(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -365,6 +376,6 @@ export default function BuyerWishlistPage() {
           })}
         </ul>
       ) : null}
-    </div>
+    </BuyerPageShell>
   );
 }

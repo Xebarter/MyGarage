@@ -555,6 +555,8 @@ export const createBuyerVehicle = async (payload: buyerVehiclesRepo.BuyerVehicle
   buyerVehiclesRepo.insertBuyerVehicle(payload);
 export const updateBuyerVehicle = async (id: string, updates: Partial<BuyerVehicle>) =>
   buyerVehiclesRepo.updateBuyerVehicleById(id, updates);
+export const bumpBuyerVehicleMileageIfHigher = async (id: string, odometerKm: number) =>
+  buyerVehiclesRepo.bumpBuyerVehicleMileageIfHigher(id, odometerKm);
 export const deleteBuyerVehicle = async (id: string) => buyerVehiclesRepo.deleteBuyerVehicleById(id);
 export const updateBuyerVehicleStatusByProvider = async (
   id: string,
@@ -562,6 +564,9 @@ export const updateBuyerVehicleStatusByProvider = async (
 ) => buyerVehiclesRepo.updateBuyerVehicleStatusByProvider(id, update);
 
 // Vehicle service history
+export const attachVehicleToServiceRequest = async (id: string, vehicleId: string) =>
+  buyerServicesRepo.attachVehicleToServiceRequest(id, vehicleId);
+
 export const getVehicleServiceHistory = async (
   vehicleId: string,
   filters?: vehicleServiceHistoryRepo.VehicleServiceHistoryFilters,
@@ -653,6 +658,11 @@ export const deleteBuyerVehicleDocument = async (id: string, customerId: string)
   buyerControlCenterRepo.deleteBuyerVehicleDocument(id, customerId);
 export const listBuyerServiceRecommendations = async (customerId: string) =>
   buyerControlCenterRepo.listServiceRecommendations(customerId);
+export const listBuyerServiceRecommendationsForVehicle = async (vehicleId: string) =>
+  buyerControlCenterRepo.listServiceRecommendationsForVehicle(vehicleId);
+export const upsertBuyerJobFollowUpRecommendation = async (
+  payload: Parameters<typeof buyerControlCenterRepo.upsertJobFollowUpRecommendation>[0],
+) => buyerControlCenterRepo.upsertJobFollowUpRecommendation(payload);
 export const updateBuyerServiceRecommendationStatus = async (
   id: string,
   customerId: string,

@@ -254,6 +254,13 @@ export default function ServiceOrdersPage() {
                 vehicleStatus: garage.vehicleStatus,
                 nextServiceDate: garage.nextServiceDate,
                 notes: garage.notes,
+                findings: garage.findings,
+                recommendations: garage.recommendations,
+                partsUsed: garage.partsUsed,
+                odometerKm: garage.odometerKm,
+                photoUrls: garage.photoUrls,
+                laborHours: garage.laborHours,
+                attachVehicleId: garage.attachVehicleId,
               }
             : {}),
         }),
@@ -291,11 +298,7 @@ export default function ServiceOrdersPage() {
   };
 
   const requestCompletion = (request: ServiceRequest) => {
-    if (request.vehicleId) {
-      setGarageDialogRequest(request);
-      return;
-    }
-    void updateRequestStatus(request.id, 'completed');
+    setGarageDialogRequest(request);
   };
 
   const dismissEmergency = (remember: boolean) => {
@@ -808,6 +811,8 @@ export default function ServiceOrdersPage() {
         }}
         saving={garageDialogRequest != null && savingId === garageDialogRequest.id}
         vehicleLabel={garageDialogRequest?.service}
+        requestId={garageDialogRequest?.id}
+        vendorId={vendorId}
         onConfirm={async (garage) => {
           if (!garageDialogRequest) return;
           await updateRequestStatus(garageDialogRequest.id, 'completed', garage);

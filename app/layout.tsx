@@ -5,6 +5,8 @@ import { Nunito } from 'next/font/google';
 import { JsonLdScript } from '@/components/seo/json-ld-script';
 import { MobileAppFooterHost } from '@/components/mobile-app-footer-host';
 import { ThemeProvider } from '@/components/theme-provider';
+import { WelcomeDialogHost } from '@/components/welcome-dialog';
+import { ConciergeChatHost } from '@/components/concierge/concierge-chat-host';
 import { buildRootMetadata } from '@/lib/seo/metadata';
 import { globalSiteJsonLd } from '@/lib/seo/json-ld';
 
@@ -36,6 +38,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <WelcomeDialogHost />
+          <ConciergeChatHost />
           <MobileAppFooterHost />
           <Analytics />
         </ThemeProvider>

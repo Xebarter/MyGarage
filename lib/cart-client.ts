@@ -25,6 +25,33 @@ export function quantityOfProduct(items: CartLineItem[], productId: string): num
     .reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0);
 }
 
+export function addCartLine(line: {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity?: number;
+  vendorId?: string;
+}): CartLineItem[] {
+  const quantity = Math.max(1, Math.round(Number(line.quantity) || 1));
+  const items = readCartItems();
+  const idx = items.findIndex((item) => item.id === line.id && !item.variantId);
+  if (idx >= 0) {
+    items[idx] = { ...items[idx], quantity: items[idx].quantity + quantity };
+  } else {
+    items.push({
+      id: line.id,
+      name: line.name,
+      price: line.price,
+      image: line.image,
+      quantity,
+      vendorId: line.vendorId,
+    });
+  }
+  writeCartItems(items);
+  return items;
+}
+
 export function addProductToCart(product: Product, quantity = 1): CartLineItem[] {
   const items = readCartItems();
   const idx = items.findIndex((item) => item.id === product.id && !item.variantId);

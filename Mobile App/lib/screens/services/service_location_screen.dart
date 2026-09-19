@@ -12,6 +12,7 @@ import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../data/services_catalog.dart';
 import '../../maps/premium_google_map.dart';
+import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
@@ -92,6 +93,8 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
   String? _status;
   String _sessionToken = _newSessionToken();
   List<_PlaceSuggestion> _suggestions = const [];
+  List<Vehicle> _vehicles = const [];
+  String? _selectedVehicleId;
   Timer? _suggestDebounce;
   int _suggestSeq = 0;
 
@@ -105,6 +108,30 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
     super.initState();
     _address.addListener(_onAddressChanged);
     unawaited(_bootstrapLocation());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadVehicles());
+  }
+
+  Future<void> _loadVehicles() async {
+    if (!mounted) return;
+    final cid = context.read<AuthController>().customerId;
+    if (cid == null || cid.isEmpty) return;
+    try {
+      final list = await _api.listVehicles(customerId: cid);
+      if (!mounted) return;
+      Vehicle? primary;
+      for (final v in list) {
+        if (v.isPrimary) {
+          primary = v;
+          break;
+        }
+      }
+      setState(() {
+        _vehicles = list;
+        _selectedVehicleId ??= (primary ?? (list.isEmpty ? null : list.first))?.id;
+      });
+    } catch (_) {
+      // Booking still works without a garage vehicle.
+    }
   }
 
   @override
@@ -325,6 +352,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
         'notes': _notes.text.trim(),
         'destinationLat': _pin.latitude,
         'destinationLng': _pin.longitude,
+        if (_selectedVehicleId != null && _selectedVehicleId!.isNotEmpty) 'vehicleId': _selectedVehicleId,
       });
       if (!mounted) return;
       context.go('/service/requesting?requestId=${Uri.encodeComponent(request.id)}');
@@ -463,6 +491,9 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
                     setState(() => _suppressAddressRewrite = false);
                   }
                 },
+                vehicles: _vehicles,
+                selectedVehicleId: _selectedVehicleId,
+                onSelectVehicle: (id) => setState(() => _selectedVehicleId = id),
               ),
             ),
           ),
@@ -486,6 +517,9 @@ class _ConfirmSheet extends StatelessWidget {
     required this.onConfirm,
     required this.onSelectSuggestion,
     required this.onAddressEdited,
+    required this.vehicles,
+    required this.selectedVehicleId,
+    required this.onSelectVehicle,
   });
 
   final String serviceName;
@@ -500,6 +534,9 @@ class _ConfirmSheet extends StatelessWidget {
   final VoidCallback onConfirm;
   final ValueChanged<_PlaceSuggestion> onSelectSuggestion;
   final VoidCallback onAddressEdited;
+  final List<Vehicle> vehicles;
+  final String? selectedVehicleId;
+  final ValueChanged<String> onSelectVehicle;
 
   @override
   Widget build(BuildContext context) {
@@ -610,6 +647,23 @@ class _ConfirmSheet extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 10),
+            if (vehicles.isNotEmpty) ...[
+              Text('Vehicle', style: AppTheme.host(fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final v in vehicles)
+                    ChoiceChip(
+                      label: Text(v.label),
+                      selected: selectedVehicleId == v.id,
+                      onSelected: busy ? null : (_) => onSelectVehicle(v.id),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             TextField(
               controller: notes,
               decoration: InputDecoration(

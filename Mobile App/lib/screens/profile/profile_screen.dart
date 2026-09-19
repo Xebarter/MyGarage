@@ -162,6 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onAddresses: () => context.push('/addresses'),
                     onSupport: () => context.push('/support'),
                     onServices: () => context.go('/services'),
+                    onConcierge: () => context.push('/concierge'),
                   ),
                 ),
               ),
@@ -579,6 +580,7 @@ class _QuickGrid extends StatelessWidget {
     required this.onAddresses,
     required this.onSupport,
     required this.onServices,
+    required this.onConcierge,
   });
 
   final VoidCallback onGarage;
@@ -588,6 +590,7 @@ class _QuickGrid extends StatelessWidget {
   final VoidCallback onAddresses;
   final VoidCallback onSupport;
   final VoidCallback onServices;
+  final VoidCallback onConcierge;
 
   @override
   Widget build(BuildContext context) {
@@ -599,16 +602,18 @@ class _QuickGrid extends StatelessWidget {
       (Icons.location_on_outlined, 'Addresses', onAddresses),
       (Icons.support_agent_outlined, 'Support', onSupport),
       (Icons.build_outlined, 'Services', onServices),
+      (Icons.auto_awesome_outlined, 'Concierge', onConcierge),
     ];
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: tiles.map((t) {
+        final isConcierge = t.$2 == 'Concierge';
         return SizedBox(
           width: (MediaQuery.sizeOf(context).width - 32 - 16) / 3,
           child: Material(
-            color: AppColors.surface,
+            color: isConcierge ? AppColors.primarySoft : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadii.md),
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadii.md),
@@ -617,8 +622,10 @@ class _QuickGrid extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
-                  color: AppColors.surface,
+                  border: Border.all(
+                    color: isConcierge ? AppColors.primary.withValues(alpha: 0.2) : AppColors.border.withValues(alpha: 0.95),
+                  ),
+                  color: isConcierge ? AppColors.primarySoft : AppColors.surface,
                   boxShadow: AppTheme.cardShadow,
                 ),
                 child: Column(
@@ -627,16 +634,24 @@ class _QuickGrid extends StatelessWidget {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: AppColors.primarySoft,
+                        color: isConcierge ? AppColors.primary : AppColors.primarySoft,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(t.$1, color: AppColors.primary, size: 18),
+                      child: Icon(
+                        isConcierge ? Icons.auto_awesome : t.$1,
+                        color: isConcierge ? AppColors.onPrimary : AppColors.primary,
+                        size: 18,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       t.$2,
                       textAlign: TextAlign.center,
-                      style: AppTheme.host(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: AppTheme.host(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isConcierge ? AppColors.primaryDeep : AppColors.textPrimary,
+                      ),
                     ),
                   ],
                 ),

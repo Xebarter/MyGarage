@@ -1,4 +1,4 @@
-import { getBuyerServiceRequestById, getVendor } from '@/lib/db';
+import { getBuyerServiceRequestById, getBuyerVehicle, getVendor } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,10 +19,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const vendor = await getVendor(vendorId);
+    const vehicle = request.vehicleId ? await getBuyerVehicle(request.vehicleId) : null;
     return NextResponse.json({
       request,
       providerPhone: vendor?.phone ?? '',
       providerName: vendor?.name ?? '',
+      vehicle: vehicle
+        ? {
+            id: vehicle.id,
+            make: vehicle.make,
+            model: vehicle.model,
+            year: vehicle.year,
+            licensePlate: vehicle.licensePlate,
+            nickname: vehicle.nickname,
+            imageUrl: vehicle.imageUrl,
+            vehicleStatus: vehicle.vehicleStatus,
+          }
+        : null,
     });
   } catch (error) {
     console.error('GET vendor service request:', error);

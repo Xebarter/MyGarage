@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 
+import { usesStorefrontHeaderScroll } from '@/components/buyer-portal-chrome';
 import { MobileAppBottomNav, shouldHideMobileAppFooter } from '@/components/mobile-app-bottom-nav';
 
 /** Persistent mobile tab bar for every storefront page. */
@@ -11,7 +12,7 @@ export function MobileAppFooterHost() {
   const hide = shouldHideMobileAppFooter(pathname);
   const buyerPortal =
     (pathname === '/buyer' || pathname.startsWith('/buyer/')) &&
-    pathname !== '/buyer/services';
+    !usesStorefrontHeaderScroll(pathname);
 
   useEffect(() => {
     const padBody = !hide && !buyerPortal;

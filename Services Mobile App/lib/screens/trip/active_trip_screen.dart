@@ -203,7 +203,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => const GarageCompletionSheet(),
+        builder: (sheetContext) => ChangeNotifierProvider.value(
+          value: context.read<DispatchController>(),
+          child: GarageCompletionSheet(
+            requestId: job.id,
+            currentVehicleId: job.vehicleId ?? job.vehicle?.id,
+          ),
+        ),
       );
       if (payload == null || !mounted) return;
       await _runStage(
@@ -211,6 +217,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         vehicleStatus: payload.vehicleStatus,
         notes: payload.notes,
         nextServiceDate: payload.nextServiceDate,
+        findings: payload.findings,
+        recommendations: payload.recommendations,
+        partsUsed: payload.partsUsed,
+        odometerKm: payload.odometerKm,
+        photoUrls: payload.photoUrls,
+        laborHours: payload.laborHours,
+        attachVehicleId: payload.attachVehicleId,
       );
       return;
     }
@@ -222,6 +235,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     String? vehicleStatus,
     String? notes,
     String? nextServiceDate,
+    String? findings,
+    String? recommendations,
+    String? partsUsed,
+    int? odometerKm,
+    List<String>? photoUrls,
+    double? laborHours,
+    String? attachVehicleId,
   }) async {
     setState(() => _busy = true);
     try {
@@ -230,6 +250,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
             vehicleStatus: vehicleStatus,
             notes: notes,
             nextServiceDate: nextServiceDate,
+            findings: findings,
+            recommendations: recommendations,
+            partsUsed: partsUsed,
+            odometerKm: odometerKm,
+            photoUrls: photoUrls,
+            laborHours: laborHours,
+            attachVehicleId: attachVehicleId,
           );
       if (!mounted) return;
       if (stage == 'completed') {
@@ -513,6 +540,17 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if (job.vehicle != null || (job.vehicleId != null && job.vehicleId!.isNotEmpty))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Chip(
+                            avatar: const Icon(Icons.directions_car, size: 16),
+                            label: Text(job.vehicle?.label ?? 'Linked vehicle'),
+                          ),
+                        ),
+                      ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

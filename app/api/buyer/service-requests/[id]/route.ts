@@ -1,4 +1,5 @@
-import { getBuyerServiceRequestForCustomer, getVendor, countProviderCompletedServiceJobs } from '@/lib/db';
+import { getBuyerServiceRequestForCustomer, getBuyerVehicle, getVendor, countProviderCompletedServiceJobs } from '@/lib/db';
+import { serializeBuyerServiceRequest } from '@/lib/supabase/buyer-services-repo';
 import { listAssignmentsForRequest } from '@/lib/supabase/service-dispatch-repo';
 import { cancelBuyerServiceSearch, processStaleOffersBestEffort } from '@/lib/service-dispatch';
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,8 +27,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         : undefined;
     const completedJobs =
       provider != null ? await countProviderCompletedServiceJobs(provider.id) : 0;
+    const vehicle = request.vehicleId ? await getBuyerVehicle(request.vehicleId) : null;
     return NextResponse.json({
-      request,
+      request: serializeBuyerServiceRequest(request),
+      vehicle: vehicle
+        ? {
+            id: vehicle.id,
+            make: vehicle.make,
+            model: vehicle.model,
+            year: vehicle.year,
+            licensePlate: vehicle.licensePlate,
+            nickname: vehicle.nickname,
+            imageUrl: vehicle.imageUrl,
+          }
+        : null,
       assignments,
       providerContact:
         provider != null

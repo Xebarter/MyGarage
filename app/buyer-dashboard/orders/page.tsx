@@ -1,10 +1,26 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { MapPin, Package, Search, ShoppingBag } from 'lucide-react';
+
+import {
+  BUYER_SURFACE,
+  BuyerEmptyState,
+  BuyerFilterChip,
+  BuyerPageHeader,
+  BuyerPageShell,
+  BuyerPageSkeleton,
+  formatOrderWhen,
+  orderStatusPresentation,
+  type OrderStatus,
+} from '@/components/buyer/buyer-page-chrome';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { formatUgx } from '@/lib/format-ugx';
+import { cn } from '@/lib/utils';
 
 interface OrderItem {
   id: string;
@@ -21,12 +37,21 @@ interface Order {
   shippingAddress: string;
   items: OrderItem[];
   total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: OrderStatus;
   createdAt: string;
   updatedAt: string;
 }
 
-type StatusFilter = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type StatusFilter = 'all' | OrderStatus;
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'shipped', label: 'In transit' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
 
 export default function BuyerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -36,7 +61,7 @@ export default function BuyerOrdersPage() {
 
   useEffect(() => {
     const email = (localStorage.getItem('currentBuyerEmail') || '').trim().toLowerCase();
-    fetchOrders(email);
+    void fetchOrders(email);
   }, []);
 
   const fetchOrders = async (email: string) => {
@@ -58,99 +83,155 @@ export default function BuyerOrdersPage() {
     }
   };
 
+  const counts = useMemo(() => {
+    const map: Record<string, number> = { all: orders.length };
+    for (const order of orders) {
+      map[order.status] = (map[order.status] ?? 0) + 1;
+    }
+    return map;
+  }, [orders]);
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return orders.filter((order) => {
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       const lineItems = order.items.map((item) => item.productName.toLowerCase()).join(' ');
-      const matchesSearch = q.length === 0
-        || order.id.toLowerCase().includes(q)
-        || lineItems.includes(q)
-        || order.shippingAddress.toLowerCase().includes(q);
+      const matchesSearch =
+        q.length === 0 ||
+        order.id.toLowerCase().includes(q) ||
+        lineItems.includes(q) ||
+        order.shippingAddress.toLowerCase().includes(q);
       return matchesStatus && matchesSearch;
     });
   }, [orders, statusFilter, searchQuery]);
 
   if (loading) {
-    return <div className="flex items-center justify-center p-8">Loading orders...</div>;
+    return (
+      <BuyerPageShell>
+        <BuyerPageSkeleton tiles={0} rows={4} />
+      </BuyerPageShell>
+    );
   }
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
-      <div>
-        <h1 className="text-3xl font-bold">My Orders</h1>
-        <p className="text-muted-foreground">Track every order and see detailed line items.</p>
-      </div>
+    <BuyerPageShell>
+      <BuyerPageHeader
+        eyebrow="Purchases"
+        title="Orders"
+        description="Track every purchase, line item, and delivery address in one place."
+        actions={
+          <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
+            {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+          </Badge>
+        }
+      />
 
-      <Card className="space-y-4 p-5">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="relative md:col-span-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by order ID, product, or address..."
-              className="pl-9"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+      <Card className={cn(BUYER_SURFACE, 'p-4 sm:p-5')}>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by order ID, product, or address…"
+            className="h-11 rounded-xl pl-9"
+            aria-label="Search orders"
+          />
+        </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {STATUS_FILTERS.map((filter) => (
+            <BuyerFilterChip
+              key={filter.value}
+              active={statusFilter === filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+              count={counts[filter.value] ?? 0}
+            >
+              {filter.label}
+            </BuyerFilterChip>
+          ))}
         </div>
       </Card>
 
-      <div className="space-y-4">
-        {filtered.length === 0 ? (
-          <Card className="p-8 text-center">
-            <p className="font-medium">No matching orders</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Try a different search or filter, or place a new order.
-            </p>
-          </Card>
-        ) : (
-          filtered.map((order) => (
-            <Card key={order.id} className="p-6">
-              <div className="mb-4 flex flex-col gap-2 border-b border-border pb-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-semibold">Order #{order.id}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Placed {new Date(order.createdAt).toLocaleString()} - Updated {new Date(order.updatedAt).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{order.status}</Badge>
-                  <Badge variant="secondary">UGX {Number(order.total).toFixed(0)}</Badge>
-                </div>
-              </div>
-
-              <div className="space-y-2 rounded-lg border border-border">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between border-b border-border px-4 py-3 text-sm last:border-b-0">
-                    <div>
-                      <p className="font-medium">{item.productName}</p>
-                      <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+      {filtered.length === 0 ? (
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={orders.length === 0 ? ShoppingBag : Package}
+            title={orders.length === 0 ? 'No orders yet' : 'No matching orders'}
+            description={
+              orders.length === 0
+                ? 'When you check out from the shop, your receipts and tracking details will live here.'
+                : 'Try a different search or status filter.'
+            }
+          >
+            {orders.length === 0 ? (
+              <Button asChild>
+                <Link href="/">Browse shop</Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </BuyerEmptyState>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((order) => {
+            const pres = orderStatusPresentation(order.status);
+            const StatusIcon = pres.icon;
+            const shortId = order.id.length > 12 ? order.id.slice(-10) : order.id;
+            return (
+              <Card key={order.id} className={cn(BUYER_SURFACE, 'p-5 sm:p-6')}>
+                <div className="flex flex-col gap-3 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold tracking-tight text-foreground">Order #{shortId}</p>
+                      <Badge variant="outline" className={cn('h-6 border px-2 text-[11px]', pres.badgeClass)}>
+                        <StatusIcon className="h-3 w-3" aria-hidden />
+                        {pres.label}
+                      </Badge>
                     </div>
-                    <span className="font-semibold">UGX {(item.price * item.quantity).toFixed(0)}</span>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Placed {formatOrderWhen(order.createdAt)}
+                      <span className="mx-1.5 text-muted-foreground/40">·</span>
+                      Updated {new Date(order.updatedAt).toLocaleDateString('en-UG', { month: 'short', day: 'numeric' })}
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <p className="text-lg font-extrabold tabular-nums tracking-tight">{formatUgx(Number(order.total))}</p>
+                </div>
 
-              <div className="mt-4 text-sm text-muted-foreground">
-                Shipping address: <span className="font-medium text-foreground">{order.shippingAddress}</span>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
-    </div>
+                <ul className="divide-y divide-border/60">
+                  {order.items.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm first:pt-4 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">Qty {item.quantity}</p>
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums">
+                        {formatUgx(item.price * item.quantity)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-4 flex items-start gap-2 rounded-xl bg-muted/40 px-3.5 py-3 text-sm">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shipping</p>
+                    <p className="text-pretty text-foreground">{order.shippingAddress}</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </BuyerPageShell>
   );
 }

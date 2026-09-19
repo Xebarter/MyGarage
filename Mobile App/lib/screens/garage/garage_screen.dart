@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
@@ -9,6 +10,7 @@ import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
+import 'vehicle_spec_fields.dart';
 
 class GarageScreen extends StatefulWidget {
   const GarageScreen({super.key});
@@ -65,6 +67,11 @@ class _GarageScreenState extends State<GarageScreen> {
     final model = TextEditingController();
     final year = TextEditingController(text: '${DateTime.now().year}');
     final plate = TextEditingController();
+    final nickname = TextEditingController();
+    final trim = TextEditingController();
+    final engine = TextEditingController();
+    final tyreSize = TextEditingController();
+    final spec = VehicleSpecSelection();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -80,7 +87,14 @@ class _GarageScreenState extends State<GarageScreen> {
                 decoration: const InputDecoration(labelText: 'Year'),
                 keyboardType: TextInputType.number,
               ),
-              TextField(controller: plate, decoration: const InputDecoration(labelText: 'Plate')),
+              TextField(controller: plate, decoration: const InputDecoration(labelText: 'License plate')),
+              TextField(controller: nickname, decoration: const InputDecoration(labelText: 'Nickname')),
+              VehicleConciergeFormFields(
+                trim: trim,
+                engine: engine,
+                tyreSize: tyreSize,
+                selection: spec,
+              ),
             ],
           ),
         ),
@@ -99,7 +113,13 @@ class _GarageScreenState extends State<GarageScreen> {
         'make': make.text.trim(),
         'model': model.text.trim(),
         'year': int.tryParse(year.text.trim()) ?? DateTime.now().year,
-        'plate': plate.text.trim(),
+        'licensePlate': plate.text.trim(),
+        'nickname': nickname.text.trim(),
+        'trim': trim.text.trim(),
+        'engine': engine.text.trim(),
+        'driveType': spec.driveType,
+        'bodyType': spec.bodyType,
+        'tyreSize': tyreSize.text.trim(),
       });
       await _load();
     } catch (e) {
@@ -126,8 +146,14 @@ class _GarageScreenState extends State<GarageScreen> {
                   child: _vehicles.isEmpty
                       ? ListView(
                           children: [
-                            const SizedBox(height: 100),
-                            const Center(child: Text('No vehicles yet')),
+                            const SizedBox(height: 80),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24),
+                              child: Text(
+                                'Add a vehicle so service notes from providers appear here after a job.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                             Center(
                               child: TextButton(onPressed: _addVehicle, child: const Text('Add vehicle')),
                             ),
@@ -141,9 +167,23 @@ class _GarageScreenState extends State<GarageScreen> {
                             final v = _vehicles[i];
                             return Card(
                               child: ListTile(
-                                leading: const Icon(Icons.directions_car),
+                                leading: v.imageUrl != null && v.imageUrl!.isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(v.imageUrl!, width: 48, height: 48, fit: BoxFit.cover),
+                                      )
+                                    : const Icon(Icons.directions_car),
                                 title: Text(v.label),
-                                subtitle: Text(v.plate ?? 'No plate'),
+                                subtitle: Text(
+                                  [
+                                    v.licensePlate ?? 'No plate',
+                                    v.statusLabel,
+                                    if (v.nextServiceDate != null && v.nextServiceDate!.isNotEmpty)
+                                      'Next service ${v.nextServiceDate!.split('T').first}',
+                                  ].join(' · '),
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => context.push('/garage/${Uri.encodeComponent(v.id)}'),
                               ),
                             );
                           },

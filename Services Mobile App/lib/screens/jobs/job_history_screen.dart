@@ -257,6 +257,18 @@ class _HistoryRow extends StatelessWidget {
                     ],
                     const SizedBox(height: 8),
                     StatusPill(label: statusLabel(job.status), color: color),
+                    if (job.garageReport != null && job.garageReport!.notes.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        job.garageReport!.notes,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.host(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

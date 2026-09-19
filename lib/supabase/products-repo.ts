@@ -207,6 +207,16 @@ export async function getProductById(id: string): Promise<Product | undefined> {
   }
 }
 
+const DEFAULT_LISTING_IMAGE = "/products/default.jpg";
+
+function pickUsableListingImage(image: string | null | undefined, images: unknown): string | undefined {
+  for (const candidate of [image, ...parseStringArray(images)]) {
+    const t = typeof candidate === "string" ? candidate.trim() : "";
+    if (t && t !== DEFAULT_LISTING_IMAGE) return t;
+  }
+  return undefined;
+}
+
 /** Batch-resolve listing images for wishlist and similar UIs (one round-trip). */
 export async function getProductImagesByIds(ids: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
@@ -214,15 +224,17 @@ export async function getProductImagesByIds(ids: string[]): Promise<Map<string, 
 
   await ensureSeedIfEmpty();
   const supabase = createAdminClient();
-  const { data, error } = await supabase.from("products").select("id, image").in("id", unique);
+  const { data, error } = await supabase.from("products").select("id, image, images").in("id", unique);
 
   if (error) {
     throw new Error(`Supabase get product images failed: ${error.message}`);
   }
 
   const map = new Map<string, string>();
-  for (const row of (data as { id: string; image: string | null }[] | null) ?? []) {
-    if (row?.id) map.set(row.id, row.image?.trim() ? row.image : "");
+  for (const row of (data as { id: string; image: string | null; images?: unknown }[] | null) ?? []) {
+    if (!row?.id) continue;
+    const url = pickUsableListingImage(row.image, row.images);
+    if (url) map.set(row.id, url);
   }
   return map;
 }

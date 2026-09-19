@@ -313,6 +313,8 @@ class DispatchController extends ChangeNotifier {
         completedAt: r.completedAt,
         createdAt: r.createdAt,
         updatedAt: DateTime.now(),
+        garageReport: r.garageReport,
+        vehicle: r.vehicle,
       );
     }
     return ServiceRequest(
@@ -342,11 +344,20 @@ class DispatchController extends ChangeNotifier {
     }
   }
 
+  String? get vendorId => _vendorId;
+
   Future<void> advanceStage({
     required String stage,
     String? vehicleStatus,
     String? notes,
     String? nextServiceDate,
+    String? findings,
+    String? recommendations,
+    String? partsUsed,
+    int? odometerKm,
+    List<String>? photoUrls,
+    double? laborHours,
+    String? attachVehicleId,
   }) async {
     final vendorId = _vendorId;
     final job = activeJob;
@@ -358,8 +369,48 @@ class DispatchController extends ChangeNotifier {
       vehicleStatus: vehicleStatus,
       notes: notes,
       nextServiceDate: nextServiceDate,
+      findings: findings,
+      recommendations: recommendations,
+      partsUsed: partsUsed,
+      odometerKm: odometerKm,
+      photoUrls: photoUrls,
+      laborHours: laborHours,
+      attachVehicleId: attachVehicleId,
     );
     await refresh();
+  }
+
+  Future<({List<CustomerVehicle> vehicles, CustomerVehicle? linked})> customerVehicles(String requestId) {
+    final vendorId = _vendorId;
+    if (vendorId == null) {
+      return Future.value((vehicles: <CustomerVehicle>[], linked: null));
+    }
+    return _api.listCustomerVehicles(requestId: requestId, vendorId: vendorId);
+  }
+
+  Future<CustomerVehicle> addCustomerVehicle({
+    required String requestId,
+    required String make,
+    required String model,
+    required int year,
+    String? licensePlate,
+  }) {
+    final vendorId = _vendorId;
+    if (vendorId == null) {
+      throw StateError('Not signed in');
+    }
+    return _api.createCustomerVehicle(
+      requestId: requestId,
+      vendorId: vendorId,
+      make: make,
+      model: model,
+      year: year,
+      licensePlate: licensePlate,
+    );
+  }
+
+  Future<String> uploadServicePhoto(List<int> bytes, String filename) {
+    return _api.uploadServicePhoto(bytes, filename);
   }
 
   Future<ServiceRequest?> loadJob(String requestId) async {

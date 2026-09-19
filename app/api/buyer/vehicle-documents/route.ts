@@ -8,8 +8,9 @@ export async function GET(req: NextRequest) {
     if (!customerId) {
       return NextResponse.json({ error: "customerId is required" }, { status: 400 });
     }
+    const vehicleId = req.nextUrl.searchParams.get("vehicleId")?.trim() ?? "";
     const documents = await listBuyerVehicleDocuments(customerId);
-    return NextResponse.json(documents);
+    return NextResponse.json(vehicleId ? documents.filter((doc) => doc.vehicleId === vehicleId) : documents);
   } catch (error) {
     console.error("[buyer/vehicle-documents GET]", error);
     return NextResponse.json({ error: "Failed to list documents" }, { status: 500 });

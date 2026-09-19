@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { VehicleStatus } from "@/lib/garage";
+import type { VehicleBodyType, VehicleDriveType, VehicleFuelType, VehicleStatus, VehicleTransmission } from "@/lib/garage";
 
 export interface BuyerVehicle {
   id: string;
@@ -11,6 +11,16 @@ export interface BuyerVehicle {
   imageUrl: string | null;
   nickname: string | null;
   isPrimary: boolean;
+  vin: string | null;
+  color: string | null;
+  mileageKm: number | null;
+  fuelType: VehicleFuelType | null;
+  transmission: VehicleTransmission | null;
+  trim: string | null;
+  engine: string | null;
+  driveType: VehicleDriveType | null;
+  bodyType: VehicleBodyType | null;
+  tyreSize: string | null;
   vehicleStatus: VehicleStatus;
   nextServiceDate: Date | null;
   statusUpdatedByProviderId: string | null;
@@ -29,6 +39,16 @@ type BuyerVehicleRow = {
   image_url: string | null;
   nickname: string | null;
   is_primary: boolean;
+  vin: string | null;
+  color: string | null;
+  mileage_km: number | null;
+  fuel_type: VehicleFuelType | null;
+  transmission: VehicleTransmission | null;
+  trim: string | null;
+  engine: string | null;
+  drive_type: VehicleDriveType | null;
+  body_type: VehicleBodyType | null;
+  tyre_size: string | null;
   vehicle_status: VehicleStatus;
   next_service_date: string | null;
   status_updated_by_provider_id: string | null;
@@ -46,9 +66,29 @@ export type BuyerVehicleInsert = Omit<
   | "nextServiceDate"
   | "statusUpdatedByProviderId"
   | "statusUpdatedAt"
+  | "vin"
+  | "color"
+  | "mileageKm"
+  | "fuelType"
+  | "transmission"
+  | "trim"
+  | "engine"
+  | "driveType"
+  | "bodyType"
+  | "tyreSize"
 > & {
   id?: string;
   vehicleStatus?: VehicleStatus;
+  vin?: string | null;
+  color?: string | null;
+  mileageKm?: number | null;
+  fuelType?: VehicleFuelType | null;
+  transmission?: VehicleTransmission | null;
+  trim?: string | null;
+  engine?: string | null;
+  driveType?: VehicleDriveType | null;
+  bodyType?: VehicleBodyType | null;
+  tyreSize?: string | null;
 };
 
 export type BuyerVehicleProviderUpdate = {
@@ -68,6 +108,16 @@ function rowToBuyerVehicle(row: BuyerVehicleRow): BuyerVehicle {
     imageUrl: row.image_url,
     nickname: row.nickname,
     isPrimary: row.is_primary,
+    vin: row.vin ?? null,
+    color: row.color ?? null,
+    mileageKm: row.mileage_km ?? null,
+    fuelType: row.fuel_type ?? null,
+    transmission: row.transmission ?? null,
+    trim: row.trim ?? null,
+    engine: row.engine ?? null,
+    driveType: row.drive_type ?? null,
+    bodyType: row.body_type ?? null,
+    tyreSize: row.tyre_size ?? null,
     vehicleStatus: row.vehicle_status,
     nextServiceDate: row.next_service_date ? new Date(row.next_service_date) : null,
     statusUpdatedByProviderId: row.status_updated_by_provider_id,
@@ -111,7 +161,7 @@ export async function insertBuyerVehicle(vehicle: BuyerVehicleInsert): Promise<B
     await supabase.from("buyer_vehicles").update({ is_primary: false }).eq("customer_id", vehicle.customerId);
   }
 
-  const row = {
+  const row: Record<string, unknown> = {
     id,
     customer_id: vehicle.customerId,
     make: vehicle.make.trim(),
@@ -121,8 +171,18 @@ export async function insertBuyerVehicle(vehicle: BuyerVehicleInsert): Promise<B
     image_url: vehicle.imageUrl?.trim() || null,
     nickname: vehicle.nickname?.trim() || null,
     is_primary: vehicle.isPrimary,
+    vin: vehicle.vin?.trim() || null,
+    color: vehicle.color?.trim() || null,
+    mileage_km: vehicle.mileageKm ?? null,
+    fuel_type: vehicle.fuelType ?? null,
+    transmission: vehicle.transmission ?? null,
     vehicle_status: vehicle.vehicleStatus ?? "no_active_issues",
   };
+  if (vehicle.trim !== undefined) row.trim = vehicle.trim ?? null;
+  if (vehicle.engine !== undefined) row.engine = vehicle.engine ?? null;
+  if (vehicle.driveType !== undefined) row.drive_type = vehicle.driveType ?? null;
+  if (vehicle.bodyType !== undefined) row.body_type = vehicle.bodyType ?? null;
+  if (vehicle.tyreSize !== undefined) row.tyre_size = vehicle.tyreSize ?? null;
 
   const { data, error } = await supabase.from("buyer_vehicles").insert(row).select("*").single();
   if (error) {
@@ -142,6 +202,16 @@ export async function updateBuyerVehicleById(id: string, updates: Partial<BuyerV
   if (updates.imageUrl !== undefined) patch.image_url = updates.imageUrl?.trim() || null;
   if (updates.nickname !== undefined) patch.nickname = updates.nickname?.trim() || null;
   if (updates.isPrimary !== undefined) patch.is_primary = updates.isPrimary;
+  if (updates.vin !== undefined) patch.vin = updates.vin?.trim() || null;
+  if (updates.color !== undefined) patch.color = updates.color?.trim() || null;
+  if (updates.mileageKm !== undefined) patch.mileage_km = updates.mileageKm;
+  if (updates.fuelType !== undefined) patch.fuel_type = updates.fuelType;
+  if (updates.transmission !== undefined) patch.transmission = updates.transmission;
+  if (updates.trim !== undefined) patch.trim = updates.trim?.trim() || null;
+  if (updates.engine !== undefined) patch.engine = updates.engine?.trim() || null;
+  if (updates.driveType !== undefined) patch.drive_type = updates.driveType;
+  if (updates.bodyType !== undefined) patch.body_type = updates.bodyType;
+  if (updates.tyreSize !== undefined) patch.tyre_size = updates.tyreSize?.trim() || null;
 
   if (updates.isPrimary === true && updates.customerId) {
     await supabase.from("buyer_vehicles").update({ is_primary: false }).eq("customer_id", updates.customerId);
@@ -188,6 +258,16 @@ export async function updateBuyerVehicleStatusByProvider(
   }
   if (!data) return null;
   return rowToBuyerVehicle(data as BuyerVehicleRow);
+}
+
+/** Keep garage mileage current from a completed job odometer, never rolling it backward. */
+export async function bumpBuyerVehicleMileageIfHigher(id: string, odometerKm: number): Promise<BuyerVehicle | null> {
+  const vehicle = await getBuyerVehicleById(id);
+  if (!vehicle) return null;
+  if (!Number.isFinite(odometerKm) || odometerKm < 0) return vehicle;
+  const next = Math.round(odometerKm);
+  if (vehicle.mileageKm != null && next <= vehicle.mileageKm) return vehicle;
+  return updateBuyerVehicleById(id, { mileageKm: next });
 }
 
 export async function deleteBuyerVehicleById(id: string): Promise<boolean> {

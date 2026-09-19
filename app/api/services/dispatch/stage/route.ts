@@ -1,6 +1,5 @@
 import { assignProviderToUnassignedServiceRequest } from '@/lib/db';
-import { recordGarageServiceCompletion } from '@/lib/garage-service';
-import { VEHICLE_STATUSES, type VehicleStatus } from '@/lib/garage';
+import { recordGarageServiceCompletion, parseGarageCompletionBody } from '@/lib/garage-service';
 import { advanceRequestStage } from '@/lib/service-dispatch';
 import { getBuyerServiceRequestFullRow } from '@/lib/supabase/service-dispatch-repo';
 import { NextRequest, NextResponse } from 'next/server';
@@ -42,24 +41,13 @@ export async function POST(req: NextRequest) {
     }
     await advanceRequestStage(requestId, stage as 'arrived' | 'started' | 'completed');
 
-    if (stage === 'completed' && row.vehicle_id) {
-      const vehicleStatus = body.vehicleStatus as VehicleStatus | undefined;
-      const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
-      let nextServiceDate: Date | null | undefined;
-      if (body.nextServiceDate === null) {
-        nextServiceDate = null;
-      } else if (body.nextServiceDate) {
-        const parsed = new Date(body.nextServiceDate as string);
-        if (!Number.isNaN(parsed.getTime())) nextServiceDate = parsed;
-      }
-
+    if (stage === 'completed') {
+      const report = parseGarageCompletionBody(body as Record<string, unknown>);
       await recordGarageServiceCompletion({
         serviceRequestId: requestId,
         providerId: vendorId,
-        vehicleStatus:
-          vehicleStatus && VEHICLE_STATUSES.includes(vehicleStatus) ? vehicleStatus : 'no_active_issues',
-        nextServiceDate,
-        notes,
+        ...report,
+        vehicleStatus: report.vehicleStatus ?? 'no_active_issues',
       });
     }
 

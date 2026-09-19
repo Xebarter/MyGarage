@@ -22,6 +22,14 @@ import { redirectToGoogleSignIn } from "@/lib/auth/google-oauth";
 import { initFirebaseAnalytics } from "@/lib/firebase/client";
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { createClient } from "@/lib/supabase/client";
+import {
+  clearOAuthWelcomePending,
+  consumeOAuthWelcomePending,
+  consumeWelcomeNewAccount,
+  markOAuthWelcomePending,
+  markWelcomeNewAccount,
+  queueAuthWelcomeForUser,
+} from "@/lib/welcome-dialog";
 import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "signin" | "forgot";
@@ -177,6 +185,9 @@ function AuthForm() {
       try {
         await persistSessionProfile();
         if (cancelled) return;
+        if (consumeOAuthWelcomePending()) {
+          queueAuthWelcomeForUser(user, role);
+        }
         setSessionChecked(true);
         router.replace(await resolvePostAuthDestination());
       } catch (e) {
@@ -397,7 +408,10 @@ function AuthForm() {
     localStorage.setItem("currentBuyerId", user.id);
   }
 
-  async function finishAuthAfterSignIn(userEmail?: string): Promise<boolean> {
+  async function finishAuthAfterSignIn(
+    userEmail?: string,
+    options?: { isNewAccount?: boolean },
+  ): Promise<boolean> {
     if (isAdminRole) {
       const allowed = await hasAdminAccess();
       if (!allowed) {
@@ -412,6 +426,10 @@ function AuthForm() {
     }
 
     await persistSessionProfile();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    queueAuthWelcomeForUser(user, role, options?.isNewAccount ? { isNewAccount: true } : undefined);
     router.replace(await resolvePostAuthDestination());
     return true;
   }
@@ -447,6 +465,8 @@ function AuthForm() {
       const email = user.email.trim();
       await syncBuyerCustomerAfterAuth(user, email, phone.trim());
       await persistSessionProfile();
+      consumeOAuthWelcomePending();
+      queueAuthWelcomeForUser(user, role, consumeWelcomeNewAccount() ? { isNewAccount: true } : undefined);
       setBuyerFlowStep("signin");
       router.replace(nextPath);
     } catch (e) {
@@ -462,8 +482,10 @@ function AuthForm() {
     setGoogleLoading(true);
 
     try {
+      markOAuthWelcomePending();
       await redirectToGoogleSignIn(buildAuthCallbackPath(role, nextPath));
     } catch (e) {
+      clearOAuthWelcomePending();
       setError(googleSignInErrorMessage(e));
       setGoogleLoading(false);
     }
@@ -583,12 +605,13 @@ function AuthForm() {
           return;
         }
         if (await gateBuyerPhoneIfNeeded(buyerEmail)) {
+          markWelcomeNewAccount();
           setLoading(false);
           return;
         }
       }
 
-      await finishAuthAfterSignIn(signupUser?.email?.trim() || trimmedEmail);
+      await finishAuthAfterSignIn(signupUser?.email?.trim() || trimmedEmail, { isNewAccount: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in failed.");
     } finally {

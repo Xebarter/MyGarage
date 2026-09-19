@@ -24,6 +24,10 @@ import {
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RangeSelector } from '@/components/analytics/range-selector';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
+import {
+  ProviderGarageCompletionDialog,
+  type GarageCompletionPayload,
+} from '@/components/provider-garage-completion-dialog';
 
 type ProviderRequest = {
   id: string;
@@ -95,6 +99,7 @@ type DispatchRequestRow = {
   destination_lng?: number | null;
   provider_lat?: number | null;
   provider_lng?: number | null;
+  vehicle_id?: string | null;
 };
 
 function mapCoordsFromRow(row: DispatchRequestRow): {
@@ -151,6 +156,7 @@ export default function ServiceProviderDashboardPage() {
   >(null);
   const [dispatchBusy, setDispatchBusy] = useState(false);
   const [dispatchActionError, setDispatchActionError] = useState<string | null>(null);
+  const [completeJobOpen, setCompleteJobOpen] = useState(false);
 
   useEffect(() => {
     const name = localStorage.getItem('currentServiceProviderName') || 'Service Provider';
@@ -231,7 +237,11 @@ export default function ServiceProviderDashboardPage() {
     }
   };
 
-  const advanceLiveJob = async (requestId: string, stage: 'arrived' | 'started' | 'completed') => {
+  const advanceLiveJob = async (
+    requestId: string,
+    stage: 'arrived' | 'started' | 'completed',
+    garage?: GarageCompletionPayload,
+  ) => {
     const id = vendorId || (typeof window !== 'undefined' ? localStorage.getItem('currentVendorId') || '' : '');
     if (!id || dispatchBusy) return;
     setDispatchBusy(true);
@@ -239,8 +249,27 @@ export default function ServiceProviderDashboardPage() {
       await fetch('/api/services/dispatch/stage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, vendorId: id, stage }),
+        body: JSON.stringify({
+          requestId,
+          vendorId: id,
+          stage,
+          ...(garage
+            ? {
+                vehicleStatus: garage.vehicleStatus,
+                nextServiceDate: garage.nextServiceDate,
+                notes: garage.notes,
+                findings: garage.findings,
+                recommendations: garage.recommendations,
+                partsUsed: garage.partsUsed,
+                odometerKm: garage.odometerKm,
+                photoUrls: garage.photoUrls,
+                laborHours: garage.laborHours,
+                attachVehicleId: garage.attachVehicleId,
+              }
+            : {}),
+        }),
       });
+      setCompleteJobOpen(false);
       await refreshDispatch();
     } finally {
       setDispatchBusy(false);
@@ -517,7 +546,7 @@ export default function ServiceProviderDashboardPage() {
                   <button
                     type="button"
                     disabled={dispatchBusy || Boolean(liveJob.completed_at) || !liveJob.started_at}
-                    onClick={() => void advanceLiveJob(liveJob.id, 'completed')}
+                    onClick={() => setCompleteJobOpen(true)}
                     className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 disabled:opacity-50"
                   >
                     Mark completed
@@ -877,6 +906,19 @@ export default function ServiceProviderDashboardPage() {
           </div>
         </Card>
       </div>
+      {liveJob ? (
+        <ProviderGarageCompletionDialog
+          open={completeJobOpen}
+          onOpenChange={setCompleteJobOpen}
+          saving={dispatchBusy}
+          vehicleLabel={liveJob.service}
+          requestId={liveJob.id}
+          vendorId={vendorId}
+          onConfirm={async (garage) => {
+            await advanceLiveJob(liveJob.id, 'completed', garage);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

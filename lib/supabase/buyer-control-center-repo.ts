@@ -411,6 +411,67 @@ export async function listServiceRecommendations(customerId: string): Promise<Se
   return (data ?? []).map((row) => rowToRecommendation(row as Record<string, unknown>));
 }
 
+export async function listServiceRecommendationsForVehicle(
+  vehicleId: string,
+): Promise<ServiceProviderRecommendation[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("service_provider_recommendations")
+    .select("*")
+    .eq("vehicle_id", vehicleId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`listServiceRecommendationsForVehicle failed: ${error.message}`);
+  return (data ?? []).map((row) => rowToRecommendation(row as Record<string, unknown>));
+}
+
+export async function upsertJobFollowUpRecommendation(input: {
+  customerId: string;
+  vehicleId: string | null;
+  providerId: string | null;
+  requestId: string;
+  title: string;
+  description: string;
+}): Promise<ServiceProviderRecommendation> {
+  const supabase = createAdminClient();
+  const { data: existing, error: lookupError } = await supabase
+    .from("service_provider_recommendations")
+    .select("*")
+    .eq("request_id", input.requestId)
+    .maybeSingle();
+  if (lookupError) throw new Error(`lookup job follow-up recommendation failed: ${lookupError.message}`);
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("service_provider_recommendations")
+      .update({
+        title: input.title,
+        description: input.description,
+        vehicle_id: input.vehicleId,
+        provider_id: input.providerId,
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(`update job follow-up recommendation failed: ${error.message}`);
+    return rowToRecommendation(data as Record<string, unknown>);
+  }
+
+  const row = {
+    id: newId(),
+    customer_id: input.customerId,
+    vehicle_id: input.vehicleId,
+    provider_id: input.providerId,
+    request_id: input.requestId,
+    title: input.title,
+    description: input.description,
+    status: "pending",
+  };
+  const { data, error } = await supabase.from("service_provider_recommendations").insert(row).select("*").single();
+  if (error) throw new Error(`insert job follow-up recommendation failed: ${error.message}`);
+  return rowToRecommendation(data as Record<string, unknown>);
+}
+
 export async function updateRecommendationStatus(
   id: string,
   customerId: string,

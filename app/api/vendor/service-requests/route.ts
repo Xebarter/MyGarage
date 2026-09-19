@@ -7,9 +7,9 @@ import {
   updateBuyerServiceRequestStatus,
   vendorAcceptServiceRequest,
 } from '@/lib/db';
-import { recordGarageServiceCompletion } from '@/lib/garage-service';
-import { VEHICLE_STATUSES, type VehicleStatus } from '@/lib/garage';
+import { recordGarageServiceCompletion, parseGarageCompletionBody } from '@/lib/garage-service';
 import { getActiveFulfillmentRequestForVendor } from '@/lib/supabase/service-dispatch-repo';
+import { listVehicleServiceHistoryByRequestIds } from '@/lib/supabase/vehicle-service-history-repo';
 import { NextRequest, NextResponse } from 'next/server';
 
 function sameVendor(providerId: unknown, vendorId: string) {
@@ -22,7 +22,28 @@ function sameVendor(providerId: unknown, vendorId: string) {
 export async function GET() {
   try {
     const requests = await getAllBuyerServiceRequests();
-    return NextResponse.json(requests);
+    const historyByRequest = await listVehicleServiceHistoryByRequestIds(
+      requests.filter((r) => r.status === 'completed').map((r) => r.id),
+    );
+    return NextResponse.json(
+      requests.map((request) => {
+        const report = request.id ? historyByRequest[request.id] : undefined;
+        return {
+          ...request,
+          garageReport: report
+            ? {
+                notes: report.notes,
+                findings: report.findings,
+                recommendations: report.recommendations,
+                partsUsed: report.partsUsed,
+                odometerKm: report.odometerKm,
+                photoUrls: report.photoUrls,
+                nextServiceHint: null,
+              }
+            : null,
+        };
+      }),
+    );
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch service requests' }, { status: 500 });
   }
@@ -149,24 +170,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Service request not found' }, { status: 404 });
     }
 
-    if (status === 'completed' && updated.vehicleId) {
-      const vehicleStatus = body.vehicleStatus as VehicleStatus | undefined;
-      const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
-      let nextServiceDate: Date | null | undefined;
-      if (body.nextServiceDate === null) {
-        nextServiceDate = null;
-      } else if (body.nextServiceDate) {
-        const parsed = new Date(body.nextServiceDate as string);
-        if (!Number.isNaN(parsed.getTime())) nextServiceDate = parsed;
-      }
-
+    if (status === 'completed') {
+      const report = parseGarageCompletionBody(body);
       await recordGarageServiceCompletion({
         serviceRequestId: id,
         providerId: vendorId,
-        vehicleStatus:
-          vehicleStatus && VEHICLE_STATUSES.includes(vehicleStatus) ? vehicleStatus : 'no_active_issues',
-        nextServiceDate,
-        notes,
+        ...report,
+        vehicleStatus: report.vehicleStatus ?? 'no_active_issues',
       });
     }
 

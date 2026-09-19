@@ -15,6 +15,7 @@ import {
   X,
   LogOut,
   Banknote,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/admin/pricing', label: 'Service pricing', icon: Banknote },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/admin/clients', label: 'Clients', icon: Users },
+  { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
   { href: '/admin/promotions', label: 'Promotions', icon: Tag },
   { href: '/admin/vendors', label: 'Vendors & Providers', icon: Truck },
   { href: '/admin/payments', label: 'Payments', icon: Wallet },

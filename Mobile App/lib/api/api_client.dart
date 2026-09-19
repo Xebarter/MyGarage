@@ -173,6 +173,7 @@ class ApiClient {
     String path, {
     Object? body,
     bool auth = false,
+    bool allowError = false,
     T Function(dynamic json)? parser,
   }) async {
     final res = await _sendWithRedirects(
@@ -181,7 +182,7 @@ class ApiClient {
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
-    return _decode(res, parser: parser);
+    return _decode(res, parser: parser, allowError: allowError);
   }
 
   Future<T> put<T>(
@@ -282,7 +283,7 @@ class ApiClient {
     throw ApiException('Too many redirects for POST multipart $path');
   }
 
-  T _decode<T>(http.Response res, {T Function(dynamic json)? parser}) {
+  T _decode<T>(http.Response res, {T Function(dynamic json)? parser, bool allowError = false}) {
     dynamic json;
     if (res.body.isNotEmpty) {
       try {
@@ -293,6 +294,9 @@ class ApiClient {
     }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (allowError && parser != null) {
+        return parser(json);
+      }
       final message = json is Map && json['error'] != null
           ? json['error'].toString()
           : 'Request failed (${res.statusCode})';

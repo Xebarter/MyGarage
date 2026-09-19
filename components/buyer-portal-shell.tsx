@@ -5,17 +5,13 @@ import { usePathname } from 'next/navigation';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import { BuyerSidebar } from '@/components/buyer-sidebar';
-import { BuyerPortalChromeProvider } from '@/components/buyer-portal-chrome';
-
-/** Public booking page uses storefront header scroll (logo hides, search stays). */
-function isServicesMarketplacePage(pathname: string): boolean {
-  return pathname === '/buyer/services';
-}
+import { BuyerPortalChromeProvider, isBuyerGaragePath } from '@/components/buyer-portal-chrome';
 
 export function BuyerPortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (isServicesMarketplacePage(pathname)) {
+  // Public booking page: storefront header (categories menu) and page scroll.
+  if (pathname === '/buyer/services') {
     return (
       <div className="flex min-h-dvh flex-col bg-muted/20">
         <Header />
@@ -31,6 +27,23 @@ export function BuyerPortalShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Garage keeps buyer chrome, but the page scrolls like home: logo row leaves, search stays.
+  if (isBuyerGaragePath(pathname)) {
+    return (
+      <BuyerPortalChromeProvider>
+        <div className="bg-muted/20">
+          <Header />
+          <div className="flex md:flex-row">
+            <div className="md:sticky md:top-16 md:z-30 md:h-[calc(100dvh-4rem)] md:w-64 md:shrink-0 md:self-start md:overflow-y-auto">
+              <BuyerSidebar />
+            </div>
+            <div className="min-w-0 flex-1">{children}</div>
+          </div>
+        </div>
+      </BuyerPortalChromeProvider>
     );
   }
 

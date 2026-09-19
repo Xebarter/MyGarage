@@ -7,7 +7,9 @@ import '../providers/auth_controller.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/cart/cart_screen.dart';
 import '../screens/checkout/checkout_screen.dart';
+import '../screens/concierge/concierge_screen.dart';
 import '../screens/garage/garage_screen.dart';
+import '../screens/garage/garage_vehicle_detail_screen.dart';
 import '../screens/orders/orders_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/profile_section_screen.dart';
@@ -156,8 +158,20 @@ GoRouter createRouter(AuthController auth) {
             builder: (context, state) => const OrdersScreen(),
           ),
           GoRoute(
+            path: '/concierge',
+            builder: (context, state) => ConciergeScreen(
+              vehicleId: state.uri.queryParameters['vehicleId'],
+            ),
+          ),
+          GoRoute(
             path: '/garage',
             builder: (context, state) => const GarageScreen(),
+          ),
+          GoRoute(
+            path: '/garage/:id',
+            builder: (context, state) => GarageVehicleDetailScreen(
+              vehicleId: state.pathParameters['id'] ?? '',
+            ),
           ),
           GoRoute(
             path: '/profile/:section',

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
+import { ContactMessageForm } from '@/components/contact/contact-message-form';
 import { JsonLdScript } from '@/components/seo/json-ld-script';
 import { buildPageMetadata, STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 import { breadcrumbJsonLd } from '@/lib/seo/json-ld';
@@ -97,40 +98,11 @@ export default function ContactUsPage() {
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 md:p-7">
-            <h2 className="text-lg md:text-xl font-semibold text-foreground mb-3">Send a Message</h2>
-            <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Full name"
-                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
-              />
-              <input
-                type="email"
-                placeholder="Email address"
-                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/70"
-              />
-              <input
-                type="text"
-                placeholder="Phone number"
-                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/70 md:col-span-2"
-              />
-              <textarea
-                placeholder="Tell us how we can help..."
-                rows={5}
-                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/70 md:col-span-2"
-              />
-              <div className="md:col-span-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center rounded-lg bg-primary text-primary-foreground px-5 py-2.5 text-sm font-semibold hover:bg-primary/90 transition"
-                >
-                  Submit Message
-                </button>
-              </div>
-            </form>
-            <p className="text-xs text-muted-foreground mt-3">
-              Note: This form is currently informational. For immediate help, use email or phone above.
+            <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2">Send a Message</h2>
+            <p className="text-sm text-muted-foreground mb-4 leading-6">
+              Share your details and we will follow up. For urgent help, use email or phone above.
             </p>
+            <ContactMessageForm />
           </section>
         </section>
       </main>

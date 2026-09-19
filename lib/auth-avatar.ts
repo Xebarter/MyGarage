@@ -59,3 +59,43 @@ export function getAuthDisplayInitials(user: User | null): string {
 
   return '?';
 }
+
+function titleCaseWord(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.length <= 3 && trimmed === trimmed.toUpperCase()) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+}
+
+/** First name for greetings, from OAuth metadata or the email local-part. */
+export function getAuthGivenName(user: User | null): string {
+  if (!user) return '';
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const given = pickString(meta?.given_name);
+  if (given) return titleCaseWord(given.split(/\s+/)[0] ?? given);
+
+  const fullName = pickString(meta?.full_name, meta?.name, meta?.display_name);
+  if (fullName) {
+    const first = fullName.split(/\s+/).filter(Boolean)[0];
+    if (first) return titleCaseWord(first);
+  }
+
+  const email = user.email?.trim();
+  if (email) {
+    const local = email.split('@')[0] ?? '';
+    const token = local.split(/[._+\-]/).filter(Boolean)[0] ?? local;
+    if (token) return titleCaseWord(token);
+  }
+
+  return '';
+}
+
+export function isRecentlyCreatedAuthUser(
+  user: { created_at?: string } | null,
+  windowMs = 10 * 60 * 1000,
+): boolean {
+  if (!user?.created_at) return false;
+  const created = Date.parse(user.created_at);
+  if (!Number.isFinite(created)) return false;
+  return Date.now() - created <= windowMs;
+}

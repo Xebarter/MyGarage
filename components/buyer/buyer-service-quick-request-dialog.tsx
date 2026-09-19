@@ -1,6 +1,6 @@
 'use client';
 
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -200,6 +200,7 @@ export type BuyerServiceQuickRequestDialogProps = {
   submitError: string | null;
   identityMode: 'buyer' | 'guest';
   onSubmit: () => void;
+  vehiclePicker?: ReactNode;
 };
 
 export function BuyerServiceQuickRequestDialog({
@@ -233,6 +234,7 @@ export function BuyerServiceQuickRequestDialog({
   submitError,
   identityMode,
   onSubmit,
+  vehiclePicker,
 }: BuyerServiceQuickRequestDialogProps) {
   return (
     <Dialog
@@ -495,6 +497,8 @@ export function BuyerServiceQuickRequestDialog({
                       </div>
                     </div>
                   )}
+
+                  {vehiclePicker}
                 </div>
               </div>
 

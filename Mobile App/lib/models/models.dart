@@ -346,6 +346,7 @@ class BuyerServiceRequest {
     this.destinationLng,
     this.providerLat,
     this.providerLng,
+    this.notes = '',
   });
 
   final String id;
@@ -358,6 +359,7 @@ class BuyerServiceRequest {
   final double? destinationLng;
   final double? providerLat;
   final double? providerLng;
+  final String notes;
 
   factory BuyerServiceRequest.fromJson(Map<String, dynamic> json) {
     return BuyerServiceRequest(
@@ -375,6 +377,7 @@ class BuyerServiceRequest {
           (json['provider_lat'] as num?)?.toDouble(),
       providerLng: (json['providerLng'] as num?)?.toDouble() ??
           (json['provider_lng'] as num?)?.toDouble(),
+      notes: json['notes']?.toString() ?? '',
     );
   }
 }
@@ -410,27 +413,168 @@ class Vehicle {
     required this.make,
     required this.model,
     required this.year,
-    this.plate,
+    this.licensePlate,
     this.imageUrl,
+    this.nickname,
+    this.isPrimary = false,
+    this.vin,
+    this.color,
+    this.mileageKm,
+    this.fuelType,
+    this.transmission,
+    this.trim,
+    this.engine,
+    this.driveType,
+    this.bodyType,
+    this.tyreSize,
+    this.vehicleStatus = 'no_active_issues',
+    this.nextServiceDate,
+    this.lastServiceNotes,
+    this.lastServiceDate,
   });
 
   final String id;
   final String make;
   final String model;
   final int year;
-  final String? plate;
+  final String? licensePlate;
   final String? imageUrl;
+  final String? nickname;
+  final bool isPrimary;
+  final String? vin;
+  final String? color;
+  final int? mileageKm;
+  final String? fuelType;
+  final String? transmission;
+  final String? trim;
+  final String? engine;
+  final String? driveType;
+  final String? bodyType;
+  final String? tyreSize;
+  final String vehicleStatus;
+  final String? nextServiceDate;
+  final String? lastServiceNotes;
+  final String? lastServiceDate;
 
-  String get label => [year.toString(), make, model].where((e) => e.isNotEmpty).join(' ');
+  String? get plate => licensePlate;
+
+  String get label {
+    final nick = nickname?.trim();
+    if (nick != null && nick.isNotEmpty) return nick;
+    return [year.toString(), make, model].where((e) => e.isNotEmpty).join(' ');
+  }
+
+  String get statusLabel {
+    switch (vehicleStatus) {
+      case 'in_service':
+        return 'In service';
+      case 'awaiting_parts':
+        return 'Awaiting parts';
+      case 'ready_for_pickup':
+        return 'Ready for pickup';
+      default:
+        return 'No active issues';
+    }
+  }
 
   factory Vehicle.fromJson(Map<String, dynamic> json) {
+    final last = json['lastService'];
+    Map<String, dynamic>? lastMap;
+    if (last is Map) lastMap = Map<String, dynamic>.from(last);
     return Vehicle(
       id: json['id']?.toString() ?? '',
       make: json['make']?.toString() ?? '',
       model: json['model']?.toString() ?? '',
       year: (json['year'] as num?)?.toInt() ?? 0,
-      plate: json['plate']?.toString() ?? json['licensePlate']?.toString(),
+      licensePlate: json['licensePlate']?.toString() ?? json['plate']?.toString(),
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
+      nickname: json['nickname']?.toString(),
+      isPrimary: json['isPrimary'] == true || json['is_primary'] == true,
+      vin: json['vin']?.toString(),
+      color: json['color']?.toString(),
+      mileageKm: (json['mileageKm'] as num?)?.toInt() ?? (json['mileage_km'] as num?)?.toInt(),
+      fuelType: json['fuelType']?.toString() ?? json['fuel_type']?.toString(),
+      transmission: json['transmission']?.toString(),
+      trim: json['trim']?.toString(),
+      engine: json['engine']?.toString(),
+      driveType: json['driveType']?.toString() ?? json['drive_type']?.toString(),
+      bodyType: json['bodyType']?.toString() ?? json['body_type']?.toString(),
+      tyreSize: json['tyreSize']?.toString() ?? json['tyre_size']?.toString(),
+      vehicleStatus: json['vehicleStatus']?.toString() ?? json['vehicle_status']?.toString() ?? 'no_active_issues',
+      nextServiceDate: json['nextServiceDate']?.toString() ?? json['next_service_date']?.toString(),
+      lastServiceNotes: lastMap?['notes']?.toString(),
+      lastServiceDate: lastMap?['serviceDate']?.toString(),
+    );
+  }
+}
+
+class VehicleServiceLog {
+  VehicleServiceLog({
+    required this.id,
+    required this.serviceName,
+    required this.serviceDate,
+    required this.providerName,
+    this.notes = '',
+    this.findings = '',
+    this.recommendations = '',
+    this.partsUsed = '',
+    this.odometerKm,
+    this.photoUrls = const [],
+    this.serviceRequestId,
+  });
+
+  final String id;
+  final String serviceName;
+  final String serviceDate;
+  final String providerName;
+  final String notes;
+  final String findings;
+  final String recommendations;
+  final String partsUsed;
+  final int? odometerKm;
+  final List<String> photoUrls;
+  final String? serviceRequestId;
+
+  factory VehicleServiceLog.fromJson(Map<String, dynamic> json) {
+    final photos = json['photoUrls'] ?? json['photo_urls'];
+    return VehicleServiceLog(
+      id: json['id']?.toString() ?? '',
+      serviceName: json['serviceName']?.toString() ?? json['service_name']?.toString() ?? 'Service',
+      serviceDate: json['serviceDate']?.toString() ?? json['service_date']?.toString() ?? '',
+      providerName: json['providerName']?.toString() ?? json['provider_name']?.toString() ?? '',
+      notes: json['notes']?.toString() ?? '',
+      findings: json['findings']?.toString() ?? '',
+      recommendations: json['recommendations']?.toString() ?? '',
+      partsUsed: json['partsUsed']?.toString() ?? json['parts_used']?.toString() ?? '',
+      odometerKm: (json['odometerKm'] as num?)?.toInt() ?? (json['odometer_km'] as num?)?.toInt(),
+      photoUrls: photos is List ? photos.map((e) => e.toString()).where((e) => e.isNotEmpty).toList() : const [],
+      serviceRequestId: json['serviceRequestId']?.toString() ?? json['service_request_id']?.toString(),
+    );
+  }
+}
+
+class VehicleDocument {
+  VehicleDocument({
+    required this.id,
+    required this.name,
+    required this.documentType,
+    this.fileUrl,
+    this.expiresAt,
+  });
+
+  final String id;
+  final String name;
+  final String documentType;
+  final String? fileUrl;
+  final String? expiresAt;
+
+  factory VehicleDocument.fromJson(Map<String, dynamic> json) {
+    return VehicleDocument(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      documentType: json['documentType']?.toString() ?? json['document_type']?.toString() ?? 'other',
+      fileUrl: json['fileUrl']?.toString() ?? json['file_url']?.toString(),
+      expiresAt: json['expiresAt']?.toString() ?? json['expires_at']?.toString(),
     );
   }
 }

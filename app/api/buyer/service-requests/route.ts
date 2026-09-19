@@ -1,4 +1,5 @@
 import { createBuyerServiceRequest, getBuyerServiceRequests, getCustomer } from '@/lib/db';
+import { serializeBuyerServiceRequest } from '@/lib/supabase/buyer-services-repo';
 import { startDispatchForNewRequest } from '@/lib/service-dispatch';
 import { resolveBuyerServiceCategory } from '@/lib/services-catalog';
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
     }
     const requests = await getBuyerServiceRequests(customerId);
-    return NextResponse.json(requests);
+    return NextResponse.json(requests.map(serializeBuyerServiceRequest));
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch buyer service requests' }, { status: 500 });
   }
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
     }
     const bodyPhone = typeof body.buyerContactPhone === 'string' ? body.buyerContactPhone.trim() : '';
     const bodyName = typeof body.buyerContactName === 'string' ? body.buyerContactName.trim() : '';
+    const bookingNotes = typeof body.notes === 'string' ? body.notes.trim() : '';
     const contactPhone = countPhoneDigits(customer.phone) >= 9 ? customer.phone.trim() : bodyPhone;
     if (countPhoneDigits(contactPhone) < 9) {
       return NextResponse.json(
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       buyerContactPhone: contactPhone,
       buyerContactName: contactName,
+      ...(bookingNotes ? { notes: bookingNotes } : {}),
       ...(vehicleId ? { vehicleId: String(vehicleId).trim() } : {}),
       ...(destinationLat != null &&
       destinationLng != null &&
@@ -71,7 +74,7 @@ export async function POST(req: NextRequest) {
     } catch (dispatchError) {
       console.error('startDispatchForNewRequest failed:', dispatchError);
     }
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(serializeBuyerServiceRequest(created), { status: 201 });
   } catch (error) {
     console.error('POST /api/buyer/service-requests failed:', error);
     return NextResponse.json({ error: 'Failed to create buyer service request' }, { status: 500 });

@@ -6,10 +6,16 @@ export type PendingBuyerServiceRequest = {
   category: string;
   service: string;
   location: string;
+  vehicleId?: string;
   savedAt: string;
 };
 
-export function savePendingBuyerServiceRequest(payload: { category: string; service: string; location: string }): void {
+export function savePendingBuyerServiceRequest(payload: {
+  category: string;
+  service: string;
+  location: string;
+  vehicleId?: string;
+}): void {
   if (typeof window === 'undefined') return;
   const data: PendingBuyerServiceRequest = { ...payload, savedAt: new Date().toISOString() };
   sessionStorage.setItem(PENDING_BUYER_SERVICE_REQUEST_KEY, JSON.stringify(data));
@@ -27,6 +33,7 @@ export function readPendingBuyerServiceRequest(): PendingBuyerServiceRequest | n
       category: p.category.trim(),
       service: p.service.trim(),
       location: p.location.trim(),
+      vehicleId: typeof p.vehicleId === 'string' && p.vehicleId.trim() ? p.vehicleId.trim() : undefined,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : new Date().toISOString(),
     };
   } catch {

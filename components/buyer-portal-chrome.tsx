@@ -22,6 +22,20 @@ const BUYER_NAV_PAGES: { href: string; label: string }[] = [
   { href: '/buyer/support', label: 'Support' },
 ];
 
+export function isBuyerGaragePath(pathname: string): boolean {
+  return (
+    pathname === '/buyer/garage' ||
+    pathname.startsWith('/buyer/garage/') ||
+    pathname === '/buyer-dashboard/garage' ||
+    pathname.startsWith('/buyer-dashboard/garage/')
+  );
+}
+
+/** Document scroll so the logo row can leave and the search row stays pinned. */
+export function usesStorefrontHeaderScroll(pathname: string): boolean {
+  return pathname === '/buyer/services' || isBuyerGaragePath(pathname);
+}
+
 function resolveBuyerPageLabel(pathname: string): string {
   const sorted = [...BUYER_NAV_PAGES].sort((a, b) => b.href.length - a.href.length);
   for (const item of sorted) {

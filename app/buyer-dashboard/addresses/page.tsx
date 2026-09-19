@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Home, MapPin, Plus, Star, Trash2 } from 'lucide-react';
+
+import {
+  BUYER_SURFACE,
+  BuyerEmptyState,
+  BuyerPageHeader,
+  BuyerPageShell,
+} from '@/components/buyer/buyer-page-chrome';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Plus, Trash2, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface BuyerAddress {
   id: string;
@@ -19,6 +28,8 @@ export default function BuyerAddressesPage() {
   const [addresses, setAddresses] = useState<BuyerAddress[]>([]);
   const [label, setLabel] = useState('');
   const [fullAddress, setFullAddress] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     void bootstrap();
@@ -54,26 +65,24 @@ export default function BuyerAddressesPage() {
       }
 
       const data = await response.json();
-      const mapped: BuyerAddress[] = (Array.isArray(data) ? data : []).map((item: any) => ({
+      const mapped: BuyerAddress[] = (Array.isArray(data) ? data : []).map((item: { id: string; label: string; fullAddress: string; isDefault?: boolean }) => ({
         id: item.id,
         label: item.label,
         fullAddress: item.fullAddress,
         isDefault: Boolean(item.isDefault),
       }));
       setAddresses(mapped);
+      if (mapped.length === 0) setShowForm(true);
     } catch (error) {
       console.error('Failed to bootstrap addresses:', error);
       setAddresses([]);
     }
   };
 
-  const addAddress = () => {
-    void addAddressAsync();
-  };
-
   const addAddressAsync = async () => {
-    if (!label.trim() || !fullAddress.trim() || !customerId) return;
+    if (!label.trim() || !fullAddress.trim() || !customerId || saving) return;
     try {
+      setSaving(true);
       const response = await fetch('/api/buyer/addresses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,14 +96,13 @@ export default function BuyerAddressesPage() {
       if (!response.ok) return;
       setLabel('');
       setFullAddress('');
+      setShowForm(false);
       await bootstrap();
     } catch (error) {
       console.error('Failed to add address:', error);
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const removeAddress = (id: string) => {
-    void removeAddressAsync(id);
   };
 
   const removeAddressAsync = async (id: string) => {
@@ -104,10 +112,6 @@ export default function BuyerAddressesPage() {
     } catch (error) {
       console.error('Failed to remove address:', error);
     }
-  };
-
-  const markDefault = (id: string) => {
-    void markDefaultAsync(id);
   };
 
   const markDefaultAsync = async (id: string) => {
@@ -125,91 +129,143 @@ export default function BuyerAddressesPage() {
   };
 
   return (
-    <div className="space-y-5 px-4 pt-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6 md:p-8 md:pb-12">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Saved Addresses</h1>
-            <Badge variant="outline" className="shrink-0 font-normal">
-              {addresses.length} {addresses.length === 1 ? 'address' : 'addresses'}
+    <BuyerPageShell>
+      <BuyerPageHeader
+        eyebrow="Checkout"
+        title="Addresses"
+        description="Save delivery destinations so checkout is faster next time."
+        actions={
+          <>
+            <Badge variant="secondary" className="rounded-full px-3 py-1 font-medium">
+              {addresses.length} saved
             </Badge>
-          </div>
-          <p className="max-w-xl text-sm text-muted-foreground">
-            Manage your shipping destinations for faster checkout.
-          </p>
-        </div>
-      </div>
+            <Button
+              type="button"
+              className="h-10 gap-2 rounded-full"
+              onClick={() => setShowForm((open) => !open)}
+              disabled={!customerId}
+            >
+              <Plus className="h-4 w-4" />
+              {showForm ? 'Close' : 'Add address'}
+            </Button>
+          </>
+        }
+      />
 
-      <Card className="space-y-4 p-4 sm:p-5">
-        <h3 className="text-base font-semibold sm:text-sm">Add New Address</h3>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Label (Home, Office...)"
-            className="h-11 md:h-9"
-            autoComplete="off"
-          />
-          <Input
-            value={fullAddress}
-            onChange={(e) => setFullAddress(e.target.value)}
-            placeholder="Full address"
-            className="md:col-span-2 h-11 md:h-9"
-            autoComplete="section-shipping street-address"
-          />
-        </div>
-        <Button onClick={addAddress} className="h-11 w-full gap-2 touch-manipulation sm:h-9 sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Save Address
-        </Button>
-      </Card>
+      {showForm ? (
+        <Card className={cn(BUYER_SURFACE, 'p-5 sm:p-6')}>
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Home className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-base font-bold tracking-tight">New destination</h2>
+              <p className="text-xs text-muted-foreground">Label it so you can pick it quickly at checkout.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="address-label">Label</Label>
+              <Input
+                id="address-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Home, Office…"
+                className="h-11 rounded-xl"
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="address-full">Full address</Label>
+              <Input
+                id="address-full"
+                value={fullAddress}
+                onChange={(e) => setFullAddress(e.target.value)}
+                placeholder="Street, area, city"
+                className="h-11 rounded-xl"
+                autoComplete="section-shipping street-address"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={() => void addAddressAsync()}
+            disabled={saving || !customerId}
+            className="mt-4 h-11 w-full gap-2 rounded-xl sm:w-auto"
+          >
+            <Plus className="h-4 w-4" />
+            {saving ? 'Saving…' : 'Save address'}
+          </Button>
+        </Card>
+      ) : null}
 
       {addresses.length === 0 ? (
-        <Card className="p-6 text-center sm:p-8">
-          <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-2 font-medium">No saved addresses yet</p>
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={MapPin}
+            title="No saved addresses yet"
+            description="Add a home or office address to speed up delivery at checkout."
+          >
+            <Button type="button" onClick={() => setShowForm(true)} disabled={!customerId}>
+              Add your first address
+            </Button>
+          </BuyerEmptyState>
         </Card>
       ) : (
-        <div className="space-y-3 sm:space-y-4">
+        <div className="grid gap-3 md:grid-cols-2">
           {addresses.map((address) => (
-            <Card key={address.id} className="p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 gap-y-1">
-                    <p className="font-semibold">{address.label}</p>
-                    {address.isDefault ? <Badge className="shrink-0">Default</Badge> : null}
-                  </div>
-                  <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground wrap-break-word">
-                    {address.fullAddress}
-                  </p>
-                </div>
-                <div className="flex w-full shrink-0 flex-col gap-2 touch-manipulation sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-                  {!address.isDefault && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 w-full gap-2 sm:h-8 sm:w-auto"
-                      onClick={() => markDefault(address.id)}
-                    >
-                      <Star className="h-4 w-4 shrink-0" />
-                      Set default
-                    </Button>
+            <Card
+              key={address.id}
+              className={cn(
+                BUYER_SURFACE,
+                'p-5',
+                address.isDefault && 'border-primary/30 ring-primary/15',
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={cn(
+                    'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
+                    address.isDefault ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
                   )}
+                >
+                  <MapPin className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-bold tracking-tight">{address.label}</p>
+                    {address.isDefault ? (
+                      <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">Default</Badge>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">{address.fullAddress}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {!address.isDefault ? (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-10 w-full gap-2 text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
-                    onClick={() => removeAddress(address.id)}
+                    className="h-9 gap-2 rounded-full"
+                    onClick={() => void markDefaultAsync(address.id)}
                   >
-                    <Trash2 className="h-4 w-4 shrink-0" />
-                    Remove
+                    <Star className="h-3.5 w-3.5" />
+                    Set default
                   </Button>
-                </div>
+                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => void removeAddressAsync(address.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
               </div>
             </Card>
           ))}
         </div>
       )}
-    </div>
+    </BuyerPageShell>
   );
 }

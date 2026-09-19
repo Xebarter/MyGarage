@@ -22,6 +22,12 @@ function serializeHistoryEntry(
     providerId: entry.providerId,
     providerName: entry.providerName,
     notes: entry.notes,
+    findings: entry.findings,
+    recommendations: entry.recommendations,
+    partsUsed: entry.partsUsed,
+    odometerKm: entry.odometerKm,
+    photoUrls: entry.photoUrls,
+    laborHours: entry.laborHours,
     status: entry.status,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
@@ -44,6 +50,7 @@ function serializeHistoryEntry(
 function serializeVehicle(vehicle: NonNullable<Awaited<ReturnType<typeof getBuyerVehicle>>>) {
   return {
     ...vehicle,
+    imageUrl: vehicle.imageUrl?.trim() || null,
     nextServiceDate: vehicle.nextServiceDate?.toISOString() ?? null,
     statusUpdatedAt: vehicle.statusUpdatedAt?.toISOString() ?? null,
     createdAt: vehicle.createdAt.toISOString(),

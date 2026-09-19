@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { BuyerServiceQuickRequestDialog } from '@/components/buyer/buyer-service-quick-request-dialog';
+import { GarageVehiclePicker } from '@/components/buyer/garage/vehicle-picker';
 import { MobileBuyerServicesBrowse } from '@/components/buyer/mobile-buyer-services-browse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
@@ -41,6 +42,7 @@ type BuyerServiceRequest = {
   location: string;
   status: 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
   providerId?: string | null;
+  vehicleId?: string | null;
   acceptedAt?: string | null;
   arrivedAt?: string | null;
   startedAt?: string | null;
@@ -227,6 +229,12 @@ function normalizeBuyerServiceRequest(raw: Record<string, unknown>): BuyerServic
           ? raw.completed_at
           : null,
     createdAt,
+    vehicleId:
+      typeof raw.vehicleId === 'string'
+        ? raw.vehicleId
+        : typeof raw.vehicle_id === 'string'
+          ? raw.vehicle_id
+          : null,
   };
 }
 
@@ -348,6 +356,7 @@ function BuyerServicesPageInner() {
     destinationLat: number;
     destinationLng: number;
   } | null>(null);
+  const [bookingVehicleId, setBookingVehicleId] = useState('');
 
   useEffect(() => {
     void bootstrap();
@@ -771,6 +780,7 @@ function BuyerServicesPageInner() {
           location: resolvedLocation,
           ...(contactPhone ? { buyerContactPhone: contactPhone } : {}),
           ...(contactName ? { buyerContactName: contactName } : {}),
+          ...(bookingVehicleId ? { vehicleId: bookingVehicleId } : {}),
           ...coords,
         }),
       });
@@ -881,6 +891,7 @@ function BuyerServicesPageInner() {
       category: selectedCategory,
       service: selectedService,
       location: resolvedLocation,
+      ...(bookingVehicleId ? { vehicleId: bookingVehicleId } : {}),
     });
     router.push(`/auth?role=buyer&next=${encodeURIComponent(BUYER_SERVICE_COMPLETE_PENDING_PATH)}`);
   };
@@ -1463,6 +1474,11 @@ function BuyerServicesPageInner() {
         submitError={submitError}
         identityMode={identityMode}
         onSubmit={handleSubmitRequestIntent}
+        vehiclePicker={
+          identityMode === 'buyer' && customerId ? (
+            <GarageVehiclePicker customerId={customerId} value={bookingVehicleId} onChange={setBookingVehicleId} />
+          ) : null
+        }
       />
     </>
   );

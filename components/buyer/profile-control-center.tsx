@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils';
 import { SubscriptionPlansGrid } from '@/components/buyer/subscription-plans-grid';
 import { ProfileHero } from '@/components/buyer/profile-hero';
 import { ProfileContactPanel } from '@/components/buyer/profile-contact-panel';
+import { BUYER_SURFACE, BuyerEmptyState, BuyerPageShell } from '@/components/buyer/buyer-page-chrome';
 import type { SubscriptionTier } from '@/lib/subscription-plans';
 import type {
   BuyerControlCenterPayload,
@@ -444,7 +445,7 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -452,19 +453,26 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
 
   if (!data) {
     return (
-      <Card className="p-8 text-center">
-        <p className="text-muted-foreground">Sign in to access your account control center.</p>
-        <Button asChild className="mt-4">
-          <Link href="/auth?role=buyer&next=/buyer/profile">Sign in</Link>
-        </Button>
-      </Card>
+      <BuyerPageShell>
+        <Card className={BUYER_SURFACE}>
+          <BuyerEmptyState
+            icon={User}
+            title="Sign in to your account"
+            description="Manage profile details, membership, documents, and preferences from one control center."
+          >
+            <Button asChild>
+              <Link href="/auth?role=buyer&next=/buyer/profile">Sign in</Link>
+            </Button>
+          </BuyerEmptyState>
+        </Card>
+      </BuyerPageShell>
     );
   }
 
   const { profile, account, notificationPreferences, notifications, unreadNotificationCount, preferences, documents, documentAlerts, payments, pendingPaymentTotal, recommendations, analytics, subscription, subscriptionHistory } = data;
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-5 pb-10">
       {embed ? null : (
         <ProfileHero
           name={profile.customer.name}
@@ -477,7 +485,7 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
         />
       )}
 
-      <div className={cn('space-y-4', embed ? 'px-0' : 'px-4 md:px-6')}>
+      <div className={cn('space-y-5', embed ? 'px-0' : 'px-4 md:px-8')}>
         {embed ? null : (
           <>
             <div className="flex items-center justify-end gap-2">
@@ -501,14 +509,14 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SectionId)} className="gap-4">
           <TabsList className={cn(
-            'flex h-auto w-full justify-start gap-2 overflow-x-auto rounded-none bg-transparent p-0',
+            'flex h-auto w-full justify-start gap-1.5 overflow-x-auto rounded-none bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             embed && 'hidden',
           )}>
             {SECTIONS.map((section) => (
               <TabsTrigger
                 key={section.id}
                 value={section.id}
-                className="shrink-0 gap-1.5 rounded-full border border-border px-3 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                className="shrink-0 gap-1.5 rounded-full border border-border/80 bg-background px-3.5 py-2 text-sm data-[state=active]:border-[#0B1220] data-[state=active]:bg-[#0B1220] data-[state=active]:text-white">
                 <section.icon className="h-4 w-4" />
                 {section.label}
                 {section.id === 'notifications' && unreadNotificationCount > 0 ? (
@@ -773,7 +781,11 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
           ) : null}
 
           <Card className="p-6">
-            <h2 className="mb-4 text-lg font-semibold">Add document</h2>
+            <h2 className="mb-1 text-lg font-semibold">Add document</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Logbook, insurance, and inspection files also live on each vehicle in{' '}
+              <Link href="/buyer/garage" className="font-semibold text-primary hover:underline">My Garage</Link>.
+            </p>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <Label>Vehicle</Label>

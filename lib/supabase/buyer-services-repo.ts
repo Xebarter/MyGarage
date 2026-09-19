@@ -25,6 +25,7 @@ export interface BuyerServiceRequest {
   providerLat: number | null;
   providerLng: number | null;
   providerLocationUpdatedAt: Date | null;
+  notes: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +59,7 @@ type BuyerServiceRequestRow = {
   provider_lat: number | null;
   provider_lng: number | null;
   provider_location_updated_at: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -90,6 +92,7 @@ export type BuyerServiceRequestInsert = Omit<
   | "providerLat"
   | "providerLng"
   | "providerLocationUpdatedAt"
+  | "notes"
 > & {
   id?: string;
   status?: BuyerServiceRequest["status"];
@@ -98,6 +101,7 @@ export type BuyerServiceRequestInsert = Omit<
   buyerContactName: string;
   destinationLat?: number | null;
   destinationLng?: number | null;
+  notes?: string;
 };
 
 export type BuyerProviderRatingUpsert = Omit<BuyerProviderRating, "id" | "createdAt" | "updatedAt"> & { id?: string };
@@ -123,8 +127,23 @@ function rowToBuyerServiceRequest(row: BuyerServiceRequestRow): BuyerServiceRequ
     providerLat: row.provider_lat ?? null,
     providerLng: row.provider_lng ?? null,
     providerLocationUpdatedAt: row.provider_location_updated_at ? new Date(row.provider_location_updated_at) : null,
+    notes: row.notes ?? "",
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
+  };
+}
+
+export function serializeBuyerServiceRequest(request: BuyerServiceRequest) {
+  return {
+    ...request,
+    notes: request.notes ?? "",
+    acceptedAt: request.acceptedAt?.toISOString() ?? null,
+    arrivedAt: request.arrivedAt?.toISOString() ?? null,
+    startedAt: request.startedAt?.toISOString() ?? null,
+    completedAt: request.completedAt?.toISOString() ?? null,
+    providerLocationUpdatedAt: request.providerLocationUpdatedAt?.toISOString() ?? null,
+    createdAt: request.createdAt.toISOString(),
+    updatedAt: request.updatedAt.toISOString(),
   };
 }
 
@@ -177,6 +196,9 @@ export async function insertBuyerServiceRequest(request: BuyerServiceRequestInse
     buyer_contact_phone: request.buyerContactPhone,
     buyer_contact_name: request.buyerContactName,
   };
+  if (request.notes !== undefined) {
+    row.notes = request.notes.trim();
+  }
   if (request.vehicleId) {
     row.vehicle_id = request.vehicleId;
   }
@@ -260,6 +282,24 @@ export async function updateBuyerServiceRequestDestinationCoords(
     .maybeSingle();
   if (error) {
     throw new Error(`Supabase update destination coords failed: ${error.message}`);
+  }
+  if (!data) return null;
+  return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);
+}
+
+export async function attachVehicleToServiceRequest(
+  id: string,
+  vehicleId: string,
+): Promise<BuyerServiceRequest | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("buyer_service_requests")
+    .update({ vehicle_id: vehicleId })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Supabase attach vehicle to service request failed: ${error.message}`);
   }
   if (!data) return null;
   return rowToBuyerServiceRequest(data as BuyerServiceRequestRow);

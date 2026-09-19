@@ -12,6 +12,12 @@ export interface VehicleServiceHistoryEntry {
   providerId: string | null;
   providerName: string;
   notes: string;
+  findings: string;
+  recommendations: string;
+  partsUsed: string;
+  odometerKm: number | null;
+  photoUrls: string[];
+  laborHours: number | null;
   status: ServiceHistoryStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -28,6 +34,12 @@ type VehicleServiceHistoryRow = {
   provider_id: string | null;
   provider_name: string;
   notes: string;
+  findings: string | null;
+  recommendations: string | null;
+  parts_used: string | null;
+  odometer_km: number | null;
+  photo_urls: unknown;
+  labor_hours: number | string | null;
   status: ServiceHistoryStatus;
   created_at: string;
   updated_at: string;
@@ -46,7 +58,26 @@ export type VehicleServiceHistoryFilters = {
   sortOrder?: "asc" | "desc";
 };
 
+function parsePhotoUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parsePhotoUrls(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function rowToVehicleServiceHistory(row: VehicleServiceHistoryRow): VehicleServiceHistoryEntry {
+  const labor =
+    row.labor_hours == null || row.labor_hours === ""
+      ? null
+      : Number(row.labor_hours);
   return {
     id: row.id,
     vehicleId: row.vehicle_id,
@@ -57,7 +88,13 @@ function rowToVehicleServiceHistory(row: VehicleServiceHistoryRow): VehicleServi
     serviceDate: new Date(row.service_date),
     providerId: row.provider_id,
     providerName: row.provider_name,
-    notes: row.notes,
+    notes: row.notes ?? "",
+    findings: row.findings ?? "",
+    recommendations: row.recommendations ?? "",
+    partsUsed: row.parts_used ?? "",
+    odometerKm: row.odometer_km ?? null,
+    photoUrls: parsePhotoUrls(row.photo_urls),
+    laborHours: labor != null && Number.isFinite(labor) ? labor : null,
     status: row.status,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -76,6 +113,15 @@ function sortColumn(sortBy: VehicleServiceHistoryFilters["sortBy"]): string {
     default:
       return "service_date";
   }
+}
+
+export function serializeVehicleServiceHistory(entry: VehicleServiceHistoryEntry) {
+  return {
+    ...entry,
+    serviceDate: entry.serviceDate.toISOString(),
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
+  };
 }
 
 export async function listVehicleServiceHistory(
@@ -100,6 +146,49 @@ export async function listVehicleServiceHistory(
   return (data as VehicleServiceHistoryRow[] | null)?.map(rowToVehicleServiceHistory) ?? [];
 }
 
+export async function listLatestServiceHistoryByVehicleIds(
+  vehicleIds: string[],
+): Promise<Record<string, VehicleServiceHistoryEntry>> {
+  const ids = [...new Set(vehicleIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vehicle_service_history")
+    .select("*")
+    .in("vehicle_id", ids)
+    .order("service_date", { ascending: false });
+  if (error) {
+    throw new Error(`Supabase list latest vehicle service history failed: ${error.message}`);
+  }
+  const latest: Record<string, VehicleServiceHistoryEntry> = {};
+  for (const row of (data as VehicleServiceHistoryRow[] | null) ?? []) {
+    const entry = rowToVehicleServiceHistory(row);
+    if (!latest[entry.vehicleId]) latest[entry.vehicleId] = entry;
+  }
+  return latest;
+}
+
+export async function listVehicleServiceHistoryByRequestIds(
+  requestIds: string[],
+): Promise<Record<string, VehicleServiceHistoryEntry>> {
+  const ids = [...new Set(requestIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vehicle_service_history")
+    .select("*")
+    .in("service_request_id", ids);
+  if (error) {
+    throw new Error(`Supabase list service history by request ids failed: ${error.message}`);
+  }
+  const byRequest: Record<string, VehicleServiceHistoryEntry> = {};
+  for (const row of (data as VehicleServiceHistoryRow[] | null) ?? []) {
+    const entry = rowToVehicleServiceHistory(row);
+    if (entry.serviceRequestId) byRequest[entry.serviceRequestId] = entry;
+  }
+  return byRequest;
+}
+
 export async function getVehicleServiceHistoryByRequestId(
   serviceRequestId: string,
 ): Promise<VehicleServiceHistoryEntry | null> {
@@ -116,13 +205,8 @@ export async function getVehicleServiceHistoryByRequestId(
   return rowToVehicleServiceHistory(data as VehicleServiceHistoryRow);
 }
 
-export async function insertVehicleServiceHistory(
-  entry: VehicleServiceHistoryInsert,
-): Promise<VehicleServiceHistoryEntry> {
-  const supabase = createAdminClient();
-  const id = entry.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  const row = {
+function toInsertRow(entry: VehicleServiceHistoryInsert, id: string) {
+  return {
     id,
     vehicle_id: entry.vehicleId,
     customer_id: entry.customerId,
@@ -132,24 +216,61 @@ export async function insertVehicleServiceHistory(
     service_date: entry.serviceDate.toISOString(),
     provider_id: entry.providerId,
     provider_name: entry.providerName.trim() || "MyGarage Provider",
-    notes: entry.notes.trim(),
+    notes: (entry.notes ?? "").trim(),
+    findings: (entry.findings ?? "").trim(),
+    recommendations: (entry.recommendations ?? "").trim(),
+    parts_used: (entry.partsUsed ?? "").trim(),
+    odometer_km: entry.odometerKm ?? null,
+    photo_urls: entry.photoUrls ?? [],
+    labor_hours: entry.laborHours ?? null,
     status: entry.status,
   };
+}
 
-  const { data, error } = await supabase.from("vehicle_service_history").insert(row).select("*").single();
+export async function insertVehicleServiceHistory(
+  entry: VehicleServiceHistoryInsert,
+): Promise<VehicleServiceHistoryEntry> {
+  const supabase = createAdminClient();
+  const id = entry.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const { data, error } = await supabase
+    .from("vehicle_service_history")
+    .insert(toInsertRow(entry, id))
+    .select("*")
+    .single();
   if (error) {
     throw new Error(`Supabase insert vehicle service history failed: ${error.message}`);
   }
   return rowToVehicleServiceHistory(data as VehicleServiceHistoryRow);
 }
 
+export type VehicleServiceHistoryPatch = Partial<
+  Pick<
+    VehicleServiceHistoryEntry,
+    | "notes"
+    | "findings"
+    | "recommendations"
+    | "partsUsed"
+    | "odometerKm"
+    | "photoUrls"
+    | "laborHours"
+    | "status"
+    | "serviceDate"
+  >
+>;
+
 export async function updateVehicleServiceHistoryById(
   id: string,
-  updates: Partial<Pick<VehicleServiceHistoryEntry, "notes" | "status" | "serviceDate">>,
+  updates: VehicleServiceHistoryPatch,
 ): Promise<VehicleServiceHistoryEntry | null> {
   const supabase = createAdminClient();
   const patch: Record<string, unknown> = {};
   if (updates.notes !== undefined) patch.notes = updates.notes.trim();
+  if (updates.findings !== undefined) patch.findings = updates.findings.trim();
+  if (updates.recommendations !== undefined) patch.recommendations = updates.recommendations.trim();
+  if (updates.partsUsed !== undefined) patch.parts_used = updates.partsUsed.trim();
+  if (updates.odometerKm !== undefined) patch.odometer_km = updates.odometerKm;
+  if (updates.photoUrls !== undefined) patch.photo_urls = updates.photoUrls;
+  if (updates.laborHours !== undefined) patch.labor_hours = updates.laborHours;
   if (updates.status !== undefined) patch.status = updates.status;
   if (updates.serviceDate !== undefined) patch.service_date = updates.serviceDate.toISOString();
 
