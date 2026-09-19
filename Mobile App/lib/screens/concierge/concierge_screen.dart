@@ -212,58 +212,17 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
+        titleSpacing: 16,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.28),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.auto_awesome, color: AppColors.onPrimary, size: 20),
-                ),
-                Positioned(
-                  right: -1,
-                  bottom: -1,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF34D399),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.background, width: 2),
-                    ),
-                  ),
-                ),
-              ],
+            Text(
+              'Concierge',
+              style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Concierge',
-                    style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
-                  ),
-                  Text(
-                    'Online · garage, parts, bookings',
-                    style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
+            Text(
+              'Online · garage, parts, bookings',
+              style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
             ),
           ],
         ),

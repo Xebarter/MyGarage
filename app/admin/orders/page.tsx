@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Order } from '@/lib/db';
 import type { AdminUnifiedCommerceItem, CommercePipelineStage } from '@/lib/admin-commerce-feed';
+import { productOrderStatusLabel } from '@/lib/product-order-status';
 import {
   Eye,
   Search,
@@ -94,10 +95,11 @@ function pipelineBadgeClass(p: CommercePipelineStage): string {
   }
 }
 
-function productStatusBadge(status: Order['status']): { className: string; label: string } {
-  const label = status.charAt(0).toUpperCase() + status.slice(1);
+function productStatusBadge(status: string): { className: string; label: string } {
+  const label = productOrderStatusLabel(status);
   switch (status) {
     case 'pending':
+    case 'pending_fulfillment':
       return {
         label,
         className:
@@ -120,6 +122,7 @@ function productStatusBadge(status: Order['status']): { className: string; label
           'border-emerald-500/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100',
       };
     case 'cancelled':
+    case 'refunded':
       return {
         label,
         className: 'border-rose-500/35 bg-rose-500/10 text-rose-950 dark:text-rose-100',
@@ -205,7 +208,7 @@ export default function OrdersPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (response.ok) {
-        toast.success(`Order marked ${newStatus}`);
+        toast.success(`Order marked ${productOrderStatusLabel(newStatus)}`);
         await loadFeed('refresh');
       } else {
         toast.error('Failed to update product order');
@@ -663,7 +666,14 @@ function ProductDetailPanel({
   onStatusChange: (s: Order['status']) => void;
 }) {
   const st = productStatusBadge(order.status);
-  const statuses: Order['status'][] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const statuses: Order['status'][] = [
+    'pending_fulfillment',
+    'processing',
+    'shipped',
+    'delivered',
+    'cancelled',
+    'refunded',
+  ];
   return (
     <>
       <CardHeader className="border-b border-border/60 bg-muted/15 pb-4">
@@ -754,7 +764,10 @@ function ProductDetailPanel({
           </p>
           <div className="grid grid-cols-2 gap-2">
             {statuses.map((status) => {
-              const active = order.status === status;
+              const active =
+                order.status === status ||
+                (status === 'pending_fulfillment' &&
+                  (order.status === 'pending' || order.status === 'pending_fulfillment'));
               const { label } = productStatusBadge(status);
               return (
                 <Button

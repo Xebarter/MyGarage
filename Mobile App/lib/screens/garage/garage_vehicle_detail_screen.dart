@@ -246,7 +246,7 @@ class _GarageVehicleDetailScreenState extends State<GarageVehicleDetailScreen> {
           IconButton(
             tooltip: 'Concierge',
             onPressed: () => context.push('/concierge?vehicleId=${Uri.encodeComponent(widget.vehicleId)}'),
-            icon: const Icon(Icons.auto_awesome),
+            icon: const Icon(Icons.chat_bubble_outline),
           ),
           IconButton(onPressed: _addPhoto, icon: const Icon(Icons.photo_camera_outlined)),
           IconButton(onPressed: _edit, icon: const Icon(Icons.edit_outlined)),

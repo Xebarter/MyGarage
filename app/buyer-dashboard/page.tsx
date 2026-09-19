@@ -90,26 +90,31 @@ export default function BuyerDashboardPage() {
   const [buyerName, setBuyerName] = useState('Buyer');
 
   useEffect(() => {
+    const customerId = (localStorage.getItem('currentBuyerId') || '').trim();
     const email = (localStorage.getItem('currentBuyerEmail') || '').trim();
     const name = localStorage.getItem('currentBuyerName') || 'Buyer';
     setBuyerEmail(email);
     setBuyerName(name);
-    void fetchOrders(email);
+    void fetchOrders(customerId, email);
   }, []);
 
-  const fetchOrders = async (email: string) => {
+  const fetchOrders = async (customerId: string, email: string) => {
     try {
-      const response = await fetch('/api/orders');
+      const params = new URLSearchParams();
+      if (customerId) params.set('customerId', customerId);
+      else if (email) params.set('email', email);
+      if (![...params.keys()].length) {
+        setOrders([]);
+        return;
+      }
+      const response = await fetch(`/api/orders?${params.toString()}`);
       if (!response.ok) {
         setOrders([]);
         return;
       }
       const data = await response.json();
       const allOrders: Order[] = Array.isArray(data) ? data : [];
-      const filtered = email
-        ? allOrders.filter((order) => order.customerEmail.toLowerCase() === email.toLowerCase())
-        : [];
-      setOrders(filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setOrders(allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error('Failed to fetch buyer orders:', error);
       setOrders([]);
@@ -120,7 +125,9 @@ export default function BuyerDashboardPage() {
 
   const stats = useMemo(() => {
     const totalSpent = orders.reduce((sum, order) => sum + Number(order.total), 0);
-    const pending = orders.filter((order) => order.status === 'pending' || order.status === 'processing').length;
+    const pending = orders.filter(
+      (order) => order.status === 'pending' || order.status === 'pending_fulfillment' || order.status === 'processing',
+    ).length;
     const inTransit = orders.filter((order) => order.status === 'shipped').length;
     const delivered = orders.filter((order) => order.status === 'delivered').length;
     return {
@@ -253,10 +260,7 @@ export default function BuyerDashboardPage() {
                   onClick={() => openConciergeChat()}
                   className="group flex min-h-[7.5rem] flex-col rounded-2xl border border-[#236B5C]/20 bg-[#236B5C] p-4 text-left text-[#F7FBF9] shadow-[0_8px_24px_rgba(22,72,62,0.22)] transition hover:-translate-y-0.5 hover:bg-[#16483E]"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-                    <Sparkles className="h-4 w-4" aria-hidden />
-                  </span>
-                  <span className="mt-3 text-sm font-bold">Ask Concierge</span>
+                  <span className="text-sm font-bold">Ask Concierge</span>
                   <span className="mt-0.5 text-xs text-[#F7FBF9]/80">Answers, parts quotes, booking</span>
                 </button>
               </div>
@@ -300,7 +304,7 @@ export default function BuyerDashboardPage() {
                       return (
                         <li key={order.id}>
                           <Link
-                            href="/buyer/orders"
+                            href={`/buyer/orders/${order.id}`}
                             className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/15 px-4 py-3.5 transition hover:border-border hover:bg-card hover:shadow-sm"
                           >
                             <div className="min-w-0 flex-1">

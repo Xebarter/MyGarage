@@ -14,7 +14,8 @@ export default function OrderConfirmationPage() {
 
   useEffect(() => {
     // Avoid `useSearchParams()` so Next.js can prerender without Suspense requirements.
-    const id = new URLSearchParams(window.location.search).get('orderId');
+    const search = new URLSearchParams(window.location.search);
+    const id = search.get('orderId') || search.get('checkoutId');
     if (!id) {
       router.push('/');
       return;
@@ -25,10 +26,14 @@ export default function OrderConfirmationPage() {
 
   async function fetchOrder(id: string) {
     try {
-      const response = await fetch(`/api/orders/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setOrder(data);
+      const byId = await fetch(`/api/orders/${encodeURIComponent(id)}`);
+      if (byId.ok) {
+        setOrder(await byId.json());
+        return;
+      }
+      const byCheckout = await fetch(`/api/orders?checkoutId=${encodeURIComponent(id)}`);
+      if (byCheckout.ok) {
+        setOrder(await byCheckout.json());
       }
     } catch (error) {
       console.error('Failed to fetch order:', error);
@@ -166,10 +171,10 @@ export default function OrderConfirmationPage() {
 
           <div className="flex flex-col sm:flex-row gap-4">
             <button
-              onClick={() => router.push('/buyer')}
+              onClick={() => router.push(order ? `/buyer/orders/${order.id}` : '/buyer/orders')}
               className="flex-1 bg-background border border-border text-foreground py-3 rounded-lg hover:bg-accent/50 transition font-semibold"
             >
-              Go to Buyer Dashboard
+              Track this order
             </button>
             <button
               onClick={() => router.push('/')}

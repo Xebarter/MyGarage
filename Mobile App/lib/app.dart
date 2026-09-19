@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_controller.dart';
+import 'providers/cart_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -41,7 +42,8 @@ class _MyGarageBuyerAppState extends State<MyGarageBuyerApp> with WidgetsBinding
     super.didChangeDependencies();
     if (_router == null) {
       final auth = context.read<AuthController>();
-      _router = createRouter(auth);
+      final cart = context.read<CartController>();
+      _router = createRouter(auth, cart);
       auth.onSignedOut = () => _router?.go('/services');
     }
   }

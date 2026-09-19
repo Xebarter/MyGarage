@@ -489,10 +489,12 @@ class BuyerApi {
     );
   }
 
-  Future<List<OrderSummary>> listOrders({String? customerId}) {
+  Future<List<OrderSummary>> listOrders({String? customerId, String? email}) {
     final query = <String, String>{};
     if (customerId != null && customerId.isNotEmpty) {
       query['customerId'] = customerId;
+    } else if (email != null && email.isNotEmpty) {
+      query['email'] = email;
     }
     return _client.get(
       '/api/orders',
@@ -507,6 +509,16 @@ class BuyerApi {
             .map((e) => OrderSummary.fromJson(Map<String, dynamic>.from(e)))
             .toList();
       },
+    );
+  }
+
+  Future<OrderDetail> getOrder(String id) {
+    return _client.get(
+      '/api/orders/${Uri.encodeComponent(id)}',
+      auth: true,
+      parser: (json) => OrderDetail.fromJson(
+        json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{},
+      ),
     );
   }
 

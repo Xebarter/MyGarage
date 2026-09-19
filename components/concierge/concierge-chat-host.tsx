@@ -335,17 +335,14 @@ export function ConciergeChatHost() {
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          'fixed z-40 flex items-center justify-center gap-2 rounded-full bg-[#236B5C] text-[#F7FBF9] shadow-[0_14px_36px_rgba(22,72,62,0.38)] transition hover:scale-[1.03] hover:bg-[#16483E]',
-          'right-4 h-14 w-14 bottom-[calc(5.75rem+env(safe-area-inset-bottom))]',
-          'md:bottom-6 md:right-6 md:h-12 md:w-auto md:px-4',
+          'fixed z-40 flex items-center justify-center rounded-full bg-[#236B5C] text-[#F7FBF9] shadow-[0_14px_36px_rgba(22,72,62,0.38)] transition hover:scale-[1.03] hover:bg-[#16483E]',
+          'right-4 h-12 px-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))]',
+          'md:bottom-6 md:right-6',
           open && 'hidden',
         )}
         aria-label="Open Concierge"
       >
-        <span className="relative flex h-6 w-6 items-center justify-center">
-          <Sparkles className="h-5 w-5" />
-        </span>
-        <span className="hidden pr-1 text-sm font-semibold tracking-tight md:inline">Concierge</span>
+        <span className="text-sm font-semibold tracking-tight">Concierge</span>
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -367,10 +364,6 @@ export function ConciergeChatHost() {
 
           <SheetHeader className="space-y-0 border-b border-[#E4DDD2] bg-[#FFFDF9]/90 px-4 py-3 text-left backdrop-blur">
             <div className="flex items-center gap-3 pr-10">
-              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#236B5C] text-[#F7FBF9] shadow-[0_8px_18px_rgba(22,72,62,0.28)]">
-                <Sparkles className="h-5 w-5" />
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#FFFDF9]" />
-              </div>
               <div className="min-w-0 flex-1">
                 <SheetTitle className="text-[17px] font-bold tracking-tight text-[#171C1A]">Concierge</SheetTitle>
                 <SheetDescription className="text-xs text-[#7A8581]">

@@ -166,9 +166,16 @@ export function BuyerFilterChip({
   );
 }
 
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'pending'
+  | 'pending_fulfillment'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'refunded';
 
-export function orderStatusPresentation(status: OrderStatus): {
+export function orderStatusPresentation(status: string): {
   label: string;
   icon: LucideIcon;
   badgeClass: string;
@@ -176,8 +183,9 @@ export function orderStatusPresentation(status: OrderStatus): {
 } {
   switch (status) {
     case 'pending':
+    case 'pending_fulfillment':
       return {
-        label: 'Pending',
+        label: 'Paid',
         icon: Clock3,
         badgeClass: 'border-amber-500/30 bg-amber-500/10 text-amber-950',
         dotClass: 'bg-amber-500',
@@ -206,6 +214,13 @@ export function orderStatusPresentation(status: OrderStatus): {
     case 'cancelled':
       return {
         label: 'Cancelled',
+        icon: Package,
+        badgeClass: 'border-border bg-muted text-muted-foreground',
+        dotClass: 'bg-muted-foreground',
+      };
+    case 'refunded':
+      return {
+        label: 'Refunded',
         icon: Package,
         badgeClass: 'border-border bg-muted text-muted-foreground',
         dotClass: 'bg-muted-foreground',

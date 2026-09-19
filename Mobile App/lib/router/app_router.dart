@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../models/models.dart';
 import '../providers/auth_controller.dart';
+import '../providers/cart_controller.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/cart/cart_screen.dart';
 import '../screens/checkout/checkout_screen.dart';
 import '../screens/concierge/concierge_screen.dart';
 import '../screens/garage/garage_screen.dart';
 import '../screens/garage/garage_vehicle_detail_screen.dart';
+import '../screens/orders/order_detail_screen.dart';
 import '../screens/orders/orders_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/profile_section_screen.dart';
@@ -25,14 +27,32 @@ import '../screens/shop/product_detail_screen.dart';
 import '../screens/shop/shop_screen.dart';
 import '../widgets/app_bottom_nav.dart';
 
-GoRouter createRouter(AuthController auth) {
+String myGarageDeepLinkKey(Uri uri) {
+  if (uri.scheme != 'mygarage') return '';
+  final host = uri.host;
+  final path = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
+  if (host.isEmpty) return path;
+  if (path.isEmpty) return host;
+  return '$host/$path';
+}
+
+GoRouter createRouter(AuthController auth, CartController cart) {
   return GoRouter(
     initialLocation: '/services',
     refreshListenable: auth,
     redirect: (context, state) {
       final uri = state.uri;
       if (uri.scheme == 'mygarage') {
-        return auth.status == AuthStatus.authenticated ? '/services' : '/login';
+        final key = myGarageDeepLinkKey(uri);
+        if (key == 'checkout/complete') {
+          cart.confirmHeldCheckout();
+          return auth.status == AuthStatus.authenticated ? '/orders' : '/login';
+        }
+        if (key == 'checkout/failed') {
+          cart.restoreHeldCheckout();
+          return '/checkout';
+        }
+        return null;
       }
       if (state.matchedLocation == '/login' &&
           auth.status == AuthStatus.authenticated &&
@@ -156,6 +176,12 @@ GoRouter createRouter(AuthController auth) {
           GoRoute(
             path: '/orders',
             builder: (context, state) => const OrdersScreen(),
+          ),
+          GoRoute(
+            path: '/orders/:id',
+            builder: (context, state) => OrderDetailScreen(
+              orderId: state.pathParameters['id'] ?? '',
+            ),
           ),
           GoRoute(
             path: '/concierge',

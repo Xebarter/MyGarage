@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
           const { data: checkoutSession, error: checkoutError } = await supabase
             .from("checkout_sessions")
-            .select("checkout_type")
+            .select("checkout_type, metadata")
             .eq("id", checkoutId)
             .maybeSingle();
           if (checkoutError) throw new Error(checkoutError.message);
@@ -65,11 +65,14 @@ export async function POST(req: NextRequest) {
           } else {
           // Deterministic order id prevents duplicate webhook deliveries from orphaning disbursements.
           const deterministicOrderId = `ord-${checkoutId}`;
+          const metadata = (checkoutSession?.metadata ?? null) as Record<string, unknown> | null;
+          const shippingAddress =
+            typeof metadata?.shipping_address === "string" ? metadata.shipping_address.trim() : "";
 
           const { error: materializeError } = await supabase.rpc("materialize_paid_product_checkout", {
             p_order_id: deterministicOrderId,
             p_checkout_id: checkoutId,
-            p_delivery_address: null,
+            p_delivery_address: shippingAddress || null,
             p_notes: null,
           });
 

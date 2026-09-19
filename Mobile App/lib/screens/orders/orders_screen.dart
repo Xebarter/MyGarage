@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -38,8 +39,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
       _error = null;
     });
     try {
+      final auth = context.read<AuthController>();
       final orders = await _api.listOrders(
-        customerId: context.read<AuthController>().customerId,
+        customerId: auth.customerId,
+        email: auth.profile?.email ?? auth.user?.email,
       );
       if (!mounted) return;
       setState(() {
@@ -53,6 +56,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
         _error = userFacingError(e, fallback: 'Could not load orders.');
       });
     }
+  }
+
+  String _shortId(String id) {
+    if (id.length <= 10) return id;
+    return '…${id.substring(id.length - 8)}';
+  }
+
+  String _when(String raw) {
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '';
+    return DateFormat('d MMM yyyy').format(parsed.toLocal());
   }
 
   @override
@@ -82,13 +96,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             final o = _orders[i];
                             return Card(
                               child: ListTile(
-                                title: Text('Order ${o.id.length > 8 ? o.id.substring(0, 8) : o.id}…'),
-                                subtitle: Text('${o.status} · ${o.createdAt}'),
+                                title: Text('Order ${_shortId(o.id)}'),
+                                subtitle: Text(
+                                  '${productOrderStatusLabel(o.status)} · ${_when(o.createdAt)}',
+                                ),
                                 trailing: Text(
                                   money.format(o.total),
                                   style: AppTheme.host(fontWeight: FontWeight.w700),
                                 ),
-                                onTap: () {},
+                                onTap: () => context.push('/orders/${o.id}'),
                               ),
                             );
                           },

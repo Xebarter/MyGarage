@@ -1,8 +1,8 @@
 import type { Order } from "@/lib/db";
-import { getOrders } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { BuyerServiceRequest } from "@/lib/supabase/buyer-services-repo";
 import * as buyerServicesRepo from "@/lib/supabase/buyer-services-repo";
+import * as productOrdersRepo from "@/lib/supabase/product-orders-repo";
 
 export type CommercePipelineStage = "pending" | "in_flight" | "completed" | "cancelled";
 
@@ -38,8 +38,8 @@ function toIso(d: Date | string): string {
   return d instanceof Date ? d.toISOString() : new Date(d).toISOString();
 }
 
-function productPipeline(status: Order["status"]): CommercePipelineStage {
-  if (status === "pending") return "pending";
+function productPipeline(status: string): CommercePipelineStage {
+  if (status === "pending" || status === "pending_fulfillment") return "pending";
   if (status === "processing" || status === "shipped") return "in_flight";
   if (status === "delivered") return "completed";
   return "cancelled";
@@ -70,7 +70,7 @@ export async function getAdminCommerceFeed(): Promise<{
 
   let productOrders: Order[] = [];
   try {
-    productOrders = await getOrders();
+    productOrders = await productOrdersRepo.listAllProductOrders();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     notes.push(`Product orders could not be loaded: ${msg}`);

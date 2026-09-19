@@ -12,7 +12,7 @@ import * as buyerVehiclesRepo from "@/lib/supabase/buyer-vehicles-repo";
 import * as vehicleServiceHistoryRepo from "@/lib/supabase/vehicle-service-history-repo";
 import * as recommendationsRepo from "@/lib/supabase/recommendations-repo";
 import * as buyerControlCenterRepo from "@/lib/supabase/buyer-control-center-repo";
-import * as buyerSubscriptionsRepo from "@/lib/supabase/buyer-subscriptions-repo";
+import * as productOrdersRepo from "@/lib/supabase/product-orders-repo";
 
 /** One value within a variant axis (e.g. “4L”). */
 export type ProductVariantOptionValue = {
@@ -72,6 +72,15 @@ export type ProductInsert = Required<Pick<Product, "name" | "description" | "pri
     Omit<Product, "id" | "createdAt" | "updatedAt" | "name" | "description" | "price" | "vendorId">
   > & { id?: string };
 
+export type OrderStatus =
+  | 'pending'
+  | 'pending_fulfillment'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'refunded';
+
 export interface Order {
   id: string;
   customerId: string;
@@ -79,12 +88,19 @@ export interface Order {
   subtotal: number;
   tax: number;
   total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: OrderStatus;
   customerName: string;
   customerEmail: string;
   shippingAddress: string;
   createdAt: Date;
   updatedAt: Date;
+  checkoutId?: string | null;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  paidAt?: Date | null;
+  processingAt?: Date | null;
+  shippedAt?: Date | null;
+  deliveredAt?: Date | null;
 }
 
 export interface OrderItem {
@@ -441,9 +457,9 @@ export const updateProduct = async (id: string, updates: Partial<Product>) => {
 
 export const deleteProduct = async (id: string) => productsRepo.deleteProductById(id);
 
-// Order operations
-export const getOrders = async () => orders;
-export const getOrder = async (id: string) => orders.find(o => o.id === id);
+// Order operations (Supabase product_orders)
+export const getOrders = async () => productOrdersRepo.listAllProductOrders();
+export const getOrder = async (id: string) => productOrdersRepo.getProductOrderById(id);
 export const createOrder = async (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => {
   const newOrder: Order = {
     ...order,
@@ -456,10 +472,17 @@ export const createOrder = async (order: Omit<Order, 'id' | 'createdAt' | 'updat
 };
 
 export const updateOrder = async (id: string, updates: Partial<Order>) => {
-  const index = orders.findIndex(o => o.id === id);
-  if (index === -1) return null;
-  orders[index] = { ...orders[index], ...updates, updatedAt: new Date() };
-  return orders[index];
+  if (updates.status) {
+    const { parseProductOrderStatus } = await import("@/lib/product-order-status");
+    const next = parseProductOrderStatus(updates.status);
+    if (!next) return null;
+    return productOrdersRepo.updateProductOrderStatus(id, {
+      status: next,
+      trackingNumber: updates.trackingNumber,
+      carrier: updates.carrier,
+    });
+  }
+  return productOrdersRepo.getProductOrderById(id);
 };
 
 // Customer operations
@@ -785,16 +808,12 @@ export const getVendorProducts = async (vendorId: string) => {
 };
 
 export const getVendorOrders = async (vendorId: string) => {
-  return orders.filter(order => 
-    order.items.some(item => item.vendorId === vendorId)
-  );
+  return productOrdersRepo.listProductOrdersByVendorId(vendorId);
 };
 
 export const getVendorAnalytics = async (vendorId: string) => {
   const vendorProducts = await productsRepo.listProductsByVendor(vendorId);
-  const vendorOrders = orders.filter(order => 
-    order.items.some(item => item.vendorId === vendorId)
-  );
+  const vendorOrders = await productOrdersRepo.listProductOrdersByVendorId(vendorId);
 
   const totalRevenue = vendorOrders.reduce((sum, order) => {
     const vendorOrderValue = order.items

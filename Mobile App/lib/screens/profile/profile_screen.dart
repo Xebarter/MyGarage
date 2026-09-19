@@ -602,7 +602,7 @@ class _QuickGrid extends StatelessWidget {
       (Icons.location_on_outlined, 'Addresses', onAddresses),
       (Icons.support_agent_outlined, 'Support', onSupport),
       (Icons.build_outlined, 'Services', onServices),
-      (Icons.auto_awesome_outlined, 'Concierge', onConcierge),
+      (Icons.chat_bubble_outline, 'Concierge', onConcierge),
     ];
 
     return Wrap(
@@ -638,7 +638,7 @@ class _QuickGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        isConcierge ? Icons.auto_awesome : t.$1,
+                        t.$1,
                         color: isConcierge ? AppColors.onPrimary : AppColors.primary,
                         size: 18,
                       ),

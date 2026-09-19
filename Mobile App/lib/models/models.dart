@@ -388,14 +388,19 @@ class OrderSummary {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.itemCount = 0,
+    this.trackingNumber,
   });
 
   final String id;
   final String status;
   final double total;
   final String createdAt;
+  final int itemCount;
+  final String? trackingNumber;
 
   factory OrderSummary.fromJson(Map<String, dynamic> json) {
+    final items = json['items'];
     return OrderSummary(
       id: json['id']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
@@ -403,7 +408,135 @@ class OrderSummary {
           (json['totalAmount'] as num?)?.toDouble() ??
           0,
       createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
+      itemCount: items is List
+          ? items.length
+          : (json['itemCount'] as num?)?.toInt() ?? 0,
+      trackingNumber: json['trackingNumber']?.toString() ?? json['tracking_number']?.toString(),
     );
+  }
+}
+
+class OrderLineItem {
+  OrderLineItem({
+    required this.id,
+    required this.productName,
+    required this.quantity,
+    required this.price,
+  });
+
+  final String id;
+  final String productName;
+  final int quantity;
+  final double price;
+
+  factory OrderLineItem.fromJson(Map<String, dynamic> json) {
+    return OrderLineItem(
+      id: json['id']?.toString() ?? '',
+      productName: json['productName']?.toString() ??
+          json['product_name']?.toString() ??
+          'Item',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      price: (json['price'] as num?)?.toDouble() ??
+          (json['unitAmount'] as num?)?.toDouble() ??
+          0,
+    );
+  }
+}
+
+class OrderDetail {
+  OrderDetail({
+    required this.id,
+    required this.status,
+    required this.total,
+    required this.items,
+    required this.shippingAddress,
+    required this.createdAt,
+    required this.updatedAt,
+    this.trackingNumber,
+    this.carrier,
+    this.paidAt,
+    this.processingAt,
+    this.shippedAt,
+    this.deliveredAt,
+    this.cancelledAt,
+  });
+
+  final String id;
+  final String status;
+  final double total;
+  final List<OrderLineItem> items;
+  final String shippingAddress;
+  final String createdAt;
+  final String updatedAt;
+  final String? trackingNumber;
+  final String? carrier;
+  final String? paidAt;
+  final String? processingAt;
+  final String? shippedAt;
+  final String? deliveredAt;
+  final String? cancelledAt;
+
+  factory OrderDetail.fromJson(Map<String, dynamic> json) {
+    final itemsJson = json['items'];
+    return OrderDetail(
+      id: json['id']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      total: (json['total'] as num?)?.toDouble() ?? 0,
+      items: itemsJson is List
+          ? itemsJson
+              .whereType<Map>()
+              .map((e) => OrderLineItem.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+      shippingAddress: json['shippingAddress']?.toString() ??
+          json['shipping_address']?.toString() ??
+          '',
+      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
+      updatedAt: json['updatedAt']?.toString() ?? json['updated_at']?.toString() ?? '',
+      trackingNumber: json['trackingNumber']?.toString() ?? json['tracking_number']?.toString(),
+      carrier: json['carrier']?.toString(),
+      paidAt: json['paidAt']?.toString() ?? json['paid_at']?.toString(),
+      processingAt: json['processingAt']?.toString() ?? json['processing_at']?.toString(),
+      shippedAt: json['shippedAt']?.toString() ?? json['shipped_at']?.toString(),
+      deliveredAt: json['deliveredAt']?.toString() ?? json['delivered_at']?.toString(),
+      cancelledAt: json['cancelledAt']?.toString() ?? json['cancelled_at']?.toString(),
+    );
+  }
+}
+
+String productOrderStatusLabel(String status) {
+  switch (status) {
+    case 'pending':
+    case 'pending_fulfillment':
+      return 'Paid';
+    case 'processing':
+      return 'Processing';
+    case 'shipped':
+      return 'In transit';
+    case 'delivered':
+      return 'Delivered';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'refunded':
+      return 'Refunded';
+    default:
+      return status.replaceAll('_', ' ');
+  }
+}
+
+int productOrderStepIndex(String status) {
+  switch (status) {
+    case 'delivered':
+      return 3;
+    case 'shipped':
+      return 2;
+    case 'processing':
+      return 1;
+    case 'pending':
+    case 'pending_fulfillment':
+      return 0;
+    default:
+      return -1;
   }
 }
 

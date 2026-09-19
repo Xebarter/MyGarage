@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
+
+type TrackedOrder = { id: string };
 
 export default function PaymentSuccessPage() {
-  const [params, setParams] = useState<Record<string, string>>({});
+  const [params, setParams] = useState<Record<string, string> | null>(null);
   const [subscriptionActivated, setSubscriptionActivated] = useState(false);
+  const [productOrder, setProductOrder] = useState<TrackedOrder | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
@@ -19,9 +23,10 @@ export default function PaymentSuccessPage() {
     setParams(next);
   }, []);
 
-  const checkoutId = params.checkoutId;
-  const servicePaymentId = params.servicePaymentId;
-  const isSubscription = params.kind === 'subscription';
+  const checkoutId = params?.checkoutId;
+  const servicePaymentId = params?.servicePaymentId;
+  const isSubscription = params?.kind === 'subscription';
+  const isProductCheckout = Boolean(checkoutId) && !isSubscription && !servicePaymentId;
 
   useEffect(() => {
     if (!checkoutId || !isSubscription || subscriptionActivated) return;
@@ -34,6 +39,53 @@ export default function PaymentSuccessPage() {
       .catch(() => undefined);
   }, [checkoutId, isSubscription, subscriptionActivated]);
 
+  useEffect(() => {
+    if (!isProductCheckout || !checkoutId) return;
+    let cancelled = false;
+    setLookingUp(true);
+
+    const lookup = async () => {
+      const response = await fetch(`/api/orders?checkoutId=${encodeURIComponent(checkoutId)}`);
+      if (!response.ok) return null;
+      return (await response.json()) as TrackedOrder;
+    };
+
+    void (async () => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const order = await lookup();
+          if (cancelled) return;
+          if (order?.id) {
+            setProductOrder(order);
+            setLookingUp(false);
+            return;
+          }
+        } catch {
+          /* webhook may still be materializing */
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+      if (!cancelled) setLookingUp(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutId, isProductCheckout]);
+
+  const secondaryHref = isSubscription
+    ? '/buyer/profile?tab=subscriptions'
+    : productOrder
+      ? `/buyer/orders/${productOrder.id}`
+      : isProductCheckout
+        ? '/buyer/orders'
+        : '/buyer/services';
+  const secondaryLabel = isSubscription
+    ? 'View membership'
+    : isProductCheckout
+      ? 'Track order'
+      : 'My services';
+
   return (
     <>
       <Header />
@@ -42,9 +94,17 @@ export default function PaymentSuccessPage() {
           <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-600" />
           <h1 className="mb-2 text-3xl font-bold text-foreground">Payment received</h1>
           <p className="text-muted-foreground">
-            {isSubscription
-              ? 'Your membership is being activated. You can manage it from your profile.'
-              : 'Thank you. If you were paying for an order, we are confirming it now. You will receive updates by email when fulfillment starts.'}
+            {!params
+              ? 'Confirming your payment…'
+              : isSubscription
+                ? 'Your membership is being activated. You can manage it from your profile.'
+                : isProductCheckout
+                  ? lookingUp
+                    ? 'Payment is confirmed. We are preparing your order for tracking…'
+                    : productOrder
+                      ? 'Your order is confirmed. You can track fulfillment from your account.'
+                      : 'Payment is confirmed. Your order will appear in My Orders in a moment.'
+                  : 'Thank you. If you were paying for a service, you can follow it from your account.'}
           </p>
           {(checkoutId || servicePaymentId) && (
             <p className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-xs text-muted-foreground">
@@ -60,10 +120,11 @@ export default function PaymentSuccessPage() {
               Back to home
             </Link>
             <Link
-              href={isSubscription ? '/buyer/profile?tab=subscriptions' : '/buyer/services'}
-              className="rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium hover:bg-muted/40"
+              href={secondaryHref}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium hover:bg-muted/40"
             >
-              {isSubscription ? 'View membership' : 'My services'}
+              {lookingUp || !params ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {params ? secondaryLabel : 'Continue'}
             </Link>
           </div>
         </div>

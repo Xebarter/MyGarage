@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { isPaidLike } from '@/lib/product-order-status';
 import { formatUgx } from '@/lib/format-ugx';
 import { cn } from '@/lib/utils';
 
@@ -46,7 +47,7 @@ type StatusFilter = 'all' | OrderStatus;
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'pending', label: 'Paid' },
   { value: 'processing', label: 'Processing' },
   { value: 'shipped', label: 'In transit' },
   { value: 'delivered', label: 'Delivered' },
@@ -60,21 +61,28 @@ export default function BuyerOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    const customerId = (localStorage.getItem('currentBuyerId') || '').trim();
     const email = (localStorage.getItem('currentBuyerEmail') || '').trim().toLowerCase();
-    void fetchOrders(email);
+    void fetchOrders(customerId, email);
   }, []);
 
-  const fetchOrders = async (email: string) => {
+  const fetchOrders = async (customerId: string, email: string) => {
     try {
-      const response = await fetch('/api/orders');
+      const params = new URLSearchParams();
+      if (customerId) params.set('customerId', customerId);
+      else if (email) params.set('email', email);
+      if (![...params.keys()].length) {
+        setOrders([]);
+        return;
+      }
+      const response = await fetch(`/api/orders?${params.toString()}`);
       if (!response.ok) {
         setOrders([]);
         return;
       }
       const data = await response.json();
       const allOrders: Order[] = Array.isArray(data) ? data : [];
-      const mine = email ? allOrders.filter((order) => order.customerEmail.toLowerCase() === email) : [];
-      setOrders(mine.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setOrders(allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error('Failed to load buyer orders:', error);
       setOrders([]);
@@ -86,7 +94,8 @@ export default function BuyerOrdersPage() {
   const counts = useMemo(() => {
     const map: Record<string, number> = { all: orders.length };
     for (const order of orders) {
-      map[order.status] = (map[order.status] ?? 0) + 1;
+      const key = isPaidLike(order.status) ? 'pending' : order.status;
+      map[key] = (map[key] ?? 0) + 1;
     }
     return map;
   }, [orders]);
@@ -94,7 +103,9 @@ export default function BuyerOrdersPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return orders.filter((order) => {
-      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'pending' ? isPaidLike(order.status) : order.status === statusFilter);
       const lineItems = order.items.map((item) => item.productName.toLowerCase()).join(' ');
       const matchesSearch =
         q.length === 0 ||
@@ -191,7 +202,9 @@ export default function BuyerOrdersPage() {
                 <div className="flex flex-col gap-3 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-bold tracking-tight text-foreground">Order #{shortId}</p>
+                      <Link href={`/buyer/orders/${order.id}`} className="font-bold tracking-tight text-foreground hover:underline">
+                        Order #{shortId}
+                      </Link>
                       <Badge variant="outline" className={cn('h-6 border px-2 text-[11px]', pres.badgeClass)}>
                         <StatusIcon className="h-3 w-3" aria-hidden />
                         {pres.label}
@@ -220,12 +233,17 @@ export default function BuyerOrdersPage() {
                   ))}
                 </ul>
 
-                <div className="mt-4 flex items-start gap-2 rounded-xl bg-muted/40 px-3.5 py-3 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shipping</p>
-                    <p className="text-pretty text-foreground">{order.shippingAddress}</p>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/40 px-3.5 py-3 text-sm">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shipping</p>
+                      <p className="text-pretty text-foreground">{order.shippingAddress || 'Not provided'}</p>
+                    </div>
                   </div>
+                  <Button asChild size="sm" className="shrink-0 rounded-full">
+                    <Link href={`/buyer/orders/${order.id}`}>Track order</Link>
+                  </Button>
                 </div>
               </Card>
             );

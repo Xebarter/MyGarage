@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,6 +33,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (profile != null) {
       if (_name.text.isEmpty) _name.text = profile.name;
       if (_phone.text.isEmpty) _phone.text = profile.phone;
+      if (_address.text.isEmpty && profile.address.isNotEmpty) {
+        _address.text = profile.address;
+      }
     }
   }
 
@@ -50,15 +52,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!ok || !mounted) return;
 
     final cart = context.read<CartController>();
+    final auth = context.read<AuthController>();
     if (cart.items.isEmpty) return;
+
+    final email = (auth.profile?.email ?? auth.user?.email ?? '').trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add an email on your profile before paying.')),
+      );
+      return;
+    }
+    if (_phone.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone is required for mobile money.')),
+      );
+      return;
+    }
 
     setState(() => _busy = true);
     try {
       final res = await _api.createPaytotaCheckout({
         'customerName': _name.text.trim(),
-        'phone': _phone.text.trim(),
-        'address': _address.text.trim(),
-        'customerId': context.read<AuthController>().customerId,
+        'customerEmail': email,
+        'customerPhone': _phone.text.trim(),
+        'shippingAddress': _address.text.trim(),
+        'customerId': auth.customerId,
         'items': cart.items
             .map(
               (e) => {
@@ -84,12 +102,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
       if (!launched) throw Exception('Could not open payment page');
 
+      await cart.holdAndClearForCheckout();
       if (!mounted) return;
-      await cart.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment opened in browser. Complete there, then check Orders.')),
+        const SnackBar(content: Text('Complete payment in the browser. Your order will appear under Orders.')),
       );
-      context.go('/orders');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

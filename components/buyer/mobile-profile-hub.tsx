@@ -18,7 +18,6 @@ import {
   Receipt,
   RefreshCw,
   ShoppingCart,
-  Sparkles,
   SlidersHorizontal,
   UserRound,
   Wrench,
@@ -230,10 +229,9 @@ export function MobileProfileHub() {
               <button
                 type="button"
                 onClick={() => openConciergeChat()}
-                className="flex flex-col items-center rounded-[14px] border border-[#236B5C]/20 bg-[#DDEEE8] px-1.5 py-3.5"
+                className="flex flex-col items-center justify-center rounded-[14px] border border-[#236B5C]/20 bg-[#DDEEE8] px-1.5 py-3.5"
               >
-                <Sparkles className="h-[22px] w-[22px] text-[#236B5C]" aria-hidden />
-                <span className="mt-1.5 text-center text-xs font-semibold text-[#16483E]">Concierge</span>
+                <span className="text-center text-xs font-semibold text-[#16483E]">Concierge</span>
               </button>
             </div>
 

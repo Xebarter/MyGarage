@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Filter, Pencil, RefreshCw, Sparkles, Trash2, Wrench } from 'lucide-react';
+import { Filter, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react';
 
 import {
   BUYER_SURFACE,
@@ -165,7 +165,6 @@ export default function BuyerGarageVehiclePage() {
                   className="h-10 rounded-full bg-[#236B5C] text-[#F7FBF9] hover:bg-[#16483E]"
                   onClick={() => openConciergeChat({ vehicleId })}
                 >
-                  <Sparkles className="h-4 w-4" />
                   Concierge
                 </Button>
                 <Button variant="outline" className="h-10 rounded-full" onClick={() => void load()}>

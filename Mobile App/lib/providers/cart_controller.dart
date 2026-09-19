@@ -10,6 +10,7 @@ const _cartKey = 'mygarage_cart_v1';
 
 class CartController extends ChangeNotifier {
   final List<CartItem> _items = [];
+  List<CartItem> _held = [];
   bool hydrated = false;
 
   List<CartItem> get items => List.unmodifiable(_items);
@@ -102,5 +103,24 @@ class CartController extends ChangeNotifier {
     _items.clear();
     notifyListeners();
     await _persist();
+  }
+
+  Future<void> holdAndClearForCheckout() async {
+    _held = List<CartItem>.from(_items);
+    await clear();
+  }
+
+  void confirmHeldCheckout() {
+    _held = [];
+  }
+
+  void restoreHeldCheckout() {
+    if (_held.isEmpty) return;
+    if (_items.isEmpty) {
+      _items.addAll(_held);
+      notifyListeners();
+      _persist();
+    }
+    _held = [];
   }
 }
