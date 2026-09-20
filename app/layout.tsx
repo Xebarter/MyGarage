@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import { Nunito } from 'next/font/google';
+import { Suspense } from 'react';
 
 import { JsonLdScript } from '@/components/seo/json-ld-script';
 import { MobileAppFooterHost } from '@/components/mobile-app-footer-host';
@@ -39,7 +40,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <ScrollToTopOnNavigate />
+          <Suspense fallback={null}>
+            <ScrollToTopOnNavigate />
+          </Suspense>
           <WelcomeDialogHost />
           <ConciergeChatHost />
           <MobileAppFooterHost />

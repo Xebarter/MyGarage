@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Car,
 } from 'lucide-react';
+import { ServiceRequestExpiredDialog } from '@/components/buyer/service-request-expired-dialog';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
 import { parseMapPoint } from '@/lib/maps/coords';
 import { createClient } from '@/lib/supabase/client';
@@ -422,7 +423,7 @@ export default function ServiceTrackPage() {
           Back to services
         </Link>
 
-        {error ? (
+        {error && data?.request?.status !== 'expired' ? (
           <Alert variant="destructive" className="border-destructive/40 shadow-sm">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Something went wrong</AlertTitle>
@@ -722,17 +723,8 @@ export default function ServiceTrackPage() {
               </div>
             ) : null}
 
-            {data?.request?.status === 'expired' || data?.request?.status === 'cancelled' ? (
-              <div className="mt-4 space-y-3">
-                {data.request.status === 'expired' ? (
-                  <Alert className="border-destructive/30 bg-destructive/[0.04]">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <AlertTitle className="text-foreground">Request expired</AlertTitle>
-                    <AlertDescription>
-                      No provider accepted within 2.5 minutes. Request again to keep looking from here.
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
+            {data?.request?.status === 'cancelled' ? (
+              <div className="mt-4">
                 <Button
                   type="button"
                   className="h-11 w-full rounded-xl"
@@ -746,6 +738,23 @@ export default function ServiceTrackPage() {
           </div>
         </Card>
       </div>
+
+      {data?.request?.status === 'expired' ? (
+        <ServiceRequestExpiredDialog
+          open
+          service={data.request.service}
+          location={data.request.location}
+          category={data.request.category}
+          vehicleLabel={
+            data.vehicle
+              ? data.vehicle.nickname || `${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model}`
+              : null
+          }
+          restarting={restarting}
+          error={error}
+          onRequestAgain={() => void requestAgain()}
+        />
+      ) : null}
     </div>
   );
 }

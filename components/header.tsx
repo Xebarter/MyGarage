@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resetPageScrollSoon } from '@/lib/reset-page-scroll';
 import { useBuyerPortalChrome } from '@/components/buyer-portal-chrome';
 import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
 import { useServicesPortalChrome } from '@/components/services-portal-chrome';
@@ -358,6 +359,11 @@ export function Header() {
   const applySearch = useCallback(
     (raw: string, opts?: { closeSidebar?: boolean; remember?: boolean }) => {
       const next = raw.trim();
+      if (typeof document !== 'undefined') {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+      }
+      resetPageScrollSoon();
       if (next.length > 0) {
         router.replace(`/?q=${encodeURIComponent(next)}`);
         setUrlQ(next);
