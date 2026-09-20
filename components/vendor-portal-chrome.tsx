@@ -17,7 +17,6 @@ const VENDOR_NAV_PAGES: { href: string; label: string }[] = [
   { href: '/vendor/promotions', label: 'Promotions' },
   { href: '/vendor/orders', label: 'Orders' },
   { href: '/vendor/funds', label: 'Funds' },
-  { href: '/vendor/customers', label: 'Customers' },
   { href: '/vendor/profile', label: 'Profile' },
   { href: '/vendor/pending', label: 'Pending' },
 ];

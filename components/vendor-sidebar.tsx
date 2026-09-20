@@ -8,7 +8,6 @@ import {
   BarChart3,
   Package,
   ShoppingCart,
-  Users,
   Settings,
   LogOut,
   X,
@@ -36,7 +35,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/vendor/promotions', label: 'Promotions', icon: Megaphone },
   { href: '/vendor/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/vendor/funds', label: 'Funds', icon: Wallet },
-  { href: '/vendor/customers', label: 'Customers', icon: Users },
   { href: '/vendor/profile', label: 'Profile', icon: Settings },
 ];
 

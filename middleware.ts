@@ -73,7 +73,9 @@ function canSkipAuthMiddleware(pathname: string, hasOAuthCode: boolean): boolean
     pathname === "/auth/mobile-callback" ||
     pathname.startsWith("/auth/mobile-callback/") ||
     pathname === "/auth/services-mobile-callback" ||
-    pathname.startsWith("/auth/services-mobile-callback/")
+    pathname.startsWith("/auth/services-mobile-callback/") ||
+    pathname === "/auth/supplier-mobile-callback" ||
+    pathname.startsWith("/auth/supplier-mobile-callback/")
   ) {
     return true;
   }

@@ -11,7 +11,6 @@ import {
   Package,
   TrendingUp,
   Megaphone,
-  Users,
   ArrowRight,
   BarChart3,
   RefreshCw,
@@ -272,14 +271,6 @@ export default function VendorDashboardPage() {
                 </Link>
               );
             })}
-          </div>
-          <div className="mt-2 hidden justify-end sm:flex">
-            <Button asChild variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground">
-              <Link href="/vendor/customers">
-                Customers
-                <Users className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            </Button>
           </div>
         </section>
 
