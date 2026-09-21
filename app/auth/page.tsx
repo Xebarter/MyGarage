@@ -17,6 +17,7 @@ import {
   authPrimaryButtonClassName,
   getAuthRoleMeta,
 } from "@/components/auth-chrome";
+import { PhoneSignIn } from "@/components/auth/phone-sign-in";
 import { Card } from "@/components/ui/card";
 import { redirectToGoogleSignIn } from "@/lib/auth/google-oauth";
 import { initFirebaseAnalytics } from "@/lib/firebase/client";
@@ -40,15 +41,20 @@ import {
 } from "@/lib/welcome-dialog";
 import { persistBuyerLocalIdentity } from "@/lib/buyer-identity";
 import { getAuthGivenName } from "@/lib/auth-avatar";
-import { isPlaceholderEmail } from "@/lib/phone";
+import { isPlaceholderEmail, normalizeToE164 } from "@/lib/phone";
 import { firstGivenName } from "@/lib/display-name";
 import { buyerNeedsDisplayName, saveBuyerDisplayName } from "@/lib/auth/save-display-name";
+import { authUserPhone } from "@/lib/auth/phone-session";
 import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "signin" | "forgot";
 
 function countPhoneDigits(value: string): number {
   return value.replace(/\D/g, "").length;
+}
+
+function hasUsablePhone(value: string | null | undefined): boolean {
+  return countPhoneDigits(value ?? "") >= 9;
 }
 
 function getDefaultNext(role: string) {
@@ -116,6 +122,8 @@ function AuthForm() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showEmailAuth, setShowEmailAuth] = useState(false);
+  const [phonePhase, setPhonePhase] = useState<"phone" | "code" | "done">("phone");
 
   const roleMeta = useMemo(() => getAuthRoleMeta(role), [role]);
 
@@ -132,6 +140,9 @@ function AuthForm() {
   useEffect(() => {
     setPhone("");
     setBuyerFlowStep("signin");
+    setShowEmailAuth(false);
+    setPhonePhase("phone");
+    setMode("signin");
   }, [role]);
 
   useEffect(() => {
@@ -196,20 +207,24 @@ function AuthForm() {
               email: user.email,
             });
           }
-          const verifiedPhone = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
-          const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
-          if (!okPhone && countPhoneDigits(verifiedPhone) >= 9) {
+          const verifiedPhone = authUserPhone(user);
+          const okPhone = Boolean(customer && hasUsablePhone(customer.phone));
+          if (!okPhone && hasUsablePhone(verifiedPhone)) {
+            // Phone OTP already verified this number — never ask for it again.
             try {
               await syncBuyerCustomerAfterAuth(user, user.email.trim(), verifiedPhone);
-            } catch {
-              setBuyerFlowStep("phone");
-              setPhone(verifiedPhone);
-              setSessionChecked(true);
-              return;
+              persistBuyerLocalIdentity({
+                phone: verifiedPhone,
+                email: isPlaceholderEmail(user.email) ? "" : user.email,
+                id: user.id,
+              });
+            } catch (e) {
+              console.error("[auth] phone sync", e);
             }
-          } else if (!okPhone) {
+          } else if (!okPhone && !hasUsablePhone(verifiedPhone)) {
+            // Google / email accounts still need a reachable number once.
             setBuyerFlowStep("phone");
-            setPhone((customer?.phone ?? verifiedPhone).trim());
+            setPhone((customer?.phone ?? "").trim());
             setSessionChecked(true);
             return;
           }
@@ -375,7 +390,7 @@ function AuthForm() {
     localStorage.setItem("currentBuyerEmail", isPlaceholderEmail(user.email) ? "" : (user.email ?? ""));
     if (isPlaceholderEmail(user.email)) localStorage.removeItem("currentBuyerEmail");
     const email = user.email?.trim();
-    const phone = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
+    const phone = authUserPhone(user);
     if (email) {
       try {
         const res = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
@@ -386,7 +401,7 @@ function AuthForm() {
               id: c.id,
               name: c.name || getAuthGivenName(user),
               email: isPlaceholderEmail(email) ? "" : email,
-              phone: c.phone || phone,
+              phone: hasUsablePhone(c.phone) ? (c.phone as string) : phone,
             });
           }
         }
@@ -400,6 +415,7 @@ function AuthForm() {
   };
 
   async function syncBuyerCustomerAfterAuth(user: { id: string; email?: string | null }, email: string, phoneNorm: string) {
+    const phone = normalizeToE164(phoneNorm) ?? phoneNorm.trim();
     const name = "Customer";
     const existingRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
     if (existingRes.ok) {
@@ -408,7 +424,7 @@ function AuthForm() {
         const put = await fetch(`/api/customers/${c.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneNorm }),
+          body: JSON.stringify({ phone }),
         });
         if (!put.ok) throw new Error("Could not update your phone number.");
         localStorage.setItem("currentBuyerId", c.id);
@@ -422,7 +438,7 @@ function AuthForm() {
         id: user.id,
         name,
         email,
-        phone: phoneNorm,
+        phone,
         address: "",
         totalOrders: 0,
         totalSpent: 0,
@@ -496,15 +512,25 @@ function AuthForm() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const verifiedPhone = String(user?.phone ?? user?.user_metadata?.phone ?? "").trim();
-    const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
+    const verifiedPhone = authUserPhone(user);
+    const okPhone = Boolean(customer && hasUsablePhone(customer.phone));
     if (okPhone) return false;
-    if (user && countPhoneDigits(verifiedPhone) >= 9) {
-      await syncBuyerCustomerAfterAuth(user, userEmail, verifiedPhone);
+    if (user && hasUsablePhone(verifiedPhone)) {
+      // Already verified via Firebase phone OTP (or Auth.phone) — sync quietly.
+      try {
+        await syncBuyerCustomerAfterAuth(user, userEmail, verifiedPhone);
+      } catch (e) {
+        console.error("[auth] phone sync", e);
+      }
+      persistBuyerLocalIdentity({
+        phone: verifiedPhone,
+        email: isPlaceholderEmail(userEmail) ? "" : userEmail,
+        id: user.id,
+      });
       return false;
     }
     setBuyerFlowStep("phone");
-    setPhone((customer?.phone ?? verifiedPhone).trim());
+    setPhone((customer?.phone ?? "").trim());
     return true;
   }
 
@@ -559,8 +585,9 @@ function AuthForm() {
         return;
       }
       const email = user.email.trim();
-      await syncBuyerCustomerAfterAuth(user, email, phone.trim());
-      persistBuyerLocalIdentity({ phone: phone.trim(), email: isPlaceholderEmail(email) ? "" : email, id: user.id });
+      const phoneNorm = normalizeToE164(phone.trim()) ?? phone.trim();
+      await syncBuyerCustomerAfterAuth(user, email, phoneNorm);
+      persistBuyerLocalIdentity({ phone: phoneNorm, email: isPlaceholderEmail(email) ? "" : email, id: user.id });
       if (await gateBuyerDisplayNameIfNeeded()) {
         setLoading(false);
         return;
@@ -827,94 +854,201 @@ function AuthForm() {
           </>
         ) : (
           <>
-            <AuthFormHeader
-              badge={roleMeta.badge}
-              title={roleMeta.title}
-              description={roleMeta.description}
-            />
-
-            <div className="space-y-3">
-              {!isAdminRole ? (
-                <>
-                  <Link
-                    href={`/auth/phone?${new URLSearchParams({
-                      role,
-                      ...(nextPath ? { next: nextPath } : {}),
-                    }).toString()}`}
-                    className={authPrimaryButtonClassName}
-                  >
-                    Continue with phone
-                  </Link>
-                  <AuthDivider />
-                </>
-              ) : null}
-              <AuthGoogleButton
-                loading={googleLoading}
-                disabled={loading}
-                onClick={() => void handleGoogleSignIn()}
-              />
-              <AuthDivider />
-            </div>
-
-            {mode === "signin" ? (
-              <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
-                <input
-                  required
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email"
-                  className={authFieldClassName}
+            {isAdminRole ? (
+              <>
+                <AuthFormHeader
+                  badge={roleMeta.badge}
+                  title={roleMeta.title}
+                  description={roleMeta.description}
                 />
-                <div className="relative">
-                  <input
-                    required
-                    minLength={6}
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Password (6+ characters)"
-                    className={`${authFieldClassName} pr-12`}
+
+                <div className="space-y-3">
+                  <AuthGoogleButton
+                    loading={googleLoading}
+                    disabled={loading}
+                    onClick={() => void handleGoogleSignIn()}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    aria-pressed={showPassword}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                  </button>
+                  <AuthDivider />
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={authPrimaryButtonClassName}
-                >
-                  {loading ? "Please wait…" : "Continue"}
-                </button>
-              </form>
+
+                {mode === "signin" ? (
+                  <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
+                    <input
+                      required
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="Email"
+                      className={authFieldClassName}
+                    />
+                    <div className="relative">
+                      <input
+                        required
+                        minLength={6}
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="Password (6+ characters)"
+                        className={`${authFieldClassName} pr-12`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-pressed={showPassword}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                      </button>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className={authPrimaryButtonClassName}
+                    >
+                      {loading ? "Please wait…" : "Continue"}
+                    </button>
+                  </form>
+                ) : (
+                  <form className="space-y-3" onSubmit={handleForgotPassword}>
+                    <input
+                      required
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="Email"
+                      className={authFieldClassName}
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className={authPrimaryButtonClassName}
+                    >
+                      {loading ? "Sending…" : "Send reset link"}
+                    </button>
+                  </form>
+                )}
+              </>
             ) : (
-              <form className="space-y-3" onSubmit={handleForgotPassword}>
-                <input
-                  required
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email"
-                  className={authFieldClassName}
+              <>
+                <PhoneSignIn
+                  embedded
+                  initialPhone=""
+                  openerOrigin=""
+                  role={role}
+                  nextPath={nextPath}
+                  onPhaseChange={setPhonePhase}
                 />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={authPrimaryButtonClassName}
-                >
-                  {loading ? "Sending…" : "Send reset link"}
-                </button>
-              </form>
+
+                {phonePhase === "phone" ? (
+                  <div className="space-y-3">
+                    <AuthDivider />
+                    <AuthGoogleButton
+                      loading={googleLoading}
+                      disabled={loading}
+                      onClick={() => void handleGoogleSignIn()}
+                    />
+
+                    {!showEmailAuth ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEmailAuth(true);
+                          setMode("signin");
+                          setError(null);
+                          setSuccess(null);
+                        }}
+                        className="w-full text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+                      >
+                        Use email instead
+                      </button>
+                    ) : (
+                      <>
+                        <AuthDivider label="Email" />
+                        {mode === "signin" ? (
+                          <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
+                            <input
+                              required
+                              type="email"
+                              autoComplete="email"
+                              value={email}
+                              onChange={(event) => setEmail(event.target.value)}
+                              placeholder="Email"
+                              className={authFieldClassName}
+                            />
+                            <div className="relative">
+                              <input
+                                required
+                                minLength={6}
+                                type={showPassword ? "text" : "password"}
+                                autoComplete="current-password"
+                                value={password}
+                                onChange={(event) => setPassword(event.target.value)}
+                                placeholder="Password (6+ characters)"
+                                className={`${authFieldClassName} pr-12`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((v) => !v)}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                aria-pressed={showPassword}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-4 w-4" aria-hidden />
+                                ) : (
+                                  <Eye className="h-4 w-4" aria-hidden />
+                                )}
+                              </button>
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={loading}
+                              className={authPrimaryButtonClassName}
+                            >
+                              {loading ? "Please wait…" : "Continue with email"}
+                            </button>
+                          </form>
+                        ) : (
+                          <form className="space-y-3" onSubmit={handleForgotPassword}>
+                            <input
+                              required
+                              type="email"
+                              autoComplete="email"
+                              value={email}
+                              onChange={(event) => setEmail(event.target.value)}
+                              placeholder="Email"
+                              className={authFieldClassName}
+                            />
+                            <button
+                              type="submit"
+                              disabled={loading}
+                              className={authPrimaryButtonClassName}
+                            >
+                              {loading ? "Sending…" : "Send reset link"}
+                            </button>
+                          </form>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowEmailAuth(false);
+                            setMode("signin");
+                            setError(null);
+                            setSuccess(null);
+                          }}
+                          className="w-full text-xs font-medium text-muted-foreground hover:text-foreground"
+                        >
+                          Hide email sign-in
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </>
             )}
 
             {authError === "admin_required" ? (
@@ -924,17 +1058,22 @@ function AuthForm() {
             {success ? <AuthMessage variant="success">{success}</AuthMessage> : null}
 
             <AuthCardFooter>
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setSuccess(null);
-                  setMode(mode === "signin" ? "forgot" : "signin");
-                }}
-                className="font-medium text-primary hover:underline"
-              >
-                {mode === "signin" ? "Forgot password?" : "Back to sign in"}
-              </button>
+              {(isAdminRole || showEmailAuth) && phonePhase === "phone" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setSuccess(null);
+                    setMode(mode === "signin" ? "forgot" : "signin");
+                    if (!isAdminRole) setShowEmailAuth(true);
+                  }}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {mode === "signin" ? "Forgot password?" : "Back to sign in"}
+                </button>
+              ) : (
+                <span />
+              )}
               <Link href="/" className="text-muted-foreground hover:text-foreground">
                 Shop
               </Link>

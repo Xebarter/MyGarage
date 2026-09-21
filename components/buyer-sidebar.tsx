@@ -131,10 +131,14 @@ function BuyerSidebarNav({
             {group.items.map((item) => {
               const Icon = item.icon;
               const isActive = isNavActive(pathname, item.href);
+              const href =
+                item.href === '/buyer/services' && pathname.startsWith('/buyer/services/track')
+                  ? pathname
+                  : item.href;
               return (
                 <li key={item.href}>
                   <Link
-                    href={item.href}
+                    href={href}
                     onClick={onNavigate}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(

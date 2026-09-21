@@ -76,7 +76,11 @@ export function MobileAppBottomNav({
           return (
             <Link
               key={tab.match}
-              href={tab.href}
+              href={
+                tab.match === 'services' && pathname.startsWith('/buyer/services/track')
+                  ? pathname
+                  : tab.href
+              }
               onClick={() => resetPageScrollSoon()}
               className={cn(
                 'relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition',

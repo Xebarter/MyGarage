@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const { data: existing, error: lookupError } = await admin
       .from("vendors")
-      .select("id")
+      .select("id, phone")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -44,11 +44,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to lookup vendor" }, { status: 500 });
     }
 
-    if (existing?.id) {
-      return NextResponse.json({ ok: true });
-    }
-
-    const phone = normalizeToE164(user.phone ?? "") ?? (user.phone ?? "").trim();
+    const metaPhone = String(user.user_metadata?.phone ?? "").trim();
+    const phone =
+      normalizeToE164(user.phone ?? "") ??
+      normalizeToE164(metaPhone) ??
+      (user.phone ?? metaPhone).trim();
     const emailFromAuth = (user.email ?? "").trim();
     const email =
       emailFromAuth && !isPlaceholderEmail(emailFromAuth)
@@ -59,6 +59,14 @@ export async function POST(req: NextRequest) {
 
     if (!email && !phone) {
       return NextResponse.json({ error: "Missing phone or email" }, { status: 400 });
+    }
+
+    if (existing?.id) {
+      const existingDigits = String(existing.phone ?? "").replace(/\D/g, "");
+      if (phone && existingDigits.length < 9) {
+        await admin.from("vendors").update({ phone }).eq("id", user.id);
+      }
+      return NextResponse.json({ ok: true });
     }
 
     const given = getAuthGivenName(user).trim();

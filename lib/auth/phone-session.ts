@@ -1,8 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 
-import { placeholderEmailForPhone } from "@/lib/phone";
+import {
+  normalizeToE164,
+  placeholderEmailForPhone,
+} from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import {
+  getCustomerByEmailExact,
+  getCustomerById,
+  getCustomerByPhone,
+  insertCustomer,
+  updateCustomerById,
+} from "@/lib/supabase/customers-repo";
 
 export type PhoneSessionTokens = {
   access_token: string;
@@ -15,8 +26,49 @@ function isDuplicateUserError(message: string): boolean {
   return /already|registered|exists|duplicate/i.test(message);
 }
 
+/** Prefer Supabase Auth `phone`, then `user_metadata.phone`. */
+export function authUserPhone(user: Pick<User, "phone" | "user_metadata"> | null | undefined): string {
+  if (!user) return "";
+  const raw = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
+  if (!raw) return "";
+  return normalizeToE164(raw) ?? raw;
+}
+
+async function ensureCustomerForPhone(userId: string, phone: string, email: string): Promise<void> {
+  const existing =
+    (await getCustomerById(userId)) ||
+    (await getCustomerByPhone(phone)) ||
+    (await getCustomerByEmailExact(email));
+
+  if (existing) {
+    const needsPhone = !(normalizeToE164(existing.phone) ?? existing.phone.trim());
+    const patch: { phone?: string; email?: string } = {};
+    if (needsPhone || (normalizeToE164(existing.phone) ?? existing.phone) !== phone) {
+      // Always keep the verified sign-in number as the source of truth.
+      patch.phone = phone;
+    }
+    if (!existing.email?.trim()) {
+      patch.email = email;
+    }
+    if (Object.keys(patch).length > 0) {
+      await updateCustomerById(existing.id, patch);
+    }
+    return;
+  }
+
+  await insertCustomer({
+    id: userId,
+    name: "Customer",
+    email,
+    phone,
+    address: "",
+    totalOrders: 0,
+    totalSpent: 0,
+  });
+}
+
 /** Find or create the Supabase Auth user bound to this E.164 number. */
-async function ensurePhoneUser(phone: string, email: string): Promise<void> {
+async function ensurePhoneUser(phone: string, email: string): Promise<string> {
   const admin = createAdminClient();
   const created = await admin.auth.admin.createUser({
     email,
@@ -24,38 +76,59 @@ async function ensurePhoneUser(phone: string, email: string): Promise<void> {
     user_metadata: { phone },
   });
 
-  if (created.data.user?.id && !created.error) {
-    return;
+  let userId = created.data.user?.id;
+  if (!userId || (created.error && !isDuplicateUserError(created.error.message))) {
+    if (created.error && !isDuplicateUserError(created.error.message)) {
+      throw new Error(created.error.message);
+    }
   }
 
-  if (created.error && !isDuplicateUserError(created.error.message)) {
-    throw new Error(created.error.message);
-  }
-
-  const existing = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-  const userId = existing.data.user?.id;
   if (!userId) {
-    throw new Error(existing.error?.message || "Could not find this account.");
+    const existing = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+    });
+    userId = existing.data.user?.id;
+    if (!userId) {
+      throw new Error(existing.error?.message || "Could not find this account.");
+    }
   }
 
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { ...(existing.data.user?.user_metadata ?? {}), phone },
+  // Prefer Auth.phone when Supabase Phone is enabled; always keep metadata.phone.
+  const withPhone = await admin.auth.admin.updateUserById(userId, {
+    phone,
+    phone_confirm: true,
+    user_metadata: { phone },
   });
-  if (error) {
-    throw new Error(error.message);
+  if (withPhone.error) {
+    const metaOnly = await admin.auth.admin.updateUserById(userId, {
+      user_metadata: { phone },
+    });
+    if (metaOnly.error) {
+      throw new Error(metaOnly.error.message);
+    }
   }
+  return userId;
 }
 
 /**
  * Mint a Supabase session after Firebase has already verified the phone.
  * Auth users are keyed by a stable placeholder email derived from the number.
+ * The verified number is written to Auth.phone, metadata, and the customers row.
  */
 export async function mintSupabaseSessionForPhone(phone: string): Promise<PhoneSessionTokens> {
-  const email = placeholderEmailForPhone(phone);
-  await ensurePhoneUser(phone, email);
+  const e164 = normalizeToE164(phone);
+  if (!e164) {
+    throw new Error("Invalid phone number.");
+  }
+  const email = placeholderEmailForPhone(e164);
+  const userId = await ensurePhoneUser(e164, email);
+
+  try {
+    await ensureCustomerForPhone(userId, e164, email);
+  } catch (err) {
+    console.error("[phone-session] customer sync", err instanceof Error ? err.message : err);
+  }
 
   const admin = createAdminClient();
   const link = await admin.auth.admin.generateLink({

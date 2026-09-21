@@ -18,7 +18,7 @@ function defaultNext(role: string) {
 export default async function PhoneAuthPage({
   searchParams,
 }: {
-  searchParams: Promise<{ phone?: string; origin?: string; role?: string; next?: string }>;
+  searchParams: Promise<{ phone?: string; origin?: string; role?: string; next?: string; channel?: string }>;
 }) {
   const params = await searchParams;
   const role = (params.role ?? 'buyer').trim() || 'buyer';
@@ -34,6 +34,7 @@ export default async function PhoneAuthPage({
             openerOrigin={(params.origin ?? '').trim()}
             role={role}
             nextPath={nextPath}
+            channel={(params.channel ?? '').trim()}
           />
         </div>
       </Card>

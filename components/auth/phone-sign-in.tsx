@@ -1,7 +1,7 @@
 'use client';
 
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -37,6 +37,48 @@ function notifyOpener(origin: string, payload: Record<string, string>) {
   target.postMessage({ source: 'mygarage-phone-auth', ...payload }, origin);
 }
 
+function notifyNativeWebView(payload: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const bridge = (window as unknown as {
+      MyGaragePhoneAuth?: { postMessage: (message: string) => void };
+    }).MyGaragePhoneAuth;
+    bridge?.postMessage(JSON.stringify({ source: 'mygarage-phone-auth', ...payload }));
+  } catch {
+    /* WebView channel may be missing in a normal browser tab */
+  }
+}
+
+function returnTokenToNativeApp(idToken: string) {
+  notifyNativeWebView({ idToken });
+  window.setTimeout(() => {
+    try {
+      window.location.replace(
+        `mygarage://login-callback?phone_id_token=${encodeURIComponent(idToken)}`,
+      );
+    } catch {
+      /* ignore */
+    }
+  }, 400);
+}
+
+/** Firebase Phone Auth rejects SMS from hostname "localhost" (Network 400). */
+function redirectLocalhostToLoopback(skip = false): boolean {
+  if (skip) return false;
+  if (typeof window === 'undefined') return false;
+  if (window.location.hostname !== 'localhost') return false;
+  const next = new URL(window.location.href);
+  next.hostname = '127.0.0.1';
+  window.location.replace(next.toString());
+  return true;
+}
+
+function isLocalDevHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
 function firebaseErrorMessage(err: unknown, fallback: string): string {
   const code =
     typeof err === 'object' && err && 'code' in err ? String((err as { code: string }).code) : '';
@@ -57,18 +99,24 @@ function firebaseErrorMessage(err: unknown, fallback: string): string {
     case 'auth/invalid-app-credential':
     case 'auth/missing-recaptcha-token':
     case 'auth/internal-error':
-      return typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? 'Google will not send SMS from localhost (Network 400). Open this page as http://127.0.0.1:3000 and add 127.0.0.1 under Firebase → Authentication → Settings → Authorized domains.'
-        : 'Complete the “I’m not a robot” check, then send the code again.';
+      if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+        return 'Firebase blocks SMS on “localhost”. This page should open as http://127.0.0.1:3000 — add 127.0.0.1 under Firebase → Authentication → Settings → Authorized domains.';
+      }
+      if (isLocalDevHost()) {
+        return 'Firebase rejected the reCAPTCHA (Network 400). Confirm Phone sign-in is enabled, and that 127.0.0.1 is listed under Firebase → Authentication → Settings → Authorized domains.';
+      }
+      return 'Complete the “I’m not a robot” check, then send the code again. If it keeps failing, confirm Phone Auth is enabled in Firebase.';
     case 'auth/quota-exceeded':
       return 'SMS quota reached. Try again later.';
     case 'auth/operation-not-allowed':
-      return 'Phone sign-in is not enabled yet.';
+      return 'Phone sign-in is not enabled yet in Firebase Authentication.';
     default:
       break;
   }
-  if (/invalid.?app.?credential|captcha|recaptcha/i.test(combined)) {
+  if (/invalid.?app.?credential|captcha|recaptcha|network request failed/i.test(combined)) {
+    if (isLocalDevHost()) {
+      return 'Firebase rejected the reCAPTCHA (Network 400). Use http://127.0.0.1:3000 and add 127.0.0.1 as an authorized domain in Firebase.';
+    }
     return 'Complete the “I’m not a robot” check, then send the code again.';
   }
   const cleaned = raw.replace(/^Firebase:\s*/i, '').replace(/\s*\(auth\/[^)]+\)\.?$/i, '').trim();
@@ -81,16 +129,27 @@ export function PhoneSignIn({
   openerOrigin,
   role,
   nextPath,
+  channel = '',
+  embedded = false,
+  onPhaseChange,
 }: {
   initialPhone: string;
   openerOrigin: string;
   role: string;
   nextPath: string;
+  /** `webview` = Flutter in-app browser; return the Firebase ID token to the app. */
+  channel?: string;
+  /** When true, parent owns surrounding chrome; still shows step titles. */
+  embedded?: boolean;
+  onPhaseChange?: (phase: 'phone' | 'code' | 'done') => void;
 }) {
   const router = useRouter();
   const roleMeta = useMemo(() => getAuthRoleMeta(role), [role]);
   const origin = openerOrigin.trim();
   const flutterPopup = Boolean(origin && isAllowedOpenerOrigin(origin));
+  const nativeWebView = channel.trim().toLowerCase() === 'webview';
+  const reactId = useId().replace(/:/g, '');
+  const recaptchaContainerId = `recaptcha-container-${reactId}`;
 
   const [phoneInput, setPhoneInput] = useState(initialPhone);
   const phone = useMemo(() => normalizeToE164(phoneInput) ?? '', [phoneInput]);
@@ -99,6 +158,7 @@ export function PhoneSignIn({
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [redirectingHost, setRedirectingHost] = useState(false);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
 
@@ -112,6 +172,30 @@ export function PhoneSignIn({
   }, []);
 
   useEffect(() => {
+    if (redirectLocalhostToLoopback(nativeWebView)) {
+      setRedirectingHost(true);
+    }
+  }, [nativeWebView]);
+
+  const ensureVerifier = useCallback(async () => {
+    const auth = await getFirebaseAuth({ waitForRecaptchaEnterprise: false });
+    if (verifierRef.current) return { auth, verifier: verifierRef.current };
+    const el = document.getElementById(recaptchaContainerId);
+    if (!el) {
+      throw new Error('reCAPTCHA is not ready yet. Wait a second and try again.');
+    }
+    el.innerHTML = '';
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
+      size: 'normal',
+      theme: 'light',
+    });
+    verifierRef.current = verifier;
+    await verifier.render();
+    return { auth, verifier };
+  }, [recaptchaContainerId]);
+
+  useEffect(() => {
+    if (redirectingHost) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -124,26 +208,27 @@ export function PhoneSignIn({
       cancelled = true;
       resetVerifier();
     };
-  }, [resetVerifier]);
+  }, [ensureVerifier, resetVerifier, redirectingHost]);
 
-  async function ensureVerifier() {
-    const auth = await getFirebaseAuth({ waitForRecaptchaEnterprise: false });
-    if (verifierRef.current) return { auth, verifier: verifierRef.current };
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'normal',
-      theme: 'light',
-    });
-    verifierRef.current = verifier;
-    await verifier.render();
-    return { auth, verifier };
-  }
+  useEffect(() => {
+    if (!onPhaseChange) return;
+    if (done) onPhaseChange('done');
+    else if (sent) onPhaseChange('code');
+    else onPhaseChange('phone');
+  }, [done, sent, onPhaseChange]);
 
   async function sendCode() {
+    if (redirectLocalhostToLoopback(nativeWebView)) {
+      setRedirectingHost(true);
+      return;
+    }
     if (!phone) {
       setError('Enter a valid phone number.');
       return;
     }
-    const recaptchaResponse = document.querySelector<HTMLTextAreaElement>('#g-recaptcha-response')?.value?.trim();
+    const recaptchaResponse = document
+      .querySelector<HTMLTextAreaElement>(`#${recaptchaContainerId} #g-recaptcha-response`)
+      ?.value?.trim();
     if (!recaptchaResponse) {
       setError('Tick “I’m not a robot”, then send the code.');
       return;
@@ -157,6 +242,9 @@ export function PhoneSignIn({
     } catch (err) {
       resetVerifier();
       setError(firebaseErrorMessage(err, 'Could not send a sign-in code.'));
+      window.setTimeout(() => {
+        void ensureVerifier().catch(() => undefined);
+      }, 200);
     } finally {
       setBusy(false);
     }
@@ -178,6 +266,11 @@ export function PhoneSignIn({
     try {
       const cred = await confirmation.confirm(sms);
       const idToken = await cred.user.getIdToken();
+      if (nativeWebView) {
+        returnTokenToNativeApp(idToken);
+        setDone(true);
+        return;
+      }
       if (flutterPopup) {
         notifyOpener(origin, { idToken });
         setDone(true);
@@ -191,6 +284,7 @@ export function PhoneSignIn({
         return;
       }
 
+      // Bridge: Firebase verified the phone → mint a Supabase session for the app.
       const res = await fetch('/api/auth/phone/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -223,6 +317,14 @@ export function PhoneSignIn({
     }
   }
 
+  if (redirectingHost) {
+    return (
+      <AuthMessage variant="info">
+        Opening phone sign-in on 127.0.0.1 so Firebase can send SMS…
+      </AuthMessage>
+    );
+  }
+
   if (done) {
     return (
       <>
@@ -236,34 +338,35 @@ export function PhoneSignIn({
     <>
       <AuthFormHeader
         badge={roleMeta.badge}
-        title={sent ? 'Enter the code' : 'Sign in with phone'}
+        title={sent ? 'Enter the code' : embedded ? 'Welcome back' : 'Sign in with phone'}
         description={
           sent
             ? `Sent to ${formatE164Display(phone)}.`
-            : 'We’ll text a 6-digit code. Uganda numbers can start with 07.'
+            : embedded
+              ? 'Sign in with your phone number. We’ll text a 6-digit code.'
+              : 'We’ll text a 6-digit code. Uganda numbers can start with 07.'
         }
       />
 
       {!sent ? (
         <div className="space-y-3">
+          <label className="sr-only" htmlFor="phone-sign-in-input">
+            Phone number
+          </label>
           <input
+            id="phone-sign-in-input"
             type="tel"
             autoComplete="tel"
             inputMode="tel"
+            autoFocus={embedded}
             value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void sendCode();
+            }}
             placeholder="0700 123 456"
             className={authFieldClassName}
           />
-          <div id="recaptcha-container" className="flex min-h-20 justify-center" />
-          <button
-            type="button"
-            className={authPrimaryButtonClassName}
-            disabled={busy}
-            onClick={() => void sendCode()}
-          >
-            {busy ? 'Sending…' : 'Send code'}
-          </button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -296,12 +399,34 @@ export function PhoneSignIn({
               setCode('');
               confirmationRef.current = null;
               resetVerifier();
+              window.setTimeout(() => {
+                void ensureVerifier().catch(() => undefined);
+              }, 200);
             }}
           >
             Use a different number
           </button>
         </div>
       )}
+
+      {/* Always mounted — Firebase Phone Auth needs a stable reCAPTCHA host node. */}
+      <div
+        id={recaptchaContainerId}
+        className={sent ? 'hidden' : 'mt-3 flex min-h-20 justify-center'}
+        aria-hidden={sent}
+      />
+
+      {!sent ? (
+        <button
+          type="button"
+          className={`${authPrimaryButtonClassName} mt-3`}
+          disabled={busy}
+          onClick={() => void sendCode()}
+        >
+          {busy ? 'Sending…' : 'Continue with phone'}
+        </button>
+      ) : null}
+
       {error ? <AuthMessage variant="error">{error}</AuthMessage> : null}
     </>
   );

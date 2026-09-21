@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { BuyerServiceQuickRequestDialog } from '@/components/buyer/buyer-service-quick-request-dialog';
 import { GarageVehiclePicker } from '@/components/buyer/garage/vehicle-picker';
 import { MobileBuyerServicesBrowse } from '@/components/buyer/mobile-buyer-services-browse';
+import { ActiveServiceFocus } from '@/components/buyer/active-service-focus';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
 import { cleanServiceDisplayTitle, userServiceCategories } from '@/lib/services-catalog';
@@ -25,6 +26,7 @@ import {
   ChevronRight,
   Clock3,
   History,
+  Loader2,
   MapPin,
   RefreshCw,
   Search,
@@ -350,6 +352,14 @@ function BuyerServicesPageInner() {
   const [quickRequestUiStep, setQuickRequestUiStep] = useState<'service' | 'location'>('service');
   const [requests, setRequests] = useState<BuyerServiceRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsHydrated, setRequestsHydrated] = useState(false);
+  const runningServiceRequest = useMemo(
+    () => requests.find((item) => isRunningBuyerServiceStatus(item.status)) ?? null,
+    [requests],
+  );
+  const liveServiceHref = runningServiceRequest
+    ? `/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`
+    : '';
   const [historyTab, setHistoryTab] = useState<ServiceHistoryTab>('all');
   const [expandedCompletedId, setExpandedCompletedId] = useState<string | null>(null);
   const [ratings, setRatings] = useState<BuyerProviderRating[]>([]);
@@ -398,6 +408,12 @@ function BuyerServicesPageInner() {
   useEffect(() => {
     if (appliedOpenQuickFromAuth.current) return;
     if (searchParams.get('openQuick') !== '1') return;
+    if (runningServiceRequest) {
+      appliedOpenQuickFromAuth.current = true;
+      return;
+    }
+    if (identityMode === 'buyer' && !sessionReady) return;
+    if (identityMode === 'buyer' && !requestsHydrated) return;
     appliedOpenQuickFromAuth.current = true;
     serviceAutofillSuppressed.current = true;
     setSelectedService('');
@@ -407,10 +423,13 @@ function BuyerServicesPageInner() {
     params.delete('openQuick');
     const q = params.toString();
     router.replace(`${pathname}${q ? `?${q}` : ''}`, { scroll: false });
-  }, [searchParams, pathname, router]);
+  }, [searchParams, pathname, router, runningServiceRequest, identityMode, sessionReady, requestsHydrated]);
 
   useEffect(() => {
     if (appliedDeepLinkSc.current) return;
+    if (!sessionReady) return;
+    if (identityMode === 'buyer' && !requestsHydrated) return;
+    if (runningServiceRequest) return;
     const sc = (searchParams.get('sc') || '').trim();
     const ss = (searchParams.get('ss') || '').trim();
     if (!sc && !ss) return;
@@ -474,12 +493,15 @@ function BuyerServicesPageInner() {
         }
       }
     }
-  }, [searchParams, pathname, router]);
+  }, [searchParams, pathname, router, runningServiceRequest, identityMode, sessionReady, requestsHydrated]);
 
   useEffect(() => {
-    if (!customerId) return;
+    if (!customerId) {
+      if (sessionReady) setRequestsHydrated(true);
+      return;
+    }
     void loadServiceData(customerId);
-  }, [customerId]);
+  }, [customerId, sessionReady]);
 
   const selectedCategoryMeta = useMemo(
     () => userServiceCategories.find((category) => category.title === selectedCategory) || userServiceCategories[0],
@@ -713,6 +735,7 @@ function BuyerServicesPageInner() {
       setRatings([]);
     } finally {
       setRequestsLoading(false);
+      setRequestsHydrated(true);
     }
   };
 
@@ -735,10 +758,11 @@ function BuyerServicesPageInner() {
     };
   }, [requests]);
 
-  const runningServiceRequest = useMemo(
-    () => requests.find((item) => isRunningBuyerServiceStatus(item.status)) ?? null,
-    [requests],
-  );
+  useEffect(() => {
+    if (!runningServiceRequest || !liveServiceHref) return;
+    setIsQuickRequestDialogOpen(false);
+    router.replace(liveServiceHref);
+  }, [runningServiceRequest, liveServiceHref, router]);
 
   const completedRequests = useMemo(
     () => requests.filter((item) => item.status === 'completed'),
@@ -917,6 +941,23 @@ function BuyerServicesPageInner() {
     { label: 'Active', value: requestStats.active, icon: Wrench, hint: 'In progress' },
     { label: 'Completed', value: requestStats.completed, icon: CheckCircle2, hint: 'Finished' },
   ] as const;
+
+  if (identityMode === 'buyer' && runningServiceRequest) {
+    return (
+      <ActiveServiceFocus
+        request={runningServiceRequest}
+        href={liveServiceHref}
+      />
+    );
+  }
+
+  if (!sessionReady || (identityMode === 'buyer' && !requestsHydrated)) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Loading services" />
+      </div>
+    );
+  }
 
   return (
     <>

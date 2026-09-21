@@ -135,20 +135,20 @@ export function getAuthRoleMeta(role: string): { title: string; description: str
     case 'vendor':
       return {
         badge: 'Vendor',
-        title: 'Sign in',
-        description: 'Products, orders, and payouts.',
+        title: 'Welcome back',
+        description: 'Sign in with your phone number for products, orders, and payouts.',
       };
     case 'services':
       return {
         badge: 'Services',
-        title: 'Sign in',
-        description: 'Jobs, customers, and funds.',
+        title: 'Welcome back',
+        description: 'Sign in with your phone number for jobs, customers, and funds.',
       };
     default:
       return {
         badge: 'Buyer',
-        title: 'Sign in',
-        description: 'Shop and book services.',
+        title: 'Welcome back',
+        description: 'Sign in with your phone number to shop and book services.',
       };
   }
 }

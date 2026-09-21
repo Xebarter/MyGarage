@@ -15,7 +15,6 @@ import {
   Loader2,
   LogOut,
   MessageSquare,
-  RefreshCw,
   Settings,
   Shield,
   Star,
@@ -39,8 +38,8 @@ import { cn } from '@/lib/utils';
 import { persistBuyerLocalIdentity } from '@/lib/buyer-identity';
 import { SubscriptionPlansGrid } from '@/components/buyer/subscription-plans-grid';
 import { ProfileHero } from '@/components/buyer/profile-hero';
-import { ProfileContactPanel } from '@/components/buyer/profile-contact-panel';
-import { BUYER_SURFACE, BuyerEmptyState, BuyerPageShell } from '@/components/buyer/buyer-page-chrome';
+import { BuyerPageShell } from '@/components/buyer/buyer-page-chrome';
+import { formatE164Display } from '@/lib/phone';
 import type { SubscriptionTier } from '@/lib/subscription-plans';
 import type {
   BuyerControlCenterPayload,
@@ -195,6 +194,12 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (resolvedTab && SECTIONS.some((s) => s.id === resolvedTab)) {
+      setActiveTab(resolvedTab as SectionId);
+    }
+  }, [resolvedTab]);
+
   const saveProfile = async () => {
     if (!customerId) return;
     setSaving(true);
@@ -213,24 +218,6 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
         });
         await load();
         setEditing(false);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const savePhone = async (phone: string) => {
-    if (!customerId) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/buyer/profile/${customerId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...profileForm, phone }),
-      });
-      if (res.ok) {
-        setProfileForm((p) => ({ ...p, phone }));
-        await load();
       }
     } finally {
       setSaving(false);
@@ -461,16 +448,34 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
   if (!data) {
     return (
       <BuyerPageShell>
-        <Card className={BUYER_SURFACE}>
-          <BuyerEmptyState
-            icon={User}
-            title="Sign in to your account"
-            description="Manage profile details, membership, documents, and preferences from one control center."
-          >
+        <Card className="relative overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.12] via-[#FFF6EA] to-white p-8">
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-[#E8C56B]" aria-hidden />
+          <p className="text-2xl font-bold tracking-tight text-[#12241C]">Your garage, in one place</p>
+          <p className="mt-2 max-w-lg text-sm leading-relaxed text-[#7A8B82]">
+            Sign in to keep vehicles, orders, documents, and membership together.
+          </p>
+          <ul className="mt-5 space-y-2 text-sm font-medium text-[#4A5C54]">
+            <li className="flex items-center gap-2">
+              <Car className="h-4 w-4 text-primary" aria-hidden />
+              Garage & service history
+            </li>
+            <li className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" aria-hidden />
+              Orders, billing, and saved parts
+            </li>
+            <li className="flex items-center gap-2">
+              <Crown className="h-4 w-4 text-primary" aria-hidden />
+              Membership and documents
+            </li>
+          </ul>
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild>
               <Link href="/auth?role=buyer&next=/buyer/profile">Sign in</Link>
             </Button>
-          </BuyerEmptyState>
+            <Button asChild variant="outline">
+              <Link href="/buyer/services">Continue browsing</Link>
+            </Button>
+          </div>
         </Card>
       </BuyerPageShell>
     );
@@ -485,37 +490,19 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
           <ProfileHero
             name={profile.customer.name}
             email={profile.customer.email}
+            phone={profileForm.phone || profile.customer.phone}
             createdAt={profile.customer.createdAt}
             totalOrders={profile.customer.totalOrders}
-            totalSpent={formatCurrency(profile.customer.totalSpent)}
+            totalSpent={profile.customer.totalSpent}
             wishlistItems={profile.stats.wishlistItems ?? 0}
-            serviceRequests={profile.stats.serviceRequests ?? 0}
+            vehicles={profile.stats.vehicles ?? 0}
+            membership={subscription?.planTier}
+            onEdit={() => setActiveTab('account')}
           />
         </div>
       )}
 
       <div className={cn('space-y-5', embed ? 'px-0' : 'px-4 md:px-8')}>
-        {embed ? null : (
-          <>
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => void load()} disabled={saving}>
-                <RefreshCw className={cn('mr-2 h-4 w-4', saving && 'animate-spin')} />
-                Refresh
-              </Button>
-              {unreadNotificationCount > 0 ? (
-                <Badge variant="secondary">{unreadNotificationCount} unread</Badge>
-              ) : null}
-            </div>
-
-            <ProfileContactPanel
-              email={profile.customer.email}
-              phone={profileForm.phone}
-              saving={saving}
-              onSavePhone={savePhone}
-            />
-          </>
-        )}
-
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SectionId)} className="gap-4">
           <TabsList className={cn(
             'flex h-auto w-full justify-start gap-1.5 overflow-x-auto rounded-none bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
@@ -556,6 +543,21 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
                   />
                 ) : (
                   <p className="mt-2">{profileForm.name || '—'}</p>
+                )}
+              </div>
+              <div>
+                <Label>Phone</Label>
+                {editing ? (
+                  <Input
+                    className="mt-2"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="+256 700 000000"
+                  />
+                ) : (
+                  <p className={cn('mt-2', !profileForm.phone.trim() && 'text-muted-foreground')}>
+                    {profileForm.phone.trim() ? formatE164Display(profileForm.phone) : 'Not set'}
+                  </p>
                 )}
               </div>
               {profile.defaultAddress ? (
