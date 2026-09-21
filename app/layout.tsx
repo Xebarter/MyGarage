@@ -7,6 +7,7 @@ import { JsonLdScript } from '@/components/seo/json-ld-script';
 import { MobileAppFooterHost } from '@/components/mobile-app-footer-host';
 import { ThemeProvider } from '@/components/theme-provider';
 import { WelcomeDialogHost } from '@/components/welcome-dialog';
+import { CollectDisplayNameHost } from '@/components/auth/collect-display-name';
 import { ConciergeChatHost } from '@/components/concierge/concierge-chat-host';
 import { ScrollToTopOnNavigate } from '@/components/scroll-to-top';
 import { buildRootMetadata } from '@/lib/seo/metadata';
@@ -44,6 +45,7 @@ export default function RootLayout({
             <ScrollToTopOnNavigate />
           </Suspense>
           <WelcomeDialogHost />
+          <CollectDisplayNameHost />
           <ConciergeChatHost />
           <MobileAppFooterHost />
           <Analytics />

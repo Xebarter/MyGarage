@@ -33,6 +33,10 @@ import { Card } from '@/components/ui/card';
 import { formatUgx } from '@/lib/format-ugx';
 import { openConciergeChat } from '@/lib/concierge/open';
 import { cn } from '@/lib/utils';
+import { isPlaceholderDisplayName } from '@/lib/display-name';
+import { isPlaceholderEmail } from '@/lib/phone';
+import { createClient } from '@/lib/supabase/client';
+import { fetchBuyerCustomer, authUserPhone, authUserFullName } from '@/lib/auth/save-display-name';
 
 interface OrderItem {
   id: string;
@@ -87,14 +91,39 @@ export default function BuyerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerName, setBuyerName] = useState('Buyer');
+  const [buyerPhone, setBuyerPhone] = useState('');
 
   useEffect(() => {
-    const customerId = (localStorage.getItem('currentBuyerId') || '').trim();
-    const email = (localStorage.getItem('currentBuyerEmail') || '').trim();
-    const name = localStorage.getItem('currentBuyerName') || 'Buyer';
-    setBuyerEmail(email);
-    setBuyerName(name);
-    void fetchOrders(customerId, email);
+    let cancelled = false;
+    const load = async () => {
+      const customerId = (localStorage.getItem('currentBuyerId') || '').trim();
+      const email = (localStorage.getItem('currentBuyerEmail') || '').trim();
+      const name = localStorage.getItem('currentBuyerName') || 'Buyer';
+      const phone = (localStorage.getItem('currentBuyerPhone') || '').trim();
+      setBuyerEmail(isPlaceholderEmail(email) ? '' : email);
+      setBuyerName(isPlaceholderDisplayName(name, { phone, email }) ? 'Buyer' : name);
+      setBuyerPhone(phone);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const sessionPhone = user ? authUserPhone(user) : phone;
+      const customer = await fetchBuyerCustomer({ customerId, email: user?.email || email, phone: sessionPhone });
+      if (cancelled) return;
+      if (customer) {
+        const nextName = isPlaceholderDisplayName(customer.name, { phone: customer.phone, email: customer.email })
+          ? (user ? authUserFullName(user) : '')
+          : customer.name;
+        if (nextName) setBuyerName(nextName);
+        if (customer.email && !isPlaceholderEmail(customer.email)) setBuyerEmail(customer.email);
+        if (customer.phone) setBuyerPhone(customer.phone);
+      }
+      void fetchOrders(customer?.id || customerId, customer?.email || email);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchOrders = async (customerId: string, email: string) => {
@@ -141,10 +170,11 @@ export default function BuyerDashboardPage() {
 
   const greetingName = useMemo(() => {
     const n = buyerName.trim();
-    if (n && n !== 'Buyer') return n.split(/\s+/)[0] ?? n;
-    const local = buyerEmail.split('@')[0]?.trim();
-    return local || 'there';
-  }, [buyerName, buyerEmail]);
+    if (n && !isPlaceholderDisplayName(n, { phone: buyerPhone, email: buyerEmail })) {
+      return n.split(/\s+/)[0] ?? n;
+    }
+    return 'there';
+  }, [buyerName, buyerEmail, buyerPhone]);
 
   const initials = useMemo(() => getBuyerInitials(buyerName, buyerEmail), [buyerName, buyerEmail]);
   const timeGreeting = useMemo(() => getTimeGreeting(), []);
@@ -175,9 +205,9 @@ export default function BuyerDashboardPage() {
                   <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-muted-foreground">
                     Orders, deliveries, and services — managed from one account.
                   </p>
-                  {buyerEmail ? (
+                  {buyerEmail || buyerPhone ? (
                     <p className="mt-3 inline-flex rounded-full border border-border/70 bg-white/70 px-3 py-1 text-xs text-muted-foreground">
-                      {buyerEmail}
+                      {buyerEmail || buyerPhone}
                     </p>
                   ) : null}
                 </div>

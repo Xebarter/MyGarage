@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../api/api_client.dart';
+import '../api/buyer_api.dart';
 import '../auth/auth_return_to.dart';
+import '../checkout/payment_result.dart';
 import '../models/models.dart';
 import '../providers/auth_controller.dart';
 import '../providers/cart_controller.dart';
@@ -28,28 +33,7 @@ import '../screens/shop/product_detail_screen.dart';
 import '../screens/shop/shop_screen.dart';
 import '../widgets/app_bottom_nav.dart';
 
-String myGarageDeepLinkKey(Uri uri) {
-  if (uri.scheme == 'mygarage') {
-    final host = uri.host;
-    final path = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
-    if (host.isEmpty) return path;
-    if (path.isEmpty) return host;
-    return '$host/$path';
-  }
-
-  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-  if (segments.length >= 2 &&
-      segments[0] == 'checkout' &&
-      (segments[1] == 'complete' || segments[1] == 'failed')) {
-    return 'checkout/${segments[1]}';
-  }
-  if (segments.length == 1 &&
-      (segments[0] == 'complete' || segments[0] == 'failed') &&
-      uri.host == 'checkout') {
-    return 'checkout/${segments[0]}';
-  }
-  return '';
-}
+export 'deep_links.dart';
 
 String? authReturnLocation(Uri uri, AuthController auth) {
   final host = uri.host.toLowerCase();
@@ -75,29 +59,27 @@ String? paymentReturnLocation(
   AuthController auth,
   CartController cart,
 ) {
-  final key = myGarageDeepLinkKey(uri);
-  if (key != 'checkout/complete' && key != 'checkout/failed') return null;
+  final result = parsePaymentReturnUri(uri);
+  if (result == null) return null;
 
-  final kind = uri.queryParameters['kind'] ?? '';
-  final requestId = uri.queryParameters['requestId'] ?? '';
+  PaymentReturnBus.emit(result);
 
-  if (key == 'checkout/complete') {
-    cart.confirmHeldCheckout();
-    if (kind == 'subscription') return '/profile/membership';
-    if (kind == 'service') {
-      if (requestId.isNotEmpty) return '/service/track/$requestId';
-      return '/profile/billing';
+  if (result.success) {
+    final isProduct = result.kind.isEmpty || result.kind == 'product';
+    cart.confirmHeldCheckout(clearLiveCart: isProduct);
+    if (result.kind == 'subscription' && result.checkoutId.isNotEmpty) {
+      unawaited(_activateSubscriptionQuietly(result.checkoutId));
     }
-    return auth.status == AuthStatus.authenticated ? '/orders' : '/login';
+  } else {
+    cart.restoreHeldCheckout();
   }
+  return paymentResultLocation(result, auth);
+}
 
-  cart.restoreHeldCheckout();
-  if (kind == 'subscription') return '/profile/membership';
-  if (kind == 'service') {
-    if (requestId.isNotEmpty) return '/service/track/$requestId';
-    return '/profile/billing';
-  }
-  return '/checkout';
+Future<void> _activateSubscriptionQuietly(String checkoutId) async {
+  try {
+    await BuyerApi(ApiClient()).activateSubscription(checkoutId: checkoutId);
+  } catch (_) {}
 }
 
 GoRouter createRouter(AuthController auth, CartController cart) {

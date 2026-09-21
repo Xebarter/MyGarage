@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeConciergeAction } from "@/lib/concierge/act";
+import {
+  addressCreateAction,
+  authHref,
+  navigateAction,
+  profileUpdateAction,
+  resolveConciergeDestination,
+  vehicleCreateAction,
+  vehicleDraftFromArgs,
+  vehicleUpdateAction,
+} from "@/lib/concierge/guides";
 import type { ConciergePendingAction } from "@/lib/concierge/types";
 
 function parseAction(value: unknown): ConciergePendingAction | null {
@@ -39,6 +49,40 @@ function parseAction(value: unknown): ConciergePendingAction | null {
       location: typeof rec.location === "string" ? rec.location.trim() : "",
     };
   }
+  if (rec.type === "navigate") {
+    const dest = resolveConciergeDestination(String(rec.destination ?? rec.title ?? ""));
+    if (!dest) return null;
+    return navigateAction(dest, {
+      href: typeof rec.href === "string" ? rec.href : dest.href,
+      hrefMobile: typeof rec.hrefMobile === "string" ? rec.hrefMobile : dest.hrefMobile,
+    });
+  }
+  if (rec.type === "auth") {
+    return authHref(typeof rec.next === "string" ? rec.next : "/buyer");
+  }
+  if (rec.type === "vehicle_create") {
+    const created = vehicleCreateAction(vehicleDraftFromArgs(rec));
+    return "error" in created ? null : created;
+  }
+  if (rec.type === "vehicle_update") {
+    const vehicleId = String(rec.vehicleId ?? "").trim();
+    if (!vehicleId) return null;
+    const updates = rec.updates && typeof rec.updates === "object" ? (rec.updates as Record<string, unknown>) : rec;
+    const updated = vehicleUpdateAction({
+      vehicleId,
+      label: String(rec.label ?? "your car"),
+      args: updates,
+    });
+    return "error" in updated ? null : updated;
+  }
+  if (rec.type === "profile_update") {
+    const next = profileUpdateAction(rec);
+    return "error" in next ? null : next;
+  }
+  if (rec.type === "address_create") {
+    const next = addressCreateAction(rec);
+    return "error" in next ? null : next;
+  }
   return null;
 }
 
@@ -47,7 +91,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const action = parseAction(body.action ?? body.pendingAction);
     if (!action) {
-      return NextResponse.json({ error: "A quote or booking to confirm is required." }, { status: 400 });
+      return NextResponse.json({ error: "A confirmed action is required." }, { status: 400 });
     }
     const customerId = typeof body.customerId === "string" ? body.customerId.trim() : "";
     const locationOverride = typeof body.location === "string" ? body.location.trim() : "";

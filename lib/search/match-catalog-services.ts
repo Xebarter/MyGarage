@@ -1,6 +1,7 @@
 import {
   serviceIntentKeywordsByCategoryId,
   userServiceCategories,
+  type UserServiceCategory,
 } from '@/lib/services-catalog';
 import { buildExpandedRankingTokens, normalizeSearchText } from '@/lib/search/expand-query';
 
@@ -11,6 +12,19 @@ export type MatchedCatalogService = {
   categoryTitle: string;
   emoji: string;
   score: number;
+};
+
+export type MatchedCatalogCategory = {
+  category: UserServiceCategory;
+  matchingServiceCount: number;
+  topServiceName: string;
+  score: number;
+};
+
+export type BuyerServicesSearchResult = {
+  query: string;
+  categories: MatchedCatalogCategory[];
+  services: MatchedCatalogService[];
 };
 
 function escapeRegExp(value: string): string {
@@ -57,16 +71,76 @@ export function scoreCatalogService(
   return score;
 }
 
+function scoreCatalogCategory(
+  cat: UserServiceCategory,
+  keywords: string[],
+  qLower: string,
+  tokens: string[],
+  bestServiceScore: number,
+  matchingServiceCount: number,
+): number {
+  const title = cat.title.toLowerCase();
+  const useWhen = cat.useWhen.toLowerCase();
+  const idNorm = cat.id.toLowerCase().replace(/-/g, ' ');
+  const kwBlob = keywords.map((k) => k.toLowerCase()).join(' ');
+  const effectiveTokens = tokens.length > 0 ? tokens : qLower.length >= 2 ? [qLower] : [];
+
+  let score = Math.max(0, Math.floor(bestServiceScore * 0.55));
+  if (qLower.length >= 2 && title.includes(qLower)) score += 28;
+  if (qLower.length >= 2 && useWhen.includes(qLower)) score += 10;
+  if (qLower.length >= 2 && idNorm.includes(qLower)) score += 12;
+
+  for (const tok of effectiveTokens) {
+    score += tokenHaystackScore(title, tok, 12);
+    score += tokenHaystackScore(useWhen, tok, 4);
+    score += tokenHaystackScore(idNorm, tok, 6);
+    score += tokenHaystackScore(kwBlob, tok, 7);
+  }
+
+  if (matchingServiceCount > 0) score += Math.min(18, matchingServiceCount * 3);
+  if (cat.priority === 'urgent') score += 2;
+  return score;
+}
+
 /** Rank buyer catalog services for a marketplace search query. */
 export function matchCatalogServices(query: string, limit = 12): MatchedCatalogService[] {
+  return searchBuyerServicesCatalog(query, { serviceLimit: limit }).services;
+}
+
+/**
+ * Live catalog search for the buyer Services page: ranked categories + line-item services.
+ * Empty / short queries return every category and no service hits (browse mode).
+ */
+export function searchBuyerServicesCatalog(
+  query: string,
+  options?: { serviceLimit?: number },
+): BuyerServicesSearchResult {
   const safeQ = normalizeSearchText(query);
-  if (!safeQ || safeQ.length < 2) return [];
+  const serviceLimit = Math.max(1, options?.serviceLimit ?? 24);
+
+  if (!safeQ || safeQ.length < 2) {
+    return {
+      query: safeQ,
+      categories: userServiceCategories.map((category) => ({
+        category,
+        matchingServiceCount: category.services.length,
+        topServiceName: category.services[0]?.name ?? '',
+        score: 0,
+      })),
+      services: [],
+    };
+  }
 
   const { rankingTokens } = buildExpandedRankingTokens(safeQ);
-  const scored: MatchedCatalogService[] = [];
+  const services: MatchedCatalogService[] = [];
+  const categories: MatchedCatalogCategory[] = [];
 
   for (const cat of userServiceCategories) {
     const keywords = serviceIntentKeywordsByCategoryId[cat.id] ?? [];
+    let bestServiceScore = 0;
+    let matchingServiceCount = 0;
+    let topServiceName = cat.services[0]?.name ?? '';
+
     for (const service of cat.services) {
       const score = scoreCatalogService(
         service.name,
@@ -77,7 +151,12 @@ export function matchCatalogServices(query: string, limit = 12): MatchedCatalogS
         rankingTokens,
       );
       if (score <= 0) continue;
-      scored.push({
+      matchingServiceCount += 1;
+      if (score > bestServiceScore) {
+        bestServiceScore = score;
+        topServiceName = service.name;
+      }
+      services.push({
         id: `${cat.id}\x1f${service.name}`,
         name: service.name,
         categoryId: cat.id,
@@ -86,8 +165,35 @@ export function matchCatalogServices(query: string, limit = 12): MatchedCatalogS
         score,
       });
     }
+
+    const catScore = scoreCatalogCategory(
+      cat,
+      keywords,
+      safeQ,
+      rankingTokens,
+      bestServiceScore,
+      matchingServiceCount,
+    );
+    if (catScore <= 0) continue;
+
+    categories.push({
+      category: cat,
+      matchingServiceCount: matchingServiceCount || cat.services.length,
+      topServiceName,
+      score: catScore,
+    });
   }
 
-  scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-  return scored.slice(0, Math.max(1, limit));
+  services.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  categories.sort(
+    (a, b) =>
+      b.score - a.score ||
+      a.category.title.localeCompare(b.category.title),
+  );
+
+  return {
+    query: safeQ,
+    categories,
+    services: services.slice(0, serviceLimit),
+  };
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -12,23 +14,58 @@ class BuyerApi {
 
   final ApiClient _client;
 
-  Future<BuyerProfile> fetchProfile({required String email}) {
+  Future<BuyerProfile> fetchProfile({
+    String? customerId,
+    String? email,
+    String? phone,
+  }) {
+    final query = <String, String>{};
+    if (customerId != null && customerId.trim().isNotEmpty) {
+      query['customerId'] = customerId.trim();
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      query['email'] = email.trim();
+    }
+    if (phone != null && phone.trim().isNotEmpty) {
+      query['phone'] = phone.trim();
+    }
     return _client.get(
       '/api/buyer/profile',
-      query: {'email': email},
+      query: query,
       parser: (json) => BuyerProfile.fromJson(json as Map<String, dynamic>),
     );
   }
 
   Future<BuyerProfile> createProfile({
+    String? id,
     required String name,
     required String email,
     String phone = '',
   }) {
     return _client.post(
       '/api/buyer/profile',
-      body: {'name': name, 'email': email, 'phone': phone},
+      body: {
+        if (id != null && id.trim().isNotEmpty) 'id': id.trim(),
+        'name': name,
+        'email': email,
+        'phone': phone,
+      },
       parser: (json) => BuyerProfile.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  Future<String> exchangePhoneIdToken(String idToken) {
+    return _client.post(
+      '/api/auth/phone/session',
+      body: {'idToken': idToken},
+      parser: (json) {
+        final map = json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{};
+        final refresh = map['refresh_token']?.toString() ?? '';
+        if (refresh.isEmpty) {
+          throw ApiException(map['error']?.toString() ?? 'Could not start session.');
+        }
+        return refresh;
+      },
     );
   }
 
@@ -528,12 +565,52 @@ class BuyerApi {
   }
 
   Future<void> activateSubscription({required String checkoutId}) async {
-    await _client.post(
-      '/api/buyer/subscriptions/activate',
-      body: {'checkoutId': checkoutId},
-      auth: true,
-      parser: (_) => true,
-    );
+    try {
+      await _client.post(
+        '/api/buyer/subscriptions/activate',
+        body: {'checkoutId': checkoutId},
+        auth: true,
+        parser: (_) => true,
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return;
+      rethrow;
+    }
+  }
+
+  Future<OrderSummary?> getOrderByCheckoutId(String checkoutId) async {
+    try {
+      return await _client.get<OrderSummary?>(
+        '/api/orders',
+        query: {'checkoutId': checkoutId},
+        auth: true,
+        parser: (json) {
+          if (json is! Map) return null;
+          final order = OrderSummary.fromJson(Map<String, dynamic>.from(json));
+          return order.id.isEmpty ? null : order;
+        },
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<OrderSummary?> waitForOrderByCheckoutId(
+    String checkoutId, {
+    int attempts = 8,
+    Duration delay = const Duration(milliseconds: 1500),
+  }) async {
+    for (var i = 0; i < attempts; i++) {
+      try {
+        final order = await getOrderByCheckoutId(checkoutId);
+        if (order != null) return order;
+      } catch (_) {}
+      if (i < attempts - 1) {
+        await Future<void>.delayed(delay);
+      }
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> createServicePayment({

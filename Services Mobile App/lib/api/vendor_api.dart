@@ -17,6 +17,21 @@ class VendorApi {
     );
   }
 
+  Future<String> exchangePhoneIdToken(String idToken) {
+    return _client.post(
+      '/api/auth/phone/session',
+      body: {'idToken': idToken},
+      parser: (json) {
+        final map = json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{};
+        final refresh = map['refresh_token']?.toString() ?? '';
+        if (refresh.isEmpty) {
+          throw ApiException(map['error']?.toString() ?? 'Could not start session.');
+        }
+        return refresh;
+      },
+    );
+  }
+
   Future<VendorProfile> getVendor(String id) {
     return _client.get(
       '/api/vendors/$id',

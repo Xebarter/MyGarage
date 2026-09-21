@@ -81,7 +81,7 @@ export function getAuthGivenName(user: User | null): string {
   }
 
   const email = user.email?.trim();
-  if (email) {
+  if (email && !email.toLowerCase().startsWith('phone.')) {
     const local = email.split('@')[0] ?? '';
     const token = local.split(/[._+\-]/).filter(Boolean)[0] ?? local;
     if (token) return titleCaseWord(token);

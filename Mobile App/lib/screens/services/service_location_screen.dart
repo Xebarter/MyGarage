@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../auth/phone.dart';
 import '../../data/services_catalog.dart';
 import '../../maps/premium_google_map.dart';
 import '../../maps/map_coords.dart';
@@ -40,6 +41,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
 
   final _address = TextEditingController();
   final _notes = TextEditingController();
+  final _phone = TextEditingController();
   final _addressFocus = FocusNode();
   final _api = BuyerApi(ApiClient());
   PremiumMapController? _map;
@@ -59,9 +61,19 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
     super.initState();
     unawaited(_bootstrapLocation());
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seedContactPhone();
       _loadVehicles();
       _bounceIfOpenRequest();
     });
+  }
+
+  void _seedContactPhone() {
+    if (!mounted) return;
+    if (_phone.text.trim().isNotEmpty) return;
+    final phone = context.read<AuthController>().signedInPhone;
+    if (phone.isNotEmpty) {
+      _phone.text = formatE164Display(phone);
+    }
   }
 
   Future<void> _loadVehicles() async {
@@ -108,6 +120,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
   void dispose() {
     _address.dispose();
     _notes.dispose();
+    _phone.dispose();
     _addressFocus.dispose();
     super.dispose();
   }
@@ -218,6 +231,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
       await auth.refreshProfile();
     }
     if (!mounted) return;
+    _seedContactPhone();
     final cid = auth.customerId;
     if (cid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,6 +243,14 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
     final locationLabel = _address.text.trim().isEmpty
         ? '${_pin.latitude.toStringAsFixed(5)}, ${_pin.longitude.toStringAsFixed(5)}'
         : _address.text.trim();
+
+    final contactPhone = normalizeToE164(_phone.text) ?? _phone.text.trim();
+    if (digitsOnly(contactPhone).length < 9) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a mobile number so the provider can reach you.')),
+      );
+      return;
+    }
 
     setState(() => _busy = true);
     try {
@@ -242,6 +264,8 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
         'notes': _notes.text.trim(),
         'destinationLat': _pin.latitude,
         'destinationLng': _pin.longitude,
+        'buyerContactPhone': contactPhone,
+        if (auth.displayName.isNotEmpty) 'buyerContactName': auth.displayName,
         if (_selectedVehicleId != null && _selectedVehicleId!.isNotEmpty) 'vehicleId': _selectedVehicleId,
       });
       if (!mounted) return;
@@ -370,6 +394,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
                 address: _address,
                 addressFocus: _addressFocus,
                 notes: _notes,
+                phone: _phone,
                 status: _status,
                 busy: _busy,
                 bottomInset: bottomInset,
@@ -400,6 +425,7 @@ class _ConfirmSheet extends StatelessWidget {
     required this.address,
     required this.addressFocus,
     required this.notes,
+    required this.phone,
     required this.status,
     required this.busy,
     required this.bottomInset,
@@ -417,6 +443,7 @@ class _ConfirmSheet extends StatelessWidget {
   final TextEditingController address;
   final FocusNode addressFocus;
   final TextEditingController notes;
+  final TextEditingController phone;
   final String? status;
   final bool busy;
   final double bottomInset;
@@ -485,6 +512,19 @@ class _ConfirmSheet extends StatelessWidget {
                 labelText: 'Landmark or address',
                 hintText: 'Search e.g. Acacia Mall, Kisementi…',
                 prefixIcon: Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: phone,
+              enabled: !busy,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Mobile number',
+                prefixIcon: Icon(Icons.phone_outlined),
                 filled: true,
                 fillColor: AppColors.surfaceMuted,
               ),

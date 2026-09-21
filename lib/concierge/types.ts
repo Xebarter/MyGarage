@@ -3,6 +3,7 @@ export type ConciergeChatRole = "user" | "assistant";
 export type ConciergeChatTurn = {
   role: ConciergeChatRole;
   content: string;
+  imageUrl?: string;
 };
 
 export type ConciergeQuoteLine = {
@@ -48,6 +49,41 @@ export type ConciergeShopDepartment = {
   children: string[];
 };
 
+export type ConciergeOrderCard = {
+  id: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  itemSummary: string;
+  href: string;
+  hrefMobile: string;
+};
+
+export type ConciergeBookingCard = {
+  id: string;
+  status: string;
+  service: string;
+  location: string;
+  createdAt: string;
+  href: string;
+  hrefMobile: string;
+};
+
+export type ConciergeVehicleDraft = {
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string;
+  nickname: string;
+  color: string;
+  vin: string;
+  mileageKm: number | null;
+  fuelType: string;
+  transmission: string;
+  isPrimary: boolean;
+  imageUrl: string;
+};
+
 export type ConciergePendingQuote = {
   type: "quote";
   lines: ConciergeQuoteLine[];
@@ -63,7 +99,59 @@ export type ConciergePendingBook = {
   location: string;
 };
 
-export type ConciergePendingAction = ConciergePendingQuote | ConciergePendingBook;
+export type ConciergePendingNavigate = {
+  type: "navigate";
+  destination: string;
+  href: string;
+  hrefMobile: string;
+  title: string;
+  description: string;
+};
+
+export type ConciergePendingAuth = {
+  type: "auth";
+  href: string;
+  hrefMobile: string;
+  title: string;
+  description: string;
+  next: string;
+};
+
+export type ConciergePendingVehicleCreate = ConciergeVehicleDraft & {
+  type: "vehicle_create";
+};
+
+export type ConciergePendingVehicleUpdate = {
+  type: "vehicle_update";
+  vehicleId: string;
+  label: string;
+  summary: string;
+  updates: Partial<ConciergeVehicleDraft> & { vehicleId?: never };
+};
+
+export type ConciergePendingProfileUpdate = {
+  type: "profile_update";
+  name: string;
+  phone: string;
+  address: string;
+};
+
+export type ConciergePendingAddressCreate = {
+  type: "address_create";
+  label: string;
+  fullAddress: string;
+  isDefault: boolean;
+};
+
+export type ConciergePendingAction =
+  | ConciergePendingQuote
+  | ConciergePendingBook
+  | ConciergePendingNavigate
+  | ConciergePendingAuth
+  | ConciergePendingVehicleCreate
+  | ConciergePendingVehicleUpdate
+  | ConciergePendingProfileUpdate
+  | ConciergePendingAddressCreate;
 
 export type ConciergeChatResponse = {
   reply: string;
@@ -71,6 +159,8 @@ export type ConciergeChatResponse = {
   productBrowse: ConciergeProductBrowse | null;
   productDetail: ConciergeProductDetailView | null;
   shopCategories: ConciergeShopDepartment[] | null;
+  orderBrowse: ConciergeOrderCard[] | null;
+  bookingBrowse: ConciergeBookingCard[] | null;
   configured: true;
 };
 
@@ -87,6 +177,16 @@ export type ConciergeActBookResult = {
   trackPath: string;
 };
 
+export type ConciergeActGuideResult = {
+  ok: true;
+  type: Exclude<ConciergePendingAction["type"], "quote" | "book">;
+  href?: string;
+  hrefMobile?: string;
+  vehicleId?: string;
+  addressId?: string;
+  message: string;
+};
+
 export type ConciergeActError = {
   ok: false;
   error: string;
@@ -96,4 +196,8 @@ export type ConciergeActError = {
   trackPath?: string;
 };
 
-export type ConciergeActResult = ConciergeActQuoteResult | ConciergeActBookResult | ConciergeActError;
+export type ConciergeActResult =
+  | ConciergeActQuoteResult
+  | ConciergeActBookResult
+  | ConciergeActGuideResult
+  | ConciergeActError;

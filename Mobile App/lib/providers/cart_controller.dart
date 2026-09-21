@@ -14,6 +14,7 @@ class CartController extends ChangeNotifier {
   final List<CartItem> _items = [];
   List<CartItem> _held = [];
   bool hydrated = false;
+  bool _skipHeldRestore = false;
 
   List<CartItem> get items => List.unmodifiable(_items);
 
@@ -28,12 +29,21 @@ class CartController extends ChangeNotifier {
     return 0;
   }
 
+  bool get hasHeldCheckout => _held.isNotEmpty;
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _items
       ..clear()
       ..addAll(_decodeItems(prefs.getString(_cartKey)));
     _held = _decodeItems(prefs.getString(_heldCartKey));
+    // App was killed mid-checkout: put the held items back so the cart is not empty.
+    if (!_skipHeldRestore && _items.isEmpty && _held.isNotEmpty) {
+      _items.addAll(_held);
+      _held = [];
+      await _persist();
+      await _persistHeld();
+    }
     hydrated = true;
     notifyListeners();
   }
@@ -121,13 +131,20 @@ class CartController extends ChangeNotifier {
   }
 
   Future<void> holdAndClearForCheckout() async {
+    _skipHeldRestore = false;
     _held = List<CartItem>.from(_items);
     await _persistHeld();
     await clear();
   }
 
-  void confirmHeldCheckout() {
+  void confirmHeldCheckout({bool clearLiveCart = false}) {
+    _skipHeldRestore = true;
     _held = [];
+    if (clearLiveCart && _items.isNotEmpty) {
+      _items.clear();
+      notifyListeners();
+      unawaited(_persist());
+    }
     unawaited(_persistHeld());
   }
 

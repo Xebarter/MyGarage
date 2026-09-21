@@ -21,11 +21,14 @@ class AppBrandLogo extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.borderSoft, width: 0.5),
+        border: Border.all(
+          color: AppColors.glow.withValues(alpha: 0.28),
+          width: 0.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.ink.withValues(alpha: 0.06),
-            blurRadius: 6,
+            color: AppColors.glow.withValues(alpha: 0.18),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],

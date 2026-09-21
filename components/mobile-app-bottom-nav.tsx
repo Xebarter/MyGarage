@@ -21,6 +21,7 @@ export type MobileAppTab = (typeof tabs)[number]['match'];
 export function shouldHideMobileAppFooter(pathname: string): boolean {
   if (pathname.startsWith('/admin')) return true;
   if (pathname.startsWith('/vendor')) return true;
+  if (pathname.startsWith('/auth')) return true;
   if (pathname === '/services' || pathname.startsWith('/services/')) return true;
   return false;
 }

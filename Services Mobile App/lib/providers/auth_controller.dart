@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../api/api_client.dart';
 import '../api/vendor_api.dart';
 import '../auth/google_auth.dart';
+import '../auth/phone.dart';
+import '../auth/phone_auth_client.dart';
 import '../auth/session_backup.dart';
 import '../config.dart';
 import '../models/vendor_profile.dart';
@@ -21,6 +23,7 @@ class AuthController extends ChangeNotifier {
   }
 
   final VendorApi _vendorApi;
+  final PhoneAuthClient _phoneAuth = PhoneAuthClient(role: 'services');
   AuthStatus status = AuthStatus.unknown;
   User? user;
   VendorProfile? vendor;
@@ -260,6 +263,80 @@ class AuthController extends ChangeNotifier {
       }
     } catch (e) {
       errorMessage = googleSignInErrorMessage(e);
+      if (vendorId == null) status = AuthStatus.unauthenticated;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _applyPhoneIdToken(String idToken) async {
+    final refresh = await _vendorApi.exchangePhoneIdToken(idToken);
+    final res = await Supabase.instance.client.auth.setSession(refresh);
+    user = res.user ?? Supabase.instance.client.auth.currentUser;
+    _explicitSignOut = false;
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      await SessionBackup.persistSession(session);
+    }
+    _cachedUserId = user?.id ?? _cachedUserId;
+    await _phoneAuth.abort();
+    await _vendorApi.bootstrap();
+    await refreshVendor();
+  }
+
+  Future<bool> sendPhoneOtp(String rawPhone) async {
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final phone = normalizeToE164(rawPhone);
+      if (phone == null) {
+        errorMessage = 'Enter a valid phone number.';
+        return false;
+      }
+      final started = await _phoneAuth.start(phone);
+      if (started.awaitingSms) return true;
+      final token = started.idToken;
+      if (token == null || token.isEmpty) {
+        errorMessage = 'Could not complete phone sign-in.';
+        return false;
+      }
+      await _applyPhoneIdToken(token);
+      return false;
+    } catch (e) {
+      errorMessage = phoneSignInErrorMessage(e);
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> verifyPhoneOtp({
+    required String rawPhone,
+    required String token,
+  }) async {
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final phone = normalizeToE164(rawPhone);
+      if (phone == null) {
+        errorMessage = 'Enter a valid phone number.';
+        if (vendorId == null) status = AuthStatus.unauthenticated;
+        return;
+      }
+      final code = token.replaceAll(RegExp(r'\D'), '');
+      if (code.length < 6) {
+        errorMessage = 'Enter the 6-digit code.';
+        if (vendorId == null) status = AuthStatus.unauthenticated;
+        return;
+      }
+      final idToken = await _phoneAuth.confirmSmsCode(code);
+      await _applyPhoneIdToken(idToken);
+    } catch (e) {
+      errorMessage = phoneSignInErrorMessage(e);
       if (vendorId == null) status = AuthStatus.unauthenticated;
     } finally {
       busy = false;

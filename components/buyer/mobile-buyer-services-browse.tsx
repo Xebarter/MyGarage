@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Bolt, ChevronDown, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bolt, ChevronDown, MapPin, Search, X } from 'lucide-react';
 
 import {
   cleanServiceDisplayTitle,
   userServiceCategories,
   type UserServiceCategory,
 } from '@/lib/services-catalog';
+import { searchBuyerServicesCatalog } from '@/lib/search/match-catalog-services';
 import { serviceCardSurfaceClass, serviceCardTone, SERVICE_EMERGENCY_TONE, serviceEmergencySurfaceClass } from '@/lib/service-card-tones';
 import { cn } from '@/lib/utils';
 
@@ -41,11 +42,20 @@ export function MobileBuyerServicesBrowse({
   onToggleJob?: (id: string) => void;
 }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const selected = useMemo(
     () => (categoryId ? userServiceCategories.find((c) => c.id === categoryId) ?? null : null),
     [categoryId],
   );
+
+  const catalogSearch = useMemo(
+    () => searchBuyerServicesCatalog(query, { serviceLimit: 20 }),
+    [query],
+  );
+  const isSearching = query.trim().length >= 2;
+  const matchedCategories = catalogSearch.categories.map((row) => row.category);
+  const matchedServices = catalogSearch.services;
 
   if (selected) {
     return (
@@ -57,8 +67,9 @@ export function MobileBuyerServicesBrowse({
     );
   }
 
-  const urgent = userServiceCategories.filter((c) => c.priority === 'urgent');
-  const rest = userServiceCategories.filter((c) => c.priority !== 'urgent');
+  const urgent = matchedCategories.filter((c) => c.priority === 'urgent');
+  const rest = matchedCategories.filter((c) => c.priority !== 'urgent');
+  const noMatches = isSearching && matchedServices.length === 0 && matchedCategories.length === 0;
 
   return (
     <div className="min-h-full bg-[#F2F4F8] pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -77,8 +88,54 @@ export function MobileBuyerServicesBrowse({
         </p>
       </header>
 
-      {activeRequest ? (
-        <div className="px-4 pt-3">
+      <div className="sticky top-0 z-20 bg-[#F2F4F8]/95 px-4 pb-3 pt-2 backdrop-blur-md">
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#7A8B82]"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search towing, oil, battery, wash…"
+            className="h-12 w-full rounded-[14px] border border-black/[0.06] bg-white pl-11 pr-11 text-[15px] font-medium text-[#12241C] shadow-[0_1px_2px_rgba(18,36,28,0.04)] outline-none placeholder:font-normal placeholder:text-[#9AA8A0] focus:border-[#0E9A6A]/45 focus:ring-2 focus:ring-[#0E9A6A]/15"
+            aria-label="Search services and categories"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#F2F4F8] text-[#7A8B82]"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+        {isSearching ? (
+          <p className="mt-2 px-0.5 text-[12px] font-medium text-[#7A8B82]" aria-live="polite">
+            {noMatches
+              ? 'No matches'
+              : [
+                  matchedServices.length > 0
+                    ? `${matchedServices.length} ${matchedServices.length === 1 ? 'service' : 'services'}`
+                    : null,
+                  matchedCategories.length > 0
+                    ? `${matchedCategories.length} ${matchedCategories.length === 1 ? 'category' : 'categories'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+            {query.trim() ? ` for “${query.trim()}”` : ''}
+          </p>
+        ) : null}
+      </div>
+
+      {activeRequest && !isSearching ? (
+        <div className="px-4 pt-1">
           <Link
             href={`/buyer/services/track/${activeRequest.id}`}
             className={cn(
@@ -101,86 +158,191 @@ export function MobileBuyerServicesBrowse({
         </div>
       ) : null}
 
-      {urgent.length > 0 ? (
-        <div className="space-y-2.5 px-4 pt-3">
-          {urgent.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() => setCategoryId(category.id)}
-              className={cn(
-                'w-full rounded-[22px] p-[18px] text-left transition active:scale-[0.99]',
-                serviceEmergencySurfaceClass,
-              )}
-              style={{ backgroundColor: SERVICE_EMERGENCY_TONE }}
-            >
-              <div className="flex items-start gap-3.5">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/45 text-[28px]">
-                  {category.emoji}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <span className="inline-flex rounded-full bg-[#9F2A2A]/12 px-2.5 py-1 text-[11px] font-bold tracking-wide text-[#9F2A2A]">
-                    Priority
-                  </span>
-                  <p className="mt-2 text-[19px] font-bold leading-snug tracking-tight text-[#12241C]">
-                    {cleanServiceDisplayTitle(category.title)}
-                  </p>
-                </div>
-                <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#9F2A2A]/80" aria-hidden />
-              </div>
-              <p className="mt-3.5 text-[14px] leading-relaxed text-[#5C3A38]">{category.useWhen}</p>
-              <p className="mt-3.5 flex items-center gap-1.5 text-[12px] font-semibold text-[#9F2A2A]">
-                <Bolt className="h-4 w-4" aria-hidden />
-                {category.services.length} emergency options · fastest response
-              </p>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {rest.length > 0 ? (
-        <>
-          <p
-            className={cn(
-              'px-5 text-[13px] font-semibold tracking-wide text-[#7A8B82]',
-              urgent.length > 0 ? 'pb-2.5 pt-3' : 'pb-2.5 pt-2',
-            )}
-          >
-            {urgent.length > 0 ? 'All services' : 'Browse services'}
+      {noMatches ? (
+        <div className="mx-4 mt-4 rounded-[16px] border border-dashed border-black/10 bg-white/70 px-4 py-10 text-center">
+          <Search className="mx-auto h-8 w-8 text-[#9AA8A0]" aria-hidden />
+          <p className="mt-3 text-[15px] font-semibold text-[#12241C]">No services match</p>
+          <p className="mt-1 text-[13px] text-[#7A8B82]">
+            Try towing, tyre, oil change, wash, or tracker.
           </p>
-          <div className={cn('grid grid-cols-2 gap-2.5 px-4', pastJobs.length > 0 ? 'pb-4' : 'pb-10')}>
-            {rest.map((category, index) => {
-              const muted = category.priority === 'optional';
-              return (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            className="mt-4 inline-flex h-10 items-center rounded-full bg-[#12241C] px-4 text-[13px] font-semibold text-white"
+          >
+            Clear search
+          </button>
+        </div>
+      ) : (
+        <>
+          {isSearching && matchedServices.length > 0 ? (
+            <section className="px-4 pt-2" aria-label="Matching services">
+              <p className="px-1 pb-2 text-[13px] font-semibold tracking-wide text-[#7A8B82]">
+                Matching services
+              </p>
+              <ul className="space-y-2">
+                {matchedServices.map((hit, index) => (
+                  <li key={hit.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectService(hit.categoryTitle, hit.name)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-[14px] px-3.5 py-3 text-left transition active:scale-[0.99]',
+                        serviceCardSurfaceClass,
+                      )}
+                      style={{ backgroundColor: serviceCardTone(index) }}
+                    >
+                      <span
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-white/55 text-[22px]"
+                        aria-hidden
+                      >
+                        {hit.emoji}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-semibold text-[#12241C]">
+                          {hit.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[12px] font-medium text-[#7A8B82]">
+                          {cleanServiceDisplayTitle(hit.categoryTitle)}
+                        </span>
+                      </span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-[#7A8B82]" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {!isSearching && urgent.length > 0 ? (
+            <div className="space-y-2.5 px-4 pt-3">
+              {urgent.map((category) => (
                 <button
                   key={category.id}
                   type="button"
                   onClick={() => setCategoryId(category.id)}
                   className={cn(
-                    'flex h-[112px] flex-col rounded-[14px] p-3 text-left transition active:scale-[0.99]',
-                    serviceCardSurfaceClass,
+                    'w-full rounded-[22px] p-[18px] text-left transition active:scale-[0.99]',
+                    serviceEmergencySurfaceClass,
                   )}
-                  style={{ backgroundColor: serviceCardTone(index) }}
+                  style={{ backgroundColor: SERVICE_EMERGENCY_TONE }}
                 >
-                  <span
-                    className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/50 text-[20px]"
-                    aria-hidden
-                  >
-                    {category.emoji}
-                  </span>
-                  <span className="mt-auto line-clamp-2 text-[13px] font-semibold leading-snug text-[#12241C]">
-                    <span className={muted ? 'text-[#475569]' : undefined}>
-                      {cleanServiceDisplayTitle(category.title)}
+                  <div className="flex items-start gap-3.5">
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/45 text-[28px]">
+                      {category.emoji}
                     </span>
-                  </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="inline-flex rounded-full bg-[#9F2A2A]/12 px-2.5 py-1 text-[11px] font-bold tracking-wide text-[#9F2A2A]">
+                        Priority
+                      </span>
+                      <p className="mt-2 text-[19px] font-bold leading-snug tracking-tight text-[#12241C]">
+                        {cleanServiceDisplayTitle(category.title)}
+                      </p>
+                    </div>
+                    <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#9F2A2A]/80" aria-hidden />
+                  </div>
+                  <p className="mt-3.5 text-[14px] leading-relaxed text-[#5C3A38]">{category.useWhen}</p>
+                  <p className="mt-3.5 flex items-center gap-1.5 text-[12px] font-semibold text-[#9F2A2A]">
+                    <Bolt className="h-4 w-4" aria-hidden />
+                    {category.services.length} emergency options · fastest response
+                  </p>
                 </button>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
+              ))}
+            </div>
+          ) : null}
 
-      {pastJobs.length > 0 ? (
+          {isSearching && matchedCategories.length > 0 ? (
+            <section className={cn('px-4', matchedServices.length > 0 ? 'pt-4' : 'pt-2')}>
+              <p className="px-1 pb-2.5 text-[13px] font-semibold tracking-wide text-[#7A8B82]">
+                Categories
+              </p>
+              <div className="grid grid-cols-2 gap-2.5 pb-4">
+                {matchedCategories.map((category, index) => {
+                  const meta = catalogSearch.categories[index];
+                  const muted = category.priority === 'optional';
+                  const isEmergency = category.priority === 'urgent';
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setCategoryId(category.id)}
+                      className={cn(
+                        'flex min-h-[112px] flex-col rounded-[14px] p-3 text-left transition active:scale-[0.99]',
+                        isEmergency ? serviceEmergencySurfaceClass : serviceCardSurfaceClass,
+                      )}
+                      style={{
+                        backgroundColor: isEmergency ? SERVICE_EMERGENCY_TONE : serviceCardTone(index),
+                      }}
+                    >
+                      <span
+                        className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/50 text-[20px]"
+                        aria-hidden
+                      >
+                        {category.emoji}
+                      </span>
+                      <span className="mt-auto line-clamp-2 text-[13px] font-semibold leading-snug text-[#12241C]">
+                        <span className={muted ? 'text-[#475569]' : undefined}>
+                          {cleanServiceDisplayTitle(category.title)}
+                        </span>
+                      </span>
+                      {meta?.matchingServiceCount ? (
+                        <span className="mt-1 text-[11px] font-medium text-[#7A8B82]">
+                          {meta.matchingServiceCount} match
+                          {meta.matchingServiceCount === 1 ? '' : 'es'}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {!isSearching && rest.length > 0 ? (
+            <>
+              <p
+                className={cn(
+                  'px-5 text-[13px] font-semibold tracking-wide text-[#7A8B82]',
+                  urgent.length > 0 ? 'pb-2.5 pt-3' : 'pb-2.5 pt-2',
+                )}
+              >
+                {urgent.length > 0 ? 'All services' : 'Browse services'}
+              </p>
+              <div className={cn('grid grid-cols-2 gap-2.5 px-4', pastJobs.length > 0 ? 'pb-4' : 'pb-10')}>
+                {rest.map((category, index) => {
+                  const muted = category.priority === 'optional';
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setCategoryId(category.id)}
+                      className={cn(
+                        'flex h-[112px] flex-col rounded-[14px] p-3 text-left transition active:scale-[0.99]',
+                        serviceCardSurfaceClass,
+                      )}
+                      style={{ backgroundColor: serviceCardTone(index) }}
+                    >
+                      <span
+                        className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/50 text-[20px]"
+                        aria-hidden
+                      >
+                        {category.emoji}
+                      </span>
+                      <span className="mt-auto line-clamp-2 text-[13px] font-semibold leading-snug text-[#12241C]">
+                        <span className={muted ? 'text-[#475569]' : undefined}>
+                          {cleanServiceDisplayTitle(category.title)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
+        </>
+      )}
+
+      {!isSearching && pastJobs.length > 0 ? (
         <section className="px-4 pb-10 pt-2" aria-label="Completed services">
           <p className="px-1 pb-2.5 text-[13px] font-semibold tracking-wide text-[#7A8B82]">Past jobs</p>
           <ul className="space-y-2">
@@ -265,7 +427,7 @@ function MobileCategoryDetail({
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#12241C] shadow-sm"
           aria-label="Back to services"
         >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
+          <ArrowLeft className="h-5 w-5" />
         </button>
       </div>
 

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../auth/phone.dart';
 import '../../models/buyer_control_center.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
@@ -131,7 +132,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               aSliver(
                 _HeroCard(
                   profile: profile,
-                  email: auth.user?.email ?? profile?.email ?? '',
+                  email: () {
+                    final raw = auth.user?.email ?? profile?.email ?? '';
+                    return isPlaceholderEmail(raw) ? '' : raw;
+                  }(),
                   money: money,
                   unread: unread,
                   membership: _cc?.subscription?.planTier,
@@ -432,7 +436,10 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = (profile?.name.isNotEmpty == true) ? profile!.name : 'Buyer';
+    final rawName = profile?.name ?? '';
+    final name = isPlaceholderDisplayName(rawName, phone: profile?.phone ?? '', email: email)
+        ? 'Buyer'
+        : (rawName.isNotEmpty ? rawName : 'Buyer');
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
     final phone = profile?.phone ?? '';
 
@@ -472,7 +479,8 @@ class _HeroCard extends StatelessWidget {
                         style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
-                      Text(email, style: AppTheme.host(fontSize: 13, color: AppColors.textMuted)),
+                      if (email.isNotEmpty && !isPlaceholderEmail(email))
+                        Text(email, style: AppTheme.host(fontSize: 13, color: AppColors.textMuted)),
                       if (phone.isNotEmpty)
                         Text(phone, style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary)),
                       if (membership != null && membership!.isNotEmpty) ...[

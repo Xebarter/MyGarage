@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { unregisterAdminPushToken } from '@/components/admin/admin-push-alerts';
 
 const NAV_GROUPS = [
   {
@@ -70,6 +71,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
 
   const handleLogout = async () => {
     onMobileClose?.();
+    await unregisterAdminPushToken();
     await supabase.auth.signOut();
     window.location.href = '/';
   };

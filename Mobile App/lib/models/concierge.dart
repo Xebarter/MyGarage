@@ -72,6 +72,18 @@ class ConciergeProductCard {
       description: json['description']?.toString() ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'price': price,
+        if (compareAtPrice != null) 'compareAtPrice': compareAtPrice,
+        'image': image,
+        'category': category,
+        'brand': brand,
+        'href': href,
+        if (description.isNotEmpty) 'description': description,
+      };
 }
 
 class ConciergeProductBrowse {
@@ -129,6 +141,17 @@ class ConciergeProductBrowse {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        if (query != null) 'query': query,
+        if (category != null) 'category': category,
+        'total': total,
+        'offset': offset,
+        'hasMore': hasMore,
+        'products': products.map((e) => e.toJson()).toList(),
+        if (departments.isNotEmpty) 'departments': departments.map((e) => e.toJson()).toList(),
+      };
 }
 
 class ConciergeShopDepartment {
@@ -142,6 +165,69 @@ class ConciergeShopDepartment {
     return ConciergeShopDepartment(
       title: json['title']?.toString() ?? '',
       children: kids.map((e) => e.toString()).where((e) => e.isNotEmpty).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'children': children,
+      };
+}
+
+class ConciergeOrderCard {
+  ConciergeOrderCard({
+    required this.id,
+    required this.status,
+    required this.total,
+    this.itemSummary = '',
+    this.href = '',
+    this.hrefMobile = '',
+  });
+
+  final String id;
+  final String status;
+  final double total;
+  final String itemSummary;
+  final String href;
+  final String hrefMobile;
+
+  factory ConciergeOrderCard.fromJson(Map<String, dynamic> json) {
+    return ConciergeOrderCard(
+      id: json['id']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      total: (json['total'] as num?)?.toDouble() ?? 0,
+      itemSummary: json['itemSummary']?.toString() ?? '',
+      href: json['href']?.toString() ?? '',
+      hrefMobile: json['hrefMobile']?.toString() ?? '',
+    );
+  }
+}
+
+class ConciergeBookingCard {
+  ConciergeBookingCard({
+    required this.id,
+    required this.status,
+    this.service = '',
+    this.location = '',
+    this.href = '',
+    this.hrefMobile = '',
+  });
+
+  final String id;
+  final String status;
+  final String service;
+  final String location;
+  final String href;
+  final String hrefMobile;
+
+  factory ConciergeBookingCard.fromJson(Map<String, dynamic> json) {
+    return ConciergeBookingCard(
+      id: json['id']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      service: json['service']?.toString() ?? '',
+      location: json['location']?.toString() ?? '',
+      href: json['href']?.toString() ?? '',
+      hrefMobile: json['hrefMobile']?.toString() ?? '',
     );
   }
 }
@@ -175,6 +261,22 @@ class ConciergePendingAction {
     this.vehicleId,
     this.notes = '',
     this.location = '',
+    this.title = '',
+    this.description = '',
+    this.href = '',
+    this.hrefMobile = '',
+    this.summary = '',
+    this.label = '',
+    this.fullAddress = '',
+    this.next = '',
+    this.make = '',
+    this.model = '',
+    this.year = 0,
+    this.licensePlate = '',
+    this.nickname = '',
+    this.color = '',
+    this.imageUrl = '',
+    this.payload = const {},
   });
 
   final String type;
@@ -185,39 +287,72 @@ class ConciergePendingAction {
   final String? vehicleId;
   final String notes;
   final String location;
+  final String title;
+  final String description;
+  final String href;
+  final String hrefMobile;
+  final String summary;
+  final String label;
+  final String fullAddress;
+  final String next;
+  final String make;
+  final String model;
+  final int year;
+  final String licensePlate;
+  final String nickname;
+  final String color;
+  final String imageUrl;
+  final Map<String, dynamic> payload;
 
   bool get isQuote => type == 'quote';
   bool get isBook => type == 'book';
+  bool get isGuide => !isQuote && !isBook;
 
   factory ConciergePendingAction.fromJson(Map<String, dynamic> json) {
     final lines = json['lines'] is List ? json['lines'] as List : const [];
+    final updates = json['updates'] is Map ? Map<String, dynamic>.from(json['updates'] as Map) : const <String, dynamic>{};
     return ConciergePendingAction(
       type: json['type']?.toString() ?? '',
-      lines: lines
-          .whereType<Map>()
-          .map((e) => ConciergeQuoteLine.fromJson(Map<String, dynamic>.from(e)))
-          .toList(),
+      lines: lines.whereType<Map>().map((e) => ConciergeQuoteLine.fromJson(Map<String, dynamic>.from(e))).toList(),
       categoryId: json['categoryId']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
       service: json['service']?.toString() ?? '',
       vehicleId: json['vehicleId']?.toString(),
       notes: json['notes']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? json['summary']?.toString() ?? '',
+      href: json['href']?.toString() ?? '',
+      hrefMobile: json['hrefMobile']?.toString() ?? json['href']?.toString() ?? '',
+      summary: json['summary']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      fullAddress: json['fullAddress']?.toString() ?? '',
+      next: json['next']?.toString() ?? '',
+      make: json['make']?.toString() ?? updates['make']?.toString() ?? '',
+      model: json['model']?.toString() ?? updates['model']?.toString() ?? '',
+      year: (json['year'] as num?)?.toInt() ?? (updates['year'] as num?)?.toInt() ?? 0,
+      licensePlate: json['licensePlate']?.toString() ?? updates['licensePlate']?.toString() ?? '',
+      nickname: json['nickname']?.toString() ?? updates['nickname']?.toString() ?? '',
+      color: json['color']?.toString() ?? updates['color']?.toString() ?? '',
+      imageUrl: json['imageUrl']?.toString() ?? updates['imageUrl']?.toString() ?? '',
+      payload: json,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        if (isQuote) 'lines': lines.map((e) => e.toJson()).toList(),
-        if (isBook) ...{
-          'categoryId': categoryId,
-          'category': category,
-          'service': service,
-          'vehicleId': vehicleId,
-          'notes': notes,
-          'location': location,
-        },
-      };
+  Map<String, dynamic> toJson() => payload.isNotEmpty
+      ? payload
+      : {
+          'type': type,
+          if (isQuote) 'lines': lines.map((e) => e.toJson()).toList(),
+          if (isBook) ...{
+            'categoryId': categoryId,
+            'category': category,
+            'service': service,
+            'vehicleId': vehicleId,
+            'notes': notes,
+            'location': location,
+          },
+        };
 }
 
 class ConciergeChatResult {
@@ -227,6 +362,8 @@ class ConciergeChatResult {
     this.productBrowse,
     this.productDetail,
     this.shopCategories = const [],
+    this.orderBrowse = const [],
+    this.bookingBrowse = const [],
     this.configured = true,
   });
 
@@ -235,6 +372,8 @@ class ConciergeChatResult {
   final ConciergeProductBrowse? productBrowse;
   final ConciergeProductCard? productDetail;
   final List<ConciergeShopDepartment> shopCategories;
+  final List<ConciergeOrderCard> orderBrowse;
+  final List<ConciergeBookingCard> bookingBrowse;
   final bool configured;
 
   factory ConciergeChatResult.fromJson(Map<String, dynamic> json) {
@@ -242,6 +381,8 @@ class ConciergeChatResult {
     final browse = json['productBrowse'];
     final detail = json['productDetail'];
     final departments = json['shopCategories'];
+    final orders = json['orderBrowse'];
+    final bookings = json['bookingBrowse'];
     return ConciergeChatResult(
       reply: json['reply']?.toString() ?? json['error']?.toString() ?? '',
       pendingAction: pending is Map ? ConciergePendingAction.fromJson(Map<String, dynamic>.from(pending)) : null,
@@ -252,6 +393,12 @@ class ConciergeChatResult {
               .whereType<Map>()
               .map((e) => ConciergeShopDepartment.fromJson(Map<String, dynamic>.from(e)))
               .toList()
+          : const [],
+      orderBrowse: orders is List
+          ? orders.whereType<Map>().map((e) => ConciergeOrderCard.fromJson(Map<String, dynamic>.from(e))).toList()
+          : const [],
+      bookingBrowse: bookings is List
+          ? bookings.whereType<Map>().map((e) => ConciergeBookingCard.fromJson(Map<String, dynamic>.from(e))).toList()
           : const [],
       configured: json['configured'] != false &&
           json['code']?.toString() != 'GROK_UNAVAILABLE' &&
@@ -270,6 +417,9 @@ class ConciergeActResult {
     this.error,
     this.field,
     this.code,
+    this.href,
+    this.hrefMobile,
+    this.message,
   });
 
   final bool ok;
@@ -280,6 +430,9 @@ class ConciergeActResult {
   final String? error;
   final String? field;
   final String? code;
+  final String? href;
+  final String? hrefMobile;
+  final String? message;
 
   factory ConciergeActResult.fromJson(Map<String, dynamic> json) {
     final lines = json['lines'] is List ? json['lines'] as List : const [];
@@ -302,6 +455,9 @@ class ConciergeActResult {
                   : json['code']?.toString() == 'PHONE_REQUIRED'
                       ? 'phone'
                       : null),
+      href: json['href']?.toString(),
+      hrefMobile: json['hrefMobile']?.toString(),
+      message: json['message']?.toString(),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../auth/phone.dart';
 import '../../checkout/checkout_draft.dart';
 import '../../providers/auth_controller.dart';
 import '../../providers/cart_controller.dart';
@@ -45,11 +46,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _seedFields() async {
+    final auth = context.read<AuthController>();
+    final profile = auth.profile;
+    final signedInPhone = auth.signedInPhone;
+    if (profile != null &&
+        profile.name.isNotEmpty &&
+        !isPlaceholderDisplayName(profile.name, phone: signedInPhone, email: profile.email)) {
+      _name.text = profile.name;
+    }
+    if (signedInPhone.isNotEmpty) {
+      _phone.text = formatE164Display(signedInPhone);
+    }
+
     final draft = await CheckoutDraft.load();
     if (!mounted) return;
     if (draft != null) {
-      if (draft.name.isNotEmpty) _name.text = draft.name;
-      if (draft.phone.isNotEmpty) _phone.text = draft.phone;
+      if (_name.text.isEmpty &&
+          draft.name.isNotEmpty &&
+          !isPlaceholderDisplayName(draft.name, phone: signedInPhone)) {
+        _name.text = draft.name;
+      }
+      if (_phone.text.isEmpty && draft.phone.isNotEmpty) {
+        _phone.text = draft.phone;
+      }
       if (draft.address.isNotEmpty) _address.text = draft.address;
     }
     _applyProfileIfEmpty();
@@ -57,10 +76,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _applyProfileIfEmpty() {
-    final profile = context.read<AuthController>().profile;
+    final auth = context.read<AuthController>();
+    final profile = auth.profile;
     if (profile == null) return;
-    if (_name.text.isEmpty) _name.text = profile.name;
-    if (_phone.text.isEmpty) _phone.text = profile.phone;
+    if (_name.text.isEmpty &&
+        profile.name.isNotEmpty &&
+        !isPlaceholderDisplayName(profile.name, phone: auth.signedInPhone, email: profile.email)) {
+      _name.text = profile.name;
+    }
+    if (_phone.text.isEmpty && auth.signedInPhone.isNotEmpty) {
+      _phone.text = formatE164Display(auth.signedInPhone);
+    }
     if (_address.text.isEmpty && profile.address.isNotEmpty) {
       _address.text = profile.address;
     }
@@ -141,6 +167,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             .toList(),
       });
 
+      final checkoutId = res['checkoutId']?.toString() ?? '';
       final paymentUrl = res['paymentUrl']?.toString() ??
           res['checkoutUrl']?.toString() ??
           res['url']?.toString();
@@ -153,10 +180,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         cart.restoreHeldCheckout();
         return;
       }
-      final result = await openHostedPayment(context, checkoutUrl: paymentUrl);
+      final result = await openHostedPayment(
+        context,
+        checkoutUrl: paymentUrl,
+        kind: 'product',
+        checkoutId: checkoutId,
+      );
       if (!mounted) return;
 
       if (result == null || !result.success) {
+        if (!cart.hasHeldCheckout) {
+          context.go(paymentResultLocation(
+            result ??
+                PaymentWebResult(
+                  success: true,
+                  cancelled: false,
+                  kind: 'product',
+                  checkoutId: checkoutId,
+                ),
+            auth,
+          ));
+          return;
+        }
         cart.restoreHeldCheckout();
         if (result == null || result.cancelled) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -170,7 +215,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      cart.confirmHeldCheckout();
+      final paidCheckoutId =
+          result.checkoutId.isNotEmpty ? result.checkoutId : checkoutId;
+      if (paidCheckoutId.isNotEmpty) {
+        await _api.waitForOrderByCheckoutId(paidCheckoutId);
+        if (!mounted) return;
+      }
+
+      cart.confirmHeldCheckout(clearLiveCart: true);
       unawaited(CheckoutDraft.clear());
       context.go(paymentResultLocation(result, auth));
     } catch (e) {

@@ -206,7 +206,7 @@ class _EmptyCart extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Your cart is empty',
+              'Cart is empty',
               style: AppTheme.host(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -216,7 +216,7 @@ class _EmptyCart extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Browse the shop and add parts you need — they will show up here with photos and totals.',
+              'Add parts from the shop.',
               textAlign: TextAlign.center,
               style: AppTheme.host(
                 color: AppColors.textSecondary,
@@ -229,7 +229,7 @@ class _EmptyCart extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => context.go('/shop'),
-                child: const Text('Browse shop'),
+                child: const Text('Shop'),
               ),
             ),
           ],

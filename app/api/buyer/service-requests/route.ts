@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
     const bodyPhone = typeof body.buyerContactPhone === 'string' ? body.buyerContactPhone.trim() : '';
     const bodyName = typeof body.buyerContactName === 'string' ? body.buyerContactName.trim() : '';
     const bookingNotes = typeof body.notes === 'string' ? body.notes.trim() : '';
-    const contactPhone = countPhoneDigits(customer.phone) >= 9 ? customer.phone.trim() : bodyPhone;
+    const submittedPhone = countPhoneDigits(bodyPhone) >= 9 ? bodyPhone : '';
+    const storedPhone = countPhoneDigits(customer.phone) >= 9 ? customer.phone.trim() : '';
+    const contactPhone = submittedPhone || storedPhone;
     if (countPhoneDigits(contactPhone) < 9) {
       return NextResponse.json(
         { error: 'A valid mobile number is required to request service.', code: 'PHONE_REQUIRED' },
@@ -80,6 +82,13 @@ export async function POST(req: NextRequest) {
     } catch (dispatchError) {
       console.error('startDispatchForNewRequest failed:', dispatchError);
     }
+    const { notifyLoggedInAdminsBestEffort } = await import('@/lib/push/notify-admins');
+    void notifyLoggedInAdminsBestEffort({
+      kind: 'service_request',
+      title: 'New service request',
+      body: `${created.service} — ${created.location}`,
+      url: '/admin',
+    });
     return NextResponse.json(serializeBuyerServiceRequest(created), { status: 201 });
   } catch (error) {
     if (error instanceof ActiveBuyerServiceExistsError) {

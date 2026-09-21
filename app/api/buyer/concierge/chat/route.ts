@@ -12,8 +12,9 @@ function parseHistory(value: unknown): ConciergeChatTurn[] {
     const rec = row as Record<string, unknown>;
     const role = rec.role === "assistant" ? "assistant" : rec.role === "user" ? "user" : null;
     const content = typeof rec.content === "string" ? rec.content.trim() : "";
-    if (!role || !content) continue;
-    turns.push({ role, content });
+    const imageUrl = typeof rec.imageUrl === "string" ? rec.imageUrl.trim() : "";
+    if (!role || (!content && !imageUrl)) continue;
+    turns.push({ role, content: content || (imageUrl ? "I attached a photo of my car." : ""), ...(imageUrl ? { imageUrl } : {}) });
   }
   return turns.slice(-12);
 }
@@ -28,8 +29,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+    const imageUrl = typeof body.imageUrl === "string" ? body.imageUrl.trim() : "";
     const message = typeof body.message === "string" ? body.message.trim() : "";
-    if (!message) {
+    if (!message && !imageUrl) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
     }
 
@@ -37,11 +39,20 @@ export async function POST(req: NextRequest) {
     const vehicleId = typeof body.vehicleId === "string" ? body.vehicleId.trim() : "";
     const history = parseHistory(body.history);
 
-    let contextJson = JSON.stringify({ guest: true });
+    let contextJson = JSON.stringify({ guest: true, signedIn: false });
     let canBook = false;
+    let signedIn = false;
     let defaultLocation = "";
     let defaultVehicleId: string | null = null;
     let vehicleHint = "";
+    let vehicles: Array<{
+      id: string;
+      make?: string;
+      model?: string;
+      year?: number;
+      nickname?: string | null;
+      licensePlate?: string | null;
+    }> = [];
 
     if (customerId) {
       const customer = await getCustomer(customerId);
@@ -49,6 +60,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 });
       }
       canBook = true;
+      signedIn = true;
       const addresses = await getBuyerAddresses(customerId);
       const defaultAddress = addresses.find((row) => row.isDefault) ?? addresses[0];
       defaultLocation = defaultAddress?.fullAddress?.trim() || customer.address?.trim() || "";
@@ -65,35 +77,43 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Failed to load vehicle context" }, { status: 500 });
         }
         contextJson = JSON.stringify({
-          customer: { name: customer.name, phoneSet: Boolean(customer.phone) },
+          signedIn: true,
+          customer: { name: customer.name, phoneSet: Boolean(customer.phone), addressSet: Boolean(customer.address) },
           defaultLocation,
           vehicleContext: scoped.context,
         });
         defaultVehicleId = scoped.context.vehicle.id;
         const v = scoped.context.vehicle;
+        vehicles = [v];
         vehicleHint = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
       } else {
         const ctx = await getCustomerConciergeContext(customerId);
         contextJson = JSON.stringify({
-          customer: { name: customer.name, phoneSet: Boolean(customer.phone) },
+          signedIn: true,
+          customer: { name: customer.name, phoneSet: Boolean(customer.phone), addressSet: Boolean(customer.address) },
           defaultLocation,
           vehicles: ctx.vehicles,
           primary: ctx.primary,
         });
         defaultVehicleId = ctx.primary?.vehicle.id ?? ctx.vehicles[0]?.id ?? null;
+        vehicles = ctx.vehicles;
         const v = ctx.primary?.vehicle ?? ctx.vehicles[0];
         if (v) vehicleHint = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
       }
     }
 
     const result = await runConciergeChat({
-      message,
+      message: message || (imageUrl ? "I attached a photo of my car." : ""),
       history,
       contextJson,
       canBook,
+      signedIn,
+      customerId: customerId || null,
       defaultLocation,
       defaultVehicleId,
       vehicleHint,
+      vehicles,
+      imageUrl: imageUrl || null,
     });
 
     return NextResponse.json({
@@ -102,6 +122,8 @@ export async function POST(req: NextRequest) {
       productBrowse: result.productBrowse,
       productDetail: result.productDetail,
       shopCategories: result.shopCategories,
+      orderBrowse: result.orderBrowse,
+      bookingBrowse: result.bookingBrowse,
       configured: true,
     });
   } catch (error) {

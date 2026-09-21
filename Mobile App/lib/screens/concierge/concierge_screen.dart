@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
+import '../../concierge/thread_store.dart';
 import '../../models/concierge.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
@@ -17,7 +21,7 @@ import '../../utils/user_facing_error.dart';
 import '../../widgets/place_autocomplete_field.dart';
 
 final _confirmRe = RegExp(
-  r'^(yes|yep|yeah|ok|okay|sure|confirm|book it|book them|add them|add it|do it|go ahead|please book|please add|buy it|order it|checkout|check out|pay)[\s!.]*$',
+  r'^(yes|yep|yeah|ok|okay|sure|confirm|book it|book them|add them|add it|do it|go ahead|please book|please add|buy it|order it|checkout|check out|pay|take me there|open it|save it|add the car|update it)[\s!.]*$',
   caseSensitive: false,
 );
 
@@ -27,13 +31,22 @@ class _Suggest {
   final String prompt;
 }
 
-const _suggestions = <_Suggest>[
+const _guestSuggestions = <_Suggest>[
+  _Suggest('Create account', 'I want to create an account'),
   _Suggest('Browse shop', 'Show me what you sell in the shop'),
-  _Suggest('Parts for my car', 'Find parts for my car'),
-  _Suggest('Brake pads', 'I need brake pads'),
-  _Suggest('Oil filter', 'I need an oil filter'),
-  _Suggest('What cars do I have?', 'What cars do I have?'),
-  _Suggest('Book oil service', 'Book an oil service'),
+  _Suggest('Find brake pads', 'I need brake pads'),
+  _Suggest('How can you help?', 'What can you help me do in MyGarage?'),
+];
+
+const _memberSuggestions = <_Suggest>[
+  _Suggest('Add my car', 'Help me add a car to my garage'),
+  _Suggest('Update my car', 'I want to update my car details'),
+  _Suggest('Add a car photo', 'I want to add a photo of my car'),
+  _Suggest('Track orders', 'Show my recent orders'),
+  _Suggest('Track bookings', 'Show my service bookings'),
+  _Suggest('Browse shop', 'Show me what you sell in the shop'),
+  _Suggest('Book a service', 'Book an oil service'),
+  _Suggest('How can you help?', 'What can you help me do in MyGarage?'),
 ];
 
 class ConciergeScreen extends StatefulWidget {
@@ -45,30 +58,13 @@ class ConciergeScreen extends StatefulWidget {
   State<ConciergeScreen> createState() => _ConciergeScreenState();
 }
 
-class _ChatLine {
-  _ChatLine({
-    required this.role,
-    required this.text,
-    this.actDone = false,
-    this.browse,
-    this.detail,
-    this.departments = const [],
-  });
-  final String role;
-  final String text;
-  final bool actDone;
-  ConciergeProductBrowse? browse;
-  final ConciergeProductCard? detail;
-  final List<ConciergeShopDepartment> departments;
-}
-
 class _ConciergeScreenState extends State<ConciergeScreen> {
   final _api = BuyerApi(ApiClient());
   final _input = TextEditingController();
   final _location = TextEditingController();
   final _phone = TextEditingController();
   final _scroll = ScrollController();
-  final List<_ChatLine> _messages = [];
+  final List<ConciergeChatLine> _messages = [];
   ConciergePendingAction? _pending;
   bool _busy = false;
   String? _error;
@@ -76,12 +72,43 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
   bool _needPhone = false;
   double? _locationLat;
   double? _locationLng;
+  String? _vehicleId;
+  String? _pendingImageUrl;
+  bool _uploadingPhoto = false;
   final _money = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
 
   @override
   void initState() {
     super.initState();
+    _vehicleId = widget.vehicleId;
     _input.addListener(() => setState(() {}));
+    unawaited(_restoreThread());
+  }
+
+  Future<void> _restoreThread() async {
+    final thread = await ConciergeThreadStore.load();
+    if (!mounted) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(thread.messages);
+      _pending = thread.pendingAction;
+      final incoming = (widget.vehicleId ?? '').trim();
+      _vehicleId = incoming.isNotEmpty ? incoming : thread.vehicleId;
+    });
+    if (_messages.isNotEmpty) _jump();
+  }
+
+  void _persistThread() {
+    unawaited(
+      ConciergeThreadStore.save(
+        ConciergeThread(
+          messages: List<ConciergeChatLine>.from(_messages),
+          pendingAction: _pending,
+          vehicleId: _vehicleId,
+        ),
+      ),
+    );
   }
 
   @override
@@ -93,17 +120,70 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
     super.dispose();
   }
 
+  Future<void> _pickPhoto() async {
+    if (_busy || _uploadingPhoto) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 80, maxWidth: 1600);
+    if (picked == null || !mounted) return;
+    setState(() {
+      _uploadingPhoto = true;
+      _error = null;
+    });
+    try {
+      final bytes = await picked.readAsBytes();
+      final url = await _api.uploadVehicleImage(bytes, picked.name);
+      if (!mounted) return;
+      setState(() {
+        _pendingImageUrl = url.isEmpty ? null : url;
+        _uploadingPhoto = false;
+        if (url.isEmpty) _error = 'Could not upload that photo.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingPhoto = false;
+        _error = userFacingError(e, fallback: 'Could not upload that photo.');
+      });
+    }
+  }
+
   Future<void> _send([String? preset]) async {
     final text = (preset ?? _input.text).trim();
-    if (text.isEmpty || _busy) return;
-    if (_pending != null && _confirmRe.hasMatch(text)) {
+    final imageUrl = _pendingImageUrl;
+    if ((text.isEmpty && (imageUrl == null || imageUrl.isEmpty)) || _busy || _uploadingPhoto) return;
+    if (_pending != null && text.isNotEmpty && _confirmRe.hasMatch(text)) {
       _input.clear();
       await _confirm(checkout: _pending?.isQuote == true);
       return;
     }
     _input.clear();
     setState(() {
-      _messages.add(_ChatLine(role: 'user', text: text));
+      _pendingImageUrl = null;
+      _messages.add(ConciergeChatLine(
+        role: 'user',
+        text: text.isEmpty ? 'I attached a photo of my car.' : text,
+        imageUrl: imageUrl,
+      ));
       _busy = true;
       _error = null;
     });
@@ -112,13 +192,20 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
       final customerId = context.read<AuthController>().customerId;
       final result = await _api.chatConcierge({
         if (customerId != null) 'customerId': customerId,
-        if (widget.vehicleId != null && widget.vehicleId!.isNotEmpty) 'vehicleId': widget.vehicleId,
-        'message': text,
-        'history': _messages.map((m) => {'role': m.role, 'content': m.text}).toList(),
+        if (_vehicleId != null && _vehicleId!.isNotEmpty) 'vehicleId': _vehicleId,
+        'message': text.isEmpty ? 'I attached a photo of my car.' : text,
+        if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+        'history': _messages
+            .map((m) => {
+                  'role': m.role,
+                  'content': m.text,
+                  if ((m.imageUrl ?? '').isNotEmpty) 'imageUrl': m.imageUrl,
+                })
+            .toList(),
       });
       if (!mounted) return;
       setState(() {
-        _messages.add(_ChatLine(
+        _messages.add(ConciergeChatLine(
           role: 'assistant',
           text: result.reply,
           browse: result.productBrowse,
@@ -126,6 +213,8 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
           departments: result.shopCategories.isNotEmpty
               ? result.shopCategories
               : (result.productBrowse?.departments ?? const []),
+          orders: result.orderBrowse,
+          bookings: result.bookingBrowse,
         ));
         _pending = result.pendingAction;
         _busy = false;
@@ -140,6 +229,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         _error = userFacingError(e, fallback: 'Could not reach concierge.');
       });
     }
+    _persistThread();
     _jump();
   }
 
@@ -150,7 +240,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
   Future<void> _browseShop({required String label, String category = ''}) async {
     if (_busy) return;
     setState(() {
-      _messages.add(_ChatLine(role: 'user', text: label));
+      _messages.add(ConciergeChatLine(role: 'user', text: label));
       _busy = true;
       _error = null;
     });
@@ -172,7 +262,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          _ChatLine(
+          ConciergeChatLine(
             role: 'assistant',
             text: browse.products.isNotEmpty
                 ? 'Here are ${browse.title.toLowerCase()} from the shop.'
@@ -190,6 +280,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         _error = userFacingError(e, fallback: 'Could not load the shop.');
       });
     }
+    _persistThread();
     _jump();
   }
 
@@ -257,7 +348,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         setState(() {
           _pending = null;
           _busy = false;
-          _messages.add(_ChatLine(
+          _messages.add(ConciergeChatLine(
             role: 'assistant',
             text: checkout
                 ? 'Added those parts to your cart. Opening checkout.'
@@ -268,13 +359,27 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         if (checkout && mounted) {
           context.push('/checkout');
         }
-      } else if (result.requestId != null) {
+      } else if (result.requestId != null && result.requestId!.trim().isNotEmpty) {
         setState(() {
           _pending = null;
           _busy = false;
         });
         if (!mounted) return;
-        context.go('/service/requesting?requestId=${Uri.encodeComponent(result.requestId!)}');
+        context.go('/service/requesting?requestId=${Uri.encodeComponent(result.requestId!.trim())}');
+      } else {
+        final path = (result.hrefMobile ?? result.href ?? '').trim();
+        setState(() {
+          _pending = null;
+          _busy = false;
+          _messages.add(ConciergeChatLine(
+            role: 'assistant',
+            text: (result.message ?? 'Done.').trim(),
+            actDone: true,
+          ));
+        });
+        if (path.isNotEmpty && mounted) {
+          context.push(path);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -283,6 +388,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         _error = userFacingError(e, fallback: 'Could not complete that action.');
       });
     }
+    _persistThread();
     _jump();
   }
 
@@ -335,7 +441,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _messages.add(_ChatLine(
+        _messages.add(ConciergeChatLine(
           role: 'assistant',
           text: 'Added ${product.name} to your cart. Opening checkout.',
           actDone: true,
@@ -351,10 +457,11 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         _error = userFacingError(e, fallback: 'Could not add that part.');
       });
     }
+    _persistThread();
     _jump();
   }
 
-  Future<void> _loadMore(_ChatLine line) async {
+  Future<void> _loadMore(ConciergeChatLine line) async {
     final browse = line.browse;
     if (browse == null || _busy) return;
     setState(() {
@@ -380,6 +487,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
         _error = userFacingError(e, fallback: 'Could not load more parts.');
       });
     }
+    _persistThread();
     _jump();
   }
 
@@ -390,7 +498,10 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
       _error = null;
       _needLocation = false;
       _needPhone = false;
+      _pendingImageUrl = null;
+      _uploadingPhoto = false;
     });
+    unawaited(ConciergeThreadStore.clear());
   }
 
   void _jump() {
@@ -406,7 +517,11 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSend = !_busy && _input.text.trim().isNotEmpty;
+    final canSend = !_busy &&
+        !_uploadingPhoto &&
+        (_input.text.trim().isNotEmpty || (_pendingImageUrl ?? '').isNotEmpty);
+    final signedIn = context.watch<AuthController>().customerId != null;
+    final chips = signedIn ? _memberSuggestions : _guestSuggestions;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -419,7 +534,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
               style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
             ),
             Text(
-              'Online · garage, shop, bookings',
+              'Online · account, garage, shop, orders, and bookings',
               style: AppTheme.host(fontSize: 12, color: AppColors.textMuted),
             ),
           ],
@@ -440,7 +555,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: [
-                if (_messages.isEmpty) _EmptyState(onPick: _onSuggestion),
+                if (_messages.isEmpty) _EmptyState(onPick: _onSuggestion, items: chips),
                 ..._messages.map(
                   (m) => _Bubble(
                     line: m,
@@ -483,6 +598,13 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
                       });
                     },
                   ),
+                if (_pending?.isGuide == true)
+                  _GuideCard(
+                    pending: _pending!,
+                    busy: _busy,
+                    onConfirm: () => _confirm(checkout: false),
+                    onDismiss: () => setState(() => _pending = null),
+                  ),
                 if (_busy)
                   const Padding(
                     padding: EdgeInsets.only(top: 8, left: 4),
@@ -506,11 +628,58 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
               ),
               child: Column(
                 children: [
-                  if (_messages.isNotEmpty) _SuggestionRow(onPick: _onSuggestion, enabled: !_busy),
+                  if (_messages.isNotEmpty) _SuggestionRow(onPick: _onSuggestion, enabled: !_busy, items: chips),
                   if (_messages.isNotEmpty) const SizedBox(height: 10),
+                  if (_pendingImageUrl != null && _pendingImageUrl!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.network(
+                                  _pendingImageUrl!,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _pendingImageUrl = null),
+                                  child: Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                    child: const Icon(Icons.close, size: 12, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Photo ready to send', style: AppTheme.host(fontSize: 12, color: AppColors.textMuted)),
+                        ],
+                      ),
+                    ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      IconButton(
+                        onPressed: _busy || _uploadingPhoto ? null : _pickPhoto,
+                        icon: _uploadingPhoto
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.add_photo_alternate_outlined),
+                        color: AppColors.primaryDeep,
+                      ),
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
@@ -525,7 +694,7 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
                             textInputAction: TextInputAction.send,
                             onSubmitted: (_) => _send(),
                             decoration: const InputDecoration(
-                              hintText: 'Ask about parts, your car, or a booking…',
+                              hintText: 'Add a car, attach a photo, or order parts…',
                               filled: true,
                               fillColor: Colors.transparent,
                               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -561,8 +730,9 @@ class _ConciergeScreenState extends State<ConciergeScreen> {
 }
 
 class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.onPick, this.enabled = true});
+  const _SuggestionRow({required this.onPick, required this.items, this.enabled = true});
   final Future<void> Function(_Suggest item) onPick;
+  final List<_Suggest> items;
   final bool enabled;
 
   @override
@@ -571,10 +741,10 @@ class _SuggestionRow extends StatelessWidget {
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: _suggestions.length,
+        itemCount: items.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final item = _suggestions[index];
+          final item = items[index];
           return ActionChip(
             label: Text(item.label),
             onPressed: enabled ? () => onPick(item) : null,
@@ -590,8 +760,9 @@ class _SuggestionRow extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onPick});
+  const _EmptyState({required this.onPick, required this.items});
   final Future<void> Function(_Suggest item) onPick;
+  final List<_Suggest> items;
 
   @override
   Widget build(BuildContext context) {
@@ -607,10 +778,10 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Hi, how can I help?', style: AppTheme.host(fontSize: 17, fontWeight: FontWeight.w700)),
+          Text('How can I help?', style: AppTheme.host(fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text(
-            'I can check your car, browse the shop, find a part, or book a mechanic.',
+            'I can create your account, add or update a car, save a photo, find parts, place an order, track deliveries, or book a mechanic — and I will take you through each step.',
             style: AppTheme.host(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 14),
@@ -618,7 +789,7 @@ class _EmptyState extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final item in _suggestions)
+              for (final item in items)
                 ActionChip(
                   label: Text(item.label),
                   onPressed: () => onPick(item),
@@ -646,7 +817,7 @@ class _Bubble extends StatelessWidget {
     this.onBrowseDepartment,
   });
 
-  final _ChatLine line;
+  final ConciergeChatLine line;
   final NumberFormat money;
   final bool busy;
   final VoidCallback onOpenCart;
@@ -659,7 +830,7 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final mine = line.role == 'user';
     final chips = line.departments.isNotEmpty ? line.departments : (line.browse?.departments ?? const []);
-    final wide = line.browse != null || chips.isNotEmpty || line.detail != null;
+    final wide = line.browse != null || chips.isNotEmpty || line.detail != null || line.orders.isNotEmpty || line.bookings.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -692,6 +863,113 @@ class _Bubble extends StatelessWidget {
                       color: mine ? AppColors.onPrimary : AppColors.textPrimary,
                     ),
                   ),
+                  if ((line.imageUrl ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        line.imageUrl!,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ],
+                  if (line.orders.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    for (final order in line.orders)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Material(
+                          color: AppColors.backgroundLift,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              final path = order.hrefMobile.isNotEmpty
+                                  ? order.hrefMobile
+                                  : '/orders/${Uri.encodeComponent(order.id)}';
+                              context.push(path);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          order.itemSummary.isEmpty ? 'Order' : order.itemSummary,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 13),
+                                        ),
+                                        Text(
+                                          order.status.replaceAll('_', ' '),
+                                          style: AppTheme.host(fontSize: 11, color: AppColors.textMuted),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(money.format(order.total), style: AppTheme.host(fontWeight: FontWeight.w700, color: AppColors.primaryDeep)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                  if (line.bookings.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    for (final booking in line.bookings)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Material(
+                          color: AppColors.backgroundLift,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              final path = booking.hrefMobile.isNotEmpty
+                                  ? booking.hrefMobile
+                                  : '/service/requesting?requestId=${Uri.encodeComponent(booking.id)}';
+                              context.push(path);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          booking.service.isEmpty ? 'Service' : booking.service,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 13),
+                                        ),
+                                        Text(
+                                          [
+                                            booking.status.replaceAll('_', ' '),
+                                            if (booking.location.isNotEmpty) booking.location,
+                                          ].join(' · '),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTheme.host(fontSize: 11, color: AppColors.textMuted),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.handyman_outlined, size: 18, color: AppColors.primaryDeep),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                   if (line.browse != null && line.browse!.products.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Text(line.browse!.title, style: AppTheme.host(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textMuted)),
@@ -1086,6 +1364,87 @@ class _BookCard extends StatelessWidget {
               child: const Text('Confirm booking'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideCard extends StatelessWidget {
+  const _GuideCard({
+    required this.pending,
+    required this.busy,
+    required this.onConfirm,
+    required this.onDismiss,
+  });
+
+  final ConciergePendingAction pending;
+  final bool busy;
+  final VoidCallback onConfirm;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = pending.title.isNotEmpty
+        ? pending.title
+        : pending.type == 'vehicle_create'
+            ? 'Add this car'
+            : pending.type == 'vehicle_update'
+                ? 'Update this car'
+                : pending.type == 'auth'
+                    ? 'Create an account'
+                    : pending.type == 'address_create'
+                        ? 'Save address'
+                        : pending.type == 'profile_update'
+                            ? 'Update profile'
+                            : 'Continue';
+    final body = pending.description.isNotEmpty
+        ? pending.description
+        : pending.summary.isNotEmpty
+            ? pending.summary
+            : [
+                if (pending.year > 0) '${pending.year}',
+                pending.make,
+                pending.model,
+                pending.nickname,
+                pending.licensePlate,
+                pending.fullAddress,
+              ].where((e) => e.toString().trim().isNotEmpty).join(' · ');
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 16)),
+          if (pending.imageUrl.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.network(
+                pending.imageUrl,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(body, style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.35)),
+          ],
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: busy ? null : onConfirm,
+            child: Text(pending.type == 'navigate' || pending.type == 'auth' ? 'Take me there' : 'Confirm'),
+          ),
+          TextButton(onPressed: busy ? null : onDismiss, child: const Text('Not now')),
         ],
       ),
     );

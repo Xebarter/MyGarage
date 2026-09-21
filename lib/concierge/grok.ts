@@ -7,16 +7,57 @@ import {
   searchConciergeProducts,
 } from "@/lib/concierge/catalog";
 import type {
+  ConciergeBookingCard,
   ConciergeChatTurn,
+  ConciergeOrderCard,
   ConciergePendingAction,
   ConciergeProductBrowse,
   ConciergeProductDetailView,
   ConciergeQuoteLine,
   ConciergeShopDepartment,
 } from "@/lib/concierge/types";
+import {
+  addressCreateAction,
+  authHref,
+  CONCIERGE_DESTINATIONS,
+  listConciergeBookings,
+  listConciergeOrders,
+  matchVehicleId,
+  navigateAction,
+  profileUpdateAction,
+  resolveConciergeDestination,
+  vehicleCreateAction,
+  vehicleDraftFromArgs,
+  vehicleUpdateAction,
+  optionalImageUrl,
+} from "@/lib/concierge/guides";
 
 const MAX_HISTORY = 12;
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = 6;
+const FALLBACK_REPLY =
+  "I can set up your account, add a car, find parts, place an order, track deliveries, or book a mechanic. What should we do first?";
+
+type ConciergeRunResult = {
+  reply: string;
+  pendingAction: ConciergePendingAction | null;
+  productBrowse: ConciergeProductBrowse | null;
+  productDetail: ConciergeProductDetailView | null;
+  shopCategories: ConciergeShopDepartment[] | null;
+  orderBrowse: ConciergeOrderCard[] | null;
+  bookingBrowse: ConciergeBookingCard[] | null;
+};
+
+function sessionResult(session: ToolSession, reply: string): ConciergeRunResult {
+  return {
+    reply,
+    pendingAction: session.pendingAction,
+    productBrowse: session.productBrowse,
+    productDetail: session.productDetail,
+    shopCategories: session.shopCategories,
+    orderBrowse: session.orderBrowse,
+    bookingBrowse: session.bookingBrowse,
+  };
+}
 const XAI_RESPONSES_URL = "https://api.x.ai/v1/responses";
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -231,6 +272,131 @@ const TOOL_PARAMS = {
       required: ["categoryId", "service"],
     },
   },
+  list_guides: {
+    name: "list_guides",
+    description:
+      "List what you can do in the app: account, garage, shop, checkout, orders, bookings, profile, addresses. Call this when they ask what you can help with or how the app works.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+  },
+  propose_navigate: {
+    name: "propose_navigate",
+    description:
+      "Take the buyer to a real app page. Use for dashboard, garage, shop, cart, checkout, orders, profile, addresses, services, wishlist, support, or home. Prefer this over describing where to click.",
+    parameters: {
+      type: "object",
+      properties: {
+        destination: {
+          type: "string",
+          description: "One of: home, shop, cart, checkout, auth, dashboard, garage, orders, services, wishlist, addresses, profile, support.",
+        },
+        orderId: { type: "string", description: "When opening a specific order." },
+        vehicleId: { type: "string", description: "When opening a specific car." },
+        requestId: { type: "string", description: "When opening a specific service booking." },
+      },
+      required: ["destination"],
+    },
+  },
+  propose_auth: {
+    name: "propose_auth",
+    description:
+      "Open sign in / create account. Use when a guest wants to save a car, book, track orders, or explicitly create an account. Do not use if they are already signed in.",
+    parameters: {
+      type: "object",
+      properties: {
+        next: { type: "string", description: "Path to continue after sign in, e.g. /buyer/garage." },
+      },
+    },
+  },
+  propose_add_vehicle: {
+    name: "propose_add_vehicle",
+    description:
+      "Save a car to the garage after you have make, model, and year. Buyer confirms on a card. Call this as soon as those three exist. Do not wait for plate or nickname. Do not use for guests.",
+    parameters: {
+      type: "object",
+      properties: {
+        make: { type: "string" },
+        model: { type: "string" },
+        year: { type: "number" },
+        licensePlate: { type: "string" },
+        nickname: { type: "string" },
+        color: { type: "string" },
+        vin: { type: "string" },
+        mileageKm: { type: "number" },
+        fuelType: { type: "string", enum: ["petrol", "diesel", "hybrid", "electric", "other"] },
+        transmission: { type: "string", enum: ["manual", "automatic", "other"] },
+        isPrimary: { type: "boolean" },
+        imageUrl: {
+          type: "string",
+          description: "Public URL of an uploaded vehicle photo. Use the attached photo URL from the message when present.",
+        },
+      },
+      required: ["make", "model", "year"],
+    },
+  },
+  propose_update_vehicle: {
+    name: "propose_update_vehicle",
+    description:
+      "Update an existing car (photo, mileage, plate, nickname, color, fuel, make/model/year). Identify the vehicle from context. Buyer confirms. Do not use for guests. Use this to save an attached photo onto a car.",
+    parameters: {
+      type: "object",
+      properties: {
+        vehicleId: { type: "string" },
+        vehicleHint: { type: "string", description: "Nickname, plate, or make/model if id is unknown." },
+        make: { type: "string" },
+        model: { type: "string" },
+        year: { type: "number" },
+        licensePlate: { type: "string" },
+        nickname: { type: "string" },
+        color: { type: "string" },
+        vin: { type: "string" },
+        mileageKm: { type: "number" },
+        fuelType: { type: "string" },
+        transmission: { type: "string" },
+        isPrimary: { type: "boolean" },
+        imageUrl: {
+          type: "string",
+          description: "Public URL of an uploaded vehicle photo. Use the attached photo URL from the message when present.",
+        },
+      },
+    },
+  },
+  list_orders: {
+    name: "list_orders",
+    description:
+      "List recent parts orders with status and totals. Use when they ask about orders, tracking, receipts, or delivery. Then offer to open one. Do not use for guests.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+  },
+  list_bookings: {
+    name: "list_bookings",
+    description:
+      "List roadside and workshop bookings. Use when they ask about a mechanic, a service request, or tracking a provider. Then offer to open one. Do not use for guests.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+  },
+  propose_update_profile: {
+    name: "propose_update_profile",
+    description: "Update the buyer's name, phone, or address. Collect the new value first. Buyer confirms.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        phone: { type: "string" },
+        address: { type: "string" },
+      },
+    },
+  },
+  propose_add_address: {
+    name: "propose_add_address",
+    description: "Save a delivery or service address. Collect the area or street first. Buyer confirms.",
+    parameters: {
+      type: "object",
+      properties: {
+        label: { type: "string" },
+        fullAddress: { type: "string" },
+        isDefault: { type: "boolean" },
+      },
+      required: ["fullAddress"],
+    },
+  },
 } as const;
 
 const XAI_TOOLS = Object.values(TOOL_PARAMS).map((tool) => ({
@@ -255,10 +421,23 @@ type ToolSession = {
   productBrowse: ConciergeProductBrowse | null;
   productDetail: ConciergeProductDetailView | null;
   shopCategories: ConciergeShopDepartment[] | null;
+  orderBrowse: ConciergeOrderCard[] | null;
+  bookingBrowse: ConciergeBookingCard[] | null;
   canBook: boolean;
+  signedIn: boolean;
+  customerId: string | null;
   defaultLocation: string;
   defaultVehicleId: string | null;
   vehicleHint: string;
+  attachedImageUrl: string;
+  vehicles: Array<{
+    id: string;
+    make?: string;
+    model?: string;
+    year?: number;
+    nickname?: string | null;
+    licensePlate?: string | null;
+  }>;
 };
 
 type GrokOutputItem = {
@@ -296,35 +475,34 @@ type GroqChatResponse = {
   }>;
 };
 
-function systemInstruction(contextJson: string, canBook: boolean, defaultLocation: string): string {
+function systemInstruction(contextJson: string, canBook: boolean, signedIn: boolean, defaultLocation: string): string {
   return [
-    "You are a friendly MyGarage concierge chatting with a car owner in Uganda.",
-    "Sound like a helpful person in WhatsApp, not a report or a spec sheet.",
-    "Use short spoken sentences. One or two sentences is enough unless they asked for more.",
-    "Never use emojis.",
-    "Never use markdown, bullets, numbered lists, bold, headings, or label-colon lines like Make: or Plate:.",
-    "Weave facts into natural language. Good: \"You've got one car with us — your 2026 Jetour T2-IDM, My Ride, plate UA 0269HS. Want me to check service or find a part?\"",
-    "Bad: \"You have one vehicle on file: - **Jetour T2-IDM** (2026) – License Plate UA 0269HS.\"",
-    "Only mention details they asked about, plus one useful extra if it helps. Do not dump every field.",
-    "End with one light question when it fits.",
-    "Answer from the JSON vehicle context when it is provided. Never invent mileage, documents, service dates, or part SKUs.",
-    "If context is missing or the buyer is a guest, say you can still search parts and services, and that garage answers and booking need a signed-in account.",
-    "Prices are UGX.",
-    "Search the shop only when they want a part, a brand, a department, parts for their car, or to browse the store.",
-    "Do not search products for garage questions, bookings, or small talk.",
-    "When they ask what you sell or say browse, call list_shop_categories (that also loads featured parts).",
-    "When they name a part, brand, department, or want parts for their car, call search_products. Include make and model from context when they say for my car.",
-    "The app renders product cards from your last search. Keep the spoken reply to one or two sentences and do not paste a catalog.",
-    "Use get_product when they ask about a specific item you already found.",
-    "Use offset on search_products when they ask to see more.",
-    "When they want to buy, order, or check out a found part, search then propose_quote with those product ids. The app adds them to the cart and opens checkout after they confirm.",
-    "If they only want a part saved for later, still propose_quote; they can choose add to cart only.",
+    "You are the MyGarage Concierge — a professional in-app assistant for car owners in Uganda.",
+    "You guide people through the product by taking action, not by describing menus or telling them where to tap.",
+    "You can: create or open an account, add and update cars, save a car photo, browse and order parts, checkout, track orders, book a mechanic, track bookings, and update profile or addresses.",
+    "Complete jobs end to end. Collect only the missing facts, then call the matching propose_* tool so the app shows a confirmation card and performs the change.",
+    "When they need a page, call propose_navigate so the app opens it. Never say go to Settings or open the menu.",
+    "When a guest needs an account, garage, orders, profile, or booking, call propose_auth with a sensible next path.",
+    "When they want to add a car and you have make, model, and year, call propose_add_vehicle immediately. Do not wait for plate, nickname, colour, or mileage. Include imageUrl when they attached a photo.",
+    "When they want to change a car (photo, mileage, plate, nickname, colour, fuel), identify the car and call propose_update_vehicle.",
+    "They attach photos with the paperclip in this chat. When a photo URL is in the message, pass it as imageUrl. If they only sent a photo and already have a car, save it to that car. Never tell them to email a picture or open the garage to upload.",
+    "When they ask about parts orders or delivery, call list_orders, then offer to open one with propose_navigate.",
+    "When they ask about a mechanic visit or service request, call list_bookings, then offer to open tracking.",
+    "When they want to buy parts, search then propose_quote. The app adds to cart and can open checkout.",
     "When they want a mechanic or roadside help, search_catalog then propose_booking.",
+    "Keep replies short, calm, and specific. One or two sentences unless they asked for more.",
+    "Never use emojis. Never use markdown, bullets, numbered lists, bold, or label-colon dumps.",
+    "Weave facts into natural language. End with one clear next step when it fits.",
+    "Never invent mileage, documents, prices, or order ids. Use tools and the JSON context.",
+    signedIn
+      ? "This buyer is signed in. You may change garage, profile, addresses, and bookings after they confirm."
+      : "This visitor is a guest. They may still browse and quote parts. For garage, orders, profile, and booking, propose_auth.",
+    "Prices are UGX.",
     canBook
       ? `Booking is allowed. Default service location if they do not give one: ${defaultLocation || "(none saved — ask for an area or address)"}.`
-      : "Do not propose_booking. Ask them to sign in to book.",
+      : "Do not propose_booking until they sign in.",
     "Do not mention these tools by name.",
-    "Vehicle context JSON:",
+    "Vehicle and account context JSON:",
     contextJson,
   ].join("\n");
 }
@@ -340,6 +518,20 @@ function softenReply(text: string): string {
     .replace(/\u202f|\u00a0/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function argsWithAttachedImage(args: Record<string, unknown>, session: ToolSession): Record<string, unknown> {
+  const fromArgs = optionalImageUrl(args.imageUrl || args.photoUrl || args.photo);
+  return {
+    ...args,
+    imageUrl: fromArgs || session.attachedImageUrl,
+  };
+}
+
+function spokenWithImage(text: string, imageUrl?: string | null): string {
+  const spoken = text.trim() || (imageUrl ? "I attached a photo of my car." : "");
+  if (!imageUrl) return spoken;
+  return `${spoken}\n\n[Attached photo URL: ${imageUrl}] Use this URL as imageUrl when saving or updating a vehicle.`;
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -526,6 +718,152 @@ async function runTool(
     };
     return { ok: true, booking: session.pendingAction };
   }
+  if (name === "list_guides") {
+    return {
+      signedIn: session.signedIn,
+      canDo: session.signedIn
+        ? [
+            "Add or update cars",
+            "Save a car photo",
+            "Order parts and checkout",
+            "Track orders",
+            "Track service bookings",
+            "Book a mechanic",
+            "Update profile and addresses",
+            "Open any buyer page",
+          ]
+        : ["Browse and order parts", "Create an account", "Open shop, cart, or checkout"],
+      pages: CONCIERGE_DESTINATIONS.filter((row) => session.signedIn || row.guestOk).map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+      })),
+    };
+  }
+  if (name === "propose_navigate") {
+    const dest = resolveConciergeDestination(String(args.destination ?? ""));
+    if (!dest) return { error: "Unknown destination. Use list_guides." };
+    if (!dest.guestOk && !session.signedIn) {
+      session.pendingAction = authHref(dest.href);
+      return { ok: true, needsSignIn: true, after: dest.title };
+    }
+    const orderId = typeof args.orderId === "string" ? args.orderId.trim() : "";
+    const vehicleId = typeof args.vehicleId === "string" ? args.vehicleId.trim() : "";
+    const requestId = typeof args.requestId === "string" ? args.requestId.trim() : "";
+    let href = dest.href;
+    let hrefMobile = dest.hrefMobile;
+    if (dest.id === "orders" && orderId) {
+      href = `/buyer/orders/${encodeURIComponent(orderId)}`;
+      hrefMobile = `/orders/${encodeURIComponent(orderId)}`;
+    }
+    if (dest.id === "garage" && vehicleId) {
+      href = `/buyer/garage/${encodeURIComponent(vehicleId)}`;
+      hrefMobile = `/garage/${encodeURIComponent(vehicleId)}`;
+    }
+    if (dest.id === "services" && requestId) {
+      href = `/buyer/services/track/${encodeURIComponent(requestId)}`;
+      hrefMobile = `/service/requesting?requestId=${encodeURIComponent(requestId)}`;
+    }
+    session.pendingAction = navigateAction(dest, { href, hrefMobile });
+    return { ok: true, navigation: session.pendingAction };
+  }
+  if (name === "propose_auth") {
+    if (session.signedIn) return { error: "They are already signed in." };
+    const next = typeof args.next === "string" && args.next.startsWith("/") ? args.next : "/buyer";
+    session.pendingAction = authHref(next);
+    return { ok: true, auth: session.pendingAction };
+  }
+  if (name === "propose_add_vehicle") {
+    if (!session.signedIn) {
+      session.pendingAction = authHref("/buyer/garage");
+      return { ok: true, needsSignIn: true };
+    }
+    const created = vehicleCreateAction(vehicleDraftFromArgs(argsWithAttachedImage(args, session)));
+    if ("error" in created) return created;
+    session.pendingAction = created;
+    return { ok: true, vehicle: created };
+  }
+  if (name === "propose_update_vehicle") {
+    if (!session.signedIn) {
+      session.pendingAction = authHref("/buyer/garage");
+      return { ok: true, needsSignIn: true };
+    }
+    const hint = String(args.vehicleHint ?? args.vehicleId ?? "");
+    const vehicleId = matchVehicleId(session.vehicles, hint, session.defaultVehicleId);
+    if (!vehicleId) return { error: "No car on file. Add one first." };
+    const current = session.vehicles.find((row) => row.id === vehicleId);
+    const updated = vehicleUpdateAction({
+      vehicleId,
+      label: [current?.nickname, current?.year, current?.make, current?.model].filter(Boolean).join(" "),
+      current: current
+        ? {
+            make: current.make || "",
+            model: current.model || "",
+            year: current.year || 0,
+            licensePlate: current.licensePlate || "",
+            nickname: current.nickname || "",
+          }
+        : undefined,
+      args: argsWithAttachedImage(args, session),
+    });
+    if ("error" in updated) return updated;
+    session.pendingAction = updated;
+    return { ok: true, vehicle: updated };
+  }
+  if (name === "list_orders") {
+    if (!session.signedIn || !session.customerId) {
+      session.pendingAction = authHref("/buyer/orders");
+      return { ok: true, needsSignIn: true };
+    }
+    const orders = await listConciergeOrders(session.customerId);
+    session.orderBrowse = orders;
+    return {
+      count: orders.length,
+      orders: orders.map((row) => ({
+        id: row.id,
+        status: row.status,
+        total: row.total,
+        items: row.itemSummary,
+      })),
+    };
+  }
+  if (name === "list_bookings") {
+    if (!session.signedIn || !session.customerId) {
+      session.pendingAction = authHref("/buyer/services");
+      return { ok: true, needsSignIn: true };
+    }
+    const bookings = await listConciergeBookings(session.customerId);
+    session.bookingBrowse = bookings;
+    return {
+      count: bookings.length,
+      bookings: bookings.map((row) => ({
+        id: row.id,
+        status: row.status,
+        service: row.service,
+        location: row.location,
+      })),
+    };
+  }
+  if (name === "propose_update_profile") {
+    if (!session.signedIn) {
+      session.pendingAction = authHref("/buyer/profile");
+      return { ok: true, needsSignIn: true };
+    }
+    const next = profileUpdateAction(args);
+    if ("error" in next) return next;
+    session.pendingAction = next;
+    return { ok: true, profile: next };
+  }
+  if (name === "propose_add_address") {
+    if (!session.signedIn) {
+      session.pendingAction = authHref("/buyer/addresses");
+      return { ok: true, needsSignIn: true };
+    }
+    const next = addressCreateAction(args);
+    if ("error" in next) return next;
+    session.pendingAction = next;
+    return { ok: true, address: next };
+  }
   return { error: `Unknown tool ${name}` };
 }
 
@@ -553,21 +891,26 @@ async function runXaiChat(
   history: ConciergeChatTurn[],
   message: string,
   session: ToolSession,
-): Promise<{
-  reply: string;
-  pendingAction: ConciergePendingAction | null;
-  productBrowse: ConciergeProductBrowse | null;
-  productDetail: ConciergeProductDetailView | null;
-  shopCategories: ConciergeShopDepartment[] | null;
-}> {
+): Promise<ConciergeRunResult> {
   const last = history[history.length - 1];
   const historyTurns =
     last?.role === "user" && last.content.trim() === message.trim() ? history.slice(0, -1) : history;
   const input: unknown[] = historyTurns.map((turn) => ({
     role: turn.role === "assistant" ? "assistant" : "user",
-    content: turn.content,
+    content: spokenWithImage(turn.content, turn.imageUrl),
   }));
-  input.push({ role: "user", content: message.trim() });
+  const latest = spokenWithImage(message, session.attachedImageUrl);
+  if (session.attachedImageUrl) {
+    input.push({
+      role: "user",
+      content: [
+        { type: "input_text", text: latest },
+        { type: "input_image", image_url: session.attachedImageUrl },
+      ],
+    });
+  } else {
+    input.push({ role: "user", content: latest });
+  }
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const response = (await postJson(XAI_RESPONSES_URL, apiKey, {
@@ -579,10 +922,8 @@ async function runXaiChat(
     })) as GrokResponsesResult;
     const calls = functionCalls(response);
     if (calls.length === 0) {
-      const reply = softenReply(
-        outputText(response) || "I can look up parts, browse the shop, check your garage, or book a service. What do you need?",
-      );
-      return { reply, pendingAction: session.pendingAction, productBrowse: session.productBrowse, productDetail: session.productDetail, shopCategories: session.shopCategories };
+      const reply = softenReply(outputText(response) || FALLBACK_REPLY);
+      return sessionResult(session, reply);
     }
     input.push(...calls);
     for (const call of calls) {
@@ -594,17 +935,18 @@ async function runXaiChat(
       });
     }
   }
-  return {
-    reply: session.pendingAction
-      ? "If that looks right, tap Confirm and I will take care of it."
+  return sessionResult(
+    session,
+    session.pendingAction
+      ? "If that looks right, confirm and I will take care of it."
       : session.productBrowse?.products.length
         ? "Those parts are on the cards below. Tap one to open it, or tell me which to add."
-        : "What can I help you with for the car?",
-    pendingAction: session.pendingAction,
-    productBrowse: session.productBrowse,
-    productDetail: session.productDetail,
-    shopCategories: session.shopCategories,
-  };
+        : session.orderBrowse?.length
+          ? "Your recent orders are on the cards below."
+          : session.bookingBrowse?.length
+            ? "Your service bookings are on the cards below."
+            : FALLBACK_REPLY,
+  );
 }
 
 async function runGroqChat(
@@ -613,13 +955,7 @@ async function runGroqChat(
   history: ConciergeChatTurn[],
   message: string,
   session: ToolSession,
-): Promise<{
-  reply: string;
-  pendingAction: ConciergePendingAction | null;
-  productBrowse: ConciergeProductBrowse | null;
-  productDetail: ConciergeProductDetailView | null;
-  shopCategories: ConciergeShopDepartment[] | null;
-}> {
+): Promise<ConciergeRunResult> {
   const last = history[history.length - 1];
   const historyTurns =
     last?.role === "user" && last.content.trim() === message.trim() ? history.slice(0, -1) : history;
@@ -627,10 +963,10 @@ async function runGroqChat(
   for (const turn of historyTurns) {
     messages.push({
       role: turn.role === "assistant" ? "assistant" : "user",
-      content: turn.content,
+      content: spokenWithImage(turn.content, turn.imageUrl),
     });
   }
-  messages.push({ role: "user", content: message.trim() });
+  messages.push({ role: "user", content: spokenWithImage(message, session.attachedImageUrl) });
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const response = (await postJson(GROQ_CHAT_URL, apiKey, {
@@ -642,11 +978,8 @@ async function runGroqChat(
     const choice = response.choices?.[0]?.message;
     const calls = choice?.tool_calls?.filter((call) => call?.function?.name) ?? [];
     if (calls.length === 0) {
-      const reply = softenReply(
-        (choice?.content || "").trim() ||
-          "I can look up parts, browse the shop, check your garage, or book a service. What do you need?",
-      );
-      return { reply, pendingAction: session.pendingAction, productBrowse: session.productBrowse, productDetail: session.productDetail, shopCategories: session.shopCategories };
+      const reply = softenReply((choice?.content || "").trim() || FALLBACK_REPLY);
+      return sessionResult(session, reply);
     }
     messages.push({
       role: "assistant",
@@ -662,17 +995,18 @@ async function runGroqChat(
       });
     }
   }
-  return {
-    reply: session.pendingAction
-      ? "If that looks right, tap Confirm and I will take care of it."
+  return sessionResult(
+    session,
+    session.pendingAction
+      ? "If that looks right, confirm and I will take care of it."
       : session.productBrowse?.products.length
         ? "Those parts are on the cards below. Tap one to open it, or tell me which to add."
-        : "What can I help you with for the car?",
-    pendingAction: session.pendingAction,
-    productBrowse: session.productBrowse,
-    productDetail: session.productDetail,
-    shopCategories: session.shopCategories,
-  };
+        : session.orderBrowse?.length
+          ? "Your recent orders are on the cards below."
+          : session.bookingBrowse?.length
+            ? "Your service bookings are on the cards below."
+            : FALLBACK_REPLY,
+  );
 }
 
 export async function runConciergeChat(input: {
@@ -680,16 +1014,14 @@ export async function runConciergeChat(input: {
   history: ConciergeChatTurn[];
   contextJson: string;
   canBook: boolean;
+  signedIn: boolean;
+  customerId?: string | null;
   defaultLocation: string;
   defaultVehicleId: string | null;
   vehicleHint?: string;
-}): Promise<{
-  reply: string;
-  pendingAction: ConciergePendingAction | null;
-  productBrowse: ConciergeProductBrowse | null;
-  productDetail: ConciergeProductDetailView | null;
-  shopCategories: ConciergeShopDepartment[] | null;
-}> {
+  imageUrl?: string | null;
+  vehicles?: ToolSession["vehicles"];
+}): Promise<ConciergeRunResult> {
   const apiKey = grokApiKey();
   if (!apiKey) {
     throw new Error("GROK_UNAVAILABLE");
@@ -701,12 +1033,18 @@ export async function runConciergeChat(input: {
     productBrowse: null,
     productDetail: null,
     shopCategories: null,
+    orderBrowse: null,
+    bookingBrowse: null,
     canBook: input.canBook,
+    signedIn: input.signedIn,
+    customerId: input.customerId?.trim() || null,
     defaultLocation: input.defaultLocation,
     defaultVehicleId: input.defaultVehicleId,
     vehicleHint: input.vehicleHint?.trim() || "",
+    attachedImageUrl: optionalImageUrl(input.imageUrl),
+    vehicles: input.vehicles ?? [],
   };
-  const instructions = systemInstruction(input.contextJson, input.canBook, input.defaultLocation);
+  const instructions = systemInstruction(input.contextJson, input.canBook, input.signedIn, input.defaultLocation);
   const prior = input.history.slice(-MAX_HISTORY);
   const runner = usesXai(apiKey) ? runXaiChat : runGroqChat;
   return runner(apiKey, instructions, prior, input.message, session);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu, Package } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
-import { Toaster } from '@/components/ui/sonner';
+import { AdminPushAlerts } from '@/components/admin/admin-push-alerts';
 
 export function AdminDashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -65,6 +65,7 @@ export function AdminDashboardShell({ children }: { children: React.ReactNode })
 
       <main data-page-scroll className="min-h-0 flex-1 overflow-y-auto pt-14 md:pt-0">
         {children}
+        <AdminPushAlerts />
         <Toaster position="top-center" richColors closeButton />
       </main>
     </div>

@@ -142,13 +142,13 @@ export function getAuthRoleMeta(role: string): { title: string; description: str
       return {
         badge: 'Services',
         title: 'Sign in',
-        description: 'Jobs, customers, and funds. Google or email.',
+        description: 'Jobs, customers, and funds.',
       };
     default:
       return {
         badge: 'Buyer',
         title: 'Sign in',
-        description: 'Shop and book services. Phone added if needed.',
+        description: 'Shop and book services.',
       };
   }
 }

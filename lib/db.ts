@@ -495,10 +495,14 @@ export const updateCustomer = async (id: string, updates: Partial<Customer>) => 
 export const deleteCustomer = async (id: string) => customersRepo.deleteCustomerById(id);
 
 export const getCustomerByEmail = async (email: string) => {
+  const direct = await customersRepo.getCustomerByEmailExact(email);
+  if (direct) return direct;
   const all = await customersRepo.listCustomers();
   const lookup = email.trim().toLowerCase();
   return all.find((c) => c.email.toLowerCase() === lookup);
 };
+
+export const getCustomerByPhone = async (phone: string) => customersRepo.getCustomerByPhone(phone);
 
 export const getBuyerProfile = async (customerId: string): Promise<BuyerProfile | null> => {
   const customer = await customersRepo.getCustomerById(customerId);

@@ -10,6 +10,11 @@ import { rememberAuthNext } from '@/lib/auth-next';
 import { createClient } from '@/lib/supabase/client';
 import { cartLineKey, type CartLineItem } from '@/lib/cart-types';
 import { clearCheckoutDraft, loadCheckoutDraft, saveCheckoutDraft } from '@/lib/checkout-draft';
+import { persistBuyerLocalIdentity, readStoredBuyerName, readStoredBuyerPhone } from '@/lib/buyer-identity';
+import { isPlaceholderDisplayName } from '@/lib/display-name';
+import { formatE164Display, isPlaceholderEmail } from '@/lib/phone';
+import { authUserFullName, authUserPhone, fetchBuyerCustomer } from '@/lib/auth/save-display-name';
+import { getAuthGivenName } from '@/lib/auth-avatar';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -27,26 +32,59 @@ export default function CheckoutPage() {
   });
 
   useEffect(() => {
-    const items = JSON.parse(localStorage.getItem('cartItems') || '[]') as CartLineItem[];
-    if (!Array.isArray(items) || items.length === 0) {
-      router.push('/cart');
+    let cancelled = false;
+    const load = async () => {
+      const items = JSON.parse(localStorage.getItem('cartItems') || '[]') as CartLineItem[];
+      if (!Array.isArray(items) || items.length === 0) {
+        router.push('/cart');
+        setLoading(false);
+        return;
+      }
+      setCartItems(items);
+      const draft = loadCheckoutDraft();
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const storedPhone = readStoredBuyerPhone();
+      const storedName = readStoredBuyerName();
+      const storedEmail = (localStorage.getItem('currentBuyerEmail') || '').trim();
+      const sessionPhone = user ? authUserPhone(user) : '';
+      const customer = user
+        ? await fetchBuyerCustomer({
+            customerId: (localStorage.getItem('currentBuyerId') || '').trim(),
+            email: user.email ?? '',
+            phone: sessionPhone || storedPhone,
+          })
+        : null;
+      const accountPhone = customer?.phone || sessionPhone || storedPhone;
+      if (accountPhone) persistBuyerLocalIdentity({ phone: accountPhone, id: customer?.id, name: customer?.name });
+      const accountNameRaw = customer?.name || storedName || (user ? authUserFullName(user) || getAuthGivenName(user) : '');
+      const accountName = isPlaceholderDisplayName(accountNameRaw, { phone: accountPhone, email: customer?.email || user?.email })
+        ? ''
+        : accountNameRaw;
+      const accountEmail =
+        (customer?.email && !isPlaceholderEmail(customer.email) ? customer.email : '') ||
+        storedEmail ||
+        (user?.email && !isPlaceholderEmail(user.email) ? user.email : '');
+      if (cancelled) return;
+      setFormData((prev) => ({
+        ...prev,
+        customerName: accountName || (draft?.customerName && !isPlaceholderDisplayName(draft.customerName) ? draft.customerName : '') || prev.customerName,
+        customerEmail: accountEmail || draft?.customerEmail || prev.customerEmail || user?.email || '',
+        customerPhone:
+          (accountPhone ? formatE164Display(accountPhone) : '') ||
+          draft?.customerPhone ||
+          prev.customerPhone,
+        shippingAddress: draft?.shippingAddress || prev.shippingAddress,
+        promoCode: draft?.promoCode || prev.promoCode,
+      }));
       setLoading(false);
-      return;
-    }
-    setCartItems(items);
-    const draft = loadCheckoutDraft();
-    const savedName = localStorage.getItem('currentBuyerName') || '';
-    const savedEmail = localStorage.getItem('currentBuyerEmail') || '';
-    const savedPhone = localStorage.getItem('currentBuyerPhone') || '';
-    setFormData((prev) => ({
-      ...prev,
-      customerName: draft?.customerName || prev.customerName || savedName,
-      customerEmail: draft?.customerEmail || prev.customerEmail || savedEmail,
-      customerPhone: draft?.customerPhone || prev.customerPhone || savedPhone,
-      shippingAddress: draft?.shippingAddress || prev.shippingAddress,
-      promoCode: draft?.promoCode || prev.promoCode,
-    }));
-    setLoading(false);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {

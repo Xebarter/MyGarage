@@ -200,7 +200,13 @@ export async function POST(req: NextRequest) {
     });
     if (txError) throw new Error(txError.message);
 
-    return NextResponse.json({ servicePaymentId, paymentReference: providerReference, checkoutUrl });
+    return NextResponse.json({
+      servicePaymentId,
+      requestId: String(payment.request_id ?? ""),
+      kind: "service",
+      paymentReference: providerReference,
+      checkoutUrl,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to initialize service payment";
     return NextResponse.json({ error: message }, { status: 500 });

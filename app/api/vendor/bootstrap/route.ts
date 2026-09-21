@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 
+import { getAuthGivenName } from "@/lib/auth-avatar";
+import { isPlaceholderEmail, normalizeToE164, placeholderEmailForPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -30,11 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const email = (user.email ?? "").trim();
-    if (!email) {
-      return NextResponse.json({ error: "Missing email" }, { status: 400 });
-    }
-
     const admin = createAdminClient();
 
     const { data: existing, error: lookupError } = await admin
@@ -51,13 +48,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const fallbackName = email.split("@")[0] || "Vendor";
+    const phone = normalizeToE164(user.phone ?? "") ?? (user.phone ?? "").trim();
+    const emailFromAuth = (user.email ?? "").trim();
+    const email =
+      emailFromAuth && !isPlaceholderEmail(emailFromAuth)
+        ? emailFromAuth
+        : phone
+          ? placeholderEmailForPhone(phone)
+          : emailFromAuth;
+
+    if (!email && !phone) {
+      return NextResponse.json({ error: "Missing phone or email" }, { status: 400 });
+    }
+
+    const given = getAuthGivenName(user).trim();
+    const fallbackName =
+      given ||
+      (phone ? phone.replace(/^\+256/, "0") : "") ||
+      (email ? email.split("@")[0] : "") ||
+      "Vendor";
 
     const { error: insertError } = await admin.from("vendors").insert({
       id: user.id,
       name: fallbackName,
-      email,
-      phone: "",
+      email: email || placeholderEmailForPhone(phone),
+      phone: phone || "",
       address: "",
       rating: 0,
       total_products: 0,
@@ -66,8 +81,19 @@ export async function POST(req: NextRequest) {
     });
 
     if (insertError) {
+      if (insertError.code === "23505") {
+        return NextResponse.json({ ok: true });
+      }
       return NextResponse.json({ error: insertError.message }, { status: 400 });
     }
+
+    const { notifyLoggedInAdminsBestEffort } = await import("@/lib/push/notify-admins");
+    void notifyLoggedInAdminsBestEffort({
+      kind: "portal_access",
+      title: "Portal access requested",
+      body: `${fallbackName} needs supplier or service-provider approval.`,
+      url: "/admin/vendors",
+    });
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch {

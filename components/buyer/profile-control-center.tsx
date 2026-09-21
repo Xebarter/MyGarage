@@ -36,6 +36,7 @@ import { AddressAutocomplete } from '@/components/location/address-autocomplete'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { cn } from '@/lib/utils';
+import { persistBuyerLocalIdentity } from '@/lib/buyer-identity';
 import { SubscriptionPlansGrid } from '@/components/buyer/subscription-plans-grid';
 import { ProfileHero } from '@/components/buyer/profile-hero';
 import { ProfileContactPanel } from '@/components/buyer/profile-contact-panel';
@@ -204,6 +205,12 @@ export function ProfileControlCenter({ embed = false }: { embed?: boolean }) {
         body: JSON.stringify(profileForm),
       });
       if (res.ok) {
+        persistBuyerLocalIdentity({
+          id: customerId,
+          name: profileForm.name,
+          email: profileForm.email,
+          phone: profileForm.phone,
+        });
         await load();
         setEditing(false);
       }

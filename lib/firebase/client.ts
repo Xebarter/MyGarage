@@ -1,7 +1,7 @@
 "use client";
 
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { getAuth, initializeRecaptchaConfig, type Auth } from "firebase/auth";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 
 import type { FirebasePublicConfig } from "@/lib/firebase/env";
@@ -61,10 +61,26 @@ export function getFirebaseApp(): FirebaseApp {
   return app;
 }
 
-export async function getFirebaseAuth(): Promise<Auth> {
+let recaptchaConfigPromise: Promise<void> | undefined;
+
+export async function getFirebaseAuth(options?: { waitForRecaptchaEnterprise?: boolean }): Promise<Auth> {
   const firebaseApp = await ensureFirebaseInitialized();
   if (!auth) {
     auth = getAuth(firebaseApp);
+  }
+  const skipEnterprise = options?.waitForRecaptchaEnterprise === false;
+  if (typeof window !== "undefined" && !recaptchaConfigPromise && !skipEnterprise) {
+    recaptchaConfigPromise = Promise.race([
+      initializeRecaptchaConfig(auth),
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 3500);
+      }),
+    ]).catch(() => {
+      recaptchaConfigPromise = undefined;
+    });
+  }
+  if (!skipEnterprise && recaptchaConfigPromise) {
+    await recaptchaConfigPromise;
   }
   return auth;
 }

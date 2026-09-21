@@ -8,6 +8,7 @@ import 'providers/auth_controller.dart';
 import 'providers/cart_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'widgets/buyer_session_host.dart';
 
 class MyGarageBuyerApp extends StatefulWidget {
   const MyGarageBuyerApp({super.key});
@@ -79,7 +80,13 @@ class _MyGarageBuyerAppState extends State<MyGarageBuyerApp> with WidgetsBinding
         };
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: AppTheme.systemUi,
-          child: child ?? const SizedBox.shrink(),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              const BuyerSessionHost(),
+            ],
+          ),
         );
       },
     );

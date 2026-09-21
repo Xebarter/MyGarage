@@ -111,7 +111,11 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
     }
   }
 
-  Future<void> _launchCheckout(Future<Map<String, dynamic>> Function() start) async {
+  Future<void> _launchCheckout(
+    Future<Map<String, dynamic>> Function() start, {
+    String kind = '',
+    String requestId = '',
+  }) async {
     setState(() => _saving = true);
     try {
       final res = await start();
@@ -122,7 +126,15 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
         throw Exception(res['error']?.toString() ?? 'No payment URL returned');
       }
       if (!mounted) return;
-      final result = await openHostedPayment(context, checkoutUrl: url);
+      final result = await openHostedPayment(
+        context,
+        checkoutUrl: url,
+        kind: kind.isNotEmpty
+            ? kind
+            : (res['subscription'] != null ? 'subscription' : '${res['kind'] ?? ''}'),
+        checkoutId: '${res['checkoutId'] ?? ''}',
+        requestId: requestId.isNotEmpty ? requestId : '${res['requestId'] ?? ''}',
+      );
       if (!mounted) return;
       if (result == null || result.cancelled) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -140,6 +152,11 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
         const SnackBar(content: Text('Payment received.')),
       );
       await _load();
+      if (!mounted) return;
+      final next = paymentResultLocation(result, context.read<AuthController>());
+      if (GoRouterState.of(context).uri.path != next) {
+        context.go(next);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -178,6 +195,8 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
         servicePaymentId: payment.id,
         requestId: payment.referenceId.isNotEmpty ? payment.referenceId : null,
       ),
+      kind: 'service',
+      requestId: payment.referenceId,
     );
   }
 

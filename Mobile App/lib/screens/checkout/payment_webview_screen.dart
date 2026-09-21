@@ -7,128 +7,13 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
-import '../../providers/auth_controller.dart';
-import '../../router/app_router.dart';
+import '../../checkout/payment_result.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/payment_return_listener.dart';
 import '../../utils/settle_keyboard.dart';
 import '../../widgets/app_brand_logo.dart';
 
-class PaymentWebResult {
-  const PaymentWebResult({
-    required this.success,
-    required this.cancelled,
-    this.kind = '',
-    this.checkoutId = '',
-    this.requestId = '',
-  });
-
-  factory PaymentWebResult.dismissed() =>
-      const PaymentWebResult(success: false, cancelled: true);
-
-  final bool success;
-  final bool cancelled;
-  final String kind;
-  final String checkoutId;
-  final String requestId;
-}
-
-PaymentWebResult? parsePaymentReturnUri(Uri uri) {
-  final kind = uri.queryParameters['kind'] ?? '';
-  final checkoutId = uri.queryParameters['checkoutId'] ?? '';
-  final requestId = uri.queryParameters['requestId'] ?? '';
-
-  if (uri.scheme == 'mygarage') {
-    final key = myGarageDeepLinkKey(uri);
-    if (key == 'checkout/complete') {
-      return PaymentWebResult(
-        success: true,
-        cancelled: false,
-        kind: kind,
-        checkoutId: checkoutId,
-        requestId: requestId,
-      );
-    }
-    if (key == 'checkout/failed') {
-      return PaymentWebResult(
-        success: false,
-        cancelled: uri.queryParameters['cancelled'] == '1',
-        kind: kind,
-        checkoutId: checkoutId,
-        requestId: requestId,
-      );
-    }
-    return null;
-  }
-
-  if (uri.scheme != 'http' && uri.scheme != 'https') return null;
-
-  final path = uri.path.toLowerCase();
-  if (path.contains('/payments/mobile-return')) {
-    final status = (uri.queryParameters['status'] ?? '').toLowerCase();
-    if (status == 'success') {
-      return PaymentWebResult(
-        success: true,
-        cancelled: false,
-        kind: kind,
-        checkoutId: checkoutId,
-        requestId: requestId,
-      );
-    }
-    return PaymentWebResult(
-      success: false,
-      cancelled: status == 'cancel' || uri.queryParameters['cancelled'] == '1',
-      kind: kind,
-      checkoutId: checkoutId,
-      requestId: requestId,
-    );
-  }
-  if (path.contains('/payments/success')) {
-    return PaymentWebResult(
-      success: true,
-      cancelled: false,
-      kind: kind,
-      checkoutId: checkoutId,
-      requestId: requestId,
-    );
-  }
-  if (path.contains('/payments/cancel')) {
-    return PaymentWebResult(
-      success: false,
-      cancelled: true,
-      kind: kind,
-      checkoutId: checkoutId,
-      requestId: requestId,
-    );
-  }
-  if (path.contains('/payments/failure')) {
-    return PaymentWebResult(
-      success: false,
-      cancelled: false,
-      kind: kind,
-      checkoutId: checkoutId,
-      requestId: requestId,
-    );
-  }
-  return null;
-}
-
-String paymentResultLocation(PaymentWebResult result, AuthController auth) {
-  if (result.success) {
-    if (result.kind == 'subscription') return '/profile/membership';
-    if (result.kind == 'service') {
-      if (result.requestId.isNotEmpty) return '/service/track/${result.requestId}';
-      return '/profile/billing';
-    }
-    return auth.status == AuthStatus.authenticated ? '/orders' : '/login';
-  }
-  if (result.kind == 'subscription') return '/profile/membership';
-  if (result.kind == 'service') {
-    if (result.requestId.isNotEmpty) return '/service/track/${result.requestId}';
-    return '/profile/billing';
-  }
-  return '/checkout';
-}
+export '../../checkout/payment_result.dart';
 
 bool get supportsInAppPaymentWebView {
   if (kIsWeb) return false;
@@ -146,6 +31,9 @@ Future<PaymentWebResult?> openHostedPayment(
   BuildContext context, {
   required String checkoutUrl,
   String title = 'Complete payment',
+  String kind = '',
+  String checkoutId = '',
+  String requestId = '',
 }) async {
   await settleKeyboard();
   if (!context.mounted) return null;
@@ -153,19 +41,36 @@ Future<PaymentWebResult?> openHostedPayment(
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (_) => supportsInAppPaymentWebView
-          ? PaymentWebViewScreen(checkoutUrl: checkoutUrl, title: title)
-          : PaymentBrowserHandoffScreen(checkoutUrl: checkoutUrl, title: title),
+          ? PaymentWebViewScreen(
+              checkoutUrl: checkoutUrl,
+              title: title,
+              kind: kind,
+              checkoutId: checkoutId,
+              requestId: requestId,
+            )
+          : PaymentBrowserHandoffScreen(
+              checkoutUrl: checkoutUrl,
+              title: title,
+              kind: kind,
+              checkoutId: checkoutId,
+              requestId: requestId,
+            ),
     ),
   );
-  if (result != null &&
-      result.success &&
-      result.kind == 'subscription' &&
-      result.checkoutId.isNotEmpty) {
+  if (result == null) return null;
+  final merged = result.withFallback(
+    kind: kind,
+    checkoutId: checkoutId,
+    requestId: requestId,
+  );
+  if (merged.success &&
+      merged.kind == 'subscription' &&
+      merged.checkoutId.isNotEmpty) {
     try {
-      await BuyerApi(ApiClient()).activateSubscription(checkoutId: result.checkoutId);
+      await BuyerApi(ApiClient()).activateSubscription(checkoutId: merged.checkoutId);
     } catch (_) {}
   }
-  return result;
+  return merged;
 }
 
 /// Chrome / desktop: `webview_flutter` has no web implementation, so Paytota
@@ -175,10 +80,16 @@ class PaymentBrowserHandoffScreen extends StatefulWidget {
     super.key,
     required this.checkoutUrl,
     this.title = 'Complete payment',
+    this.kind = '',
+    this.checkoutId = '',
+    this.requestId = '',
   });
 
   final String checkoutUrl;
   final String title;
+  final String kind;
+  final String checkoutId;
+  final String requestId;
 
   @override
   State<PaymentBrowserHandoffScreen> createState() => _PaymentBrowserHandoffScreenState();
@@ -189,11 +100,13 @@ class _PaymentBrowserHandoffScreenState extends State<PaymentBrowserHandoffScree
   var _openFailed = false;
   var _finishing = false;
   late final void Function() _stopListening;
+  late final void Function() _stopBus;
 
   @override
   void initState() {
     super.initState();
     _stopListening = listenForHostedPaymentReturn(_onHostedReturn);
+    _stopBus = PaymentReturnBus.listen(_finish);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_openCheckout());
     });
@@ -202,6 +115,7 @@ class _PaymentBrowserHandoffScreenState extends State<PaymentBrowserHandoffScree
   @override
   void dispose() {
     _stopListening();
+    _stopBus();
     super.dispose();
   }
 
@@ -247,7 +161,15 @@ class _PaymentBrowserHandoffScreenState extends State<PaymentBrowserHandoffScree
   void _finish(PaymentWebResult result) {
     if (_finishing) return;
     _finishing = true;
-    Navigator.of(context).pop(result);
+    final merged = result.withFallback(
+      kind: widget.kind,
+      checkoutId: widget.checkoutId,
+      requestId: widget.requestId,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop(merged);
+    });
   }
 
   @override
@@ -291,7 +213,13 @@ class _PaymentBrowserHandoffScreenState extends State<PaymentBrowserHandoffScree
               else ...[
                 ElevatedButton(
                   onPressed: () => _finish(
-                    const PaymentWebResult(success: true, cancelled: false),
+                    PaymentWebResult(
+                      success: true,
+                      cancelled: false,
+                      kind: widget.kind,
+                      checkoutId: widget.checkoutId,
+                      requestId: widget.requestId,
+                    ),
                   ),
                   child: const Text("I've paid"),
                 ),
@@ -319,10 +247,16 @@ class PaymentWebViewScreen extends StatefulWidget {
     super.key,
     required this.checkoutUrl,
     this.title = 'Complete payment',
+    this.kind = '',
+    this.checkoutId = '',
+    this.requestId = '',
   });
 
   final String checkoutUrl;
   final String title;
+  final String kind;
+  final String checkoutId;
+  final String requestId;
 
   @override
   State<PaymentWebViewScreen> createState() => _PaymentWebViewScreenState();
@@ -332,10 +266,12 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
   late final WebViewController _controller;
   var _loading = true;
   var _finishing = false;
+  late final void Function() _stopBus;
 
   @override
   void initState() {
     super.initState();
+    _stopBus = PaymentReturnBus.listen(_finish);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(AppColors.background)
@@ -370,13 +306,33 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
       ..loadRequest(Uri.parse(widget.checkoutUrl));
   }
 
+  @override
+  void dispose() {
+    _stopBus();
+    super.dispose();
+  }
+
   bool _finishIfReturn(Uri uri) {
     if (_finishing) return true;
     final result = parsePaymentReturnUri(uri);
     if (result == null) return false;
-    _finishing = true;
-    if (mounted) Navigator.of(context).pop(result);
+    _finish(result);
     return true;
+  }
+
+  void _finish(PaymentWebResult result) {
+    if (_finishing) return;
+    _finishing = true;
+    if (!mounted) return;
+    final merged = result.withFallback(
+      kind: widget.kind,
+      checkoutId: widget.checkoutId,
+      requestId: widget.requestId,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop(merged);
+    });
   }
 
   bool _openExternalIfNeeded(Uri uri) {
@@ -393,9 +349,7 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
   }
 
   void _cancel() {
-    if (_finishing) return;
-    _finishing = true;
-    Navigator.of(context).pop(PaymentWebResult.dismissed());
+    _finish(PaymentWebResult.dismissed());
   }
 
   @override

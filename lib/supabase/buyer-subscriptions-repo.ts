@@ -60,18 +60,30 @@ function rowToSubscription(row: BuyerSubscriptionRow): BuyerSubscription {
 
 export async function getActiveBuyerSubscription(customerId: string): Promise<BuyerSubscription | null> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const { data: active, error: activeError } = await supabase
     .from("buyer_subscriptions")
     .select("*")
     .eq("customer_id", customerId)
-    .in("status", ["active", "pending"])
+    .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`getActiveBuyerSubscription failed: ${error.message}`);
-  if (!data) return null;
-  return rowToSubscription(data as BuyerSubscriptionRow);
+  if (activeError) throw new Error(`getActiveBuyerSubscription failed: ${activeError.message}`);
+  if (active) return rowToSubscription(active as BuyerSubscriptionRow);
+
+  const { data: pending, error: pendingError } = await supabase
+    .from("buyer_subscriptions")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingError) throw new Error(`getActiveBuyerSubscription failed: ${pendingError.message}`);
+  if (!pending) return null;
+  return rowToSubscription(pending as BuyerSubscriptionRow);
 }
 
 export async function listBuyerSubscriptionHistory(customerId: string): Promise<BuyerSubscription[]> {
@@ -87,15 +99,24 @@ export async function listBuyerSubscriptionHistory(customerId: string): Promise<
   return (data ?? []).map((row) => rowToSubscription(row as BuyerSubscriptionRow));
 }
 
-async function cancelActiveSubscriptions(customerId: string): Promise<void> {
+async function cancelSubscriptions(
+  customerId: string,
+  statuses: BuyerSubscriptionStatus[],
+  exceptId?: string,
+): Promise<void> {
   const supabase = createAdminClient();
-  const { error } = await supabase
+  let query = supabase
     .from("buyer_subscriptions")
     .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
     .eq("customer_id", customerId)
-    .in("status", ["active", "pending"]);
+    .in("status", statuses);
+  if (exceptId) query = query.neq("id", exceptId);
+  const { error } = await query;
+  if (error) throw new Error(`cancelSubscriptions failed: ${error.message}`);
+}
 
-  if (error) throw new Error(`cancelActiveSubscriptions failed: ${error.message}`);
+async function cancelActiveSubscriptions(customerId: string): Promise<void> {
+  await cancelSubscriptions(customerId, ["active", "pending"]);
 }
 
 function periodEndFromNow(): Date {
@@ -110,7 +131,11 @@ export async function createPendingSubscription(
   checkoutId?: string | null,
 ): Promise<BuyerSubscription> {
   const plan = getSubscriptionPlan(planTier);
-  await cancelActiveSubscriptions(customerId);
+  if (plan.monthlyPrice === 0) {
+    await cancelActiveSubscriptions(customerId);
+  } else {
+    await cancelSubscriptions(customerId, ["pending"]);
+  }
 
   const supabase = createAdminClient();
   const id = newId();
@@ -145,6 +170,8 @@ export async function activateSubscriptionByCheckout(checkoutId: string): Promis
 
   if (error) throw new Error(`activateSubscriptionByCheckout lookup failed: ${error.message}`);
   if (!data) return null;
+
+  await cancelSubscriptions(data.customer_id, ["active", "pending"], data.id);
 
   const now = new Date();
   const periodEnd = periodEndFromNow();
@@ -184,6 +211,7 @@ export async function activateSubscriptionById(subscriptionId: string, customerI
 
   if (error) throw new Error(`activateSubscriptionById failed: ${error.message}`);
   if (!data) return null;
+  await cancelSubscriptions(customerId, ["active", "pending"], data.id);
   return rowToSubscription(data as BuyerSubscriptionRow);
 }
 

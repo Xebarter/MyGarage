@@ -10,6 +10,7 @@ import {
   MapPin,
   Navigation,
   PencilLine,
+  Phone,
   Wrench,
   X,
 } from 'lucide-react';
@@ -201,6 +202,8 @@ export type BuyerServiceQuickRequestDialogProps = {
   identityMode: 'buyer' | 'guest';
   onSubmit: () => void;
   vehiclePicker?: ReactNode;
+  contactPhone?: string;
+  onContactPhoneChange?: (value: string) => void;
 };
 
 export function BuyerServiceQuickRequestDialog({
@@ -236,6 +239,8 @@ export function BuyerServiceQuickRequestDialog({
   identityMode,
   onSubmit,
   vehiclePicker,
+  contactPhone = '',
+  onContactPhoneChange,
 }: BuyerServiceQuickRequestDialogProps) {
   return (
     <Dialog
@@ -498,6 +503,29 @@ export function BuyerServiceQuickRequestDialog({
                       </div>
                     </div>
                   )}
+
+                  {onContactPhoneChange ? (
+                    <div
+                      className={cn('rounded-2xl p-4', serviceCardSurfaceClass)}
+                      style={{ backgroundColor: serviceCardTone(4) }}
+                    >
+                      <label htmlFor="quick-request-phone" className="flex items-center gap-2 text-sm font-bold text-foreground">
+                        <Phone className="h-4 w-4 text-primary" aria-hidden />
+                        Mobile number
+                      </label>
+                      <input
+                        id="quick-request-phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        value={contactPhone}
+                        onChange={(e) => onContactPhoneChange(e.target.value)}
+                        placeholder="0700 123 456"
+                        className="mt-2 min-h-[52px] w-full rounded-xl border border-border/70 bg-background/95 px-3 text-sm shadow-inner outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">Prefilled from your account. You can change it.</p>
+                    </div>
+                  ) : null}
 
                   {vehiclePicker}
                 </div>

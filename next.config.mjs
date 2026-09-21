@@ -15,6 +15,7 @@ try {
 }
 
 const nextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
   env: {
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,

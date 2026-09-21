@@ -6,6 +6,7 @@ export type FirebasePublicConfig = {
   messagingSenderId: string;
   appId: string;
   measurementId?: string;
+  vapidKey?: string;
 };
 
 function trimEnv(name: string): string | undefined {
@@ -29,6 +30,7 @@ export function readFirebaseConfigFromProcessEnv(): FirebasePublicConfig | null 
   }
 
   const measurementId = trimEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID");
+  const vapidKey = trimEnv("NEXT_PUBLIC_FIREBASE_VAPID_KEY");
 
   return {
     apiKey,
@@ -38,6 +40,7 @@ export function readFirebaseConfigFromProcessEnv(): FirebasePublicConfig | null 
     messagingSenderId,
     appId,
     ...(measurementId ? { measurementId } : {}),
+    ...(vapidKey ? { vapidKey } : {}),
   };
 }
 

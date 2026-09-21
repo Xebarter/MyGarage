@@ -5,6 +5,8 @@ import '../api/api_client.dart';
 import '../api/buyer_api.dart';
 import '../auth/auth_return_to.dart';
 import '../auth/google_auth.dart';
+import '../auth/phone.dart';
+import '../auth/phone_auth_client.dart';
 import '../config.dart';
 import '../models/models.dart';
 import '../utils/user_facing_error.dart';
@@ -18,6 +20,7 @@ class AuthController extends ChangeNotifier {
   }
 
   final BuyerApi _buyerApi;
+  final PhoneAuthClient _phoneAuth = PhoneAuthClient(role: 'buyer');
   VoidCallback? onSignedOut;
 
   AuthStatus status = AuthStatus.unknown;
@@ -28,6 +31,50 @@ class AuthController extends ChangeNotifier {
 
   String? get customerId => profile?.id;
   bool get configured => AppConfig.isSupabaseConfigured;
+
+  /// Signed-in mobile number from profile or phone-auth metadata.
+  String get signedInPhone {
+    final fromProfile = (profile?.phone ?? '').trim();
+    if (fromProfile.isNotEmpty) return fromProfile;
+    final fromUser = (user?.phone ?? user?.userMetadata?['phone'] as String? ?? '').trim();
+    return fromUser;
+  }
+
+  bool get needsDisplayName {
+    if (status != AuthStatus.authenticated) return false;
+    return isPlaceholderDisplayName(
+      profile?.name ?? '',
+      phone: signedInPhone,
+      email: profile?.email ?? user?.email ?? '',
+    );
+  }
+
+  String get displayName {
+    final name = (profile?.name ?? '').trim();
+    if (isPlaceholderDisplayName(name, phone: signedInPhone, email: profile?.email ?? '')) {
+      return '';
+    }
+    return name;
+  }
+
+  bool _pendingWelcome = false;
+  bool _sessionWelcomeShown = false;
+  bool _justCollectedName = false;
+
+  bool get shouldShowWelcome =>
+      _pendingWelcome &&
+      !_sessionWelcomeShown &&
+      status == AuthStatus.authenticated &&
+      !needsDisplayName &&
+      displayName.isNotEmpty;
+
+  bool get welcomeIsNewAccount => _justCollectedName;
+
+  void markWelcomeShown() {
+    _sessionWelcomeShown = true;
+    _justCollectedName = false;
+    notifyListeners();
+  }
 
   Future<void> _init() async {
     if (!AppConfig.isSupabaseConfigured) {
@@ -159,27 +206,129 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<void> _applyPhoneIdToken(String idToken, {bool pendingWelcome = true}) async {
+    final refresh = await _buyerApi.exchangePhoneIdToken(idToken);
+    await Supabase.instance.client.auth.setSession(refresh);
+    user = Supabase.instance.client.auth.currentUser;
+    await _phoneAuth.abort();
+    if (pendingWelcome) {
+      _pendingWelcome = true;
+      _sessionWelcomeShown = false;
+    }
+    await refreshProfile();
+  }
+
+  /// Returns true when the SMS code must be entered in-app (native).
+  /// On Chrome the hosted recaptcha page completes sign-in and this returns false.
+  Future<bool> sendPhoneOtp(String rawPhone) async {
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final phone = normalizeToE164(rawPhone);
+      if (phone == null) {
+        errorMessage = 'Enter a valid phone number.';
+        return false;
+      }
+      final started = await _phoneAuth.start(phone);
+      if (started.awaitingSms) return true;
+      final token = started.idToken;
+      if (token == null || token.isEmpty) {
+        errorMessage = 'Could not complete phone sign-in.';
+        return false;
+      }
+      await _applyPhoneIdToken(token, pendingWelcome: true);
+      return false;
+    } catch (e) {
+      errorMessage = phoneSignInErrorMessage(e);
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> verifyPhoneOtp({
+    required String rawPhone,
+    required String token,
+  }) async {
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final phone = normalizeToE164(rawPhone);
+      if (phone == null) {
+        errorMessage = 'Enter a valid phone number.';
+        status = AuthStatus.unauthenticated;
+        return;
+      }
+      final code = token.replaceAll(RegExp(r'\D'), '');
+      if (code.length < 6) {
+        errorMessage = 'Enter the 6-digit code.';
+        status = AuthStatus.unauthenticated;
+        return;
+      }
+      final idToken = await _phoneAuth.confirmSmsCode(code);
+      await _applyPhoneIdToken(idToken);
+    } catch (e) {
+      errorMessage = phoneSignInErrorMessage(e);
+      status = AuthStatus.unauthenticated;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<BuyerProfile?> _loadExistingProfile(User current) async {
+    try {
+      return await _buyerApi.fetchProfile(customerId: current.id);
+    } catch (_) {}
+    final email = current.email?.trim() ?? '';
+    if (email.isNotEmpty && !isPlaceholderEmail(email)) {
+      try {
+        return await _buyerApi.fetchProfile(email: email);
+      } catch (_) {}
+    }
+    final phone = (current.phone ?? current.userMetadata?['phone'] as String? ?? '').trim();
+    if (phone.isNotEmpty) {
+      try {
+        return await _buyerApi.fetchProfile(phone: phone);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<void> refreshProfile({bool quiet = false}) async {
     final current = user;
-    final email = current?.email;
-    if (current == null || email == null || email.isEmpty) {
+    if (current == null) {
       status = AuthStatus.unauthenticated;
       profile = null;
       notifyListeners();
       return;
     }
 
+    final email = current.email?.trim() ?? '';
+    final phone = (current.phone ?? current.userMetadata?['phone'] as String? ?? '').trim();
+    if (email.isEmpty && phone.isEmpty) {
+      status = AuthStatus.authenticated;
+      notifyListeners();
+      return;
+    }
+
     try {
-      try {
-        profile = await _buyerApi.fetchProfile(email: email);
-      } catch (_) {
-        final name = (current.userMetadata?['full_name'] as String?) ??
+      profile = await _loadExistingProfile(current);
+      if (profile == null) {
+        final metaName = (current.userMetadata?['full_name'] as String?) ??
             (current.userMetadata?['name'] as String?) ??
-            email.split('@').first;
+            '';
+        final name = isPlaceholderDisplayName(metaName, phone: phone, email: email)
+            ? 'Customer'
+            : metaName.trim();
         profile = await _buyerApi.createProfile(
-          name: name,
-          email: email,
-          phone: (current.userMetadata?['phone'] as String?) ?? '',
+          id: current.id,
+          name: name.isEmpty ? 'Customer' : name,
+          email: email.isNotEmpty ? email : placeholderEmailForPhone(phone),
+          phone: phone,
         );
       }
       status = AuthStatus.authenticated;
@@ -199,14 +348,55 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> saveDisplayName(String rawName) async {
+    final trimmed = rawName.trim();
+    if (trimmed.length < 2) {
+      throw Exception('Enter your name.');
+    }
+    final current = user;
+    if (current == null) throw Exception('Not signed in');
+
+    await Supabase.instance.client.auth.updateUser(
+      UserAttributes(
+        data: {
+          'full_name': trimmed,
+          'name': trimmed,
+          'given_name': firstGivenName(trimmed),
+        },
+      ),
+    );
+    user = Supabase.instance.client.auth.currentUser;
+
+    if (profile == null) {
+      final email = current.email?.trim() ?? '';
+      final phone = signedInPhone;
+      profile = await _buyerApi.createProfile(
+        id: current.id,
+        name: trimmed,
+        email: email.isNotEmpty ? email : placeholderEmailForPhone(phone),
+        phone: phone,
+      );
+    } else {
+      await updateProfileFields(
+        name: trimmed,
+        phone: signedInPhone.isNotEmpty ? signedInPhone : profile!.phone,
+        address: profile!.address,
+      );
+    }
+    _justCollectedName = true;
+    _pendingWelcome = true;
+    _sessionWelcomeShown = false;
+    notifyListeners();
+  }
+
   Future<void> updateProfileFields({
     required String name,
     required String phone,
     String address = '',
   }) async {
     final current = profile;
-    final email = user?.email ?? current?.email;
-    if (current == null || email == null || email.isEmpty) {
+    final email = user?.email ?? current?.email ?? '';
+    if (current == null) {
       throw Exception('Not signed in');
     }
     busy = true;
@@ -251,6 +441,9 @@ class AuthController extends ChangeNotifier {
     profile = null;
     errorMessage = null;
     status = AuthStatus.unauthenticated;
+    _pendingWelcome = false;
+    _sessionWelcomeShown = false;
+    _justCollectedName = false;
     notifyListeners();
     onSignedOut?.call();
   }

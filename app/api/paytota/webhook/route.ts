@@ -77,11 +77,13 @@ export async function POST(req: NextRequest) {
           });
 
           let orderIdForDisbursement = deterministicOrderId;
+          let orderIsNew = true;
           if (materializeError) {
             const msg = materializeError.message || "";
             if (!msg.includes("already materialized")) {
               throw new Error(msg);
             }
+            orderIsNew = false;
 
             // If the order already exists, use the actual id from DB.
             const { data: existingOrder, error: existingOrderError } = await supabase
@@ -91,6 +93,16 @@ export async function POST(req: NextRequest) {
               .maybeSingle();
             if (existingOrderError) throw new Error(existingOrderError.message);
             if (existingOrder?.id) orderIdForDisbursement = existingOrder.id;
+          }
+
+          if (orderIsNew) {
+            const { notifyLoggedInAdminsBestEffort } = await import("@/lib/push/notify-admins");
+            void notifyLoggedInAdminsBestEffort({
+              kind: "product_order",
+              title: "New product order",
+              body: `Order ${orderIdForDisbursement} is paid and ready to fulfill.`,
+              url: "/admin/orders",
+            });
           }
 
           const { error: disbError } = await supabase.rpc("create_admin_disbursements_for_product_order", {

@@ -9,6 +9,91 @@ const Map<String, String> _categoryIdAliases = {
   'inspection-paperwork': 'documents-insurance',
 };
 
+/// Keywords for matching catalog services (mirrors `lib/services-catalog.ts`).
+const Map<String, List<String>> serviceIntentKeywordsByCategoryId = {
+  'emergency-help': [
+    'jump',
+    'start',
+    'tow',
+    'battery',
+    'flat',
+    'tyre',
+    'tire',
+    'fuel',
+    'stuck',
+    'rescue',
+  ],
+  'fix-my-car': [
+    'engine',
+    'brake',
+    'overheat',
+    'cooling',
+    'gearbox',
+    'clutch',
+    'suspension',
+    'electrical',
+    'repair',
+  ],
+  'service-my-car': [
+    'oil',
+    'filter',
+    'service',
+    'inspection',
+    'maintenance',
+    'fluid',
+  ],
+  'tyres-battery': ['tyre', 'tire', 'wheel', 'alignment', 'battery'],
+  'car-wash-cleaning': ['wash', 'clean', 'detailing', 'interior'],
+  'body-repair-painting': ['body', 'paint', 'bumper', 'dent', 'scratch'],
+  'ac-cooling': ['ac', 'air', 'cooling', 'radiator', 'overheat'],
+  'security-tracking': [
+    'tracker',
+    'tracking',
+    'alarm',
+    'gps',
+    'immobilizer',
+    'theft',
+    'security',
+    'anti-theft',
+  ],
+  'documents-insurance': [
+    'insurance',
+    'license',
+    'permit',
+    'registration',
+    'ownership',
+    'logbook',
+    'renew',
+  ],
+  'drivers-transport': [
+    'driver',
+    'chauffeur',
+    'driving',
+    'school',
+    'hire driver',
+  ],
+  'fuel-delivery': ['fuel', 'petrol', 'diesel', 'delivery', 'oil delivery'],
+  'rent-buy-car': [
+    'rent',
+    'hire car',
+    'buy car',
+    'sell car',
+    'dealer',
+    'rental',
+  ],
+  'upgrade-my-car': [
+    'tint',
+    'wrap',
+    'stereo',
+    'speaker',
+    'upgrade',
+    'leather',
+    'lights',
+    'music',
+    'subwoofer',
+  ],
+};
+
 /// Same catalog as `lib/services-catalog.ts` on the web app.
 final List<ServiceCategory> userServiceCategories = [
   ServiceCategory(

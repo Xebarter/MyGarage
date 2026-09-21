@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Loader2, Package, Send, Trash2, Wrench } from 'lucide-react';
+import { Car, ImagePlus, Loader2, MapPin, Package, Send, Trash2, UserRound, Wrench, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,8 @@ import {
 } from '@/lib/concierge/open';
 import type {
   ConciergeActResult,
+  ConciergeBookingCard,
+  ConciergeOrderCard,
   ConciergePendingAction,
   ConciergeProductBrowse,
   ConciergeProductCard,
@@ -34,14 +36,25 @@ import type {
 } from '@/lib/concierge/types';
 import { resolveBuyerCustomerId } from '@/components/buyer/garage/utils';
 import { cn } from '@/lib/utils';
+import { uploadVehicleImage } from '@/lib/upload-vehicle-image';
 
-const SUGGESTIONS = [
+const GUEST_SUGGESTIONS = [
+  { label: 'Create account', prompt: 'I want to create an account' },
   { label: 'Browse shop', prompt: 'Show me what you sell in the shop' },
-  { label: 'Parts for my car', prompt: 'Find parts for my car' },
-  { label: 'Brake pads', prompt: 'I need brake pads' },
-  { label: 'Oil filter', prompt: 'I need an oil filter' },
-  { label: 'What cars do I have?', prompt: 'What cars do I have?' },
-  { label: 'Book oil service', prompt: 'Book an oil service' },
+  { label: 'Find brake pads', prompt: 'I need brake pads' },
+  { label: 'How can you help?', prompt: 'What can you help me do in MyGarage?' },
+];
+
+const MEMBER_SUGGESTIONS = [
+  { label: 'Add my car', prompt: 'Help me add a car to my garage' },
+  { label: 'Update my car', prompt: 'I want to update my car details' },
+  { label: 'Add a car photo', prompt: 'I want to add a photo of my car' },
+  { label: 'Track orders', prompt: 'Show my recent orders' },
+  { label: 'Track bookings', prompt: 'Show my service bookings' },
+  { label: 'Book a service', prompt: 'Book an oil service' },
+  { label: 'Browse shop', prompt: 'Show me what you sell in the shop' },
+  { label: 'Checkout', prompt: 'Take me to checkout' },
+  { label: 'Update profile', prompt: 'I want to update my profile' },
 ];
 
 type ChatMessage = {
@@ -52,7 +65,11 @@ type ChatMessage = {
   productBrowse?: ConciergeProductBrowse | null;
   productDetail?: ConciergeProductDetailView | null;
   shopCategories?: ConciergeShopDepartment[] | null;
+  orderBrowse?: ConciergeOrderCard[] | null;
+  bookingBrowse?: ConciergeBookingCard[] | null;
   actDone?: boolean;
+  href?: string;
+  imageUrl?: string;
 };
 
 type StoredThread = {
@@ -85,16 +102,20 @@ function writeThread(thread: StoredThread) {
   localStorage.setItem(CONCIERGE_STORAGE_KEY, JSON.stringify(thread));
 }
 
+type Suggestion = { label: string; prompt: string };
+
 function SuggestionChips({
   disabled,
   onPick,
+  items,
 }: {
   disabled?: boolean;
-  onPick: (item: (typeof SUGGESTIONS)[number]) => void;
+  onPick: (item: Suggestion) => void;
+  items: Suggestion[];
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {SUGGESTIONS.map((item) => (
+      {items.map((item) => (
         <button
           key={item.label}
           type="button"
@@ -197,6 +218,102 @@ function ProductBrowseGrid({
   );
 }
 
+function guideCopy(pending: ConciergePendingAction): { title: string; body: string; cta: string; icon: 'car' | 'user' | 'map' | 'nav' } {
+  switch (pending.type) {
+    case 'navigate':
+      return { title: pending.title, body: pending.description, cta: 'Take me there', icon: 'nav' };
+    case 'auth':
+      return { title: pending.title, body: pending.description, cta: 'Continue to sign in', icon: 'user' };
+    case 'vehicle_create':
+      return {
+        title: 'Add this car',
+        body: [pending.year, pending.make, pending.model, pending.nickname, pending.licensePlate, pending.color, pending.imageUrl ? 'Photo attached' : '']
+          .filter(Boolean)
+          .join(' · '),
+        cta: 'Save to garage',
+        icon: 'car',
+      };
+    case 'vehicle_update':
+      return {
+        title: pending.updates.imageUrl && Object.keys(pending.updates).every((key) => key === 'imageUrl')
+          ? 'Save this photo'
+          : 'Update this car',
+        body: pending.summary,
+        cta: pending.updates.imageUrl && Object.keys(pending.updates).every((key) => key === 'imageUrl') ? 'Save photo' : 'Save changes',
+        icon: 'car',
+      };
+    case 'profile_update':
+      return {
+        title: 'Update profile',
+        body: [pending.name && `Name ${pending.name}`, pending.phone && `Phone ${pending.phone}`, pending.address && pending.address]
+          .filter(Boolean)
+          .join(' · '),
+        cta: 'Save profile',
+        icon: 'user',
+      };
+    case 'address_create':
+      return {
+        title: 'Save address',
+        body: `${pending.label} · ${pending.fullAddress}`,
+        cta: 'Save address',
+        icon: 'map',
+      };
+    default:
+      return { title: 'Confirm', body: 'Continue with this step.', cta: 'Confirm', icon: 'nav' };
+  }
+}
+
+function pendingPhoto(pending: ConciergePendingAction): string {
+  if (pending.type === 'vehicle_create') return pending.imageUrl || '';
+  if (pending.type === 'vehicle_update') return pending.updates.imageUrl || '';
+  return '';
+}
+
+function GuideActionCard({
+  pending,
+  busy,
+  onConfirm,
+  onDismiss,
+}: {
+  pending: ConciergePendingAction;
+  busy?: boolean;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const copy = guideCopy(pending);
+  const photo = pendingPhoto(pending);
+  const Icon = copy.icon === 'car' ? Car : copy.icon === 'user' ? UserRound : copy.icon === 'map' ? MapPin : Package;
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-[#ECDCC6] bg-[#FFFEFB] shadow-[0_10px_24px_rgba(18,36,28,0.06)]">
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt="" className="h-36 w-full object-cover" />
+      ) : null}
+      <div className="flex items-start gap-3 px-4 py-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#D3F6E6] text-[#0E9A6A]">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#1A241F]">{copy.title}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-[#4A5C54]">{copy.body}</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 p-3 sm:flex-row">
+        <Button
+          className="h-11 flex-1 rounded-full bg-[#0E9A6A] text-[#FFFBF4] hover:bg-[#087A53]"
+          onClick={onConfirm}
+          disabled={busy}
+        >
+          {copy.cta}
+        </Button>
+        <Button type="button" variant="outline" className="h-11 rounded-full border-[#ECDCC6]" onClick={onDismiss} disabled={busy}>
+          Not now
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function ConciergeChatHost() {
   const pathname = usePathname();
   const router = useRouter();
@@ -215,9 +332,13 @@ export function ConciergeChatHost() {
   const [phoneDraft, setPhoneDraft] = useState('');
   const [needLocation, setNeedLocation] = useState(false);
   const [needPhone, setNeedPhone] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMsgRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImageUrl, setPendingImageUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const stored = readThread();
@@ -252,6 +373,11 @@ export function ConciergeChatHost() {
 
   useEffect(() => {
     if (!open) return;
+    void resolveBuyerCustomerId().then((id) => setSignedIn(Boolean(id)));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const timer = window.setTimeout(() => inputRef.current?.focus(), 280);
     return () => window.clearTimeout(timer);
   }, [open]);
@@ -273,7 +399,8 @@ export function ConciergeChatHost() {
       if (result.field === 'location') setNeedLocation(true);
       if (result.field === 'phone') setNeedPhone(true);
       if (result.field === 'sign_in') {
-        router.push(`/auth?role=buyer&next=${encodeURIComponent(pathname || '/')}`);
+        setOpen(false);
+        router.push(result.trackPath || `/auth?role=buyer&next=${encodeURIComponent(pathname || '/')}`);
       }
       setError(result.error);
       if (result.code === 'ACTIVE_REQUEST_EXISTS' && result.trackPath) {
@@ -286,6 +413,7 @@ export function ConciergeChatHost() {
               role: 'assistant',
               content: result.error,
               actDone: true,
+              href: result.trackPath,
             },
           ],
         });
@@ -318,6 +446,7 @@ export function ConciergeChatHost() {
               ? `Added ${count} item${count === 1 ? '' : 's'} to your cart. Opening checkout.`
               : `Added ${count} item${count === 1 ? '' : 's'} to your cart.`,
             actDone: true,
+            href: goToCheckout ? '/checkout' : '/cart',
           },
         ],
       });
@@ -325,7 +454,9 @@ export function ConciergeChatHost() {
         setOpen(false);
         router.push('/checkout');
       }
-    } else {
+      return true;
+    }
+    if (result.type === 'book') {
       persist({
         pendingAction: null,
         messages: [
@@ -333,14 +464,40 @@ export function ConciergeChatHost() {
           {
             id: newId(),
             role: 'assistant',
-            content: `Service request sent. Track it here: ${result.trackPath}`,
+            content: result.trackPath
+              ? `Service request sent. I will take you to tracking.`
+              : 'Service request sent.',
             actDone: true,
+            href: result.trackPath,
           },
         ],
       });
+      if (result.trackPath) {
+        setOpen(false);
+        router.push(result.trackPath);
+      }
+      return true;
+    }
+    persist({
+      pendingAction: null,
+      vehicleId: result.vehicleId || vehicleId,
+      messages: [
+        ...messages,
+        {
+          id: newId(),
+          role: 'assistant',
+          content: result.message,
+          actDone: true,
+          href: result.href,
+        },
+      ],
+    });
+    if (result.href) {
+      setOpen(false);
+      router.push(result.href);
     }
     return true;
-  }, [messages, pathname, persist, router]);
+  }, [messages, pathname, persist, router, vehicleId]);
 
   const confirmPending = useCallback(async (goToCheckout = true) => {
     if (!pendingAction || busy) return;
@@ -491,16 +648,42 @@ export function ConciergeChatHost() {
     }
   }, [busy, messages, persist]);
 
+  const attachPhoto = useCallback(async (file: File | null) => {
+    if (!file || busy || uploadingPhoto) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Choose a JPEG, PNG, WebP, or GIF photo.');
+      return;
+    }
+    setUploadingPhoto(true);
+    setError(null);
+    try {
+      const url = await uploadVehicleImage(file);
+      setPendingImageUrl(url);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not upload that photo.');
+    } finally {
+      setUploadingPhoto(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
+  }, [busy, uploadingPhoto]);
+
   const sendMessage = useCallback(async (preset?: string) => {
     const text = (preset ?? input).trim();
-    if (!text || busy) return;
-    if (pendingAction && isConciergeConfirmPhrase(text)) {
+    const imageUrl = pendingImageUrl;
+    if ((!text && !imageUrl) || busy || uploadingPhoto) return;
+    if (pendingAction && text && isConciergeConfirmPhrase(text)) {
       setInput('');
       await confirmPending(pendingAction.type === 'quote');
       return;
     }
     setInput('');
-    const userMsg: ChatMessage = { id: newId(), role: 'user', content: text };
+    setPendingImageUrl('');
+    const userMsg: ChatMessage = {
+      id: newId(),
+      role: 'user',
+      content: text || 'I attached a photo of my car.',
+      imageUrl: imageUrl || undefined,
+    };
     const nextMessages = [...messages, userMsg];
     persist({ messages: nextMessages });
     setBusy(true);
@@ -513,8 +696,13 @@ export function ConciergeChatHost() {
         body: JSON.stringify({
           customerId: customerId || undefined,
           vehicleId: vehicleId || undefined,
-          message: text,
-          history: nextMessages.map((msg) => ({ role: msg.role, content: msg.content })),
+          message: userMsg.content,
+          imageUrl: imageUrl || undefined,
+          history: nextMessages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            ...(msg.imageUrl ? { imageUrl: msg.imageUrl } : {}),
+          })),
         }),
       });
       const json = await response.json();
@@ -555,6 +743,8 @@ export function ConciergeChatHost() {
             productBrowse: json.productBrowse ?? null,
             productDetail: json.productDetail ?? null,
             shopCategories: json.shopCategories ?? null,
+            orderBrowse: json.orderBrowse ?? null,
+            bookingBrowse: json.bookingBrowse ?? null,
           },
         ],
       });
@@ -563,9 +753,9 @@ export function ConciergeChatHost() {
     } finally {
       setBusy(false);
     }
-  }, [busy, confirmPending, input, messages, pendingAction, persist, vehicleId]);
+  }, [busy, confirmPending, input, messages, pendingAction, pendingImageUrl, persist, uploadingPhoto, vehicleId]);
 
-  const pickSuggestion = useCallback((item: (typeof SUGGESTIONS)[number]) => {
+  const pickSuggestion = useCallback((item: Suggestion) => {
     void sendMessage(item.prompt);
   }, [sendMessage]);
 
@@ -625,7 +815,7 @@ export function ConciergeChatHost() {
               <div className="min-w-0 flex-1">
                 <SheetTitle className="text-[17px] font-bold tracking-tight text-[#1A241F]">Concierge</SheetTitle>
                 <SheetDescription className="text-xs text-[#7A8B82]">
-                  Online · garage, shop, and bookings
+                  Online · account, garage, shop, orders, and bookings
                 </SheetDescription>
               </div>
               {messages.length > 0 ? (
@@ -646,12 +836,16 @@ export function ConciergeChatHost() {
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="rounded-[28px] border border-[#F4E9D8] bg-[#FFFEFB] p-5 shadow-[0_10px_30px_rgba(18,36,28,0.05)]">
-                <p className="text-[17px] font-semibold tracking-tight text-[#1A241F]">Hi, how can I help?</p>
+                <p className="text-[17px] font-semibold tracking-tight text-[#1A241F]">How can I help?</p>
                 <p className="mt-1.5 text-sm leading-relaxed text-[#4A5C54]">
-                  I can check your car, browse the shop, find a part, or book a mechanic.
+                  I can create your account, add or update a car, save a photo, find parts, place an order, track deliveries, or book a mechanic — and I will take you through each step.
                 </p>
                 <div className="mt-4">
-                  <SuggestionChips disabled={busy} onPick={pickSuggestion} />
+                  <SuggestionChips
+                    disabled={busy}
+                    items={signedIn ? MEMBER_SUGGESTIONS : GUEST_SUGGESTIONS}
+                    onPick={pickSuggestion}
+                  />
                 </div>
               </div>
             ) : null}
@@ -665,13 +859,24 @@ export function ConciergeChatHost() {
                 <div
                   className={cn(
                     'whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14px] leading-relaxed shadow-sm',
-                    msg.productBrowse || msg.shopCategories ? 'w-full max-w-full' : 'max-w-[86%]',
+                    msg.productBrowse || msg.shopCategories || msg.orderBrowse || msg.bookingBrowse ? 'w-full max-w-full' : 'max-w-[86%]',
                     msg.role === 'user'
                       ? 'rounded-[20px] rounded-br-md bg-[#0E9A6A] text-[#FFFBF4]'
                       : 'rounded-[20px] rounded-bl-md border border-[#F4E9D8] bg-[#FFFEFB] text-[#1A241F]',
                   )}
                 >
                   {msg.content}
+                  {msg.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={msg.imageUrl}
+                      alt=""
+                      className={cn(
+                        'mt-2 max-h-44 w-full rounded-2xl object-cover',
+                        msg.role === 'user' ? 'ring-1 ring-white/25' : 'ring-1 ring-[#F4E9D8]',
+                      )}
+                    />
+                  ) : null}
                   {msg.productBrowse ? (
                     <ProductBrowseGrid
                       browse={msg.productBrowse}
@@ -729,17 +934,60 @@ export function ConciergeChatHost() {
                       </div>
                     </div>
                   ) : null}
-                  {msg.actDone && msg.content.includes('/buyer/services/track/') ? (
-                    <Link
-                      href={msg.content.split('Track it here: ')[1] || '/buyer/services'}
-                      className="mt-2 block text-xs font-semibold text-[#0E9A6A] underline"
-                    >
-                      Open request
-                    </Link>
+                  {msg.orderBrowse?.length ? (
+                    <div className="mt-3 overflow-hidden rounded-[20px] border border-[#F4E9D8] bg-[#FFF6EA]/80">
+                      {msg.orderBrowse.map((order) => (
+                        <button
+                          key={order.id}
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 border-b border-[#F4E9D8] px-3 py-2.5 text-left last:border-b-0"
+                          onClick={() => {
+                            setOpen(false);
+                            router.push(order.href);
+                          }}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-[#1A241F]">
+                              {order.itemSummary || 'Order'}
+                            </span>
+                            <span className="text-[11px] capitalize text-[#7A8B82]">{order.status.replaceAll('_', ' ')}</span>
+                          </span>
+                          <span className="shrink-0 text-sm font-bold tabular-nums text-[#087A53]">
+                            {formatUgx(order.total)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   ) : null}
-                  {msg.actDone && msg.content.includes('cart') ? (
-                    <Link href="/cart" className="mt-2 block text-xs font-semibold text-[#0E9A6A] underline">
-                      View cart
+                  {msg.bookingBrowse?.length ? (
+                    <div className="mt-3 overflow-hidden rounded-[20px] border border-[#F4E9D8] bg-[#FFF6EA]/80">
+                      {msg.bookingBrowse.map((booking) => (
+                        <button
+                          key={booking.id}
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 border-b border-[#F4E9D8] px-3 py-2.5 text-left last:border-b-0"
+                          onClick={() => {
+                            setOpen(false);
+                            router.push(booking.href);
+                          }}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-[#1A241F]">
+                              {booking.service || 'Service'}
+                            </span>
+                            <span className="text-[11px] capitalize text-[#7A8B82]">
+                              {booking.status.replaceAll('_', ' ')}
+                              {booking.location ? ` · ${booking.location}` : ''}
+                            </span>
+                          </span>
+                          <Wrench className="h-4 w-4 shrink-0 text-[#0E9A6A]" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {msg.actDone && msg.href ? (
+                    <Link href={msg.href} className="mt-2 block text-xs font-semibold text-[#0E9A6A] underline">
+                      Open
                     </Link>
                   ) : null}
                 </div>
@@ -796,6 +1044,15 @@ export function ConciergeChatHost() {
                   </Button>
                 </div>
               </div>
+            ) : null}
+
+            {visiblePending && visiblePending.type !== 'quote' && visiblePending.type !== 'book' ? (
+              <GuideActionCard
+                pending={visiblePending}
+                busy={busy}
+                onConfirm={() => void confirmPending(false)}
+                onDismiss={() => persist({ pendingAction: null })}
+              />
             ) : null}
 
             {visiblePending?.type === 'book' ? (
@@ -875,30 +1132,69 @@ export function ConciergeChatHost() {
           >
             {messages.length > 0 ? (
               <div className="mb-2.5">
-                <SuggestionChips disabled={busy} onPick={pickSuggestion} />
+                <SuggestionChips
+                  disabled={busy}
+                  items={signedIn ? MEMBER_SUGGESTIONS : GUEST_SUGGESTIONS}
+                  onPick={pickSuggestion}
+                />
               </div>
             ) : null}
-            <div className="flex items-end gap-2 rounded-[22px] border border-[#ECDCC6] bg-[#FFF6EA] p-1.5 pl-3.5">
+            {pendingImageUrl ? (
+              <div className="mb-2.5 flex items-center gap-2">
+                <span className="relative h-14 w-14 overflow-hidden rounded-2xl border border-[#ECDCC6] bg-[#FFF6EA]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pendingImageUrl} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white"
+                    onClick={() => setPendingImageUrl('')}
+                    aria-label="Remove photo"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+                <p className="text-xs text-[#7A8B82]">Photo ready to send</p>
+              </div>
+            ) : null}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => void attachPhoto(event.target.files?.[0] ?? null)}
+            />
+            <div className="flex items-end gap-2 rounded-[22px] border border-[#ECDCC6] bg-[#FFF6EA] p-1.5 pl-2">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-10 w-10 shrink-0 rounded-full text-[#087A53] hover:bg-[#D3F6E6]"
+                disabled={busy || uploadingPhoto}
+                onClick={() => imageInputRef.current?.click()}
+                aria-label="Attach a photo"
+              >
+                {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+              </Button>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about parts, your car, or a booking…"
+                placeholder="Add a car, attach a photo, or order parts…"
                 rows={1}
-                className="max-h-28 min-h-10 flex-1 resize-none bg-transparent py-2.5 text-sm text-[#1A241F] outline-none placeholder:text-[#7A8B82]"
+                className="max-h-28 min-h-10 flex-1 resize-none overflow-y-auto bg-transparent py-2.5 text-sm text-[#1A241F] outline-none placeholder:text-[#7A8B82] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
                     void sendMessage();
                   }
                 }}
-                disabled={busy}
+                disabled={busy || uploadingPhoto}
               />
               <Button
                 type="submit"
                 size="icon"
                 className="h-10 w-10 shrink-0 rounded-full bg-[#0E9A6A] text-[#FFFBF4] hover:bg-[#087A53] disabled:bg-[#D3F6E6] disabled:text-[#7A8B82]"
-                disabled={busy || !input.trim()}
+                disabled={busy || uploadingPhoto || (!input.trim() && !pendingImageUrl)}
                 aria-label="Send"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

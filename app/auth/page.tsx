@@ -32,10 +32,17 @@ import {
   clearOAuthWelcomePending,
   consumeOAuthWelcomePending,
   consumeWelcomeNewAccount,
+  dashboardPathForRole,
   markOAuthWelcomePending,
   markWelcomeNewAccount,
+  queueAuthWelcome,
   queueAuthWelcomeForUser,
 } from "@/lib/welcome-dialog";
+import { persistBuyerLocalIdentity } from "@/lib/buyer-identity";
+import { getAuthGivenName } from "@/lib/auth-avatar";
+import { isPlaceholderEmail } from "@/lib/phone";
+import { firstGivenName } from "@/lib/display-name";
+import { buyerNeedsDisplayName, saveBuyerDisplayName } from "@/lib/auth/save-display-name";
 import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "signin" | "forgot";
@@ -104,7 +111,8 @@ function AuthForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
-  const [buyerFlowStep, setBuyerFlowStep] = useState<"signin" | "phone">("signin");
+  const [buyerFlowStep, setBuyerFlowStep] = useState<"signin" | "phone" | "name">("signin");
+  const [displayName, setDisplayName] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -177,17 +185,36 @@ function AuthForm() {
         }
       }
 
-      if (role === "buyer" && user.email) {
-        const custRes = await fetch(`/api/customers?email=${encodeURIComponent(user.email.trim())}`);
-        const customer = custRes.ok ? ((await custRes.json()) as { id: string; phone?: string }) : null;
-        if (customer?.id) {
-          localStorage.setItem("currentBuyerId", customer.id);
-          if (customer.phone) localStorage.setItem("currentBuyerPhone", customer.phone);
+      if (role === "buyer") {
+        if (user.email) {
+          const custRes = await fetch(`/api/customers?email=${encodeURIComponent(user.email.trim())}`);
+          const customer = custRes.ok ? ((await custRes.json()) as { id: string; phone?: string }) : null;
+          if (customer?.id) {
+            persistBuyerLocalIdentity({
+              id: customer.id,
+              phone: customer.phone,
+              email: user.email,
+            });
+          }
+          const verifiedPhone = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
+          const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
+          if (!okPhone && countPhoneDigits(verifiedPhone) >= 9) {
+            try {
+              await syncBuyerCustomerAfterAuth(user, user.email.trim(), verifiedPhone);
+            } catch {
+              setBuyerFlowStep("phone");
+              setPhone(verifiedPhone);
+              setSessionChecked(true);
+              return;
+            }
+          } else if (!okPhone) {
+            setBuyerFlowStep("phone");
+            setPhone((customer?.phone ?? verifiedPhone).trim());
+            setSessionChecked(true);
+            return;
+          }
         }
-        const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
-        if (!okPhone) {
-          setBuyerFlowStep("phone");
-          setPhone((customer?.phone ?? "").trim());
+        if (await gateBuyerDisplayNameIfNeeded()) {
           setSessionChecked(true);
           return;
         }
@@ -196,9 +223,8 @@ function AuthForm() {
       try {
         await persistSessionProfile();
         if (cancelled) return;
-        if (consumeOAuthWelcomePending()) {
-          queueAuthWelcomeForUser(user, role);
-        }
+        consumeOAuthWelcomePending();
+        queueAuthWelcomeForUser(user, role, consumeWelcomeNewAccount() ? { isNewAccount: true } : undefined);
         setSessionChecked(true);
         await goToPostAuthDestination();
       } catch (e) {
@@ -346,27 +372,35 @@ function AuthForm() {
       return;
     }
 
-    localStorage.setItem("currentBuyerName", roleName);
-    localStorage.setItem("currentBuyerEmail", user.email ?? "No email saved");
+    localStorage.setItem("currentBuyerEmail", isPlaceholderEmail(user.email) ? "" : (user.email ?? ""));
+    if (isPlaceholderEmail(user.email)) localStorage.removeItem("currentBuyerEmail");
     const email = user.email?.trim();
+    const phone = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
     if (email) {
       try {
         const res = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
         if (res.ok) {
-          const c = (await res.json()) as { id?: string; phone?: string } | null;
+          const c = (await res.json()) as { id?: string; phone?: string; name?: string } | null;
           if (c?.id) {
-            localStorage.setItem("currentBuyerId", c.id);
-            if (c.phone) localStorage.setItem("currentBuyerPhone", c.phone);
+            persistBuyerLocalIdentity({
+              id: c.id,
+              name: c.name || getAuthGivenName(user),
+              email: isPlaceholderEmail(email) ? "" : email,
+              phone: c.phone || phone,
+            });
           }
         }
       } catch {
         /* ignore */
       }
     }
+    if (phone) persistBuyerLocalIdentity({ phone });
+    const given = getAuthGivenName(user);
+    if (given) persistBuyerLocalIdentity({ name: given, email: user.email, phone });
   };
 
   async function syncBuyerCustomerAfterAuth(user: { id: string; email?: string | null }, email: string, phoneNorm: string) {
-    const name = email.split("@")[0] || "Buyer";
+    const name = "Customer";
     const existingRes = await fetch(`/api/customers?email=${encodeURIComponent(email)}`);
     if (existingRes.ok) {
       const c = (await existingRes.json()) as { id?: string } | null;
@@ -442,6 +476,9 @@ function AuthForm() {
     if (role === "buyer" && userEmail && (await gateBuyerPhoneIfNeeded(userEmail))) {
       return false;
     }
+    if (role === "buyer" && (await gateBuyerDisplayNameIfNeeded())) {
+      return false;
+    }
 
     await persistSessionProfile();
     const {
@@ -456,14 +493,55 @@ function AuthForm() {
     if (role !== "buyer") return false;
     const custRes = await fetch(`/api/customers?email=${encodeURIComponent(userEmail)}`);
     const customer = custRes.ok ? ((await custRes.json()) as { id?: string; phone?: string }) : null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const verifiedPhone = String(user?.phone ?? user?.user_metadata?.phone ?? "").trim();
     const okPhone = Boolean(customer && countPhoneDigits(customer.phone ?? "") >= 9);
-    if (!okPhone) {
-      setBuyerFlowStep("phone");
-      setPhone((customer?.phone ?? "").trim());
-      return true;
+    if (okPhone) return false;
+    if (user && countPhoneDigits(verifiedPhone) >= 9) {
+      await syncBuyerCustomerAfterAuth(user, userEmail, verifiedPhone);
+      return false;
     }
-    return false;
+    setBuyerFlowStep("phone");
+    setPhone((customer?.phone ?? verifiedPhone).trim());
+    return true;
   }
+
+  async function gateBuyerDisplayNameIfNeeded(): Promise<boolean> {
+    if (role !== "buyer") return false;
+    const { needed } = await buyerNeedsDisplayName();
+    if (!needed) return false;
+    setBuyerFlowStep("name");
+    return true;
+  }
+
+  const completeBuyerNameGate = async () => {
+    setError(null);
+    if (displayName.trim().length < 2) {
+      setError("Enter your name.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await saveBuyerDisplayName(displayName);
+      await persistSessionProfile();
+      consumeOAuthWelcomePending();
+      consumeWelcomeNewAccount();
+      queueAuthWelcome({
+        name: firstGivenName(displayName) || displayName.trim(),
+        isNewAccount: true,
+        dashboardPath: dashboardPathForRole(role),
+        role,
+      });
+      setBuyerFlowStep("signin");
+      await goToPostAuthDestination();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save your name.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const completeBuyerPhoneGate = async () => {
     setError(null);
@@ -482,6 +560,11 @@ function AuthForm() {
       }
       const email = user.email.trim();
       await syncBuyerCustomerAfterAuth(user, email, phone.trim());
+      persistBuyerLocalIdentity({ phone: phone.trim(), email: isPlaceholderEmail(email) ? "" : email, id: user.id });
+      if (await gateBuyerDisplayNameIfNeeded()) {
+        setLoading(false);
+        return;
+      }
       await persistSessionProfile();
       consumeOAuthWelcomePending();
       queueAuthWelcomeForUser(user, role, consumeWelcomeNewAccount() ? { isNewAccount: true } : undefined);
@@ -671,7 +754,38 @@ function AuthForm() {
       <Card className={authCardClassName}>
         <div className="space-y-5 p-5 sm:p-7">
           <AuthBrandBanner />
-        {buyerFlowStep === "phone" && role === "buyer" ? (
+        {buyerFlowStep === "name" && role === "buyer" ? (
+          <>
+            <AuthFormHeader
+              badge="Buyer"
+              title="What’s your name?"
+              description="We’ll show this on your profile and when we welcome you back."
+            />
+            <div className="space-y-3">
+              <input
+                type="text"
+                autoComplete="name"
+                autoFocus
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void completeBuyerNameGate();
+                }}
+                placeholder="Full name"
+                className={authFieldClassName}
+              />
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void completeBuyerNameGate()}
+                className={authPrimaryButtonClassName}
+              >
+                {loading ? "Saving…" : "Continue"}
+              </button>
+            </div>
+            {error ? <AuthMessage variant="error">{error}</AuthMessage> : null}
+          </>
+        ) : buyerFlowStep === "phone" && role === "buyer" ? (
           <>
             <AuthFormHeader
               badge="Buyer"
@@ -720,6 +834,20 @@ function AuthForm() {
             />
 
             <div className="space-y-3">
+              {!isAdminRole ? (
+                <>
+                  <Link
+                    href={`/auth/phone?${new URLSearchParams({
+                      role,
+                      ...(nextPath ? { next: nextPath } : {}),
+                    }).toString()}`}
+                    className={authPrimaryButtonClassName}
+                  >
+                    Continue with phone
+                  </Link>
+                  <AuthDivider />
+                </>
+              ) : null}
               <AuthGoogleButton
                 loading={googleLoading}
                 disabled={loading}

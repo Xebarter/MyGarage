@@ -1,5 +1,6 @@
 import type { Customer } from "@/lib/db";
 import { CUSTOMER_SEED_ROWS } from "@/lib/data/customer-seed";
+import { phoneLookupVariants } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type CustomerRow = {
@@ -91,6 +92,44 @@ export async function getCustomerById(id: string): Promise<Customer | undefined>
 
   if (!data) return undefined;
   return rowToCustomer(data as CustomerRow);
+}
+
+export async function getCustomerByEmailExact(email: string): Promise<Customer | undefined> {
+  const lookup = email.trim().toLowerCase();
+  if (!lookup) return undefined;
+  await ensureSeedIfEmpty();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .ilike("email", lookup)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Supabase get customer by email failed: ${error.message}`);
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return undefined;
+  return rowToCustomer(row as CustomerRow);
+}
+
+export async function getCustomerByPhone(phone: string): Promise<Customer | undefined> {
+  const variants = phoneLookupVariants(phone);
+  if (variants.length === 0) return undefined;
+  await ensureSeedIfEmpty();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .in("phone", variants)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Supabase get customer by phone failed: ${error.message}`);
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return undefined;
+  return rowToCustomer(row as CustomerRow);
 }
 
 export async function insertCustomer(customer: CustomerInsert): Promise<Customer> {

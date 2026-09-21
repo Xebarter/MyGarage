@@ -255,6 +255,7 @@ export async function POST(req: NextRequest) {
       subscription: result.subscription,
       checkoutId: result.checkoutId,
       checkoutUrl: result.checkoutUrl,
+      kind: "subscription",
     });
   } catch (error) {
     console.error("[buyer/subscriptions POST]", error);

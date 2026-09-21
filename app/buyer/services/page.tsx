@@ -11,7 +11,8 @@ import { GarageVehiclePicker } from '@/components/buyer/garage/vehicle-picker';
 import { MobileBuyerServicesBrowse } from '@/components/buyer/mobile-buyer-services-browse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BUYER_SERVICE_COMPLETE_PENDING_PATH, savePendingBuyerServiceRequest } from '@/lib/buyer-service-pending';
-import { userServiceCategories } from '@/lib/services-catalog';
+import { cleanServiceDisplayTitle, userServiceCategories } from '@/lib/services-catalog';
+import { searchBuyerServicesCatalog } from '@/lib/search/match-catalog-services';
 import { serviceCardSurfaceClass, serviceCardTone, SERVICE_EMERGENCY_TONE, serviceEmergencySurfaceClass } from '@/lib/service-card-tones';
 import {
   formatServicePriceRangeLabel,
@@ -33,6 +34,11 @@ import {
 import { cn } from '@/lib/utils';
 import { parseMapPoint } from '@/lib/maps/coords';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { persistBuyerLocalIdentity, readStoredBuyerName, readStoredBuyerPhone } from '@/lib/buyer-identity';
+import { formatE164Display, isPlaceholderEmail } from '@/lib/phone';
+import { isPlaceholderDisplayName } from '@/lib/display-name';
+import { authUserFullName, authUserPhone, fetchBuyerCustomer } from '@/lib/auth/save-display-name';
 
 type BuyerServiceRequest = {
   id: string;
@@ -492,16 +498,13 @@ function BuyerServicesPageInner() {
     }
     return labels;
   }, [priceRanges, suggestedServices]);
-  const filteredCategories = useMemo(() => {
-    const query = categorySearch.trim().toLowerCase();
-    if (!query) return userServiceCategories;
-    return userServiceCategories.filter(
-      (category) =>
-        category.title.toLowerCase().includes(query) ||
-        category.useWhen.toLowerCase().includes(query) ||
-        category.services.some((service) => service.name.toLowerCase().includes(query)),
-    );
-  }, [categorySearch]);
+  const catalogSearch = useMemo(
+    () => searchBuyerServicesCatalog(categorySearch, { serviceLimit: 16 }),
+    [categorySearch],
+  );
+  const isCatalogSearching = categorySearch.trim().length >= 2;
+  const filteredCategories = catalogSearch.categories.map((row) => row.category);
+  const matchedServices = catalogSearch.services;
   const resolvedLocation = useMemo(
     () => (useDetectedLocation ? detectedLocation.trim() : manualLocation.trim()),
     [useDetectedLocation, detectedLocation, manualLocation]
@@ -643,13 +646,40 @@ function BuyerServicesPageInner() {
   };
 
   useEffect(() => {
-    const name =
-      (localStorage.getItem(PAY_CONTACT_NAME_KEY) || localStorage.getItem('currentBuyerName') || '').trim();
-    const email = (localStorage.getItem(PAY_CONTACT_EMAIL_KEY) || localStorage.getItem('currentBuyerEmail') || '').trim();
-    const phone = (localStorage.getItem(PAY_CONTACT_PHONE_KEY) || localStorage.getItem('currentBuyerPhone') || '').trim();
-    if (name) setPayContactName(name);
-    if (email) setPayContactEmail(email);
-    if (phone) setPayContactPhone(phone);
+    let cancelled = false;
+    const loadContact = async () => {
+      const storedName = (localStorage.getItem(PAY_CONTACT_NAME_KEY) || readStoredBuyerName() || '').trim();
+      const storedEmail = (localStorage.getItem(PAY_CONTACT_EMAIL_KEY) || localStorage.getItem('currentBuyerEmail') || '').trim();
+      const storedPhone = (localStorage.getItem(PAY_CONTACT_PHONE_KEY) || readStoredBuyerPhone() || '').trim();
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const sessionPhone = user ? authUserPhone(user) : '';
+      const customer = user
+        ? await fetchBuyerCustomer({
+            customerId: (localStorage.getItem('currentBuyerId') || '').trim(),
+            email: user.email ?? '',
+            phone: sessionPhone || storedPhone,
+          })
+        : null;
+      if (cancelled) return;
+      const phone = customer?.phone || sessionPhone || storedPhone;
+      const nameRaw = customer?.name || storedName || (user ? authUserFullName(user) : '');
+      const name = isPlaceholderDisplayName(nameRaw, { phone, email: customer?.email || user?.email }) ? storedName : nameRaw;
+      const email =
+        (customer?.email && !isPlaceholderEmail(customer.email) ? customer.email : '') || storedEmail;
+      if (name) setPayContactName(name);
+      if (email) setPayContactEmail(email);
+      if (phone) {
+        setPayContactPhone(formatE164Display(phone));
+        persistBuyerLocalIdentity({ phone, id: customer?.id, name, email });
+      }
+    };
+    void loadContact();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadServiceData = async (id: string) => {
@@ -766,6 +796,8 @@ function BuyerServicesPageInner() {
 
       const contactPhone = payContactPhone.trim();
       const contactName = payContactName.trim();
+      if (contactPhone) localStorage.setItem(PAY_CONTACT_PHONE_KEY, contactPhone);
+      if (contactName) localStorage.setItem(PAY_CONTACT_NAME_KEY, contactName);
       const response = await fetch('/api/buyer/service-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -864,6 +896,19 @@ function BuyerServicesPageInner() {
     serviceAutofillSuppressed.current = true;
     setSelectedService('');
     setQuickRequestUiStep('service');
+    setIsQuickRequestDialogOpen(true);
+  };
+
+  const openServiceRequest = (categoryTitle: string, serviceName: string) => {
+    if (runningServiceRequest) {
+      setIsQuickRequestDialogOpen(false);
+      router.push(`/buyer/services/track/${encodeURIComponent(runningServiceRequest.id)}`);
+      return;
+    }
+    serviceAutofillSuppressed.current = false;
+    setSelectedCategory(categoryTitle);
+    setSelectedService(serviceName);
+    setQuickRequestUiStep('location');
     setIsQuickRequestDialogOpen(true);
   };
 
@@ -1053,9 +1098,11 @@ function BuyerServicesPageInner() {
                   type="search"
                   value={categorySearch}
                   onChange={(e) => setCategorySearch(e.target.value)}
-                  placeholder="Search services (e.g. towing, oil change…)"
-                  className="min-h-11 rounded-xl border-border/80 bg-background pl-9 pr-9 text-sm"
-                  aria-label="Search service categories"
+                  placeholder="Search towing, oil change, battery, wash…"
+                  className="min-h-11 rounded-xl border-border/80 bg-background pl-9 pr-9 text-sm shadow-sm"
+                  aria-label="Search services and categories"
+                  autoComplete="off"
+                  spellCheck={false}
                 />
                 {categorySearch ? (
                   <button
@@ -1068,58 +1115,141 @@ function BuyerServicesPageInner() {
                   </button>
                 ) : null}
               </div>
+              {isCatalogSearching ? (
+                <p className="mt-2.5 text-xs text-muted-foreground" aria-live="polite">
+                  {matchedServices.length === 0 && filteredCategories.length === 0
+                    ? 'No matches'
+                    : [
+                        matchedServices.length > 0
+                          ? `${matchedServices.length} ${matchedServices.length === 1 ? 'service' : 'services'}`
+                          : null,
+                        filteredCategories.length > 0
+                          ? `${filteredCategories.length} ${filteredCategories.length === 1 ? 'category' : 'categories'}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                  {categorySearch.trim() ? ` for “${categorySearch.trim()}”` : ''}
+                </p>
+              ) : null}
             </div>
 
-            <div className="p-3 sm:p-4">
-              {filteredCategories.length === 0 ? (
+            <div className="space-y-5 p-3 sm:p-4">
+              {isCatalogSearching && matchedServices.length === 0 && filteredCategories.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border/80 bg-muted/15 px-4 py-10 text-center">
-                  <p className="text-sm font-medium text-foreground">No categories match your search</p>
-                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setCategorySearch('')}>
+                  <Search className="mx-auto h-8 w-8 text-muted-foreground/70" aria-hidden />
+                  <p className="mt-3 text-sm font-semibold text-foreground">No services match your search</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try another keyword — towing, tyre, oil, wash, tracker…
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => setCategorySearch('')}>
                     Clear search
                   </Button>
                 </div>
               ) : (
-                <ul className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-                  {filteredCategories.map((category, index) => {
-                    const isActive = selectedCategory === category.title;
-                    const isEmergency = category.priority === 'urgent';
-                    return (
-                      <li key={category.id}>
-                        <button
-                          type="button"
-                          onClick={() => openCategoryRequest(category.title)}
-                          className={cn(
-                            'group flex h-full min-h-[7.5rem] w-full flex-col gap-2 rounded-xl p-2.5 text-left transition active:scale-[0.99] sm:min-h-[4.25rem] sm:flex-row sm:items-center sm:gap-3 sm:p-3',
-                            isEmergency ? serviceEmergencySurfaceClass : serviceCardSurfaceClass,
-                            isActive && 'ring-2 ring-primary/35',
-                          )}
-                          style={{
-                            backgroundColor: isEmergency ? SERVICE_EMERGENCY_TONE : serviceCardTone(index),
-                          }}
-                        >
-                          <span
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/50 text-lg sm:h-11 sm:w-11 sm:text-xl"
-                            aria-hidden
-                          >
-                            {category.emoji}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block line-clamp-3 text-xs font-semibold leading-snug text-foreground sm:line-clamp-2 sm:text-sm">
-                              {category.title}
-                            </span>
-                            <span className="mt-0.5 block line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:line-clamp-1 sm:text-xs">
-                              {category.useWhen}
-                            </span>
-                          </span>
-                          <ChevronRight
-                            className="hidden h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground sm:block"
-                            aria-hidden
-                          />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <>
+                  {isCatalogSearching && matchedServices.length > 0 ? (
+                    <div>
+                      <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Matching services
+                        </h3>
+                        <span className="text-[11px] text-muted-foreground">{matchedServices.length}</span>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {matchedServices.map((hit, index) => (
+                          <li key={hit.id}>
+                            <button
+                              type="button"
+                              onClick={() => openServiceRequest(hit.categoryTitle, hit.name)}
+                              className={cn(
+                                'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition active:scale-[0.99]',
+                                serviceCardSurfaceClass,
+                              )}
+                              style={{ backgroundColor: serviceCardTone(index) }}
+                            >
+                              <span
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/55 text-lg"
+                                aria-hidden
+                              >
+                                {hit.emoji}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-foreground">
+                                  {hit.name}
+                                </span>
+                                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                  {cleanServiceDisplayTitle(hit.categoryTitle)}
+                                </span>
+                              </span>
+                              <ChevronRight
+                                className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground"
+                                aria-hidden
+                              />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {filteredCategories.length > 0 ? (
+                    <div>
+                      {isCatalogSearching ? (
+                        <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Categories
+                          </h3>
+                          <span className="text-[11px] text-muted-foreground">{filteredCategories.length}</span>
+                        </div>
+                      ) : null}
+                      <ul className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                        {filteredCategories.map((category, index) => {
+                          const isActive = selectedCategory === category.title;
+                          const isEmergency = category.priority === 'urgent';
+                          const matchMeta = catalogSearch.categories[index];
+                          return (
+                            <li key={category.id}>
+                              <button
+                                type="button"
+                                onClick={() => openCategoryRequest(category.title)}
+                                className={cn(
+                                  'group flex h-full min-h-[7.5rem] w-full flex-col gap-2 rounded-xl p-2.5 text-left transition active:scale-[0.99] sm:min-h-[4.25rem] sm:flex-row sm:items-center sm:gap-3 sm:p-3',
+                                  isEmergency ? serviceEmergencySurfaceClass : serviceCardSurfaceClass,
+                                  isActive && 'ring-2 ring-primary/35',
+                                )}
+                                style={{
+                                  backgroundColor: isEmergency ? SERVICE_EMERGENCY_TONE : serviceCardTone(index),
+                                }}
+                              >
+                                <span
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/50 text-lg sm:h-11 sm:w-11 sm:text-xl"
+                                  aria-hidden
+                                >
+                                  {category.emoji}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block line-clamp-3 text-xs font-semibold leading-snug text-foreground sm:line-clamp-2 sm:text-sm">
+                                    {cleanServiceDisplayTitle(category.title)}
+                                  </span>
+                                  <span className="mt-0.5 block line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:line-clamp-1 sm:text-xs">
+                                    {isCatalogSearching && matchMeta?.matchingServiceCount
+                                      ? `${matchMeta.matchingServiceCount} matching ${matchMeta.matchingServiceCount === 1 ? 'service' : 'services'}`
+                                      : category.useWhen}
+                                  </span>
+                                </span>
+                                <ChevronRight
+                                  className="hidden h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground sm:block"
+                                  aria-hidden
+                                />
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           </section>
@@ -1364,6 +1494,8 @@ function BuyerServicesPageInner() {
             <GarageVehiclePicker customerId={customerId} value={bookingVehicleId} onChange={setBookingVehicleId} />
           ) : null
         }
+        contactPhone={payContactPhone}
+        onContactPhoneChange={setPayContactPhone}
       />
     </>
   );

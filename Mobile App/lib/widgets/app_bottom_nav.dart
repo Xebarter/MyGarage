@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/cart_controller.dart';
 import '../theme/app_theme.dart';
+import 'concierge_entry.dart';
 
 /// Main app footer (Services / Shop / Cart / Profile).
 class AppBottomNav extends StatelessWidget {
@@ -24,6 +25,7 @@ class AppBottomNav extends StatelessWidget {
     if (p.startsWith('/profile') ||
         p.startsWith('/orders') ||
         p.startsWith('/garage') ||
+        p.startsWith('/concierge') ||
         p.startsWith('/addresses') ||
         p.startsWith('/wishlist') ||
         p.startsWith('/support')) {
@@ -111,6 +113,8 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       body: child,
+      floatingActionButton: shouldShowConciergeFab(location) ? const ConciergeFab() : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: AppBottomNav(location: location),
     );
   }
