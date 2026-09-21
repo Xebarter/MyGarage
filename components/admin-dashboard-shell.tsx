@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, Package } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin-sidebar';
 import { AdminPushAlerts } from '@/components/admin/admin-push-alerts';
+import { Toaster } from '@/components/ui/sonner';
 
 export function AdminDashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
