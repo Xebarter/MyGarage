@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api/api_client.dart';
@@ -7,11 +8,18 @@ import '../auth/auth_return_to.dart';
 import '../auth/google_auth.dart';
 import '../auth/phone.dart';
 import '../auth/phone_auth_client.dart';
+import '../auth/phone_auth_webview.dart';
 import '../config.dart';
 import '../models/models.dart';
 import '../utils/user_facing_error.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticated }
+
+/// GoRouter must not refresh on every profile/busy notify — that resets the
+/// StatefulShell back to the Services tab. Ping only when [AuthStatus] changes.
+class AuthRouterRefresh extends ChangeNotifier {
+  void ping() => notifyListeners();
+}
 
 class AuthController extends ChangeNotifier {
   AuthController({ApiClient? apiClient})
@@ -21,7 +29,17 @@ class AuthController extends ChangeNotifier {
 
   final BuyerApi _buyerApi;
   final PhoneAuthClient _phoneAuth = PhoneAuthClient(role: 'buyer');
+  final AuthRouterRefresh routerRefresh = AuthRouterRefresh();
+  AuthStatus _routerStatus = AuthStatus.unknown;
   VoidCallback? onSignedOut;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    if (_routerStatus == status) return;
+    _routerStatus = status;
+    routerRefresh.ping();
+  }
 
   AuthStatus status = AuthStatus.unknown;
   User? user;
@@ -60,6 +78,7 @@ class AuthController extends ChangeNotifier {
   bool _pendingWelcome = false;
   bool _sessionWelcomeShown = false;
   bool _justCollectedName = false;
+  String? _appliedPhoneIdToken;
 
   bool get shouldShowWelcome =>
       _pendingWelcome &&
@@ -207,6 +226,8 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> _applyPhoneIdToken(String idToken, {bool pendingWelcome = true}) async {
+    if (_appliedPhoneIdToken == idToken && user != null) return;
+    _appliedPhoneIdToken = idToken;
     final refresh = await _buyerApi.exchangePhoneIdToken(idToken);
     await Supabase.instance.client.auth.setSession(refresh);
     user = Supabase.instance.client.auth.currentUser;
@@ -218,9 +239,26 @@ class AuthController extends ChangeNotifier {
     await refreshProfile();
   }
 
-  /// Returns true when the SMS code must be entered in-app (native).
-  /// On Chrome the hosted recaptcha page completes sign-in and this returns false.
-  Future<bool> sendPhoneOtp(String rawPhone) async {
+  Future<void> completeHostedPhoneToken(String idToken) async {
+    final token = idToken.trim();
+    if (token.isEmpty) return;
+    if (status == AuthStatus.authenticated && user != null) return;
+    busy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await _applyPhoneIdToken(token, pendingWelcome: true);
+    } catch (e) {
+      errorMessage = phoneSignInErrorMessage(e);
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Returns true when the SMS code must be entered in-app.
+  /// Native Android/iOS complete the hosted recaptcha page and return false.
+  Future<bool> sendPhoneOtp(String rawPhone, {BuildContext? host}) async {
     busy = true;
     errorMessage = null;
     notifyListeners();
@@ -228,6 +266,29 @@ class AuthController extends ChangeNotifier {
       final phone = normalizeToE164(rawPhone);
       if (phone == null) {
         errorMessage = 'Enter a valid phone number.';
+        return false;
+      }
+      if (!kIsWeb && host != null) {
+        final hosted = await openHostedPhoneAuth(host, e164: phone, role: 'buyer');
+        if (hosted == null || hosted.isEmpty) {
+          return false;
+        }
+        final refresh = hosted.refreshToken?.trim() ?? '';
+        if (refresh.isNotEmpty) {
+          await Supabase.instance.client.auth.setSession(refresh);
+          user = Supabase.instance.client.auth.currentUser;
+          await _phoneAuth.abort();
+          _pendingWelcome = true;
+          _sessionWelcomeShown = false;
+          await refreshProfile();
+          return false;
+        }
+        final idToken = hosted.idToken?.trim() ?? '';
+        if (idToken.isEmpty) {
+          errorMessage = 'Could not complete phone sign-in.';
+          return false;
+        }
+        await _applyPhoneIdToken(idToken, pendingWelcome: true);
         return false;
       }
       final started = await _phoneAuth.start(phone);
@@ -329,6 +390,15 @@ class AuthController extends ChangeNotifier {
           name: name.isEmpty ? 'Customer' : name,
           email: email.isNotEmpty ? email : placeholderEmailForPhone(phone),
           phone: phone,
+        );
+      } else if (phone.isNotEmpty && (profile!.phone).trim().isEmpty) {
+        // Phone OTP is the source of truth — never leave the profile without it.
+        profile = await _buyerApi.updateProfile(
+          profile!.id,
+          name: profile!.name,
+          email: profile!.email,
+          phone: phone,
+          address: profile!.address,
         );
       }
       status = AuthStatus.authenticated;

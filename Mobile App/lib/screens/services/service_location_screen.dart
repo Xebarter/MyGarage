@@ -107,10 +107,7 @@ class _ServiceLocationScreenState extends State<ServiceLocationScreen> {
       final list = await _api.listServiceRequests(cid);
       final open = firstOpenBuyerServiceRequest(list);
       if (!mounted || open == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only one service can run at a time.')),
-      );
-      context.go(requestingPathFor(open.id));
+      context.go(liveServicePathFor(open));
     } catch (_) {
       // Create still enforces one-at-a-time.
     }

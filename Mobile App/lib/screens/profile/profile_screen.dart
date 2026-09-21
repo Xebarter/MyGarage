@@ -10,12 +10,31 @@ import '../../auth/phone.dart';
 import '../../models/buyer_control_center.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
-import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
+import '../../router/app_router.dart';
 
-/// Profile hub — control center entry points + quick actions (mobile-native).
+String formatUgxCompact(num amount) {
+  final n = amount.round();
+  if (n >= 1000000) {
+    final m = n / 1000000;
+    final label = m >= 10 || m == m.roundToDouble()
+        ? '${m.round()}'
+        : m.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
+    return 'UGX ${label}M';
+  }
+  if (n >= 10000) return 'UGX ${(n / 1000).round()}K';
+  return NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0).format(n);
+}
+
+String initialsFrom(String name) {
+  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  return name.isNotEmpty ? name[0].toUpperCase() : 'M';
+}
+
+/// Profile hub — identity, daily shortcuts, grouped account lists.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -76,9 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final profile = auth.profile ?? _cc?.profile;
-    final signedIn =
-        auth.status == AuthStatus.authenticated && auth.user != null;
-    final money = NumberFormat.currency(symbol: 'UGX ', decimalDigits: 0);
+    final signedIn = auth.status == AuthStatus.authenticated && auth.user != null;
     final unread = _cc?.unreadNotificationCount ?? 0;
 
     if (signedIn && _cc == null && !_loadingCc && auth.customerId != null) {
@@ -120,7 +137,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             if (!signedIn)
-              SliverToBoxAdapter(child: _GuestCard(onSignIn: () => context.push('/login')))
+              SliverToBoxAdapter(child: _GuestCard(onSignIn: () {
+                GoRouter.of(context).push('/login');
+              }))
             else ...[
               if (_ccError != null)
                 aSliver(
@@ -136,59 +155,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final raw = auth.user?.email ?? profile?.email ?? '';
                     return isPlaceholderEmail(raw) ? '' : raw;
                   }(),
-                  money: money,
-                  unread: unread,
                   membership: _cc?.subscription?.planTier,
+                  loading: _loadingCc && _cc == null,
                 ),
               ),
               aSliver(
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: Text(
-                    'Quick access',
-                    style: AppTheme.host(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textMuted,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
-              aSliver(
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: _QuickGrid(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: _ShortcutRow(
                     onGarage: () => context.push('/garage'),
                     onOrders: () => context.push('/orders'),
-                    onCart: () => context.go('/cart'),
-                    onWishlist: () => context.push('/wishlist'),
-                    onAddresses: () => context.push('/addresses'),
-                    onSupport: () => context.push('/support'),
                     onServices: () => context.go('/services'),
-                    onConcierge: () => context.push('/concierge'),
+                    onCart: () => context.go('/cart'),
                   ),
                 ),
               ),
               aSliver(
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                  child: Text(
-                    'Account center',
-                    style: AppTheme.host(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textMuted,
-                      letterSpacing: 0.3,
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: _ConciergeBanner(onTap: () => context.push('/concierge')),
+                ),
+              ),
+              if (unread > 0)
+                aSliver(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: Material(
+                      color: AppColors.warningSoft,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                        onTap: () => context.push('/profile/notifications'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.notifications_active_rounded, size: 18, color: AppColors.warning),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$unread unread alert${unread == 1 ? '' : 's'}',
+                                  style: AppTheme.host(fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              ..._hubTiles(context, unread),
+              ..._groupedLists(context, unread),
               aSliver(
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-                  child: OutlinedButton.icon(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                  child: TextButton.icon(
                     onPressed: () async {
                       final yes = await showDialog<bool>(
                         context: context,
@@ -210,11 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Sign out',
                       style: AppTheme.host(fontWeight: FontWeight.w600, color: AppColors.danger),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.dangerSoft),
-                      minimumSize: const Size.fromHeight(50),
-                    ),
                   ),
                 ),
               ),
@@ -225,137 +242,215 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  List<Widget> _hubTiles(BuildContext context, int unread) {
-    final items = <({IconData icon, String title, String subtitle, String path})>[
+  List<Widget> _groupedLists(BuildContext context, int unread) {
+    final groups = <({String title, List<_HubItem> items})>[
       (
-        icon: Icons.person_outline_rounded,
-        title: 'Account',
-        subtitle: 'Name, phone, password, security',
-        path: '/profile/account',
+        title: 'Your account',
+        items: [
+          _HubItem(
+            icon: Icons.person_outline_rounded,
+            title: 'Personal details',
+            subtitle: 'Name, phone & security',
+            path: '/profile/account',
+          ),
+          _HubItem(
+            icon: Icons.location_on_outlined,
+            title: 'Addresses',
+            subtitle: 'Delivery & service locations',
+            path: '/addresses',
+          ),
+          _HubItem(
+            icon: Icons.folder_outlined,
+            title: 'Documents',
+            subtitle: 'Logbooks, insurance & expiry',
+            path: '/profile/documents',
+          ),
+          _HubItem(
+            icon: Icons.notifications_none_rounded,
+            title: 'Alerts',
+            subtitle: unread > 0 ? '$unread unread · preferences' : 'Notifications & preferences',
+            path: '/profile/notifications',
+            badge: unread,
+          ),
+        ],
       ),
       (
-        icon: Icons.notifications_none_rounded,
-        title: 'Alerts',
-        subtitle: unread > 0 ? '$unread unread · preferences' : 'Notifications & preferences',
-        path: '/profile/notifications',
+        title: 'Payments & plans',
+        items: [
+          _HubItem(
+            icon: Icons.receipt_long_outlined,
+            title: 'Billing',
+            subtitle: 'Payments & pending totals',
+            path: '/profile/billing',
+          ),
+          _HubItem(
+            icon: Icons.workspace_premium_outlined,
+            title: 'Membership',
+            subtitle: 'Plans & subscription',
+            path: '/profile/membership',
+          ),
+          _HubItem(
+            icon: Icons.insights_outlined,
+            title: 'Insights',
+            subtitle: 'Spend & vehicle health',
+            path: '/profile/insights',
+          ),
+        ],
       ),
       (
-        icon: Icons.receipt_long_outlined,
-        title: 'Billing',
-        subtitle: 'Payments & pending totals',
-        path: '/profile/billing',
-      ),
-      (
-        icon: Icons.workspace_premium_outlined,
-        title: 'Membership',
-        subtitle: 'Plans & subscription',
-        path: '/profile/membership',
-      ),
-      (
-        icon: Icons.folder_outlined,
-        title: 'Documents',
-        subtitle: 'Logbooks, insurance & expiry',
-        path: '/profile/documents',
-      ),
-      (
-        icon: Icons.build_circle_outlined,
-        title: 'Services activity',
-        subtitle: 'Requests, ratings, tips from providers',
-        path: '/profile/services',
-      ),
-      (
-        icon: Icons.insights_outlined,
-        title: 'Insights',
-        subtitle: 'Spend & vehicle health',
-        path: '/profile/insights',
-      ),
-      (
-        icon: Icons.tune_rounded,
-        title: 'Settings',
-        subtitle: 'Service mode, units & theme',
-        path: '/profile/settings',
+        title: 'More',
+        items: [
+          _HubItem(
+            icon: Icons.favorite_border,
+            title: 'Wishlist',
+            subtitle: 'Saved parts',
+            path: '/wishlist',
+          ),
+          _HubItem(
+            icon: Icons.build_circle_outlined,
+            title: 'Service history',
+            subtitle: 'Requests, ratings & tips',
+            path: '/profile/services',
+          ),
+          _HubItem(
+            icon: Icons.tune_rounded,
+            title: 'Settings',
+            subtitle: 'Service mode, units & theme',
+            path: '/profile/settings',
+          ),
+          _HubItem(
+            icon: Icons.support_agent_outlined,
+            title: 'Support',
+            subtitle: 'Help & tickets',
+            path: '/support',
+          ),
+        ],
       ),
     ];
 
-    return items
-        .map(
-          (t) => aSliver(
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Material(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.md),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppRadii.md),
-                  onTap: () => _requireAuthThen(() => context.push(t.path)),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppRadii.md),
-                      border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
-                      boxShadow: AppTheme.cardShadow,
-                      color: AppColors.surface,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: AppColors.primarySoft,
-                            borderRadius: BorderRadius.circular(AppRadii.sm),
-                          ),
-                          child: Icon(t.icon, color: AppColors.primary, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.title,
-                                style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 15),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                t.subtitle,
-                                style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (t.path == '/profile/notifications' && unread > 0)
-                          Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '$unread',
-                              style: AppTheme.host(
-                                color: AppColors.onPrimary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                      ],
-                    ),
-                  ),
+    return [
+      for (final group in groups) ...[
+        aSliver(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 16, 8),
+            child: Text(
+              group.title.toUpperCase(),
+              style: AppTheme.host(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textMuted,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ),
+        ),
+        aSliver(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.xl),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadii.xl),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+                  boxShadow: AppTheme.cardShadow,
+                  color: AppColors.surface,
+                ),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < group.items.length; i++) ...[
+                      if (i > 0)
+                        const Divider(height: 1, indent: 66, color: AppColors.borderSoft),
+                      _HubRow(
+                        item: group.items[i],
+                        onTap: () => _requireAuthThen(() => context.push(group.items[i].path)),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
           ),
-        )
-        .toList();
+        ),
+      ],
+    ];
   }
 }
 
-Widget aSliver(Widget child) =>
-    SliverToBoxAdapter(child: child);
+class _HubItem {
+  const _HubItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.path,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String path;
+  final int badge;
+}
+
+class _HubRow extends StatelessWidget {
+  const _HubRow({required this.item, required this.onTap});
+
+  final _HubItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(item.icon, color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.title, style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                  const SizedBox(height: 2),
+                  Text(item.subtitle, style: AppTheme.host(fontSize: 12, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            if (item.badge > 0) ...[
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${item.badge}',
+                  style: AppTheme.host(color: AppColors.onPrimary, fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFFC5B8A4)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Widget aSliver(Widget child) => SliverToBoxAdapter(child: child);
 
 class _GuestCard extends StatelessWidget {
   const _GuestCard({required this.onSignIn});
@@ -365,25 +460,34 @@ class _GuestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       child: Container(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.primaryDeep, AppColors.primary],
+            colors: [Color(0xFFE4F8EE), Color(0xFFFFF6EA), Colors.white],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(AppRadii.xl),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
           boxShadow: AppTheme.softShadow,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              height: 3,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.glow,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
             Text(
-              'Welcome to MyGarage',
+              'Your garage, in one place',
               style: AppTheme.host(
-                color: AppColors.onPrimary,
+                color: AppColors.ink,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.4,
@@ -391,29 +495,41 @@ class _GuestCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Sign in to manage vehicles, orders, membership, documents, and preferences in one place.',
-              style: AppTheme.host(color: AppColors.onPrimary.withValues(alpha: 0.88), height: 1.4),
+              'Sign in to keep vehicles, orders, documents, and membership together.',
+              style: AppTheme.host(color: AppColors.textMuted, height: 1.4, fontSize: 14),
             ),
+            const SizedBox(height: 16),
+            _benefit(Icons.directions_car_outlined, 'Garage & service history'),
+            _benefit(Icons.receipt_long_outlined, 'Orders and saved parts'),
+            _benefit(Icons.workspace_premium_outlined, 'Membership and billing'),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: onSignIn,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.surface,
-                foregroundColor: AppColors.primaryDeep,
-                minimumSize: const Size.fromHeight(48),
-              ),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               child: const Text('Sign in'),
             ),
-            const SizedBox(height: 10),
             TextButton(
-              onPressed: () => context.push('/garage'),
+              onPressed: () => context.go('/services'),
               child: Text(
-                'Browse garage offline',
-                style: AppTheme.host(color: AppColors.onPrimary, fontWeight: FontWeight.w600),
+                'Continue browsing',
+                style: AppTheme.host(color: AppColors.primary, fontWeight: FontWeight.w600),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _benefit(IconData icon, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text(label, style: AppTheme.host(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        ],
       ),
     );
   }
@@ -423,66 +539,84 @@ class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.profile,
     required this.email,
-    required this.money,
-    required this.unread,
     this.membership,
+    this.loading = false,
   });
 
   final BuyerProfile? profile;
   final String email;
-  final NumberFormat money;
-  final int unread;
   final String? membership;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: Container(
+          height: 168,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.xl),
+            border: Border.all(color: AppColors.border),
+          ),
+        ),
+      );
+    }
+
     final rawName = profile?.name ?? '';
-    final name = isPlaceholderDisplayName(rawName, phone: profile?.phone ?? '', email: email)
+    final phone = profile?.phone ?? '';
+    final name = isPlaceholderDisplayName(rawName, phone: phone, email: email)
         ? 'Buyer'
         : (rawName.isNotEmpty ? rawName : 'Buyer');
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
-    final phone = profile?.phone ?? '';
+    final phoneLabel = phone.trim().isEmpty ? '' : formatE164Display(phone);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         decoration: BoxDecoration(
-          color: AppColors.backgroundLift,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE4F8EE), Color(0xFFFFF6EA), Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(AppRadii.xl),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
           boxShadow: AppTheme.softShadow,
         ),
         child: Column(
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AppColors.primarySoft,
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  alignment: Alignment.center,
                   child: Text(
-                    initial,
-                    style: AppTheme.host(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
+                    initialsFrom(name),
+                    style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.primary),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: AppTheme.host(fontSize: 18, fontWeight: FontWeight.w700),
-                      ),
+                      Text(name, style: AppTheme.host(fontSize: 17, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
-                      if (email.isNotEmpty && !isPlaceholderEmail(email))
-                        Text(email, style: AppTheme.host(fontSize: 13, color: AppColors.textMuted)),
-                      if (phone.isNotEmpty)
-                        Text(phone, style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary)),
+                      if (phoneLabel.isNotEmpty)
+                        Text(phoneLabel, style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary))
+                      else
+                        Text('Add a phone number', style: AppTheme.host(fontSize: 13, color: const Color(0xFFB45309))),
+                      if (email.isNotEmpty)
+                        Text(email, style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted)),
                       if (membership != null && membership!.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Container(
@@ -490,7 +624,6 @@ class _HeroCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
                           ),
                           child: Text(
                             '${membership![0].toUpperCase()}${membership!.substring(1)} plan',
@@ -505,42 +638,31 @@ class _HeroCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                TextButton(
+                  onPressed: () => context.push('/profile/account'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: AppColors.primary,
+                  ),
+                  child: const Text('Edit'),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.md),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.9)),
-              ),
-              child: Row(
-                children: [
-                  _stat('Orders', '${profile?.totalOrders ?? 0}'),
-                  _stat('Spent', money.format(profile?.totalSpent ?? 0)),
-                  _stat('Vehicles', '${profile?.vehicleCount ?? 0}'),
-                  _stat('Wishlist', '${profile?.wishlistCount ?? 0}'),
-                ],
-              ),
-            ),
-            if (unread > 0) ...[
+            if (phoneLabel.isEmpty) ...[
               const SizedBox(height: 12),
               Material(
                 color: AppColors.warningSoft,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
+                borderRadius: BorderRadius.circular(12),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                  onTap: () => context.push('/profile/notifications'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => context.push('/profile/account'),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Row(
                       children: [
-                        const Icon(Icons.notifications_active_rounded, size: 18, color: AppColors.warning),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'You have $unread unread alert${unread == 1 ? '' : 's'}',
+                            'Add your mobile so providers can reach you',
                             style: AppTheme.host(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -551,123 +673,167 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _stat(context, 'Orders', '${profile?.totalOrders ?? 0}', '/orders'),
+                _stat(context, 'Garage', '${profile?.vehicleCount ?? 0}', '/garage'),
+                _stat(context, 'Saved', '${profile?.wishlistCount ?? 0}', '/wishlist'),
+                _stat(context, 'Spent', formatUgxCompact(profile?.totalSpent ?? 0), '/profile/insights'),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _stat(String label, String value) {
+  Widget _stat(BuildContext context, String label, String value, String path) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.host(
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-              color: AppColors.primaryDeep,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => context.push(path),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Column(
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.host(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(label, style: AppTheme.host(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(label, style: AppTheme.host(fontSize: 11, color: AppColors.textMuted)),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _QuickGrid extends StatelessWidget {
-  const _QuickGrid({
+class _ShortcutRow extends StatelessWidget {
+  const _ShortcutRow({
     required this.onGarage,
     required this.onOrders,
-    required this.onCart,
-    required this.onWishlist,
-    required this.onAddresses,
-    required this.onSupport,
     required this.onServices,
-    required this.onConcierge,
+    required this.onCart,
   });
 
   final VoidCallback onGarage;
   final VoidCallback onOrders;
-  final VoidCallback onCart;
-  final VoidCallback onWishlist;
-  final VoidCallback onAddresses;
-  final VoidCallback onSupport;
   final VoidCallback onServices;
-  final VoidCallback onConcierge;
+  final VoidCallback onCart;
 
   @override
   Widget build(BuildContext context) {
     final tiles = <(IconData, String, VoidCallback)>[
       (Icons.directions_car_outlined, 'Garage', onGarage),
       (Icons.receipt_long_outlined, 'Orders', onOrders),
-      (Icons.shopping_cart_outlined, 'Cart', onCart),
-      (Icons.favorite_border, 'Wishlist', onWishlist),
-      (Icons.location_on_outlined, 'Addresses', onAddresses),
-      (Icons.support_agent_outlined, 'Support', onSupport),
       (Icons.build_outlined, 'Services', onServices),
-      (Icons.chat_bubble_outline, 'Concierge', onConcierge),
+      (Icons.shopping_cart_outlined, 'Cart', onCart),
     ];
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: tiles.map((t) {
-        final isConcierge = t.$2 == 'Concierge';
-        return SizedBox(
-          width: (MediaQuery.sizeOf(context).width - 32 - 16) / 3,
-          child: Material(
-            color: isConcierge ? AppColors.primarySoft : AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              onTap: t.$3,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-                decoration: BoxDecoration(
+    return Row(
+      children: [
+        for (final t in tiles)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(
-                    color: isConcierge ? AppColors.primary.withValues(alpha: 0.2) : AppColors.border.withValues(alpha: 0.95),
+                  onTap: t.$3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.border.withValues(alpha: 0.95)),
+                      boxShadow: AppTheme.cardShadow,
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.primarySoft,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(t.$1, color: AppColors.primary, size: 18),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          t.$2,
+                          style: AppTheme.host(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
                   ),
-                  color: isConcierge ? AppColors.primarySoft : AppColors.surface,
-                  boxShadow: AppTheme.cardShadow,
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: isConcierge ? AppColors.primary : AppColors.primarySoft,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        t.$1,
-                        color: isConcierge ? AppColors.onPrimary : AppColors.primary,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      t.$2,
-                      textAlign: TextAlign.center,
-                      style: AppTheme.host(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isConcierge ? AppColors.primaryDeep : AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
           ),
-        );
-      }).toList(),
+      ],
+    );
+  }
+}
+
+class _ConciergeBanner extends StatelessWidget {
+  const _ConciergeBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primarySoft,
+      borderRadius: BorderRadius.circular(AppRadii.xl),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.xl),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.chat_bubble_outline, color: AppColors.onPrimary, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Ask Concierge', style: AppTheme.host(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryDeep)),
+                    Text('Parts, bookings, and garage help', style: AppTheme.host(fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.primaryDeep),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -19,6 +19,25 @@ BuyerServiceRequest? firstOpenBuyerServiceRequest(Iterable<BuyerServiceRequest> 
 String requestingPathFor(String requestId) =>
     '/service/requesting?requestId=${Uri.encodeComponent(requestId)}';
 
+/// Pending stays on the search screen; accepted/in-progress goes to live tracking.
+String liveServicePathFor(BuyerServiceRequest request) {
+  final status = request.status.toLowerCase();
+  final assigned = (request.providerId ?? '').isNotEmpty;
+  if (assigned || status == 'matched' || status == 'in_progress') {
+    return '/service/track/${Uri.encodeComponent(request.id)}';
+  }
+  return requestingPathFor(request.id);
+}
+
+String liveServiceFocusCopy(BuyerServiceRequest request) {
+  final status = request.status.toLowerCase();
+  if (status == 'in_progress') return 'Your provider is on the way.';
+  if (status == 'matched' || (request.providerId ?? '').isNotEmpty) {
+    return 'A provider accepted. Opening live tracking.';
+  }
+  return 'Still searching. We’ll keep this request until someone accepts or it expires.';
+}
+
 bool redirectIfActiveRequestExists(BuildContext context, Object error) {
   if (error is! ApiException || !error.isActiveRequestExists) return false;
   final id = error.requestId!.trim();

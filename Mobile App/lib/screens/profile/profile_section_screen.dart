@@ -8,6 +8,7 @@ import '../../api/buyer_api.dart';
 import '../../models/buyer_control_center.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../auth/phone.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
 import '../../widgets/place_autocomplete_field.dart';
@@ -44,7 +45,7 @@ class _ProfileSectionScreenState extends State<ProfileSectionScreen> {
       case 'documents':
         return 'Documents';
       case 'services':
-        return 'Services activity';
+        return 'Service history';
       case 'insights':
         return 'Insights';
       case 'settings':
@@ -287,7 +288,9 @@ class _AccountSection extends StatefulWidget {
 
 class _AccountSectionState extends State<_AccountSection> {
   late final _name = TextEditingController(text: widget.cc.profile.name);
-  late final _phone = TextEditingController(text: widget.cc.profile.phone);
+  late final _phone = TextEditingController(
+    text: formatE164Display(widget.cc.profile.phone),
+  );
   late final _address = TextEditingController(text: widget.cc.profile.address);
   late String _contact = widget.cc.account.preferredContactMethod;
   final _newPassword = TextEditingController();
@@ -316,15 +319,16 @@ class _AccountSectionState extends State<_AccountSection> {
           decoration: const InputDecoration(labelText: 'Full name'),
         ),
         const SizedBox(height: 10),
-        TextField(
-          enabled: false,
-          decoration: InputDecoration(
-            labelText: 'Email',
-            hintText: p.email,
-            helperText: 'Email is managed by your sign-in account',
+        if (!isPlaceholderEmail(p.email))
+          TextField(
+            enabled: false,
+            decoration: InputDecoration(
+              labelText: 'Email',
+              hintText: p.email,
+              helperText: 'Email is managed by your sign-in account',
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
+        if (!isPlaceholderEmail(p.email)) const SizedBox(height: 10),
         TextField(
           controller: _phone,
           keyboardType: TextInputType.phone,

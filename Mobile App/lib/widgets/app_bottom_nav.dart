@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/cart_controller.dart';
+import '../router/app_location.dart';
 import '../theme/app_theme.dart';
 import 'concierge_entry.dart';
 
@@ -38,6 +39,12 @@ class AppBottomNav extends StatelessWidget {
 
   static void goToTab(BuildContext context, int index) {
     if (index < 0 || index >= tabPaths.length) return;
+    if (index == 0) {
+      final path = currentAppPath(context);
+      if (path == '/service/requesting' || path.startsWith('/service/track/')) {
+        return;
+      }
+    }
     context.go(tabPaths[index]);
   }
 

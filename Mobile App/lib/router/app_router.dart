@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/buyer_api.dart';
 import '../auth/auth_return_to.dart';
+import '../auth/phone_auth_webview.dart';
 import '../checkout/payment_result.dart';
 import '../models/models.dart';
 import '../providers/auth_controller.dart';
@@ -36,10 +37,15 @@ import '../widgets/app_bottom_nav.dart';
 export 'deep_links.dart';
 
 String? authReturnLocation(Uri uri, AuthController auth) {
+  final phoneToken = phoneIdTokenFromUri(uri);
+  if (phoneToken != null) {
+    unawaited(auth.completeHostedPhoneToken(phoneToken));
+  }
+
   final host = uri.host.toLowerCase();
   final isAuthCallback = host == 'login-callback' ||
       (uri.scheme == 'mygarage' && (host == 'auth' || host == 'login-callback'));
-  if (!isAuthCallback) return null;
+  if (!isAuthCallback && phoneToken == null) return null;
 
   final fromQuery = uri.queryParameters['next'];
   final next = AuthReturnTo.isSafePath(fromQuery)
@@ -83,9 +89,11 @@ Future<void> _activateSubscriptionQuietly(String checkoutId) async {
 }
 
 GoRouter createRouter(AuthController auth, CartController cart) {
+  final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/services',
-    refreshListenable: auth,
+    refreshListenable: auth.routerRefresh,
     redirect: (context, state) {
       final authLocation = authReturnLocation(state.uri, auth);
       if (authLocation != null) return authLocation;
@@ -111,9 +119,11 @@ GoRouter createRouter(AuthController auth, CartController cart) {
       return null;
     },
     routes: [
-      // Login has no footer so auth UI stays full-height.
+      // Login has no footer so auth UI stays full-height. Pin it to the root
+      // navigator so a tab-shell refresh cannot swallow or hide it.
       GoRoute(
         path: '/login',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const LoginScreen(),
       ),
 
@@ -290,6 +300,6 @@ Future<bool> ensureSignedIn(BuildContext context) async {
   final here = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
   await AuthReturnTo.save(here);
   if (!context.mounted) return false;
-  await context.push('/login?next=${Uri.encodeComponent(here)}');
+  await GoRouter.of(context).push('/login?next=${Uri.encodeComponent(here)}');
   return auth.status == AuthStatus.authenticated && auth.user != null;
 }

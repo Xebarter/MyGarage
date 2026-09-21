@@ -16,7 +16,7 @@ class BuyerSessionHost extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     if (auth.status != AuthStatus.authenticated) {
-      return const SizedBox.shrink();
+      return const IgnorePointer(child: SizedBox.shrink());
     }
     if (auth.needsDisplayName) {
       return const _CollectNameOverlay();
@@ -24,7 +24,7 @@ class BuyerSessionHost extends StatelessWidget {
     if (auth.shouldShowWelcome) {
       return const _WelcomeOverlay();
     }
-    return const SizedBox.shrink();
+    return const IgnorePointer(child: SizedBox.shrink());
   }
 }
 

@@ -9,6 +9,7 @@ import '../../api/api_client.dart';
 import '../../api/buyer_api.dart';
 import '../../models/models.dart';
 import '../../providers/auth_controller.dart';
+import '../../router/app_location.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/active_service_request.dart';
 import '../../utils/service_search.dart';
@@ -27,8 +28,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
   BuyerServiceRequest? _openRequest;
-  bool _loadedOpen = false;
+  bool _openResolved = false;
+  bool _handoffScheduled = false;
+  bool _loadInFlight = false;
   String _query = '';
+  AuthController? _auth;
+  String? _routedPath;
 
   @override
   void initState() {
@@ -42,6 +47,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
   @override
   void dispose() {
+    _auth?.removeListener(_onAuthChanged);
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -50,20 +56,54 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_loadedOpen) return;
-    _loadedOpen = true;
-    unawaited(_loadOpenRequest());
+    final auth = context.read<AuthController>();
+    if (!identical(_auth, auth)) {
+      _auth?.removeListener(_onAuthChanged);
+      _auth = auth;
+      _auth!.addListener(_onAuthChanged);
+    }
+    final path = currentAppPath(context);
+    if (path == '/services' && _routedPath != '/services') {
+      unawaited(_loadOpenRequest());
+    }
+    _routedPath = path;
   }
 
-  Future<void> _loadOpenRequest() async {
-    final customerId = context.read<AuthController>().customerId;
-    if (customerId == null || customerId.isEmpty) return;
+  void _onAuthChanged() {
+    if (!mounted) return;
+    if (!isServicesTabActive(context)) return;
+    unawaited(_loadOpenRequest(force: true));
+  }
+
+  Future<void> _loadOpenRequest({bool force = false}) async {
+    if (_loadInFlight && !force) return;
+    final auth = context.read<AuthController>();
+    if (auth.status == AuthStatus.unknown) return;
+    final customerId = auth.customerId;
+    if (customerId == null || customerId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _openRequest = null;
+        _openResolved = true;
+        _handoffScheduled = false;
+      });
+      return;
+    }
+    _loadInFlight = true;
     try {
       final list = await _api.listServiceRequests(customerId);
       if (!mounted) return;
-      setState(() => _openRequest = firstOpenBuyerServiceRequest(list));
+      final next = firstOpenBuyerServiceRequest(list);
+      setState(() {
+        _openRequest = next;
+        _openResolved = true;
+        if (next == null) _handoffScheduled = false;
+      });
     } catch (_) {
-      // Catalog still works; create/restart APIs enforce one-at-a-time.
+      if (!mounted) return;
+      setState(() => _openResolved = true);
+    } finally {
+      _loadInFlight = false;
     }
   }
 
@@ -77,13 +117,21 @@ class _ServicesScreenState extends State<ServicesScreen> {
   void _guardOpenRequestThen(VoidCallback action) {
     final open = _openRequest;
     if (open != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only one service can run at a time.')),
-      );
-      context.go(requestingPathFor(open.id));
+      context.go(liveServicePathFor(open));
       return;
     }
     action();
+  }
+
+  void _scheduleLiveHandoff(BuyerServiceRequest request) {
+    if (_handoffScheduled) return;
+    _handoffScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handoffScheduled = false;
+      if (!mounted) return;
+      if (!isServicesTabActive(context)) return;
+      context.go(liveServicePathFor(request));
+    });
   }
 
   void _openCategory(ServiceCategory cat) {
@@ -102,6 +150,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final viewingServicesTab = isServicesTabActive(context);
+    if (viewingServicesTab && !_openResolved) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (viewingServicesTab && _openRequest != null) {
+      _scheduleLiveHandoff(_openRequest!);
+      return _LiveServiceFocusPage(request: _openRequest!);
+    }
+
     final result = searchBuyerServicesCatalog(_query, serviceLimit: 20);
     final matchedCategories =
         result.categories.map((row) => row.category).toList();
@@ -164,65 +224,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textMuted,
-                    ),
-                  ),
-                ),
-              ),
-            if (_openRequest != null && !_isSearching)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Material(
-                    color: AppColors.primarySoft.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    child: InkWell(
-                      onTap: () =>
-                          context.go(requestingPathFor(_openRequest!.id)),
-                      borderRadius: BorderRadius.circular(AppRadii.md),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Active request',
-                                    style: AppTheme.host(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primary,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _openRequest!.service.isEmpty
-                                        ? 'Service in progress'
-                                        : _openRequest!.service,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.host(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'One request at a time',
-                                    style: AppTheme.host(
-                                      fontSize: 12,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_rounded, size: 20),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
                 ),
@@ -864,6 +865,107 @@ class _ServiceCategoryTile extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveServiceFocusPage extends StatelessWidget {
+  const _LiveServiceFocusPage({required this.request});
+
+  final BuyerServiceRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = request.status.toLowerCase();
+    final searching = status == 'pending' && (request.providerId ?? '').isEmpty;
+    final title = request.service.isEmpty ? 'Your service' : request.service;
+    final headline = searching
+        ? 'Finding a provider'
+        : status == 'in_progress'
+            ? 'In progress'
+            : 'Provider accepted';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const PageBrandHeader(
+                title: 'Services',
+                subtitle: 'Your live request',
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.xl),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+                  boxShadow: AppTheme.softShadow,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      searching ? Icons.radar : Icons.route_rounded,
+                      size: 36,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      headline,
+                      style: AppTheme.host(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.host(fontSize: 22, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      liveServiceFocusCopy(request),
+                      textAlign: TextAlign.center,
+                      style: AppTheme.host(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    if ((request.location ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        request.location!,
+                        textAlign: TextAlign.center,
+                        style: AppTheme.host(fontSize: 13, color: AppColors.textMuted),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Only one service at a time. Browse again after this request finishes or expires.',
+                textAlign: TextAlign.center,
+                style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.35),
+              ),
+            ],
           ),
         ),
       ),

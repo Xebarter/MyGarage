@@ -95,7 +95,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendCode() async {
     setState(() => _intent = 'phone');
     if (!_formKey.currentState!.validate()) return;
-    final needsCode = await context.read<AuthController>().sendPhoneOtp(_phone.text);
+    final needsCode = await context.read<AuthController>().sendPhoneOtp(
+          _phone.text,
+          host: context,
+        );
     if (!mounted || !needsCode) return;
     setState(() {
       _otpSent = true;
@@ -313,7 +316,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: auth.busy || _resendIn > 0
                             ? null
                             : () async {
-                                final ok = await context.read<AuthController>().sendPhoneOtp(_phone.text);
+                                final ok = await context.read<AuthController>().sendPhoneOtp(
+                                      _phone.text,
+                                      host: context,
+                                    );
                                 if (ok) _startResendCooldown();
                               },
                         child: Text(
