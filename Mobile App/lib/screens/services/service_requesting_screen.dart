@@ -17,6 +17,7 @@ import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/active_service_request.dart';
 import '../../utils/user_facing_error.dart';
+import '../../widgets/cancel_service_request_sheet.dart';
 
 /// Ride-hailing style “searching for driver” screen with radar + status sheet.
 class ServiceRequestingScreen extends StatefulWidget {
@@ -54,6 +55,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   int _seconds = 0;
   bool _expired = false;
   bool _restarting = false;
+  bool _cancelling = false;
 
   @override
   void initState() {
@@ -161,16 +163,27 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
   }
 
   Future<void> _cancelSearch() async {
+    if (_cancelling) return;
     final auth = context.read<AuthController>();
     final customerId = auth.customerId;
     if (customerId == null) {
       if (mounted) context.go('/services');
       return;
     }
+    final choice = await showCancelServiceRequestSheet(
+      context,
+      stage: ServiceCancelStage.searching,
+      service: _request?.service,
+      location: _request?.location,
+    );
+    if (choice == null || !mounted) return;
+    setState(() => _cancelling = true);
     try {
       await _api.cancelServiceRequestSearch(
         requestId: widget.requestId,
         customerId: customerId,
+        reasonId: choice.reasonId,
+        note: choice.note,
       );
       _poll?.cancel();
       _tipTimer?.cancel();
@@ -179,6 +192,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
       context.go('/services');
     } catch (e) {
       if (!mounted) return;
+      setState(() => _cancelling = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(userFacingError(e, fallback: 'Could not cancel search.'))),
       );
@@ -299,7 +313,7 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                     tooltip: _expired ? 'Back' : 'Stop search',
                     onPressed: _expired
                         ? () => context.go('/services')
-                        : _cancelSearch,
+                        : (_cancelling ? null : _cancelSearch),
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ),
@@ -450,8 +464,8 @@ class _ServiceRequestingScreenState extends State<ServiceRequestingScreen>
                     )
                   else
                     OutlinedButton(
-                      onPressed: _cancelSearch,
-                      child: const Text('Stop searching'),
+                      onPressed: _cancelling ? null : _cancelSearch,
+                      child: Text(_cancelling ? 'Cancelling…' : 'Stop searching'),
                     ),
                 ],
               ),

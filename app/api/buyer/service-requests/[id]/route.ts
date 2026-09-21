@@ -2,6 +2,7 @@ import { getBuyerServiceRequestForCustomer, getBuyerVehicle, getVendor, countPro
 import { serializeBuyerServiceRequest } from '@/lib/supabase/buyer-services-repo';
 import { listAssignmentsForRequest } from '@/lib/supabase/service-dispatch-repo';
 import { cancelBuyerServiceSearch, processStaleOffersBestEffort, restartBuyerServiceSearch } from '@/lib/service-dispatch';
+import { BUYER_SERVICE_CANCEL_REASON_IDS, OTHER_CANCEL_REASON_ID } from '@/lib/service-cancellation';
 import { parseMapPoint } from '@/lib/maps/coords';
 import { resolveServiceDestination } from '@/lib/geocode/address-suggestions';
 import { NextRequest, NextResponse } from 'next/server';
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-/** Buyer stops searching (pending only). */
+/** Buyer cancels while searching or before the provider arrives. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -105,7 +106,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unsupported action. Use cancel or restart.' }, { status: 400 });
     }
 
-    const result = await cancelBuyerServiceSearch(id, customerId);
+    const reasonId = typeof body?.reasonId === 'string'
+      ? body.reasonId.trim()
+      : typeof body?.reason === 'string'
+        ? body.reason.trim()
+        : '';
+    const note = typeof body?.note === 'string'
+      ? body.note
+      : typeof body?.cancellationNote === 'string'
+        ? body.cancellationNote
+        : '';
+    if (!reasonId || !BUYER_SERVICE_CANCEL_REASON_IDS.has(reasonId)) {
+      return NextResponse.json({ error: 'Choose a reason for cancelling.' }, { status: 400 });
+    }
+    if (reasonId === OTHER_CANCEL_REASON_ID && note.trim().length < 3) {
+      return NextResponse.json({ error: 'Please add a short note so we can improve.' }, { status: 400 });
+    }
+
+    const result = await cancelBuyerServiceSearch(id, customerId, { reasonId, note });
     if (!result.ok) {
       return NextResponse.json({ error: result.error || 'Could not cancel' }, { status: 400 });
     }

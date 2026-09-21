@@ -18,6 +18,9 @@ export interface BuyerServiceRequest {
   arrivedAt: Date | null;
   startedAt: Date | null;
   completedAt: Date | null;
+  cancelledAt: Date | null;
+  cancelledBy: string | null;
+  cancellationReason: string | null;
   buyerContactPhone: string;
   buyerContactName: string;
   destinationLat: number | null;
@@ -52,6 +55,9 @@ type BuyerServiceRequestRow = {
   arrived_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   buyer_contact_phone: string | null;
   buyer_contact_name: string | null;
   destination_lat: number | null;
@@ -85,6 +91,9 @@ export type BuyerServiceRequestInsert = Omit<
   | "arrivedAt"
   | "startedAt"
   | "completedAt"
+  | "cancelledAt"
+  | "cancelledBy"
+  | "cancellationReason"
   | "buyerContactPhone"
   | "buyerContactName"
   | "destinationLat"
@@ -146,6 +155,9 @@ function rowToBuyerServiceRequest(row: BuyerServiceRequestRow): BuyerServiceRequ
     arrivedAt: row.arrived_at ? new Date(row.arrived_at) : null,
     startedAt: row.started_at ? new Date(row.started_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    cancelledAt: row.cancelled_at ? new Date(row.cancelled_at) : null,
+    cancelledBy: row.cancelled_by ?? null,
+    cancellationReason: row.cancellation_reason ?? null,
     buyerContactPhone: row.buyer_contact_phone ?? "",
     buyerContactName: row.buyer_contact_name ?? "",
     destinationLat: row.destination_lat ?? null,
@@ -167,6 +179,9 @@ export function serializeBuyerServiceRequest(request: BuyerServiceRequest) {
     arrivedAt: request.arrivedAt?.toISOString() ?? null,
     startedAt: request.startedAt?.toISOString() ?? null,
     completedAt: request.completedAt?.toISOString() ?? null,
+    cancelledAt: request.cancelledAt?.toISOString() ?? null,
+    cancelledBy: request.cancelledBy ?? null,
+    cancellationReason: request.cancellationReason ?? null,
     providerLocationUpdatedAt: request.providerLocationUpdatedAt?.toISOString() ?? null,
     createdAt: request.createdAt.toISOString(),
     updatedAt: request.updatedAt.toISOString(),

@@ -26,6 +26,9 @@ export type BuyerServiceRequestFullRow = {
   arrived_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancellation_reason?: string | null;
   buyer_contact_phone: string | null;
   buyer_contact_name: string | null;
   destination_lat?: number | null;
@@ -120,6 +123,9 @@ export async function updateBuyerRequestDispatchFields(
     arrived_at?: string | null;
     started_at?: string | null;
     completed_at?: string | null;
+    cancelled_at?: string | null;
+    cancelled_by?: string | null;
+    cancellation_reason?: string | null;
     created_at?: string;
   },
 ): Promise<void> {

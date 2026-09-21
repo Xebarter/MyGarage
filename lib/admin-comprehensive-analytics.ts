@@ -13,6 +13,14 @@ import * as productsRepo from "@/lib/supabase/products-repo";
 import * as promotionsRepo from "@/lib/supabase/promotions-repo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as vendorsRepo from "@/lib/supabase/vendors-repo";
+import {
+  BUYER_SERVICE_CANCEL_REASONS,
+  OTHER_CANCEL_REASON_ID,
+  UNSPECIFIED_CANCEL_REASON_ID,
+  cancelReasonLabel,
+  cancelStageFromRequest,
+  parseCancellationReason,
+} from "@/lib/service-cancellation";
 
 export type AdminAnalyticsFilters = {
   from: Date;
@@ -80,6 +88,31 @@ export type AdminComprehensiveAnalytics = {
     avgCompletionMinutes: number | null;
     ratingsByProvider: { providerId: string; avgStars: number; count: number }[];
     revenueByProvider: { providerId: string; revenue: number; payments: number }[];
+    cancellations: {
+      total: number;
+      searching: number;
+      enRoute: number;
+      withReason: number;
+      unspecified: number;
+      buyerInitiated: number;
+      providerInitiated: number;
+      adminInitiated: number;
+      systemInitiated: number;
+      safetyCount: number;
+      topReason: { id: string; label: string; count: number } | null;
+      byReason: {
+        id: string;
+        label: string;
+        count: number;
+        searching: number;
+        enRoute: number;
+        sharePct: number;
+      }[];
+      byActor: { actor: string; label: string; count: number }[];
+      byCategory: { category: string; cancelled: number; total: number; rate: number }[];
+      byService: { service: string; cancelled: number; total: number; rate: number }[];
+      recentNotes: { service: string; category: string; note: string; cancelledAt: string; stage: string }[];
+    };
   };
   customers: {
     newInPeriod: number;
@@ -408,10 +441,130 @@ export async function getComprehensiveAdminAnalytics(
   }
 
   const completed = serviceFiltered.filter((r) => r.status === "completed").length;
-  const cancelled = serviceFiltered.filter((r) => r.status === "cancelled").length;
+  const cancelledRows = serviceFiltered.filter((r) => r.status === "cancelled");
+  const cancelled = cancelledRows.length;
   const denom = serviceFiltered.length || 1;
   const completionRate = completed / denom;
   const cancellationRate = cancelled / denom;
+
+  type ReasonAgg = { searching: number; enRoute: number };
+  const reasonAgg = new Map<string, ReasonAgg>();
+  for (const reason of BUYER_SERVICE_CANCEL_REASONS) {
+    reasonAgg.set(reason.id, { searching: 0, enRoute: 0 });
+  }
+  reasonAgg.set(UNSPECIFIED_CANCEL_REASON_ID, { searching: 0, enRoute: 0 });
+
+  const actorAgg = new Map<string, number>();
+  const cancelByCategory = new Map<string, { cancelled: number; total: number }>();
+  const cancelByService = new Map<string, { cancelled: number; total: number }>();
+  const recentNotes: AdminComprehensiveAnalytics["services"]["cancellations"]["recentNotes"] = [];
+  let searchingCancels = 0;
+  let enRouteCancels = 0;
+  let unspecifiedCancels = 0;
+  let safetyCount = 0;
+
+  for (const r of serviceFiltered) {
+    const cat = r.category || "Uncategorized";
+    const svc = r.service || "Unknown service";
+    const catRow = cancelByCategory.get(cat) ?? { cancelled: 0, total: 0 };
+    catRow.total += 1;
+    const svcRow = cancelByService.get(svc) ?? { cancelled: 0, total: 0 };
+    svcRow.total += 1;
+    if (r.status === "cancelled") {
+      catRow.cancelled += 1;
+      svcRow.cancelled += 1;
+    }
+    cancelByCategory.set(cat, catRow);
+    cancelByService.set(svc, svcRow);
+  }
+
+  for (const r of cancelledRows) {
+    const parsed = parseCancellationReason(r.cancellationReason);
+    const stage = cancelStageFromRequest(r.status, r.acceptedAt);
+    if (stage === "en_route") enRouteCancels += 1;
+    else searchingCancels += 1;
+    if (parsed.id === UNSPECIFIED_CANCEL_REASON_ID) unspecifiedCancels += 1;
+    if (parsed.id === "unsafe") safetyCount += 1;
+    const bucket = reasonAgg.get(parsed.id) ?? { searching: 0, enRoute: 0 };
+    if (stage === "en_route") bucket.enRoute += 1;
+    else bucket.searching += 1;
+    reasonAgg.set(parsed.id, bucket);
+    const actor = (r.cancelledBy ?? "unspecified").trim().toLowerCase() || "unspecified";
+    actorAgg.set(actor, (actorAgg.get(actor) ?? 0) + 1);
+    if (parsed.id === OTHER_CANCEL_REASON_ID && parsed.note) {
+      recentNotes.push({
+        service: r.service || "Unknown service",
+        category: r.category || "Uncategorized",
+        note: parsed.note,
+        cancelledAt: (r.cancelledAt ?? r.updatedAt).toISOString(),
+        stage,
+      });
+    }
+  }
+
+  recentNotes.sort((a, b) => new Date(b.cancelledAt).getTime() - new Date(a.cancelledAt).getTime());
+
+  const byReason = [...reasonAgg.entries()]
+    .map(([id, counts]) => {
+      const count = counts.searching + counts.enRoute;
+      return {
+        id,
+        label: cancelReasonLabel(id),
+        count,
+        searching: counts.searching,
+        enRoute: counts.enRoute,
+        sharePct: cancelled > 0 ? count / cancelled : 0,
+      };
+    })
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const actorLabel = (actor: string) => {
+    if (actor === "buyer") return "Buyer";
+    if (actor === "provider") return "Provider";
+    if (actor === "admin") return "Admin";
+    if (actor === "system") return "System";
+    return "Unspecified";
+  };
+  const byActor = [...actorAgg.entries()]
+    .map(([actor, count]) => ({ actor, label: actorLabel(actor), count }))
+    .sort((a, b) => b.count - a.count);
+
+  const cancellations: AdminComprehensiveAnalytics["services"]["cancellations"] = {
+    total: cancelled,
+    searching: searchingCancels,
+    enRoute: enRouteCancels,
+    withReason: cancelled - unspecifiedCancels,
+    unspecified: unspecifiedCancels,
+    buyerInitiated: actorAgg.get("buyer") ?? 0,
+    providerInitiated: actorAgg.get("provider") ?? 0,
+    adminInitiated: actorAgg.get("admin") ?? 0,
+    systemInitiated: actorAgg.get("system") ?? 0,
+    safetyCount,
+    topReason: byReason.find((r) => r.count > 0) ?? null,
+    byReason,
+    byActor,
+    byCategory: [...cancelByCategory.entries()]
+      .map(([category, row]) => ({
+        category,
+        cancelled: row.cancelled,
+        total: row.total,
+        rate: row.total > 0 ? row.cancelled / row.total : 0,
+      }))
+      .filter((row) => row.cancelled > 0)
+      .sort((a, b) => b.cancelled - a.cancelled || b.rate - a.rate),
+    byService: [...cancelByService.entries()]
+      .map(([service, row]) => ({
+        service,
+        cancelled: row.cancelled,
+        total: row.total,
+        rate: row.total > 0 ? row.cancelled / row.total : 0,
+      }))
+      .filter((row) => row.cancelled > 0)
+      .sort((a, b) => b.cancelled - a.cancelled || b.rate - a.rate)
+      .slice(0, 12),
+    recentNotes: recentNotes.slice(0, 12),
+  };
 
   const completionDurations: number[] = [];
   for (const r of serviceFiltered) {
@@ -846,10 +999,20 @@ export async function getComprehensiveAdminAnalytics(
     });
   }
   if (cancellationRate > 0.2) {
+    const top = cancellations.topReason;
     alerts.push({
       severity: "warning",
       title: "High service cancellation rate",
-      detail: `${(cancellationRate * 100).toFixed(0)}% of service requests in this window were cancelled.`,
+      detail: `${(cancellationRate * 100).toFixed(0)}% of service requests in this window were cancelled${
+        top ? ` — most common reason: ${top.label} (${top.count})` : ""
+      }. Searching: ${cancellations.searching}; after match: ${cancellations.enRoute}.`,
+    });
+  }
+  if (cancellations.safetyCount > 0) {
+    alerts.push({
+      severity: "critical",
+      title: "Safety-related cancellations",
+      detail: `${cancellations.safetyCount} buyer cancellation${cancellations.safetyCount === 1 ? "" : "s"} cited safety or comfort. Review those trips promptly.`,
     });
   }
   if (failedTransactions > 0 && failedTransactions / (failedTransactions + succeededTransactions) > 0.2) {
@@ -966,6 +1129,7 @@ export async function getComprehensiveAdminAnalytics(
       avgCompletionMinutes,
       ratingsByProvider,
       revenueByProvider,
+      cancellations,
     },
     customers: {
       newInPeriod,

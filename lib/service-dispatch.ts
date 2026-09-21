@@ -27,6 +27,12 @@ import {
 import { parseMapPoint } from "@/lib/maps/coords";
 import { listVendorIdsWithPushTokens } from "@/lib/supabase/vendor-push-tokens-repo";
 import { notifyVendorOfJobOfferBestEffort } from "@/lib/push/send-job-offer";
+import {
+  canBuyerCancelBeforeArrival,
+  encodeCancellationReason,
+  BUYER_SERVICE_CANCEL_REASON_IDS,
+  OTHER_CANCEL_REASON_ID,
+} from "@/lib/service-cancellation";
 import { cleanServiceDisplayTitle, resolveBuyerServiceCategory } from "@/lib/services-catalog";
 
 export const DISPATCH_OFFER_TIMEOUT_SECONDS = 90;
@@ -337,27 +343,45 @@ export async function startDispatchForNewRequest(requestId: string): Promise<voi
 }
 
 /**
- * Buyer stops the search. Cancels only while still pending (pre-match).
- * Clears any open provider offer so vendors are not stuck on a dead request.
+ * Buyer cancels while searching, or after a match before the provider arrives.
  */
 export async function cancelBuyerServiceSearch(
   requestId: string,
   customerId: string,
+  options?: { reasonId?: string; note?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const request = await getBuyerServiceRequestFullRow(requestId);
   if (!request) return { ok: false, error: "Request not found" };
   if (request.customer_id !== customerId) {
     return { ok: false, error: "Request not found" };
   }
-  if (request.status !== "pending") {
-    return { ok: false, error: "This request can no longer be cancelled from search" };
+  if (!canBuyerCancelBeforeArrival(request.status, request.arrived_at, request.started_at)) {
+    if (request.status === "cancelled" || request.status === "canceled") {
+      return { ok: true };
+    }
+    return { ok: false, error: "This request can no longer be cancelled. The provider has already arrived." };
+  }
+
+  const reasonId = (options?.reasonId ?? "").trim();
+  if (!reasonId || !BUYER_SERVICE_CANCEL_REASON_IDS.has(reasonId)) {
+    return { ok: false, error: "Choose a reason for cancelling." };
+  }
+  const note = (options?.note ?? "").trim();
+  if (reasonId === OTHER_CANCEL_REASON_ID && note.length < 3) {
+    return { ok: false, error: "Please add a short note so we can improve." };
   }
 
   await expirePendingAssignmentsForRequest(requestId);
-  await updateBuyerRequestDispatchFields(requestId, {
+  const patch: Parameters<typeof updateBuyerRequestDispatchFields>[1] = {
     status: "cancelled",
-    provider_id: null,
-  });
+    cancelled_at: new Date().toISOString(),
+    cancelled_by: "buyer",
+    cancellation_reason: encodeCancellationReason(reasonId, note),
+  };
+  if (request.status === "pending") {
+    patch.provider_id = null;
+  }
+  await updateBuyerRequestDispatchFields(requestId, patch);
   return { ok: true };
 }
 

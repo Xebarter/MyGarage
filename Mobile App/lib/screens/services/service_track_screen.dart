@@ -22,6 +22,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/active_service_request.dart';
 import '../../utils/user_facing_error.dart';
 import '../../widgets/app_brand_logo.dart';
+import '../../widgets/cancel_service_request_sheet.dart';
 
 /// Premium Uber-style live tracking for the buyer.
 class ServiceTrackScreen extends StatefulWidget {
@@ -43,6 +44,7 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   String? _error;
   bool _loading = true;
   bool _restarting = false;
+  bool _cancelling = false;
 
   List<LatLng> _route = [];
   int? _etaMinutes;
@@ -153,21 +155,34 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
   }
 
   Future<void> _stopSearch() async {
+    if (_cancelling) return;
+    final request = _request;
     final auth = context.read<AuthController>();
     final customerId = auth.customerId;
-    if (customerId == null || customerId.isEmpty) return;
+    if (customerId == null || customerId.isEmpty || request == null) return;
+    final choice = await showCancelServiceRequestSheet(
+      context,
+      stage: cancelStageFromRequest(status: request.status, acceptedAt: request.acceptedAt),
+      service: request.service,
+      location: request.location,
+    );
+    if (choice == null || !mounted) return;
+    setState(() => _cancelling = true);
     try {
       await _api.cancelServiceRequestSearch(
         requestId: widget.requestId,
         customerId: customerId,
+        reasonId: choice.reasonId,
+        note: choice.note,
       );
       _poll?.cancel();
       if (!mounted) return;
       context.go('/services');
     } catch (e) {
       if (!mounted) return;
+      setState(() => _cancelling = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(userFacingError(e, fallback: 'Could not stop search.'))),
+        SnackBar(content: Text(userFacingError(e, fallback: 'Could not cancel this request.'))),
       );
     }
   }
@@ -512,10 +527,26 @@ class _ServiceTrackScreenState extends State<ServiceTrackScreen> {
                       'We search for up to 2.5 minutes — or until you stop.',
                       style: AppTheme.host(fontSize: 12.5, color: AppColors.textMuted, height: 1.35),
                     ),
+                  ],
+                  if (canBuyerCancelBeforeArrival(
+                    status: request.status,
+                    arrivedAt: request.arrivedAt,
+                    startedAt: request.startedAt,
+                  )) ...[
                     const SizedBox(height: 12),
                     OutlinedButton(
-                      onPressed: _stopSearch,
-                      child: const Text('Stop searching'),
+                      onPressed: _cancelling ? null : _stopSearch,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: BorderSide(color: AppColors.danger.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        _cancelling
+                            ? 'Cancelling…'
+                            : request.status == 'pending'
+                                ? 'Stop searching'
+                                : 'Cancel request',
+                      ),
                     ),
                   ],
                   if (request.status == 'expired' ||

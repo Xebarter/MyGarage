@@ -25,8 +25,10 @@ import {
   Car,
 } from 'lucide-react';
 import { ServiceRequestExpiredDialog } from '@/components/buyer/service-request-expired-dialog';
+import { BuyerServiceCancelDialog } from '@/components/buyer/buyer-service-cancel-dialog';
 import { ServiceTripMap, type TripMapPoint } from '@/components/service-trip-map';
 import { parseMapPoint } from '@/lib/maps/coords';
+import { canBuyerCancelBeforeArrival, cancelStageFromRequest } from '@/lib/service-cancellation';
 import { createClient } from '@/lib/supabase/client';
 import {
   mergeRealtimeRowIntoRequestDetail,
@@ -137,6 +139,8 @@ export default function ServiceTrackPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
@@ -180,23 +184,30 @@ export default function ServiceTrackPage() {
     }
   }, [requestId, customerId]);
 
-  const stopSearch = useCallback(async () => {
+  const stopSearch = useCallback(async (payload: { reasonId: string; note?: string }) => {
     if (!requestId || !customerId || cancelling) return;
     setCancelling(true);
+    setCancelError(null);
     try {
       const res = await fetch(`/api/buyer/service-requests/${encodeURIComponent(requestId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'cancel', customerId }),
+        body: JSON.stringify({
+          action: 'cancel',
+          customerId,
+          reasonId: payload.reasonId,
+          note: payload.note,
+        }),
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(json.error || 'Could not stop the search.');
+        setCancelError(json.error || 'Could not cancel this request.');
         return;
       }
+      setCancelOpen(false);
       await load();
     } catch {
-      setError('Could not stop the search.');
+      setCancelError('Could not cancel this request.');
     } finally {
       setCancelling(false);
     }
@@ -391,6 +402,13 @@ export default function ServiceTrackPage() {
   }, [stages]);
 
   const pendingOffer = useMemo(() => data?.assignments?.find((a) => a.response === 'pending'), [data]);
+  const canCancel = Boolean(
+    data?.request &&
+      canBuyerCancelBeforeArrival(data.request.status, data.request.arrivedAt, data.request.startedAt),
+  );
+  const cancelStage = data?.request
+    ? cancelStageFromRequest(data.request.status, data.request.acceptedAt)
+    : 'searching';
 
   const handleManualRefresh = () => {
     setRefreshing(true);
@@ -711,14 +729,22 @@ export default function ServiceTrackPage() {
                     </AlertDescription>
                   </Alert>
                 )}
+              </div>
+            ) : null}
+
+            {canCancel ? (
+              <div className="mt-4">
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 w-full rounded-xl"
+                  className="h-11 w-full rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   disabled={cancelling}
-                  onClick={() => void stopSearch()}
+                  onClick={() => {
+                    setCancelError(null);
+                    setCancelOpen(true);
+                  }}
                 >
-                  {cancelling ? 'Stopping…' : 'Stop searching'}
+                  {data?.request?.status === 'pending' ? 'Stop searching' : 'Cancel request'}
                 </Button>
               </div>
             ) : null}
@@ -753,6 +779,19 @@ export default function ServiceTrackPage() {
           restarting={restarting}
           error={error}
           onRequestAgain={() => void requestAgain()}
+        />
+      ) : null}
+
+      {data?.request ? (
+        <BuyerServiceCancelDialog
+          open={cancelOpen}
+          stage={cancelStage}
+          service={data.request.service}
+          location={data.request.location}
+          submitting={cancelling}
+          error={cancelError}
+          onOpenChange={setCancelOpen}
+          onConfirm={(payload) => void stopSearch(payload)}
         />
       ) : null}
     </div>

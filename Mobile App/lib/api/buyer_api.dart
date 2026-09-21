@@ -539,16 +539,20 @@ class BuyerApi {
     ).then((_) {});
   }
 
-  /// Stops provider search while the request is still pending.
+  /// Cancels while searching or before the assigned provider arrives.
   Future<void> cancelServiceRequestSearch({
     required String requestId,
     required String customerId,
+    required String reasonId,
+    String? note,
   }) {
     return _client.post(
       '/api/buyer/service-requests/$requestId',
       body: {
         'action': 'cancel',
         'customerId': customerId,
+        'reasonId': reasonId,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
       auth: true,
       parser: (_) => true,

@@ -1,56 +1,73 @@
 'use client';
 
 import type { ComponentType, ReactNode } from 'react';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const analyticsTabTriggerClass =
-  'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold shadow-none transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm';
+  'relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-muted-foreground shadow-none transition-all hover:bg-background/70 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgba(24,40,28,0.08),0_8px_20px_rgba(24,40,28,0.06)] data-[state=active]:ring-1 data-[state=active]:ring-black/[0.04] dark:data-[state=active]:ring-white/10';
+
+export const analyticsIntroClass =
+  'flex min-w-0 flex-1 gap-4 rounded-2xl border border-border/60 bg-card/90 p-5 shadow-[0_1px_0_rgba(255,255,255,0.65)_inset,0_12px_40px_rgba(24,40,28,0.05)] ring-1 ring-black/[0.03] dark:bg-card/80 dark:shadow-[0_16px_40px_rgba(0,0,0,0.22)] dark:ring-white/[0.05]';
+
+export const analyticsStatTileClass =
+  'rounded-2xl border border-border/70 bg-card/90 p-4 shadow-[0_8px_24px_rgba(24,40,28,0.04)] ring-1 ring-black/[0.03] dark:ring-white/[0.05]';
+
+export const ANALYTICS_CHART_COLORS = [
+  'oklch(0.6 0.14 162)',
+  'oklch(0.78 0.12 82)',
+  'oklch(0.45 0.06 155)',
+  'oklch(0.68 0.11 200)',
+  'oklch(0.62 0.12 45)',
+  'oklch(0.55 0.04 155)',
+  'oklch(0.7 0.14 25)',
+];
 
 type MetricAccent = 'primary' | 'violet' | 'emerald' | 'amber' | 'sky' | 'indigo' | 'fuchsia' | 'teal';
 
 const metricAccentStyles: Record<
   MetricAccent,
-  { card: string; iconWrap: string; label: string }
+  { bar: string; iconWrap: string; label: string }
 > = {
   primary: {
-    card: 'border-primary/20 bg-gradient-to-br from-primary/[0.06] to-card',
-    iconWrap: 'bg-primary/12 text-primary ring-1 ring-primary/20',
-    label: 'text-primary',
+    bar: 'from-primary via-accent to-primary/40',
+    iconWrap: 'bg-primary/10 text-primary ring-1 ring-primary/15',
+    label: 'text-muted-foreground',
   },
   violet: {
-    card: 'border-violet-500/20 bg-gradient-to-br from-violet-500/[0.07] to-card',
-    iconWrap: 'bg-violet-500/12 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/20',
-    label: 'text-violet-700 dark:text-violet-300',
+    bar: 'from-violet-500/80 via-primary/50 to-transparent',
+    iconWrap: 'bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/15 dark:text-violet-300',
+    label: 'text-muted-foreground',
   },
   emerald: {
-    card: 'border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.07] to-card',
-    iconWrap: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20',
-    label: 'text-emerald-700 dark:text-emerald-400',
+    bar: 'from-emerald-600 via-primary to-transparent',
+    iconWrap: 'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/15 dark:text-emerald-400',
+    label: 'text-muted-foreground',
   },
   amber: {
-    card: 'border-amber-500/20 bg-gradient-to-br from-amber-500/[0.07] to-card',
-    iconWrap: 'bg-amber-500/12 text-amber-800 dark:text-amber-400 ring-1 ring-amber-500/20',
-    label: 'text-amber-800 dark:text-amber-400',
+    bar: 'from-accent via-amber-400/80 to-transparent',
+    iconWrap: 'bg-accent/40 text-amber-800 ring-1 ring-accent/50 dark:text-amber-300',
+    label: 'text-muted-foreground',
   },
   sky: {
-    card: 'border-sky-500/20 bg-gradient-to-br from-sky-500/[0.07] to-card',
-    iconWrap: 'bg-sky-500/12 text-sky-800 dark:text-sky-300 ring-1 ring-sky-500/20',
-    label: 'text-sky-800 dark:text-sky-300',
+    bar: 'from-sky-600/80 via-primary/40 to-transparent',
+    iconWrap: 'bg-sky-500/10 text-sky-800 ring-1 ring-sky-500/15 dark:text-sky-300',
+    label: 'text-muted-foreground',
   },
   indigo: {
-    card: 'border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.07] to-card',
-    iconWrap: 'bg-indigo-500/12 text-indigo-800 dark:text-indigo-300 ring-1 ring-indigo-500/20',
-    label: 'text-indigo-800 dark:text-indigo-300',
+    bar: 'from-indigo-500/80 via-primary/40 to-transparent',
+    iconWrap: 'bg-indigo-500/10 text-indigo-800 ring-1 ring-indigo-500/15 dark:text-indigo-300',
+    label: 'text-muted-foreground',
   },
   fuchsia: {
-    card: 'border-fuchsia-500/20 bg-gradient-to-br from-fuchsia-500/[0.07] to-card',
-    iconWrap: 'bg-fuchsia-500/12 text-fuchsia-800 dark:text-fuchsia-300 ring-1 ring-fuchsia-500/20',
-    label: 'text-fuchsia-800 dark:text-fuchsia-300',
+    bar: 'from-fuchsia-500/70 via-primary/40 to-transparent',
+    iconWrap: 'bg-fuchsia-500/10 text-fuchsia-800 ring-1 ring-fuchsia-500/15 dark:text-fuchsia-300',
+    label: 'text-muted-foreground',
   },
   teal: {
-    card: 'border-teal-500/20 bg-gradient-to-br from-teal-500/[0.07] to-card',
-    iconWrap: 'bg-teal-500/12 text-teal-800 dark:text-teal-300 ring-1 ring-teal-500/20',
-    label: 'text-teal-800 dark:text-teal-300',
+    bar: 'from-teal-600 via-primary to-transparent',
+    iconWrap: 'bg-teal-500/10 text-teal-800 ring-1 ring-teal-500/15 dark:text-teal-300',
+    label: 'text-muted-foreground',
   },
 };
 
@@ -71,7 +88,6 @@ export function AnalyticsMetricCard({
   icon?: ComponentType<{ className?: string }>;
   accent?: MetricAccent;
   className?: string;
-  /** Custom trend row (e.g. with arrows) */
   trendNode?: ReactNode;
 }) {
   const tones = metricAccentStyles[accent];
@@ -80,15 +96,15 @@ export function AnalyticsMetricCard({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl border p-4 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06] transition-shadow hover:shadow-md sm:p-5',
-        tones.card,
+        'group relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_10px_28px_rgba(24,40,28,0.05)] ring-1 ring-black/[0.03] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(24,40,28,0.08)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.22)] dark:ring-white/[0.05] dark:hover:shadow-[0_18px_44px_rgba(0,0,0,0.35)]',
         className,
       )}
     >
+      <div className={cn('absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r', tones.bar)} aria-hidden />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className={cn('text-[10px] font-bold uppercase tracking-widest', tones.label)}>{label}</p>
-          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground sm:text-[1.65rem]">
+          <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', tones.label)}>{label}</p>
+          <p className="mt-2.5 font-semibold tabular-nums tracking-tight text-foreground text-[1.7rem] leading-none sm:text-[1.85rem]">
             {value}
           </p>
         </div>
@@ -100,20 +116,23 @@ export function AnalyticsMetricCard({
             )}
             aria-hidden
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
           </span>
         ) : null}
       </div>
-      {sub ? <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{sub}</p> : null}
+      {sub ? <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{sub}</p> : null}
       {trendNode}
       {!trendNode && trend ? (
         <p
           className={cn(
-            'mt-2 inline-flex items-center gap-1 text-xs font-semibold',
-            up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
+            'mt-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+            up
+              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+              : 'bg-rose-500/10 text-rose-700 dark:text-rose-400',
           )}
         >
-          {up ? '↑' : '↓'} {Math.abs(trend.pct).toFixed(1)}% {trend.label}
+          {up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+          {Math.abs(trend.pct).toFixed(1)}% {trend.label}
         </p>
       ) : null}
     </div>
@@ -126,25 +145,30 @@ export function AnalyticsSectionCard({
   children,
   className,
   contentClassName,
+  action,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  action?: ReactNode;
 }) {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]',
+        'overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_0_rgba(255,255,255,0.65)_inset,0_12px_36px_rgba(24,40,28,0.045)] ring-1 ring-black/[0.03] dark:shadow-[0_14px_36px_rgba(0,0,0,0.22)] dark:ring-white/[0.05]',
         className,
       )}
     >
-      <div className="border-b border-border/60 bg-muted/25 px-5 py-4">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
-        {description ? (
-          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">{description}</p>
-        ) : null}
+      <div className="flex items-start justify-between gap-4 border-b border-border/50 bg-gradient-to-b from-muted/35 to-transparent px-5 py-4">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold tracking-tight text-foreground">{title}</h3>
+          {description ? (
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       <div className={cn('p-5 sm:p-6', contentClassName)}>{children}</div>
     </div>
@@ -153,30 +177,30 @@ export function AnalyticsSectionCard({
 
 export function AnalyticsPageSkeleton() {
   return (
-    <div className="mx-auto max-w-[1600px] animate-pulse space-y-6 px-4 py-4 md:px-8 md:py-6">
-      <div className="rounded-2xl border border-border/60 bg-muted/20 p-6 md:p-8">
-        <div className="h-4 w-28 rounded bg-muted" />
-        <div className="mt-4 h-8 w-56 max-w-full rounded-lg bg-muted/90" />
-        <div className="mt-3 h-4 max-w-md rounded bg-muted/70" />
+    <div className="relative mx-auto max-w-[1600px] animate-pulse px-4 py-6 md:px-8 md:py-8">
+      <div className="overflow-hidden rounded-[1.6rem] border border-border/60 bg-card/80 p-6 shadow-sm md:p-8">
+        <div className="h-3 w-24 rounded-full bg-muted" />
+        <div className="mt-4 h-9 w-72 max-w-full rounded-lg bg-muted/90" />
+        <div className="mt-3 h-4 max-w-lg rounded bg-muted/70" />
         <div className="mt-6 flex gap-2">
-          <div className="h-9 w-24 rounded-lg bg-muted" />
-          <div className="h-9 w-28 rounded-lg bg-muted" />
+          <div className="h-9 w-24 rounded-full bg-muted" />
+          <div className="h-9 w-28 rounded-full bg-muted" />
         </div>
       </div>
-      <div className="h-24 rounded-2xl border border-border/50 bg-muted/30" />
-      <div className="flex gap-2 overflow-hidden">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-10 w-24 shrink-0 rounded-lg bg-muted/50" />
+      <div className="mt-5 h-[4.5rem] rounded-2xl border border-border/50 bg-card/70" />
+      <div className="mt-5 flex gap-2 overflow-hidden">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="h-10 w-[5.5rem] shrink-0 rounded-full bg-muted/60" />
         ))}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-36 rounded-2xl border border-border/50 bg-muted/35" />
+          <div key={i} className="h-40 rounded-2xl border border-border/50 bg-card" />
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="h-80 rounded-2xl border border-border/50 bg-muted/30" />
-        <div className="h-80 rounded-2xl border border-border/50 bg-muted/30" />
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="h-80 rounded-2xl border border-border/50 bg-card" />
+        <div className="h-80 rounded-2xl border border-border/50 bg-card" />
       </div>
     </div>
   );

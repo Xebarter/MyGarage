@@ -346,6 +346,9 @@ class BuyerServiceRequest {
     this.destinationLng,
     this.providerLat,
     this.providerLng,
+    this.acceptedAt,
+    this.arrivedAt,
+    this.startedAt,
     this.notes = '',
   });
 
@@ -359,6 +362,9 @@ class BuyerServiceRequest {
   final double? destinationLng;
   final double? providerLat;
   final double? providerLng;
+  final String? acceptedAt;
+  final String? arrivedAt;
+  final String? startedAt;
   final String notes;
 
   factory BuyerServiceRequest.fromJson(Map<String, dynamic> json) {
@@ -377,8 +383,18 @@ class BuyerServiceRequest {
           (json['provider_lat'] as num?)?.toDouble(),
       providerLng: (json['providerLng'] as num?)?.toDouble() ??
           (json['provider_lng'] as num?)?.toDouble(),
+      acceptedAt: _nullableIso(json['acceptedAt'] ?? json['accepted_at']),
+      arrivedAt: _nullableIso(json['arrivedAt'] ?? json['arrived_at']),
+      startedAt: _nullableIso(json['startedAt'] ?? json['started_at']),
       notes: json['notes']?.toString() ?? '',
     );
+  }
+
+  static String? _nullableIso(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty || text == 'null') return null;
+    return text;
   }
 }
 

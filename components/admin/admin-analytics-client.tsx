@@ -1,11 +1,10 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import type { AdminComprehensiveAnalytics } from '@/lib/admin-comprehensive-analytics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import {
   Table,
   TableBody,
@@ -27,9 +25,12 @@ import {
 } from '@/components/ui/table';
 import { RangeSelector } from '@/components/analytics/range-selector';
 import {
+  ANALYTICS_CHART_COLORS,
   AnalyticsMetricCard,
   AnalyticsPageSkeleton,
   AnalyticsSectionCard,
+  analyticsIntroClass,
+  analyticsStatTileClass,
   analyticsTabTriggerClass,
 } from '@/components/admin/admin-analytics-ui';
 import { cn } from '@/lib/utils';
@@ -87,6 +88,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  ShieldAlert,
   ShoppingCart,
   Star,
   Store,
@@ -102,8 +104,8 @@ import {
   XCircle,
 } from 'lucide-react';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
-const NO_SALES_BAR = '#e11d48';
+const COLORS = ANALYTICS_CHART_COLORS;
+const NO_SALES_BAR = 'oklch(0.59 0.18 28)';
 
 function formatUgx(n: number) {
   return `UGX ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -136,6 +138,85 @@ const ANALYTICS_TABS = [
   { value: 'visuals', label: 'Visuals', icon: BarChart3 },
   { value: 'alerts', label: 'Alerts', icon: Bell },
 ] as const;
+
+function InventorySkuTable({
+  rows,
+  maxUnits,
+  empty,
+  barClassName,
+}: {
+  rows: { id: string; name: string; units: number; revenue: number }[];
+  maxUnits: number;
+  empty: string;
+  barClassName: string;
+}) {
+  const totalUnits = rows.reduce((s, r) => s + r.units, 0);
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  if (rows.length === 0) {
+    return <p className="px-5 py-12 text-center text-sm text-muted-foreground">{empty}</p>;
+  }
+  return (
+    <div className="overflow-x-auto [scrollbar-width:thin]">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-b border-border/80 hover:bg-transparent">
+            <TableHead className="w-12 bg-muted/20 pl-5 text-center tabular-nums">#</TableHead>
+            <TableHead className="bg-muted/20 min-w-[12rem]">Product</TableHead>
+            <TableHead className="hidden bg-muted/20 md:table-cell">Mix</TableHead>
+            <TableHead className="bg-muted/20 text-right tabular-nums">Units</TableHead>
+            <TableHead className="bg-muted/20 text-right tabular-nums">Share</TableHead>
+            <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Revenue</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row, i) => {
+            const mixPct = maxUnits > 0 ? Math.round((row.units / maxUnits) * 100) : 0;
+            const sharePct = totalUnits > 0 ? (row.units / totalUnits) * 100 : 0;
+            const aov = row.units > 0 ? row.revenue / row.units : 0;
+            return (
+              <TableRow key={row.id} className="border-border/50 transition-colors hover:bg-muted/25">
+                <TableCell className="pl-5 text-center text-xs font-semibold tabular-nums text-muted-foreground">
+                  {i + 1}
+                </TableCell>
+                <TableCell className="max-w-[18rem]">
+                  <p className="line-clamp-2 font-medium leading-snug text-foreground">{row.name}</p>
+                  <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+                    {aov > 0 ? `${formatUgx(aov)} / unit` : '—'}
+                  </p>
+                </TableCell>
+                <TableCell className="hidden w-[min(28%,12rem)] md:table-cell">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted" title={`${row.units} units`}>
+                    <div
+                      className={cn('h-full rounded-full transition-[width]', barClassName)}
+                      style={{ width: `${Math.max(6, mixPct)}%` }}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell className="text-right text-sm font-semibold tabular-nums text-foreground">
+                  {row.units.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                  {sharePct.toFixed(1)}%
+                </TableCell>
+                <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                  {formatUgx(row.revenue)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      <div className="flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3 text-[11px] tabular-nums text-muted-foreground">
+        <span>
+          {rows.length} SKU{rows.length === 1 ? '' : 's'} in this list
+        </span>
+        <span>
+          {totalUnits.toLocaleString()} units · {formatUgx(totalRevenue)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function InventoryVelocityRow({
   rank,
@@ -197,7 +278,7 @@ function NoSalesListingsExplorer({
 }) {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('__all__');
-  const [sortBy, setSortBy] = useState<'name' | 'category'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'category' | 'price'>('category');
 
   const normalizedItems = useMemo(
     () =>
@@ -217,13 +298,13 @@ function NoSalesListingsExplorer({
   }, [normalizedItems]);
 
   const chartRows = useMemo(() => {
-    const top = categoryCounts.slice(0, 10);
-    const rest = categoryCounts.slice(10);
+    const top = categoryCounts.slice(0, 8);
+    const rest = categoryCounts.slice(8);
     const other = rest.reduce((s, [, n]) => s + n, 0);
     const rows = top.map(([fullName, count]) => ({
       count,
       fullName,
-      label: fullName.length > 22 ? `${fullName.slice(0, 22)}…` : fullName,
+      label: fullName.length > 20 ? `${fullName.slice(0, 20)}…` : fullName,
     }));
     if (other > 0) {
       rows.push({ count: other, fullName: 'Other', label: 'Other' });
@@ -248,7 +329,13 @@ function NoSalesListingsExplorer({
       out = out.filter((i) => i.category === categoryFilter);
     }
     const sorted = [...out];
-    if (sortBy === 'name') {
+    if (sortBy === 'price') {
+      sorted.sort((a, b) => {
+        const pa = pricingByProductId.get(a.id)?.price ?? -1;
+        const pb = pricingByProductId.get(b.id)?.price ?? -1;
+        return pb - pa || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      });
+    } else if (sortBy === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     } else {
       sorted.sort(
@@ -258,9 +345,9 @@ function NoSalesListingsExplorer({
       );
     }
     return sorted;
-  }, [normalizedItems, query, categoryFilter, sortBy]);
+  }, [normalizedItems, query, categoryFilter, sortBy, pricingByProductId]);
 
-  const promoMatchesInResults = useMemo(
+  const pricedInView = useMemo(
     () => filteredSorted.filter((i) => pricingByProductId.has(i.id)).length,
     [filteredSorted, pricingByProductId],
   );
@@ -272,116 +359,98 @@ function NoSalesListingsExplorer({
     );
   }, []);
 
+  const clearFilters = () => {
+    setQuery('');
+    setCategoryFilter('__all__');
+  };
+
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/15 px-6 py-14 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-          <Package className="h-7 w-7" aria-hidden />
+      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Package className="h-6 w-6" aria-hidden />
         </div>
-        <p className="mt-4 text-sm font-medium text-foreground">Nothing to flag</p>
+        <p className="mt-4 text-sm font-semibold text-foreground">All tracked listings moved</p>
         <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-          Every tracked published listing had at least one order in this window. Try another date range if you expect
-          idle SKUs.
+          Every published SKU in this window had at least one unit sold. Widen the date range if you expect idle stock.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-rose-500/20 bg-linear-to-br from-rose-500/6 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-rose-500/10 dark:ring-white/6 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              Idle listings
-            </p>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Live SKUs with <span className="font-medium text-foreground">zero unit sales</span> in the selected period.
-              Filter and sort to prioritize bundles, SEO, or catalog cleanup. The API returns up to{' '}
-              <span className="tabular-nums font-medium text-foreground">20</span> candidates per load.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
-            <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-              <Layers2 className="h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden />
-              <span>
-                <span className="font-semibold tabular-nums text-foreground">{categoryCounts.length}</span> categories
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-              <Percent className="h-3.5 w-3.5 shrink-0 text-violet-500" aria-hidden />
-              <span>
-                <span className="font-semibold tabular-nums text-foreground">{promoMatchesInResults}</span> /{' '}
-                <span className="tabular-nums">{filteredSorted.length}</span> in view overlap pricing table
-              </span>
-            </div>
-          </div>
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Idle SKUs</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{items.length}</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Categories</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{categoryCounts.length}</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Priced in view</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+            {pricedInView}
+            <span className="text-sm font-medium text-muted-foreground"> / {filteredSorted.length}</span>
+          </p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/4 dark:ring-white/7 lg:col-span-3">
-          <div className="border-b border-border/60 bg-muted/30 px-4 py-3 sm:px-5">
-            <h4 className="text-sm font-semibold tracking-tight text-foreground">Mix by category</h4>
-            <p className="mt-0.5 text-xs text-muted-foreground">Volume of no-sales SKUs per category (top 10 + other).</p>
-          </div>
-          <div className="p-4 sm:p-5">
-            {chartRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No categories.</p>
-            ) : (
-              <div className="h-[min(17rem,45vh)] w-full min-h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={chartRows}
-                    layout="vertical"
-                    margin={{ top: 4, right: 12, left: 0, bottom: 4 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, maxCatCount]} allowDecimals={false} />
-                    <YAxis type="category" dataKey="label" width={118} tick={{ fontSize: 10 }} interval={0} />
-                    <Tooltip
-                      formatter={(v: number) => [v, 'Listings']}
-                      labelFormatter={(_, payload) => {
-                        const row = payload?.[0]?.payload as { fullName?: string } | undefined;
-                        return row?.fullName ?? '';
-                      }}
+        <div className="lg:col-span-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Idle mix by category
+          </p>
+          <div className="h-[min(16rem,42vh)] w-full min-h-[180px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartRows} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, maxCatCount]} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" width={124} tick={{ fontSize: 10 }} interval={0} />
+                <Tooltip
+                  formatter={(v: number) => [`${v} listings`, 'Idle']}
+                  labelFormatter={(_, payload) => {
+                    const row = payload?.[0]?.payload as { fullName?: string } | undefined;
+                    return row?.fullName ?? '';
+                  }}
+                  cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={22} name="Listings">
+                  {chartRows.map((row, i) => (
+                    <Cell
+                      key={`${row.fullName}-${row.count}`}
+                      fill={row.fullName === 'Other' ? 'oklch(0.55 0.04 155)' : ANALYTICS_CHART_COLORS[i % ANALYTICS_CHART_COLORS.length]}
                     />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} name="Listings">
-                      {chartRows.map((row) => (
-                        <Cell
-                          key={`${row.fullName}-${row.count}`}
-                          fill={row.fullName === 'Other' ? '#94a3b8' : NO_SALES_BAR}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
-
-        <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/4 dark:ring-white/7 lg:col-span-2">
-          <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-            <h4 className="text-sm font-semibold tracking-tight text-foreground">Category rollup</h4>
-            <p className="mt-0.5 text-xs text-muted-foreground">Click a row to filter the grid (again to clear).</p>
-          </div>
-          <ul className="max-h-[min(17rem,45vh)] min-h-[200px] space-y-0 divide-y divide-border/50 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+        <div className="lg:col-span-2">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Filter by category
+          </p>
+          <ul className="max-h-[min(16rem,42vh)] min-h-[180px] divide-y divide-border/50 overflow-y-auto overscroll-contain rounded-xl border border-border/60 [scrollbar-width:thin]">
             {categoryCounts.map(([cat, n]) => {
               const active = categoryFilter === cat;
+              const share = items.length > 0 ? Math.round((n / items.length) * 100) : 0;
               return (
                 <li key={cat}>
                   <button
                     type="button"
                     onClick={() => setCategoryFilter(active ? '__all__' : cat)}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors',
-                      active ? 'bg-rose-500/10 font-medium text-rose-900 dark:text-rose-100' : 'hover:bg-muted/50',
+                      'flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors',
+                      active ? 'bg-primary/8 font-medium text-foreground' : 'hover:bg-muted/40',
                     )}
                     aria-pressed={active}
                   >
-                    <span className="min-w-0 truncate">{cat}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{n}</span>
+                    <span className="min-w-0 flex-1 truncate">{cat}</span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{share}%</span>
+                    <span className="w-7 shrink-0 text-right text-xs font-semibold tabular-nums">{n}</span>
                   </button>
                 </li>
               );
@@ -390,162 +459,103 @@ function NoSalesListingsExplorer({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative min-w-0 flex-1 sm:max-w-md">
+      <div className="flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
           />
           <Input
-            className="h-10 pl-9"
-            placeholder="Search name, ID, or category…"
+            className="h-10 rounded-xl pl-9"
+            placeholder="Search product, ID, or category"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Filter no-sales listings"
+            aria-label="Filter idle listings"
           />
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v === 'category' ? 'category' : 'name')}>
-          <SelectTrigger className="h-10 w-full sm:w-[200px]">
+        <Select
+          value={sortBy}
+          onValueChange={(v) => setSortBy(v === 'name' || v === 'price' ? v : 'category')}
+        >
+          <SelectTrigger className="h-10 w-full rounded-xl sm:w-[210px]">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="name">Sort: Product name (A–Z)</SelectItem>
-            <SelectItem value="category">Sort: Category, then name</SelectItem>
+            <SelectItem value="category">Category, then name</SelectItem>
+            <SelectItem value="name">Product name A–Z</SelectItem>
+            <SelectItem value="price">Shelf price high–low</SelectItem>
           </SelectContent>
         </Select>
-        {(query.trim() !== '' || categoryFilter !== '__all__') && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-10 shrink-0"
-            onClick={() => {
-              setQuery('');
-              setCategoryFilter('__all__');
-            }}
-          >
-            Reset filters
+        {query.trim() !== '' || categoryFilter !== '__all__' ? (
+          <Button type="button" variant="ghost" size="sm" className="h-10 shrink-0 rounded-full" onClick={clearFilters}>
+            Clear
           </Button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={categoryFilter === '__all__' ? 'default' : 'outline'}
-          className="h-8 rounded-full px-3"
-          onClick={() => setCategoryFilter('__all__')}
-        >
-          All
-          <span className="ml-1.5 tabular-nums opacity-80">({items.length})</span>
-        </Button>
-        {categoryCounts.slice(0, 8).map(([cat, n]) => {
-          const active = categoryFilter === cat;
-          return (
-            <Button
-              key={cat}
-              type="button"
-              size="sm"
-              variant={active ? 'default' : 'outline'}
-              className="h-8 max-w-[220px] rounded-full px-3"
-              onClick={() => setCategoryFilter(active ? '__all__' : cat)}
-              title={cat}
-            >
-              <span className="truncate">{cat}</span>
-              <span className="ml-1.5 shrink-0 tabular-nums opacity-80">{n}</span>
-            </Button>
-          );
-        })}
+        ) : null}
       </div>
 
       {filteredSorted.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/80 bg-muted/10 px-6 py-12 text-center">
-          <Search className="mx-auto h-9 w-9 text-muted-foreground/60" aria-hidden />
-          <p className="mt-3 text-sm font-medium text-foreground">No listings match</p>
-          <p className="mt-1 text-xs text-muted-foreground">Try clearing search or category filters.</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            onClick={() => {
-              setQuery('');
-              setCategoryFilter('__all__');
-            }}
-          >
-            Reset filters
+        <div className="rounded-xl border border-dashed border-border/70 px-6 py-12 text-center">
+          <p className="text-sm font-medium text-foreground">No listings match these filters</p>
+          <p className="mt-1 text-xs text-muted-foreground">Clear search or pick another category.</p>
+          <Button type="button" variant="secondary" size="sm" className="mt-4 rounded-full" onClick={clearFilters}>
+            Clear filters
           </Button>
         </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredSorted.map((p) => {
-            const pricing = pricingByProductId.get(p.id);
-            return (
-              <li
-                key={p.id}
-                className="group flex flex-col rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-black/4 transition-[box-shadow,border-color] hover:border-rose-500/25 hover:shadow-md dark:ring-white/7"
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/12 text-rose-600 dark:text-rose-400"
-                    aria-hidden
-                  >
-                    <Package className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-snug text-foreground line-clamp-2">{p.name}</p>
-                    <Badge variant="secondary" className="mt-2 max-w-full truncate font-normal">
-                      {p.category}
-                    </Badge>
-                  </div>
-                </div>
-
-                {pricing ? (
-                  <div className="mt-4 space-y-1 border-t border-border/55 pt-3 text-xs">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="text-muted-foreground">Shelf</span>
-                      <span className="font-semibold tabular-nums text-foreground">{formatUgx(pricing.price)}</span>
-                    </div>
-                    {pricing.compareAt != null ? (
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-muted-foreground">Compare at</span>
-                        <span className="tabular-nums text-muted-foreground line-through">
-                          {formatUgx(pricing.compareAt)}
+        <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:thin]">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/80 hover:bg-transparent">
+                <TableHead className="min-w-[14rem] bg-muted/20 pl-1">Product</TableHead>
+                <TableHead className="bg-muted/20">Category</TableHead>
+                <TableHead className="bg-muted/20 text-right tabular-nums">Price</TableHead>
+                <TableHead className="hidden bg-muted/20 text-right md:table-cell">Promo</TableHead>
+                <TableHead className="bg-muted/20 pr-1 text-right">ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSorted.map((p) => {
+                const pricing = pricingByProductId.get(p.id);
+                return (
+                  <TableRow key={p.id} className="border-border/50 hover:bg-muted/25">
+                    <TableCell className="max-w-[20rem] pl-1">
+                      <p className="line-clamp-2 font-medium leading-snug text-foreground">{p.name}</p>
+                    </TableCell>
+                    <TableCell className="max-w-[10rem]">
+                      <span className="line-clamp-2 text-xs text-muted-foreground">{p.category}</span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm font-semibold">
+                      {pricing ? formatUgx(pricing.price) : '—'}
+                    </TableCell>
+                    <TableCell className="hidden text-right md:table-cell">
+                      {pricing?.discountPct != null && pricing.discountPct > 0 ? (
+                        <span className="text-xs font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                          {pricing.discountPct}% off
                         </span>
-                      </div>
-                    ) : null}
-                    {pricing.discountPct != null && pricing.discountPct > 0 ? (
-                      <div className="pt-1">
-                        <Badge className="tabular-nums">{pricing.discountPct}% off</Badge>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="mt-4 border-t border-border/55 pt-3 text-xs leading-relaxed text-muted-foreground">
-                    Not in the promo / compare-at sample on this report — open the catalog to inspect price.
-                  </p>
-                )}
-
-                <div className="mt-4 flex items-center gap-2 border-t border-border/55 pt-3">
-                  <code className="min-w-0 flex-1 truncate rounded-md bg-muted/50 px-2 py-1 text-[10px] text-muted-foreground">
-                    {p.id}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => copyProductId(p.id)}
-                    aria-label={`Copy product ID ${p.id}`}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{pricing ? 'List' : '—'}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="pr-1 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-full px-2 text-[11px] font-medium"
+                        onClick={() => copyProductId(p.id)}
+                      >
+                        Copy ID
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          <p className="px-1 pt-3 text-[11px] text-muted-foreground">
+            Showing {filteredSorted.length} of {items.length} idle listings in this sample (up to 20 per load).
+          </p>
+        </div>
       )}
     </div>
   );
@@ -626,7 +636,7 @@ function VendorAnalyticsSection({
   if (leaderboard.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 rounded-xl border border-violet-500/20 bg-linear-to-br from-violet-500/6 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-violet-500/10 dark:ring-white/6 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className={cn(analyticsIntroClass, 'flex-col sm:flex-row sm:items-center sm:justify-between sm:p-5')}>
           <div className="flex gap-4">
             <div
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400"
@@ -662,7 +672,7 @@ function VendorAnalyticsSection({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 rounded-xl border border-violet-500/20 bg-linear-to-br from-violet-500/6 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-violet-500/10 dark:ring-white/6 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+      <div className={cn(analyticsIntroClass, 'flex-col sm:flex-row sm:items-start sm:justify-between sm:p-5')}>
         <div className="flex min-w-0 gap-4">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400"
@@ -689,7 +699,7 @@ function VendorAnalyticsSection({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
             <Star className="h-4 w-4 shrink-0 fill-violet-500/25 text-violet-600 dark:text-violet-400" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. rating</span>
@@ -699,7 +709,7 @@ function VendorAnalyticsSection({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Aggregated vendor stars in range</p>
         </div>
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">No revenue</span>
@@ -707,7 +717,7 @@ function VendorAnalyticsSection({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{churnRiskCount}</p>
           <p className="mt-1 text-xs text-muted-foreground">Vendors at risk in this filter set</p>
         </div>
-        <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
             <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Ranked sellers</span>
@@ -715,7 +725,7 @@ function VendorAnalyticsSection({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{leaderboard.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">With revenue in leaderboard</p>
         </div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
             <BarChart3 className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Total (leaderboard)</span>
@@ -982,7 +992,7 @@ function OrdersAnalyticsSection({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 rounded-xl border border-cyan-500/20 bg-linear-to-br from-cyan-500/6 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-cyan-500/10 dark:ring-white/6 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+      <div className={cn(analyticsIntroClass, 'flex-col sm:flex-row sm:items-start sm:justify-between sm:p-5')}>
         <div className="flex min-w-0 gap-4">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400"
@@ -1010,7 +1020,7 @@ function OrdersAnalyticsSection({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
             <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Product orders</span>
@@ -1018,7 +1028,7 @@ function OrdersAnalyticsSection({
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{productOrdersCount}</p>
           <p className="mt-1 text-xs text-muted-foreground">Checkout rows with product lines (period)</p>
         </div>
-        <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
             <Wrench className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Service payments</span>
@@ -1028,7 +1038,7 @@ function OrdersAnalyticsSection({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Succeeded service checkouts (period)</p>
         </div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
             <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Payment success</span>
@@ -1038,7 +1048,7 @@ function OrdersAnalyticsSection({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Share of collections succeeded</p>
         </div>
-        <div className="rounded-xl border border-rose-500/25 bg-rose-500/6 p-4 shadow-sm dark:bg-rose-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
             <XCircle className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Payment failure</span>
@@ -1314,7 +1324,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 rounded-xl border border-fuchsia-500/20 bg-linear-to-br from-fuchsia-500/6 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-fuchsia-500/10 dark:ring-white/6 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+      <div className={cn(analyticsIntroClass, 'flex-col sm:flex-row sm:items-start sm:justify-between sm:p-5')}>
         <div className="flex min-w-0 gap-4">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400"
@@ -1379,7 +1389,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-fuchsia-500/25 bg-fuchsia-500/6 p-4 shadow-sm dark:bg-fuchsia-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-fuchsia-800 dark:text-fuchsia-300">
             <Tag className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Campaigns</span>
@@ -1387,7 +1397,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{campaigns.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">Rows in this admin sample (up to 12)</p>
         </div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
             <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Active now</span>
@@ -1395,7 +1405,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{activeCampaigns}</p>
           <p className="mt-1 text-xs text-muted-foreground">Promotions flagged active in catalog</p>
         </div>
-        <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
             <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Redemptions</span>
@@ -1403,7 +1413,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
           <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">{totalRedemptions}</p>
           <p className="mt-1 text-xs text-muted-foreground">Sum of reported uses in sample</p>
         </div>
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+        <div className={analyticsStatTileClass}>
           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold uppercase tracking-wider">At cap</span>
@@ -1739,6 +1749,43 @@ function downloadAnalyticsCsv(data: AdminComprehensiveAnalytics) {
     [],
     ['Top products', 'Units', 'Revenue'],
     ...data.sales.topProducts.map((p) => [p.name, String(p.units), String(p.revenue)]),
+    [],
+    ['Service cancellations'],
+    ['Total cancelled', String(data.services.cancellations.total)],
+    ['Searching', String(data.services.cancellations.searching)],
+    ['After match (en route)', String(data.services.cancellations.enRoute)],
+    ['With reason', String(data.services.cancellations.withReason)],
+    ['No reason given', String(data.services.cancellations.unspecified)],
+    ['Buyer initiated', String(data.services.cancellations.buyerInitiated)],
+    ['Provider initiated', String(data.services.cancellations.providerInitiated)],
+    ['Admin initiated', String(data.services.cancellations.adminInitiated)],
+    ['System initiated', String(data.services.cancellations.systemInitiated)],
+    ['Safety-related', String(data.services.cancellations.safetyCount)],
+    [],
+    ['Cancel reason', 'Count', 'Searching', 'After match', 'Share %'],
+    ...data.services.cancellations.byReason.map((r) => [
+      r.label,
+      String(r.count),
+      String(r.searching),
+      String(r.enRoute),
+      (r.sharePct * 100).toFixed(1),
+    ]),
+    [],
+    ['Cancellations by category', 'Cancelled', 'Bookings', 'Rate %'],
+    ...data.services.cancellations.byCategory.map((r) => [
+      r.category,
+      String(r.cancelled),
+      String(r.total),
+      (r.rate * 100).toFixed(1),
+    ]),
+    [],
+    ['Cancellations by service', 'Cancelled', 'Bookings', 'Rate %'],
+    ...data.services.cancellations.byService.map((r) => [
+      r.service,
+      String(r.cancelled),
+      String(r.total),
+      (r.rate * 100).toFixed(1),
+    ]),
   ];
   const csv = lines.map((row) => row.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1906,6 +1953,46 @@ export function AdminAnalyticsClient() {
     return m;
   }, [data]);
 
+  const inventoryAggregates = useMemo(() => {
+    if (!data) {
+      return {
+        fastUnits: 0,
+        fastRevenue: 0,
+        slowUnits: 0,
+        slowRevenue: 0,
+        idleCount: 0,
+        pricingCount: 0,
+        discountedCount: 0,
+        avgDiscountPct: null as number | null,
+        topFastName: null as string | null,
+        topFastUnits: 0,
+      };
+    }
+    const inv = data.inventory;
+    const fastUnits = inv.fastMovers.reduce((s, p) => s + p.units, 0);
+    const fastRevenue = inv.fastMovers.reduce((s, p) => s + p.revenue, 0);
+    const slowUnits = inv.slowMovers.reduce((s, p) => s + p.units, 0);
+    const slowRevenue = inv.slowMovers.reduce((s, p) => s + p.revenue, 0);
+    const discounts = inv.pricingInsights
+      .map((p) => p.discountPct)
+      .filter((n): n is number => n != null && n > 0);
+    const avgDiscountPct =
+      discounts.length > 0 ? discounts.reduce((a, b) => a + b, 0) / discounts.length : null;
+    const topFast = inv.fastMovers[0];
+    return {
+      fastUnits,
+      fastRevenue,
+      slowUnits,
+      slowRevenue,
+      idleCount: inv.deadStockCandidates.length,
+      pricingCount: inv.pricingInsights.length,
+      discountedCount: discounts.length,
+      avgDiscountPct,
+      topFastName: topFast?.name ?? null,
+      topFastUnits: topFast?.units ?? 0,
+    };
+  }, [data]);
+
   const salesAggregates = useMemo(() => {
     if (!data) {
       return {
@@ -2037,6 +2124,8 @@ export function AdminAnalyticsClient() {
     }
     const weightedAvgStars = reviewCount > 0 ? weighted / reviewCount : null;
     const maxProviderRevenue = Math.max(0, ...s.revenueByProvider.map((p) => p.revenue));
+    const c = s.cancellations;
+    const maxReasonCount = Math.max(0, ...c.byReason.map((r) => r.count));
     return {
       bookingsTotal,
       topCategoryLabel: topCat?.category ?? null,
@@ -2046,6 +2135,12 @@ export function AdminAnalyticsClient() {
       weightedAvgStars,
       reviewCount,
       maxProviderRevenue,
+      cancelTotal: c.total,
+      cancelSearching: c.searching,
+      cancelEnRoute: c.enRoute,
+      cancelTopReason: c.topReason?.label ?? null,
+      cancelTopReasonCount: c.topReason?.count ?? 0,
+      maxReasonCount,
     };
   }, [data]);
 
@@ -2210,18 +2305,22 @@ export function AdminAnalyticsClient() {
 
   return (
     <div
-      className="mx-auto max-w-[1600px] px-4 pb-14 pt-2 md:px-8 md:pb-16 md:pt-4 print:p-4"
+      className="relative mx-auto max-w-[1600px] px-4 pb-16 pt-3 md:px-8 md:pb-20 md:pt-5 print:p-4"
       id="admin-analytics-root"
     >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[28rem] bg-[radial-gradient(ellipse_at_top,oklch(0.6_0.14_162_/_0.09),transparent_58%)]"
+        aria-hidden
+      />
       {error && data ? (
         <div
           role="alert"
-          className="no-print mb-4 flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:bg-amber-500/5"
+          className="no-print mb-4 flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="text-sm text-amber-950 dark:text-amber-100">
+          <p className="text-sm text-foreground">
             {error} Showing the last successful load. Adjust filters or retry.
           </p>
-          <Button type="button" variant="outline" size="sm" className="shrink-0 border-amber-600/30" onClick={() => load()}>
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => load()}>
             <RefreshCw className="h-4 w-4" />
             Retry
           </Button>
@@ -2229,54 +2328,54 @@ export function AdminAnalyticsClient() {
       ) : null}
 
       <div className="no-print mb-6 space-y-4">
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-linear-to-br from-primary/[0.07] via-card to-card px-5 py-6 shadow-md ring-1 ring-black/[0.04] dark:ring-white/[0.06] md:px-8 md:py-7">
-          <div className="absolute right-0 top-0 h-40 w-40 translate-x-10 -translate-y-10 rounded-full bg-primary/10 blur-3xl" aria-hidden />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex gap-3">
-              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary sm:flex">
-                <LayoutDashboard className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-primary">Admin analytics</p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-                  Platform analytics
-                </h1>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                  Revenue, orders, vendors, and operations for the selected date range. Estimates are labeled in
-                  Data assumptions.
-                </p>
-                <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    Updated {lastUpdatedLabel}
+        <div className="overflow-hidden rounded-[1.6rem] border border-border/60 bg-card/85 px-5 py-6 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_18px_50px_rgba(24,40,28,0.06)] ring-1 ring-black/[0.03] dark:bg-card/80 dark:shadow-[0_20px_50px_rgba(0,0,0,0.28)] dark:ring-white/[0.05] md:px-8 md:py-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Command center</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-[2.15rem]">
+                Platform analytics
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Revenue, services, vendors, and operations for the selected window. Estimates are labeled in data
+                assumptions.
+              </p>
+              <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_0_3px_oklch(0.6_0.14_162_/_0.2)]" />
+                  Live · {lastUpdatedLabel}
+                </span>
+                {refreshing ? (
+                  <span className="inline-flex items-center gap-1 text-primary">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Refreshing
                   </span>
-                  {refreshing ? (
-                    <span className="inline-flex items-center gap-1 text-primary">
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      Refreshing…
-                    </span>
-                  ) : null}
-                  {autoRefresh ? <span className="text-muted-foreground">· Auto-refresh on</span> : null}
-                </p>
-              </div>
+                ) : null}
+                {autoRefresh ? <span>Auto-refresh on</span> : null}
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 lg:pt-1">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => load()}
                 disabled={refreshing}
-                className="border-border/80 bg-background/80"
+                className="rounded-full border-border/80 bg-background/80"
               >
                 <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
                 Refresh
               </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => downloadAnalyticsCsv(data)}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="rounded-full"
+                onClick={() => downloadAnalyticsCsv(data)}
+              >
                 <Download className="h-4 w-4" />
                 Export CSV
               </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => window.print()}>
+              <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" />
                 Print
               </Button>
@@ -2284,176 +2383,165 @@ export function AdminAnalyticsClient() {
           </div>
         </div>
 
-        <Card className="no-print sticky top-14 z-10 border-border/80 shadow-sm ring-1 ring-black/[0.04] backdrop-blur-sm supports-[backdrop-filter]:bg-card/95 dark:ring-white/[0.06] md:static md:top-0 md:backdrop-blur-none">
-          <CardHeader className="space-y-1 pb-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Filter className="h-5 w-5" />
-                </span>
-                <div>
-                  <CardTitle className="text-base font-semibold tracking-tight">Scope</CardTitle>
-                  <CardDescription className="mt-1 max-w-xl text-xs sm:text-sm">
-                    Applies to all tabs, CSV export, and print.
-                  </CardDescription>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5 border-border/80"
-                onClick={resetFilters}
+        <div className="sticky top-14 z-10 rounded-2xl border border-border/60 bg-card/90 p-4 shadow-[0_12px_40px_rgba(24,40,28,0.06)] ring-1 ring-black/[0.03] backdrop-blur-md supports-[backdrop-filter]:bg-card/80 dark:ring-white/[0.05] md:static md:top-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Scope</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Applies to every tab, CSV, and print.</p>
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-3" onClick={resetFilters}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="space-y-2 xl:col-span-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Period
+              </Label>
+              <RangeSelector
+                value={preset}
+                onChange={(v) => setPreset(v as typeof preset)}
+                className="w-full"
+                options={[
+                  { value: '7d', label: '7D' },
+                  { value: '30d', label: '30D' },
+                  { value: '90d', label: '90D' },
+                  { value: 'ytd', label: 'YTD' },
+                  { value: 'custom', label: 'Custom' },
+                ]}
+                ariaLabel="Date range preset"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="analytics-from" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                From
+              </Label>
+              <Input
+                id="analytics-from"
+                type="date"
+                value={fromStr}
+                disabled={preset !== 'custom'}
+                onChange={(e) => {
+                  setPreset('custom');
+                  setFromStr(e.target.value);
+                }}
+                className="h-9 rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="analytics-to" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                To
+              </Label>
+              <Input
+                id="analytics-to"
+                type="date"
+                value={toStr}
+                disabled={preset !== 'custom'}
+                onChange={(e) => {
+                  setPreset('custom');
+                  setToStr(e.target.value);
+                }}
+                className="h-9 rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Vendor</Label>
+              <Select
+                value={vendorId || '__all_vendors__'}
+                onValueChange={(v) => setVendorId(v === '__all_vendors__' ? '' : v)}
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset scope
-              </Button>
+                <SelectTrigger className="h-9 w-full rounded-xl">
+                  <SelectValue placeholder="All vendors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_vendors__">All vendors</SelectItem>
+                  {data.filterOptions.vendors.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Range preset</Label>
-                <RangeSelector
-                  value={preset}
-                  onChange={(v) => setPreset(v as typeof preset)}
-                  options={[
-                    { value: '7d', label: 'Last 7 days' },
-                    { value: '30d', label: 'Last 30 days' },
-                    { value: '90d', label: 'Last 90 days' },
-                    { value: 'ytd', label: 'Year to date' },
-                    { value: 'custom', label: 'Custom' },
-                  ]}
-                  ariaLabel="Date range preset"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="analytics-from" className="text-xs font-medium text-muted-foreground">
-                  From
-                </Label>
-                <Input
-                  id="analytics-from"
-                  type="date"
-                  value={fromStr}
-                  disabled={preset !== 'custom'}
-                  onChange={(e) => {
-                    setPreset('custom');
-                    setFromStr(e.target.value);
-                  }}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="analytics-to" className="text-xs font-medium text-muted-foreground">
-                  To
-                </Label>
-                <Input
-                  id="analytics-to"
-                  type="date"
-                  value={toStr}
-                  disabled={preset !== 'custom'}
-                  onChange={(e) => {
-                    setPreset('custom');
-                    setToStr(e.target.value);
-                  }}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Vendor</Label>
-                <Select
-                  value={vendorId || '__all_vendors__'}
-                  onValueChange={(v) => setVendorId(v === '__all_vendors__' ? '' : v)}
-                >
-                  <SelectTrigger className="h-9 w-full">
-                    <SelectValue placeholder="All vendors" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all_vendors__">All vendors</SelectItem>
-                    {data.filterOptions.vendors.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Product category</Label>
-                <Select
-                  value={productCategory || '__all_pc__'}
-                  onValueChange={(v) => setProductCategory(v === '__all_pc__' ? '' : v)}
-                >
-                  <SelectTrigger className="h-9 w-full">
-                    <SelectValue placeholder="All categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all_pc__">All categories</SelectItem>
-                    {data.filterOptions.productCategories.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Service type</Label>
-                <Select
-                  value={serviceCategory || '__all_sc__'}
-                  onValueChange={(v) => setServiceCategory(v === '__all_sc__' ? '' : v)}
-                >
-                  <SelectTrigger className="h-9 w-full">
-                    <SelectValue placeholder="All service categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all_sc__">All service categories</SelectItem>
-                    {data.filterOptions.serviceCategories.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Product category
+              </Label>
+              <Select
+                value={productCategory || '__all_pc__'}
+                onValueChange={(v) => setProductCategory(v === '__all_pc__' ? '' : v)}
+              >
+                <SelectTrigger className="h-9 w-full rounded-xl">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_pc__">All categories</SelectItem>
+                  {data.filterOptions.productCategories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-
-            <Separator className="bg-border/70" />
-
-            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="analytics-auto-refresh"
-                  checked={autoRefresh}
-                  onCheckedChange={(c) => setAutoRefresh(c === true)}
-                />
-                <Label htmlFor="analytics-auto-refresh" className="cursor-pointer text-sm font-normal">
-                  Auto-refresh every 60s
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="analytics-compare"
-                  checked={compareMode}
-                  onCheckedChange={(c) => setCompareMode(c === true)}
-                />
-                <Label htmlFor="analytics-compare" className="cursor-pointer text-sm font-normal">
-                  Comparison charts in Visuals
-                </Label>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Service type
+              </Label>
+              <Select
+                value={serviceCategory || '__all_sc__'}
+                onValueChange={(v) => setServiceCategory(v === '__all_sc__' ? '' : v)}
+              >
+                <SelectTrigger className="h-9 w-full rounded-xl">
+                  <SelectValue placeholder="All service categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_sc__">All service categories</SelectItem>
+                  {data.filterOptions.serviceCategories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/50 pt-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="analytics-auto-refresh"
+                checked={autoRefresh}
+                onCheckedChange={(c) => setAutoRefresh(c === true)}
+              />
+              <Label htmlFor="analytics-auto-refresh" className="cursor-pointer text-sm font-normal">
+                Auto-refresh every 60s
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="analytics-compare"
+                checked={compareMode}
+                onCheckedChange={(c) => setCompareMode(c === true)}
+              />
+              <Label htmlFor="analytics-compare" className="cursor-pointer text-sm font-normal">
+                Comparison charts in Visuals
+              </Label>
+            </div>
+          </div>
+        </div>
 
         {data.meta.dataNotes.length > 0 ? (
-          <details className="no-print rounded-xl border border-amber-500/35 bg-amber-500/[0.07] px-4 py-3 shadow-sm dark:bg-amber-500/10">
-            <summary className="cursor-pointer list-none text-sm font-medium text-amber-950 dark:text-amber-100 [&::-webkit-details-marker]:hidden">
+          <details className="no-print rounded-2xl border border-border/60 bg-card/80 px-4 py-3 shadow-sm">
+            <summary className="cursor-pointer list-none text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-2">
-                Data assumptions & limits ({data.meta.dataNotes.length})
-                <span className="text-[10px] font-normal text-muted-foreground">— click to expand</span>
+                Data assumptions & limits
+                <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px] tabular-nums">
+                  {data.meta.dataNotes.length}
+                </Badge>
               </span>
             </summary>
-            <ul className="mt-2 list-inside list-disc space-y-1 pl-1 text-xs text-amber-950/90 dark:text-amber-100/90">
+            <ul className="mt-2 list-inside list-disc space-y-1 pl-1 text-xs text-muted-foreground">
               {data.meta.dataNotes.map((n) => (
                 <li key={n}>{n}</li>
               ))}
@@ -2462,11 +2550,11 @@ export function AdminAnalyticsClient() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="overview" className="gap-6">
-        <div className="no-print -mx-1 overflow-x-auto pb-2 [scrollbar-width:thin]">
+      <Tabs defaultValue="overview" className="gap-7">
+        <div className="no-print sticky top-14 z-[9] -mx-1 overflow-x-auto bg-background/70 pb-3 pt-1 backdrop-blur-md [scrollbar-width:thin] md:static md:top-0 md:bg-transparent md:backdrop-blur-none">
           <TabsList
             aria-label="Analytics sections"
-            className="inline-flex h-auto min-h-11 w-max max-w-none flex-nowrap justify-start gap-1 rounded-2xl border border-border/60 bg-muted/40 p-1.5 shadow-inner md:flex-wrap"
+            className="inline-flex h-auto min-h-11 w-max max-w-none flex-nowrap justify-start gap-0.5 rounded-full border border-border/60 bg-muted/45 p-1 shadow-inner md:flex-wrap"
           >
             {ANALYTICS_TABS.map(({ value, label, icon: TabIcon }) => (
               <TabsTrigger key={value} value={value} className={analyticsTabTriggerClass}>
@@ -2487,7 +2575,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="overview" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-primary/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-primary/15 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner"
                 aria-hidden
@@ -2740,7 +2828,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="sales" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-violet-500/8 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-violet-500/12 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 shadow-inner dark:text-violet-300"
                 aria-hidden
@@ -2777,7 +2865,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
                 <DollarSign className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Category revenue</span>
@@ -2789,7 +2877,7 @@ export function AdminAnalyticsClient() {
                 Sum of product category buckets · Platform total {formatUgx(data.overview.revenueTotal)}
               </p>
             </div>
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <Globe className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Ship-to orders</span>
@@ -2804,7 +2892,7 @@ export function AdminAnalyticsClient() {
                   : ''}
               </p>
             </div>
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Payment capture</span>
@@ -2818,7 +2906,7 @@ export function AdminAnalyticsClient() {
                   : `${data.sales.paymentMethodPerformance.length} methods · Lead ${salesAggregates.primaryPaymentLabel ?? '—'}`}
               </p>
             </div>
-            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
                 <Trophy className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Vendor share (top 8)</span>
@@ -3014,7 +3102,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="inventory" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex gap-4 rounded-xl border border-border/70 bg-linear-to-br from-muted/35 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-muted/20 dark:ring-white/6 sm:max-w-[min(100%,42rem)] sm:flex-1">
+            <div className={cn(analyticsIntroClass, "sm:max-w-[min(100%,42rem)]")}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-inner"
                 aria-hidden
@@ -3037,7 +3125,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Fast movers</span>
@@ -3047,7 +3135,7 @@ export function AdminAnalyticsClient() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">SKUs with strongest unit velocity</p>
             </div>
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <TrendingDown className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Slow movers</span>
@@ -3189,7 +3277,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="services" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-amber-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-amber-500/14 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/18 text-amber-800 shadow-inner dark:text-amber-200"
                 aria-hidden
@@ -3202,8 +3290,8 @@ export function AdminAnalyticsClient() {
                     Services snapshot
                   </p>
                   <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
-                    Bookings, completion quality, and provider signals for the selected window — complements product metrics
-                    on Overview and Sales.
+                    Bookings, completion quality, cancellations by reason, and provider signals for the selected window —
+                    complements product metrics on Overview and Sales.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -3241,13 +3329,33 @@ export function AdminAnalyticsClient() {
                       </span>
                     </Badge>
                   ) : null}
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <XCircle className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Cancelled · {data.services.cancellations.total.toLocaleString()}
+                      {data.services.cancellations.topReason
+                        ? ` · top reason ${data.services.cancellations.topReason.label}`
+                        : ''}
+                    </span>
+                  </Badge>
+                  {servicesAggregates.cancelTotal > 0 ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <XCircle className="h-3 w-3 shrink-0 text-rose-600 opacity-90 dark:text-rose-400" aria-hidden />
+                      <span className="truncate">
+                        {servicesAggregates.cancelTotal.toLocaleString()} cancelled
+                        {servicesAggregates.cancelTopReason
+                          ? ` · top: ${servicesAggregates.cancelTopReason}`
+                          : ''}
+                      </span>
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Completion rate</span>
@@ -3282,12 +3390,16 @@ export function AdminAnalyticsClient() {
                 {(data.services.cancellationRate * 100).toFixed(1)}%
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {data.services.cancellations.total.toLocaleString()} cancelled
+                {data.services.cancellations.searching + data.services.cancellations.enRoute > 0
+                  ? ` · ${data.services.cancellations.searching} while searching, ${data.services.cancellations.enRoute} after match`
+                  : ''}
                 {data.services.cancellationRate > 0.2
-                  ? 'Elevated — check provider capacity and buyer expectations.'
-                  : 'Cancelled or abandoned requests in this window'}
+                  ? ' — elevated; check wait times and provider capacity.'
+                  : ''}
               </p>
             </div>
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
                 <Timer className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. service time</span>
@@ -3301,7 +3413,7 @@ export function AdminAnalyticsClient() {
                 Mean time to completion when timestamps allow
               </p>
             </div>
-            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
                 <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Booking volume</span>
@@ -3497,11 +3609,364 @@ export function AdminAnalyticsClient() {
               )}
             </SectionCard>
           </div>
+
+          <div className="space-y-4">
+            <div className={analyticsIntroClass}>
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/18 text-rose-800 shadow-inner dark:text-rose-200"
+                aria-hidden
+              >
+                <XCircle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Cancellation intelligence
+                </p>
+                <p className="text-sm leading-relaxed text-foreground/95">
+                  Buyer-selected reasons, stage (still searching vs. provider accepted but not yet on site), who
+                  initiated the cancel, and free-text notes from “Something else”.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className={analyticsStatTileClass}>
+                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400">
+                  <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Cancelled</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                  {data.services.cancellations.total.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {data.services.cancellations.withReason.toLocaleString()} with a reason ·{' '}
+                  {data.services.cancellations.unspecified.toLocaleString()} unspecified
+                </p>
+              </div>
+              <div className={analyticsStatTileClass}>
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                  <Search className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">While searching</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                  {data.services.cancellations.searching.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Stopped before a provider accepted
+                </p>
+              </div>
+              <div className={analyticsStatTileClass}>
+                <div className="flex items-center gap-2 text-orange-800 dark:text-orange-300">
+                  <Timer className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">After match</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                  {data.services.cancellations.enRoute.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Cancelled after a provider accepted, before arrival
+                </p>
+              </div>
+              <div
+                className={cn(
+                  'rounded-xl border p-4 shadow-sm',
+                  data.services.cancellations.safetyCount > 0
+                    ? 'border-rose-500/40 bg-rose-500/10 dark:bg-rose-500/12'
+                    : 'border-sky-500/25 bg-sky-500/6 dark:bg-sky-500/10',
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex items-center gap-2',
+                    data.services.cancellations.safetyCount > 0
+                      ? 'text-rose-700 dark:text-rose-400'
+                      : 'text-sky-800 dark:text-sky-300',
+                  )}
+                >
+                  <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">Safety flags</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                  {data.services.cancellations.safetyCount.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {data.services.cancellations.safetyCount > 0
+                    ? 'Buyer cited safety or comfort — review these trips'
+                    : 'No safety-related cancel reasons in this window'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SectionCard
+                title="Reasons buyers cancelled"
+                description="Share of cancelled requests by selected reason. Includes historic rows with no reason as “No reason given”."
+              >
+                {data.services.cancellations.byReason.filter((r) => r.count > 0).length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    No cancellations in this window.
+                  </p>
+                ) : (
+                  <div className="h-[300px] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={data.services.cancellations.byReason
+                          .filter((r) => r.count > 0)
+                          .slice(0, 10)
+                          .map((row) => ({
+                            name: row.label.length > 22 ? `${row.label.slice(0, 22)}…` : row.label,
+                            fullName: row.label,
+                            count: row.count,
+                          }))}
+                        layout="vertical"
+                        margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          formatter={(v: number) => [`${v} cancellations`, 'Count']}
+                          labelFormatter={(_, payload) =>
+                            payload?.[0]?.payload?.fullName != null
+                              ? String(payload[0].payload.fullName)
+                              : 'Reason'
+                          }
+                          cursor={{ fill: 'hsl(var(--muted) / 0.35)' }}
+                        />
+                        <Bar dataKey="count" fill="#e11d48" radius={[0, 6, 6, 0]} maxBarSize={26} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </SectionCard>
+              <SectionCard
+                title="Stage mix"
+                description="Whether the buyer stopped during search or after a provider was already on the way."
+              >
+                {data.services.cancellations.total === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No stage mix to chart.</p>
+                ) : (
+                  <div className="h-[300px] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                        <Pie
+                          data={[
+                            { name: 'While searching', value: data.services.cancellations.searching },
+                            { name: 'After match', value: data.services.cancellations.enRoute },
+                          ].filter((d) => d.value > 0)}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="46%"
+                          innerRadius={44}
+                          outerRadius={88}
+                          paddingAngle={2}
+                          label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          <Cell fill="#f59e0b" stroke="hsl(var(--card))" strokeWidth={2} />
+                          <Cell fill="#ea580c" stroke="hsl(var(--card))" strokeWidth={2} />
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [`${v} cancellations`, 'Count']} />
+                        <Legend
+                          verticalAlign="bottom"
+                          height={36}
+                          formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SectionCard
+                title="Reason detail"
+                description="Every selected reason with searching vs. after-match split."
+                contentClassName={data.services.cancellations.byReason.length === 0 ? undefined : 'p-0'}
+              >
+                {data.services.cancellations.byReason.filter((r) => r.count > 0).length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No reason rows yet.</p>
+                ) : (
+                  <div className="overflow-x-auto [scrollbar-width:thin]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-border/80 hover:bg-transparent">
+                          <TableHead className="bg-muted/20 pl-5">Reason</TableHead>
+                          <TableHead className="bg-muted/20 text-right tabular-nums">Searching</TableHead>
+                          <TableHead className="bg-muted/20 text-right tabular-nums">After match</TableHead>
+                          <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Share</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.services.cancellations.byReason
+                          .filter((r) => r.count > 0)
+                          .map((r) => (
+                            <TableRow key={r.id} className="border-border/50 transition-colors hover:bg-muted/25">
+                              <TableCell className="pl-5">
+                                <p className="font-medium text-foreground">{r.label}</p>
+                                <p className="text-xs tabular-nums text-muted-foreground">
+                                  {r.count.toLocaleString()} total
+                                </p>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {r.searching.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {r.enRoute.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums text-foreground">
+                                {(r.sharePct * 100).toFixed(1)}%
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </SectionCard>
+              <SectionCard
+                title="Who cancelled"
+                description="Actor recorded on the request (buyer, provider, admin, or system)."
+              >
+                {data.services.cancellations.byActor.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No actor data for this window.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {data.services.cancellations.byActor.map((row) => {
+                      const pct =
+                        data.services.cancellations.total > 0
+                          ? Math.round((row.count / data.services.cancellations.total) * 100)
+                          : 0;
+                      return (
+                        <li key={row.actor} className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="font-medium text-foreground">{row.label}</span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {row.count.toLocaleString()} · {pct}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-rose-500/80"
+                              style={{ width: `${Math.max(6, pct)}%` }}
+                            />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </SectionCard>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SectionCard
+                title="Cancellation rate by category"
+                description="Where cancelled demand concentrates — rate is cancelled ÷ bookings in that category."
+                contentClassName={data.services.cancellations.byCategory.length === 0 ? undefined : 'p-0'}
+              >
+                {data.services.cancellations.byCategory.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No category cancellations.</p>
+                ) : (
+                  <div className="overflow-x-auto [scrollbar-width:thin]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-border/80 hover:bg-transparent">
+                          <TableHead className="bg-muted/20 pl-5">Category</TableHead>
+                          <TableHead className="bg-muted/20 text-right tabular-nums">Cancelled</TableHead>
+                          <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Rate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.services.cancellations.byCategory.map((row) => (
+                          <TableRow key={row.category} className="border-border/50 hover:bg-muted/25">
+                            <TableCell className="pl-5 font-medium">{row.category}</TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {row.cancelled.toLocaleString()} / {row.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums">
+                              {(row.rate * 100).toFixed(1)}%
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </SectionCard>
+              <SectionCard
+                title="Highest-cancel services"
+                description="Service lines with the most cancellations in this window."
+                contentClassName={data.services.cancellations.byService.length === 0 ? undefined : 'p-0'}
+              >
+                {data.services.cancellations.byService.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No per-service cancellation rows.</p>
+                ) : (
+                  <div className="overflow-x-auto [scrollbar-width:thin]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-border/80 hover:bg-transparent">
+                          <TableHead className="bg-muted/20 pl-5">Service</TableHead>
+                          <TableHead className="bg-muted/20 text-right tabular-nums">Cancelled</TableHead>
+                          <TableHead className="bg-muted/20 pr-5 text-right tabular-nums">Rate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.services.cancellations.byService.map((row) => (
+                          <TableRow key={row.service} className="border-border/50 hover:bg-muted/25">
+                            <TableCell className="max-w-[16rem] pl-5">
+                              <span className="line-clamp-2 font-medium">{row.service}</span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {row.cancelled.toLocaleString()} / {row.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="pr-5 text-right text-sm font-semibold tabular-nums">
+                              {(row.rate * 100).toFixed(1)}%
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+
+            <SectionCard
+              title="“Something else” notes"
+              description="Free-text buyers left when no listed reason fit. Newest first."
+              contentClassName={data.services.cancellations.recentNotes.length === 0 ? undefined : 'p-0'}
+            >
+              {data.services.cancellations.recentNotes.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No free-text cancel notes in this window.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {data.services.cancellations.recentNotes.map((note, i) => (
+                    <li key={`${note.cancelledAt}-${i}`} className="px-5 py-3.5">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{note.service}</span>
+                        <span>· {note.category}</span>
+                        <span>
+                          · {note.stage === 'en_route' ? 'After match' : 'Searching'} ·{' '}
+                          {formatDistanceToNow(parseISO(note.cancelledAt), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-foreground">{note.note}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </div>
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-cyan-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-cyan-500/14 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/18 text-cyan-900 shadow-inner dark:text-cyan-200"
                 aria-hidden
@@ -3552,7 +4017,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">New (period)</span>
@@ -3564,7 +4029,7 @@ export function AdminAnalyticsClient() {
                 First-time buyers surfaced in this window
               </p>
             </div>
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
                 <Users className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Returning (period)</span>
@@ -3576,7 +4041,7 @@ export function AdminAnalyticsClient() {
                 Repeat purchasers with prior activity
               </p>
             </div>
-            <div className="rounded-xl border border-sky-500/25 bg-sky-500/6 p-4 shadow-sm dark:bg-sky-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
                 <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. CLV (catalog)</span>
@@ -3588,7 +4053,7 @@ export function AdminAnalyticsClient() {
                 Mean lifetime value from catalog orders · Median {formatUgx(data.customers.medianClv)}
               </p>
             </div>
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <BarChart3 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Median CLV</span>
@@ -3792,7 +4257,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="finance" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-indigo-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-indigo-500/14 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/18 text-indigo-800 shadow-inner dark:text-indigo-200"
                 aria-hidden
@@ -3872,7 +4337,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/6 p-4 shadow-sm dark:bg-indigo-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
                 <Layers2 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Fees (disbursements)</span>
@@ -3903,7 +4368,7 @@ export function AdminAnalyticsClient() {
                 Awaiting settlement · Paid (lifetime) {formatUgx(data.finance.payoutsPaid)}
               </p>
             </div>
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Payouts paid</span>
@@ -3913,7 +4378,7 @@ export function AdminAnalyticsClient() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Cumulative paid out (lifetime sum)</p>
             </div>
-            <div className="rounded-xl border border-rose-500/25 bg-rose-500/6 p-4 shadow-sm dark:bg-rose-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
                 <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Outstanding (estimate)</span>
@@ -4075,7 +4540,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="operations" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-slate-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-slate-500/15 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-500/18 text-slate-800 shadow-inner dark:text-slate-200"
                 aria-hidden
@@ -4182,7 +4647,7 @@ export function AdminAnalyticsClient() {
                 Open or in-progress in support queue
               </p>
             </div>
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Tickets resolved</span>
@@ -4192,7 +4657,7 @@ export function AdminAnalyticsClient() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Closed in the selected period</p>
             </div>
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
                 <Timer className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Avg. resolution</span>
@@ -4375,7 +4840,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="predictive" className="space-y-8 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-primary/12 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-primary/18 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/18 text-primary shadow-inner"
                 aria-hidden
@@ -4442,7 +4907,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-violet-500/25 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10 sm:col-span-2 lg:col-span-1">
+            <div className={cn(analyticsStatTileClass, "sm:col-span-2 lg:col-span-1")}>
               <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
                 <LineChartIcon className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">30-day revenue forecast</span>
@@ -4454,7 +4919,7 @@ export function AdminAnalyticsClient() {
                 Naive extrapolation from recent monthly buckets — swap for ML when volume and features justify it.
               </p>
             </div>
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/6 p-4 shadow-sm dark:bg-emerald-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <Package className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Restock signals</span>
@@ -4464,7 +4929,7 @@ export function AdminAnalyticsClient() {
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">SKUs flagged by velocity heuristic</p>
             </div>
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/6 p-4 shadow-sm dark:bg-amber-500/10">
+            <div className={analyticsStatTileClass}>
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <Percent className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="text-[11px] font-semibold uppercase tracking-wider">Pricing hints</span>
@@ -4564,7 +5029,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="reports" className="space-y-6 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-teal-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-teal-500/14 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 text-teal-800 shadow-inner dark:text-teal-300"
                 aria-hidden
@@ -4597,7 +5062,7 @@ export function AdminAnalyticsClient() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-            <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-linear-to-br from-emerald-500/[0.08] via-card to-card p-5 shadow-md ring-1 ring-emerald-500/10 dark:from-emerald-500/12 dark:ring-emerald-500/15">
+            <div className={analyticsIntroClass}>
               <div
                 className="pointer-events-none absolute -right-8 -top-12 h-36 w-36 rounded-full bg-emerald-500/15 blur-2xl"
                 aria-hidden
@@ -4758,7 +5223,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="visuals" className="space-y-6 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-sky-500/10 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-sky-500/14 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-800 shadow-inner dark:text-sky-300"
                 aria-hidden
@@ -4957,7 +5422,7 @@ export function AdminAnalyticsClient() {
 
         <TabsContent value="alerts" className="space-y-6 focus-visible:outline-none">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-            <div className="flex min-w-0 flex-1 gap-4 rounded-xl border border-border/70 bg-linear-to-br from-rose-500/8 via-card to-card p-4 shadow-sm ring-1 ring-black/4 dark:from-rose-500/12 dark:ring-white/6">
+            <div className={analyticsIntroClass}>
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-800 shadow-inner dark:text-rose-300"
                 aria-hidden
