@@ -1,13 +1,13 @@
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+
 import 'dart:async';
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
 
 import 'package:flutter/foundation.dart';
 
 import 'phone_auth.dart';
 
-/// Completes Firebase phone auth on a real HTML page (authorized domain /
-/// local Next.js), then returns the ID token to this Flutter window.
+/// Completes Firebase phone auth on a real HTML page, then returns the ID token.
 class PhoneAuthClient {
   PhoneAuthClient({this.role = 'buyer'});
 
@@ -32,9 +32,6 @@ class PhoneAuthClient {
       'mygarage-phone-auth',
       'popup=yes,width=440,height=760',
     );
-    if (popup == null) {
-      throw Exception('Allow popups for this site, then try Continue with phone again.');
-    }
 
     final done = Completer<String>();
     late final StreamSubscription<html.MessageEvent> sub;
@@ -79,10 +76,8 @@ class PhoneAuthClient {
   }
 
   Uri _phoneAuthUri(String e164, String clientOrigin) {
-    final host = html.window.location.hostname.toLowerCase();
+    final host = (html.window.location.hostname ?? '').toLowerCase();
     final local = host == 'localhost' || host == '127.0.0.1';
-    // Debug Chrome uses local Next.js. Release / device web uses production
-    // (the Firebase authorized domain).
     final base = (local && kDebugMode) ? 'http://localhost:3000' : 'https://www.mygarage.ug';
     return Uri.parse('$base/auth/phone').replace(
       queryParameters: {
@@ -101,7 +96,8 @@ String? _readString(dynamic data, String key) {
     return value is String ? value : null;
   }
   try {
-    final value = js_util.getProperty(data, key);
+    // ignore: avoid_dynamic_calls
+    final value = data[key];
     return value is String ? value : null;
   } catch (_) {
     return null;
