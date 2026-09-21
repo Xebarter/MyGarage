@@ -3,11 +3,12 @@
 import 'dart:async';
 import 'dart:html' as html;
 
-import 'package:flutter/foundation.dart';
-
 import 'phone_auth.dart';
 
-/// Completes Firebase phone auth on a real HTML page, then returns the ID token.
+/// Completes Firebase phone auth on the live site, then returns the ID token.
+///
+/// Firebase rejects real SMS from `localhost` (`sendVerificationCode` 400 /
+/// `INVALID_APP_CREDENTIAL`) even when Phone is enabled in the console.
 class PhoneAuthClient {
   PhoneAuthClient({this.role = 'buyer'});
 
@@ -32,11 +33,14 @@ class PhoneAuthClient {
       'mygarage-phone-auth',
       'popup=yes,width=440,height=760',
     );
+    if (popup == null) {
+      throw Exception('Allow popups for MyGarage, then try again.');
+    }
 
     final done = Completer<String>();
     late final StreamSubscription<html.MessageEvent> sub;
     sub = html.window.onMessage.listen((event) {
-      if (event.origin != page.origin) return;
+      if (!_isPhoneAuthMessageOrigin(event.origin)) return;
       final data = event.data;
       if (data == null) return;
       try {
@@ -78,7 +82,9 @@ class PhoneAuthClient {
   Uri _phoneAuthUri(String e164, String clientOrigin) {
     final host = (html.window.location.hostname ?? '').toLowerCase();
     final local = host == 'localhost' || host == '127.0.0.1';
-    final base = (local && kDebugMode) ? 'http://localhost:3000' : 'https://www.mygarage.ug';
+    // Firebase rejects real SMS from the hostname "localhost" (Network 400).
+    // 127.0.0.1 is the supported local origin; add it under Authorized domains.
+    final base = local ? 'http://127.0.0.1:3000' : 'https://www.mygarage.ug';
     return Uri.parse('$base/auth/phone').replace(
       queryParameters: {
         'phone': e164,
@@ -87,6 +93,18 @@ class PhoneAuthClient {
         'channel': 'app',
       },
     );
+  }
+}
+
+bool _isPhoneAuthMessageOrigin(String origin) {
+  try {
+    final host = Uri.parse(origin).host.toLowerCase();
+    return host == 'www.mygarage.ug' ||
+        host == 'mygarage.ug' ||
+        host == 'localhost' ||
+        host == '127.0.0.1';
+  } catch (_) {
+    return false;
   }
 }
 
