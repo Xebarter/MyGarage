@@ -43,8 +43,7 @@ import { persistBuyerLocalIdentity } from "@/lib/buyer-identity";
 import { getAuthGivenName } from "@/lib/auth-avatar";
 import { isPlaceholderEmail, normalizeToE164 } from "@/lib/phone";
 import { firstGivenName } from "@/lib/display-name";
-import { buyerNeedsDisplayName, saveBuyerDisplayName } from "@/lib/auth/save-display-name";
-import { authUserPhone } from "@/lib/auth/phone-session";
+import { authUserPhone, buyerNeedsDisplayName, saveBuyerDisplayName } from "@/lib/auth/save-display-name";
 import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "signin" | "forgot";

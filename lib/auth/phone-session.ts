@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import type { User } from "@supabase/supabase-js";
 
 import {
   normalizeToE164,
@@ -24,14 +23,6 @@ export type PhoneSessionTokens = {
 
 function isDuplicateUserError(message: string): boolean {
   return /already|registered|exists|duplicate/i.test(message);
-}
-
-/** Prefer Supabase Auth `phone`, then `user_metadata.phone`. */
-export function authUserPhone(user: Pick<User, "phone" | "user_metadata"> | null | undefined): string {
-  if (!user) return "";
-  const raw = String(user.phone ?? user.user_metadata?.phone ?? "").trim();
-  if (!raw) return "";
-  return normalizeToE164(raw) ?? raw;
 }
 
 async function ensureCustomerForPhone(userId: string, phone: string, email: string): Promise<void> {
