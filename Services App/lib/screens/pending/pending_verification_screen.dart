@@ -6,8 +6,37 @@ import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ui.dart';
 
-class PendingVerificationScreen extends StatelessWidget {
+class PendingVerificationScreen extends StatefulWidget {
   const PendingVerificationScreen({super.key});
+
+  @override
+  State<PendingVerificationScreen> createState() => _PendingVerificationScreenState();
+}
+
+class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
+  bool _checking = false;
+  String? _feedback;
+
+  Future<void> _checkStatus() async {
+    if (_checking) return;
+    setState(() {
+      _checking = true;
+      _feedback = null;
+    });
+    final auth = context.read<AuthController>();
+    await auth.refreshVendor(quiet: true);
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      if (auth.status == AuthStatus.pendingVerification) {
+        _feedback = 'Still pending';
+      } else if (auth.status == AuthStatus.authenticated) {
+        _feedback = 'Approved';
+      } else {
+        _feedback = auth.errorMessage ?? 'Could not check status';
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,43 +65,53 @@ class PendingVerificationScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const StatusPill(label: 'In review', color: AppColors.warning),
-                      const SizedBox(height: 18),
+                      const StatusPill(label: 'Pending', color: AppColors.warning),
+                      const SizedBox(height: 16),
                       Text(
-                        'Almost there',
+                        'Waiting for approval',
                         style: AppTheme.host(
-                          fontSize: 28,
+                          fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
+                          letterSpacing: -0.4,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
-                        'Your provider account is being reviewed. You’ll unlock jobs as soon as you’re approved.',
-                        style: AppTheme.host(fontSize: 15, color: AppColors.textSecondary, height: 1.5),
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.warningSoft.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(AppRadii.md),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.18)),
-                        ),
-                        child: Text(
-                          'This usually takes a short time. Keep the app installed — status updates here.',
-                          style: AppTheme.host(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                        'An admin needs to approve your Services access.',
+                        style: AppTheme.host(
+                          fontSize: 14.5,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
                         ),
                       ),
-                      const SizedBox(height: 28),
-                      OutlinedButton(
-                        onPressed: auth.busy ? null : () => auth.refreshVendor(),
-                        child: const Text('Check status'),
+                      const SizedBox(height: 22),
+                      ElevatedButton(
+                        onPressed: _checking ? null : _checkStatus,
+                        child: _checking
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Check status'),
                       ),
+                      if (_feedback != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _feedback!,
+                          textAlign: TextAlign.center,
+                          style: AppTheme.host(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: _feedback == 'Approved'
+                                ? AppColors.primary
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.05),
+                ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04),
                 const Spacer(flex: 2),
               ],
             ),

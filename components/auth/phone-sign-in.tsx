@@ -12,6 +12,7 @@ import {
   getAuthRoleMeta,
 } from '@/components/auth-chrome';
 import { getFirebaseAuth } from '@/lib/firebase/client';
+import { persistBuyerLocalIdentity } from '@/lib/buyer-identity';
 import { formatE164Display, normalizeToE164 } from '@/lib/phone';
 import { isSafeAuthNext } from '@/lib/auth-next';
 import { createClient } from '@/lib/supabase/client';
@@ -293,6 +294,7 @@ export function PhoneSignIn({
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
+        phone?: string;
         access_token?: string;
         refresh_token?: string;
       } | null;
@@ -305,6 +307,16 @@ export function PhoneSignIn({
         refresh_token: body.refresh_token,
       });
       if (sessionError) throw sessionError;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.id) {
+        persistBuyerLocalIdentity({
+          id: user.id,
+          phone: body.phone,
+          email: user.email,
+        });
+      }
 
       const params = new URLSearchParams();
       if (role) params.set('role', role);

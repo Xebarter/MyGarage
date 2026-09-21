@@ -51,6 +51,19 @@ class AppConfig {
     return normalizeApiUrl(value);
   }
 
+  /// Hosted `/auth/phone` page. Uses [apiUrl], not the Flutter debug origin.
+  static String get phoneAuthPageBase {
+    try {
+      final uri = Uri.parse(apiUrl);
+      if (uri.host.toLowerCase() == 'localhost') {
+        return uri.replace(host: '127.0.0.1').toString().replaceAll(RegExp(r'/+$'), '');
+      }
+      return apiUrl;
+    } catch (_) {
+      return 'https://www.mygarage.ug';
+    }
+  }
+
   static String get supabaseUrl =>
       _env('SUPABASE_URL') ?? _env('EXPO_PUBLIC_SUPABASE_URL') ?? '';
 

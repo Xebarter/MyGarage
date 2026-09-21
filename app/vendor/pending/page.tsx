@@ -6,14 +6,9 @@ import { PortalPendingScreen } from '@/components/portal-pending-screen';
 export default function VendorPendingVerificationPage() {
   return (
     <PortalPendingScreen
-      portalLabel="Vendor dashboard"
+      portalLabel="Supplier"
       icon={Clock3}
       accent="amber"
-      steps={[
-        { id: 'submitted', label: 'Received', done: true },
-        { id: 'review', label: 'Review', active: true },
-        { id: 'access', label: 'Live' },
-      ]}
       authRole="vendor"
       authNext="/vendor"
       onSignOutCleanup={() => {

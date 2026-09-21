@@ -19,8 +19,12 @@ export function persistBuyerLocalIdentity(opts: {
   if (phone) {
     localStorage.setItem("currentBuyerPhone", normalizeToE164(phone) ?? phone);
   }
-  if (email && !isPlaceholderEmail(email)) {
-    localStorage.setItem("currentBuyerEmail", email);
+  if (email) {
+    if (isPlaceholderEmail(email)) {
+      localStorage.removeItem("currentBuyerEmail");
+    } else {
+      localStorage.setItem("currentBuyerEmail", email);
+    }
   }
   if (name && !isPlaceholderDisplayName(name, { phone, email })) {
     localStorage.setItem("currentBuyerName", name);

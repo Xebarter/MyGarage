@@ -39,6 +39,8 @@ export function phoneLookupVariants(raw: string): string[] {
     variants.add(`+${digits}`);
     variants.add(`0${digits.slice(3)}`);
     variants.add(digits.slice(3));
+    variants.add(`+256 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`);
+    variants.add(`0${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`);
   }
   if (digits.length === 9 && digits.startsWith("7")) {
     variants.add(`+256${digits}`);

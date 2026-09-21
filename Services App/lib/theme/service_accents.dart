@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/service_listing.dart';
 import '../theme/app_theme.dart';
 
 /// Light premium accent pair for tiles / chips.
@@ -184,24 +185,30 @@ IconData iconForCategory(String categoryId) {
 }
 
 String categoryTitle(String categoryId) {
+  final opt = categoryOptionById(categoryId);
+  if (opt != null) return opt.title;
   for (final c in const [
     ('emergency-help', 'Emergency Help'),
     ('fix-my-car', 'Fix My Car'),
     ('service-my-car', 'Service My Car'),
     ('tyres-battery', 'Tyres & Battery'),
-    ('car-wash-cleaning', 'Car Wash'),
-    ('body-repair-painting', 'Body Repair'),
-    ('ac-cooling', 'AC & Cooling'),
-    ('security-tracking', 'Security'),
-    ('documents-insurance', 'Documents'),
-    ('drivers-transport', 'Drivers'),
-    ('fuel-delivery', 'Fuel'),
-    ('rent-buy-car', 'Rent / Buy'),
-    ('upgrade-my-car', 'Upgrades'),
+    ('car-wash-cleaning', 'Car Wash & Cleaning'),
+    ('body-repair-painting', 'Body Repair & Painting'),
+    ('ac-cooling', 'Air Conditioning & Cooling'),
+    ('security-tracking', 'Security & Tracking'),
+    ('documents-insurance', 'Documents & Insurance'),
+    ('drivers-transport', 'Drivers & Transport'),
+    ('fuel-delivery', 'Fuel & Delivery'),
+    ('rent-buy-car', 'Rent or Buy a Car'),
+    ('upgrade-my-car', 'Upgrade My Car'),
   ]) {
     if (c.$1 == categoryId) return c.$2;
   }
   return categoryId.replaceAll('-', ' ');
+}
+
+String categoryEmoji(String categoryId) {
+  return categoryOptionById(categoryId)?.emoji ?? '📋';
 }
 
 Color statusColor(String status) {

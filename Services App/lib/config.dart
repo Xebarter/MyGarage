@@ -29,6 +29,20 @@ class AppConfig {
     return normalizeApiUrl(raw);
   }
 
+  /// Hosted `/auth/phone` page. Uses [apiUrl], not the Flutter debug origin.
+  /// Firebase rejects SMS from hostname `localhost`, so that host becomes 127.0.0.1.
+  static String get phoneAuthPageBase {
+    try {
+      final uri = Uri.parse(apiUrl);
+      if (uri.host.toLowerCase() == 'localhost') {
+        return uri.replace(host: '127.0.0.1').toString().replaceAll(RegExp(r'/+$'), '');
+      }
+      return apiUrl;
+    } catch (_) {
+      return 'https://www.mygarage.ug';
+    }
+  }
+
   static String get supabaseUrl => dotenv.env['SUPABASE_URL']?.trim() ?? '';
 
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY']?.trim() ?? '';

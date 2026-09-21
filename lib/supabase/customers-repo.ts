@@ -122,6 +122,7 @@ export async function getCustomerByPhone(phone: string): Promise<Customer | unde
     .from("customers")
     .select("*")
     .in("phone", variants)
+    .order("created_at", { ascending: true })
     .limit(1);
 
   if (error) {

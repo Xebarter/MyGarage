@@ -1,4 +1,5 @@
 import type { Vendor, VendorInsert } from "@/lib/db";
+import { phoneLookupVariants } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type VendorRow = {
@@ -163,6 +164,25 @@ export async function getVendorsDirectoryStats(): Promise<VendorsDirectoryStats>
     listedProducts: 0,
     avgRating: 0,
   };
+}
+
+export async function getVendorByPhone(phone: string): Promise<Vendor | undefined> {
+  const variants = phoneLookupVariants(phone);
+  if (variants.length === 0) return undefined;
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("vendors")
+    .select("*")
+    .in("phone", variants)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Supabase get vendor by phone failed: ${error.message}`);
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return undefined;
+  return rowToVendor(row as VendorRow);
 }
 
 export async function getVendorById(id: string): Promise<Vendor | undefined> {

@@ -231,7 +231,7 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Tap to select what you offer. No typing needed.',
+                        'Choose from the same categories buyers browse',
                         style: AppTheme.host(fontSize: 13.5, color: AppColors.textMuted, height: 1.35),
                       ),
                     ],
@@ -277,12 +277,8 @@ class _CatalogServicesPickerSheetState extends State<CatalogServicesPickerSheet>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            iconForCategory(cat.id),
-                            size: 16,
-                            color: selected ? AppColors.onPrimary : catAccent.accent,
-                          ),
-                          const SizedBox(width: 8),
+                          Text(cat.emoji, style: const TextStyle(fontSize: 14)),
+                          const SizedBox(width: 6),
                           Text(
                             cat.title,
                             style: AppTheme.host(

@@ -5,6 +5,7 @@ import { getAuthGivenName } from "@/lib/auth-avatar";
 import { isPlaceholderEmail, normalizeToE164, placeholderEmailForPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getVendorByPhone } from "@/lib/supabase/vendors-repo";
 
 async function resolveUser(req: NextRequest): Promise<User | null> {
   const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
@@ -67,6 +68,17 @@ export async function POST(req: NextRequest) {
         await admin.from("vendors").update({ phone }).eq("id", user.id);
       }
       return NextResponse.json({ ok: true });
+    }
+
+    if (phone) {
+      try {
+        const byPhone = await getVendorByPhone(phone);
+        if (byPhone?.id) {
+          return NextResponse.json({ ok: true });
+        }
+      } catch {
+        // Lookup is best-effort; insert below still enforces unique ids.
+      }
     }
 
     const given = getAuthGivenName(user).trim();

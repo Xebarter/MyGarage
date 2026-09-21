@@ -83,28 +83,127 @@ class ServiceListing {
   }
 }
 
+/// Buyer-facing category bundle (same mental model as the buyer Services catalog).
 class ServiceCategoryOption {
-  const ServiceCategoryOption({required this.id, required this.title});
+  const ServiceCategoryOption({
+    required this.id,
+    required this.emoji,
+    required this.title,
+    required this.useWhen,
+    required this.priority,
+  });
 
   final String id;
+  final String emoji;
   final String title;
+  final String useWhen;
+  /// `urgent` | `common` | `optional` — mirrors buyer Mobile App.
+  final String priority;
+
+  bool get isUrgent => priority == 'urgent';
 }
 
+/// Same 13 bundles buyers browse — keep ids/names aligned with web `userServiceCategories`.
 const kServiceCategories = <ServiceCategoryOption>[
-  ServiceCategoryOption(id: 'emergency-help', title: 'Emergency Help'),
-  ServiceCategoryOption(id: 'fix-my-car', title: 'Fix My Car'),
-  ServiceCategoryOption(id: 'service-my-car', title: 'Service My Car'),
-  ServiceCategoryOption(id: 'tyres-battery', title: 'Tyres & Battery'),
-  ServiceCategoryOption(id: 'car-wash-cleaning', title: 'Car Wash & Cleaning'),
-  ServiceCategoryOption(id: 'body-repair-painting', title: 'Body Repair'),
-  ServiceCategoryOption(id: 'ac-cooling', title: 'AC & Cooling'),
-  ServiceCategoryOption(id: 'security-tracking', title: 'Security & Tracking'),
-  ServiceCategoryOption(id: 'documents-insurance', title: 'Documents & Insurance'),
-  ServiceCategoryOption(id: 'drivers-transport', title: 'Drivers & Transport'),
-  ServiceCategoryOption(id: 'fuel-delivery', title: 'Fuel Delivery'),
-  ServiceCategoryOption(id: 'rent-buy-car', title: 'Rent / Buy Car'),
-  ServiceCategoryOption(id: 'upgrade-my-car', title: 'Upgrade My Car'),
+  ServiceCategoryOption(
+    id: 'emergency-help',
+    emoji: '🚨',
+    title: 'Emergency Help',
+    useWhen: "When the car won't move / urgent",
+    priority: 'urgent',
+  ),
+  ServiceCategoryOption(
+    id: 'fix-my-car',
+    emoji: '🔧',
+    title: 'Fix My Car',
+    useWhen: 'Something is wrong but not urgent',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'service-my-car',
+    emoji: '🛠',
+    title: 'Service My Car',
+    useWhen: 'Routine maintenance',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'tyres-battery',
+    emoji: '🚗',
+    title: 'Tyres & Battery',
+    useWhen: 'High-frequency, simple jobs',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'car-wash-cleaning',
+    emoji: '🧼',
+    title: 'Car Wash & Cleaning',
+    useWhen: 'Wash, detail, interior',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'body-repair-painting',
+    emoji: '🎨',
+    title: 'Body Repair & Painting',
+    useWhen: 'Physical damage',
+    priority: 'optional',
+  ),
+  ServiceCategoryOption(
+    id: 'ac-cooling',
+    emoji: '❄️',
+    title: 'Air Conditioning & Cooling',
+    useWhen: 'AC, radiator, overheating',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'security-tracking',
+    emoji: '🔐',
+    title: 'Security & Tracking',
+    useWhen: 'Trackers, alarms, anti-theft',
+    priority: 'optional',
+  ),
+  ServiceCategoryOption(
+    id: 'documents-insurance',
+    emoji: '📄',
+    title: 'Documents & Insurance',
+    useWhen: 'Paperwork and renewals',
+    priority: 'optional',
+  ),
+  ServiceCategoryOption(
+    id: 'drivers-transport',
+    emoji: '🚘',
+    title: 'Drivers & Transport',
+    useWhen: 'Hire driver, chauffeur, lessons',
+    priority: 'optional',
+  ),
+  ServiceCategoryOption(
+    id: 'fuel-delivery',
+    emoji: '⛽',
+    title: 'Fuel & Delivery',
+    useWhen: 'Fuel, oil, battery delivery',
+    priority: 'common',
+  ),
+  ServiceCategoryOption(
+    id: 'rent-buy-car',
+    emoji: '🚙',
+    title: 'Rent or Buy a Car',
+    useWhen: 'Rentals and marketplace',
+    priority: 'optional',
+  ),
+  ServiceCategoryOption(
+    id: 'upgrade-my-car',
+    emoji: '⭐',
+    title: 'Upgrade My Car',
+    useWhen: 'Audio, tint, wrap, lights',
+    priority: 'optional',
+  ),
 ];
+
+ServiceCategoryOption? categoryOptionById(String id) {
+  for (final c in kServiceCategories) {
+    if (c.id == id) return c;
+  }
+  return null;
+}
 
 /// Catalog service names by category (must match web `userServiceCategories`).
 const kCatalogServicesByCategory = <String, List<String>>{
@@ -202,4 +301,38 @@ const kCatalogServicesByCategory = <String, List<String>>{
 
 List<String> catalogServiceNamesFor(String categoryId) {
   return List<String>.from(kCatalogServicesByCategory[categoryId] ?? const <String>[]);
+}
+
+/// Group vendor listings into buyer-style category bundles (catalog order).
+List<({ServiceCategoryOption category, List<ServiceListing> listings})> groupListingsByCategory(
+  List<ServiceListing> listings,
+) {
+  final byId = <String, List<ServiceListing>>{};
+  for (final l in listings) {
+    byId.putIfAbsent(l.categoryId, () => []).add(l);
+  }
+  for (final list in byId.values) {
+    list.sort((a, b) => a.serviceName.toLowerCase().compareTo(b.serviceName.toLowerCase()));
+  }
+
+  final out = <({ServiceCategoryOption category, List<ServiceListing> listings})>[];
+  for (final cat in kServiceCategories) {
+    final group = byId.remove(cat.id);
+    if (group == null || group.isEmpty) continue;
+    out.add((category: cat, listings: group));
+  }
+  for (final entry in byId.entries) {
+    if (entry.value.isEmpty) continue;
+    out.add((
+      category: ServiceCategoryOption(
+        id: entry.key,
+        emoji: '📋',
+        title: entry.key.replaceAll('-', ' '),
+        useWhen: 'Your offerings',
+        priority: 'optional',
+      ),
+      listings: entry.value,
+    ));
+  }
+  return out;
 }

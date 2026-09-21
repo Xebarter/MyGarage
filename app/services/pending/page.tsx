@@ -6,14 +6,9 @@ import { PortalPendingScreen } from '@/components/portal-pending-screen';
 export default function ServicesPendingVerificationPage() {
   return (
     <PortalPendingScreen
-      portalLabel="Services dashboard"
+      portalLabel="Services"
       icon={Wrench}
       accent="violet"
-      steps={[
-        { id: 'submitted', label: 'Received', done: true },
-        { id: 'review', label: 'Review', active: true },
-        { id: 'access', label: 'Live' },
-      ]}
       authRole="services"
       authNext="/services"
       onSignOutCleanup={() => {

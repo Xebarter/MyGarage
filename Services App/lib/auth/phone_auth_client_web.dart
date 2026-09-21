@@ -4,6 +4,8 @@ import 'dart:async';
 import 'dart:html' as html;
 
 import 'phone_auth.dart';
+import '../config.dart';
+import '../utils/settle_keyboard.dart';
 
 /// Completes Firebase phone auth on the live site, then returns the ID token.
 ///
@@ -15,6 +17,7 @@ class PhoneAuthClient {
   final String role;
 
   Future<PhoneAuthStart> start(String e164) async {
+    await settleKeyboard();
     final token = await _completeInHostedPage(e164);
     return PhoneAuthStart.session(token);
   }
@@ -80,12 +83,7 @@ class PhoneAuthClient {
   }
 
   Uri _phoneAuthUri(String e164, String clientOrigin) {
-    final host = (html.window.location.hostname ?? '').toLowerCase();
-    final local = host == 'localhost' || host == '127.0.0.1';
-    // Firebase rejects real SMS from the hostname "localhost" (Network 400).
-    // 127.0.0.1 is the supported local origin; add it under Authorized domains.
-    final base = local ? 'http://127.0.0.1:3000' : 'https://www.mygarage.ug';
-    return Uri.parse('$base/auth/phone').replace(
+    return Uri.parse('${AppConfig.phoneAuthPageBase}/auth/phone').replace(
       queryParameters: {
         'phone': e164,
         'origin': clientOrigin,

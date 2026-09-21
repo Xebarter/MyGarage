@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -9,6 +10,7 @@ import '../../auth/phone.dart';
 import '../../config.dart';
 import '../../providers/auth_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/settle_keyboard.dart';
 import '../../widgets/google_logo.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -61,6 +63,8 @@ class _SignInScreenState extends State<SignInScreen> {
   Future<void> _sendCode() async {
     setState(() => _intent = 'phone');
     if (!_formKey.currentState!.validate()) return;
+    await settleKeyboard();
+    if (!mounted) return;
     final needsCode = await context.read<AuthController>().sendPhoneOtp(_phone.text);
     if (!mounted || !needsCode) return;
     setState(() {
@@ -74,6 +78,8 @@ class _SignInScreenState extends State<SignInScreen> {
   Future<void> _verifyCode() async {
     setState(() => _intent = 'otp');
     if (!_formKey.currentState!.validate()) return;
+    await settleKeyboard();
+    if (!mounted) return;
     await context.read<AuthController>().verifyPhoneOtp(
           rawPhone: _phone.text,
           token: _otp.text,
@@ -101,6 +107,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: !kIsWeb,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -198,7 +205,11 @@ class _SignInScreenState extends State<SignInScreen> {
                       const SizedBox(height: 20),
                       _GoogleSignInButton(
                         busy: auth.busy,
-                        onPressed: () => context.read<AuthController>().signInWithGoogle(),
+                        onPressed: () async {
+                          await settleKeyboard();
+                          if (!context.mounted) return;
+                          await context.read<AuthController>().signInWithGoogle();
+                        },
                       ).animate().fadeIn(delay: 120.ms, duration: 400.ms),
                       AnimatedSize(
                         duration: 280.ms,

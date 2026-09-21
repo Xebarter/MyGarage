@@ -1,22 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { CheckCircle2, Clock3, Store, ShoppingBag, LogOut, Circle } from 'lucide-react';
+import { LogOut, RefreshCw, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-type Step = { id: string; label: string; done?: boolean; active?: boolean };
+import { isPlaceholderEmail } from '@/lib/phone';
 
 type PortalPendingScreenProps = {
+  /** Short label, e.g. "Supplier" or "Services" */
   portalLabel: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: LucideIcon | ComponentType<{ className?: string }>;
   accent: 'amber' | 'violet';
-  steps: Step[];
   authRole: 'vendor' | 'services';
+  /** Where to go once approved */
   authNext: string;
   onSignOutCleanup: () => void;
 };
@@ -28,7 +27,6 @@ const ACCENT = {
     gradient: 'from-amber-500/10',
     iconBg: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
     badge: 'border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100',
-    activeStep: 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400',
   },
   violet: {
     border: 'border-violet-500/25',
@@ -36,138 +34,184 @@ const ACCENT = {
     gradient: 'from-violet-500/10',
     iconBg: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
     badge: 'border-violet-500/40 bg-violet-500/10 text-violet-950 dark:text-violet-100',
-    activeStep: 'border-violet-500/50 bg-violet-500/15 text-violet-700 dark:text-violet-400',
   },
 } as const;
 
-function getInitials(email: string, fallback: string): string {
-  const local = email.split('@')[0]?.trim() ?? '';
-  return (local.slice(0, 2) || fallback).toUpperCase();
-}
+type VendorFlags = {
+  vendorVerified?: boolean;
+  servicesVerified?: boolean;
+};
 
 export function PortalPendingScreen({
   portalLabel,
   icon: Icon,
   accent,
-  steps,
   authRole,
   authNext,
   onSignOutCleanup,
 }: PortalPendingScreenProps) {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(true);
-  const theme = ACCENT[accent];
+  const router = useRouter();
   const supabase = createClient();
+  const theme = ACCENT[accent];
+  const checkingRef = useRef(false);
+
+  const [accountLabel, setAccountLabel] = useState('');
+  const [userId, setUserId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const approved = useCallback(
+    (flags: VendorFlags | null) => {
+      if (!flags) return false;
+      return authRole === 'services'
+        ? flags.servicesVerified === true
+        : flags.vendorVerified === true;
+    },
+    [authRole],
+  );
+
+  const fetchStatus = useCallback(
+    async (uid: string, opts?: { quiet?: boolean }) => {
+      if (checkingRef.current) return;
+      checkingRef.current = true;
+      if (!opts?.quiet) {
+        setChecking(true);
+        setMessage(null);
+      }
+      try {
+        const res = await fetch(`/api/vendors/${encodeURIComponent(uid)}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (!opts?.quiet) {
+            setMessage(
+              res.status === 404
+                ? 'Account not found yet. Try again shortly.'
+                : 'Could not check status.',
+            );
+          }
+          return;
+        }
+        const flags = (await res.json()) as VendorFlags;
+        if (approved(flags)) {
+          setMessage('Approved — opening dashboard…');
+          router.replace(authNext);
+          return;
+        }
+        if (!opts?.quiet) setMessage('Still pending.');
+      } catch {
+        if (!opts?.quiet) setMessage('Could not check status.');
+      } finally {
+        checkingRef.current = false;
+        setChecking(false);
+      }
+    },
+    [approved, authNext, router],
+  );
 
   useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => {
-      setEmail((data.user?.email ?? '').trim());
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      setUserId(user.id);
+      const email = (user.email ?? '').trim();
+      const phone = String(user.phone ?? user.user_metadata?.phone ?? '').trim();
+      setAccountLabel(
+        email && !isPlaceholderEmail(email) ? email : phone || email || '',
+      );
       setLoading(false);
-    });
-  }, []);
+    })();
+  }, [supabase.auth]);
 
-  const initials = useMemo(() => getInitials(email, accent === 'amber' ? 'VN' : 'SP'), [email, accent]);
+  useEffect(() => {
+    if (!userId) return;
+    void fetchStatus(userId, { quiet: true });
+    const timer = window.setInterval(() => {
+      void fetchStatus(userId, { quiet: true });
+    }, 45_000);
+    return () => window.clearInterval(timer);
+  }, [fetchStatus, userId]);
 
   const handleSignOut = async () => {
     onSignOutCleanup();
     await supabase.auth.signOut();
-    window.location.href = '/';
+    window.location.href = `/auth?role=${authRole}&next=${encodeURIComponent(authNext)}`;
   };
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-md space-y-3 p-3 sm:p-5 md:p-8" aria-busy="true">
-        <div className="h-28 animate-pulse rounded-xl bg-muted/50" />
-        <div className="h-14 animate-pulse rounded-xl bg-muted/50" />
+      <div className="mx-auto max-w-sm p-6" aria-busy="true">
+        <div className="h-40 animate-pulse rounded-2xl bg-muted/50" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-full bg-background px-3 pb-6 pt-2 sm:px-5 sm:pt-3 md:p-8">
-      <div className="mx-auto max-w-md space-y-3 sm:space-y-4">
-        <section
-          className={cn(
-            'rounded-xl border bg-gradient-to-br via-card to-card p-4 shadow-sm ring-1 sm:p-5',
-            theme.border,
-            theme.ring,
-            theme.gradient,
-          )}
-        >
-          <div className="flex gap-3">
-            <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', theme.iconBg)}>
-              <Icon className="h-5 w-5" aria-hidden />
+    <div className="flex min-h-full items-center justify-center bg-background px-4 py-10">
+      <div
+        className={cn(
+          'w-full max-w-sm rounded-2xl border bg-gradient-to-br via-card to-card p-5 shadow-sm ring-1 sm:p-6',
+          theme.border,
+          theme.ring,
+          theme.gradient,
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', theme.iconBg)}>
+            <Icon className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <span
+              className={cn(
+                'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                theme.badge,
+              )}
+            >
+              Pending
             </span>
-            <div className="min-w-0 flex-1">
-              <Badge variant="outline" className={cn('mb-1.5 text-[10px] font-semibold uppercase', theme.badge)}>
-                Pending
-              </Badge>
-              <h1 className="text-lg font-bold tracking-tight sm:text-xl">Awaiting approval</h1>
-              <p className="mt-0.5 text-xs text-muted-foreground">{portalLabel} · admin review</p>
-            </div>
+            <h1 className="mt-2 text-xl font-bold tracking-tight">Waiting for approval</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {portalLabel} access needs an admin OK.
+            </p>
           </div>
-
-          {email ? (
-            <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/80 px-2.5 py-2">
-              <Avatar className="h-8 w-8 shrink-0 border border-border/80">
-                <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <p className="min-w-0 truncate text-sm font-medium text-foreground">{email}</p>
-            </div>
-          ) : null}
-
-          <ol className="mt-4 flex items-center justify-between gap-1" aria-label="Verification progress">
-            {steps.map((step) => (
-              <li key={step.id} className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center">
-                <span
-                  className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-full border',
-                    step.done
-                      ? 'border-primary/30 bg-primary/10 text-primary'
-                      : step.active
-                        ? theme.activeStep
-                        : 'border-border bg-muted/40 text-muted-foreground',
-                  )}
-                >
-                  {step.done ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                  ) : step.active ? (
-                    <Clock3 className="h-3.5 w-3.5" aria-hidden />
-                  ) : (
-                    <Circle className="h-3 w-3" aria-hidden />
-                  )}
-                </span>
-                <span
-                  className={cn(
-                    'w-full truncate px-0.5 text-[10px] font-medium sm:text-xs',
-                    step.done || step.active ? 'text-foreground' : 'text-muted-foreground',
-                  )}
-                >
-                  {step.label}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Button asChild variant="outline" className="h-10 rounded-lg text-sm">
-            <Link href="/">
-              <Store className="mr-1.5 h-4 w-4" aria-hidden />
-              Shop
-            </Link>
-          </Button>
-          <Button asChild className="h-10 rounded-lg text-sm">
-            <Link href="/buyer">
-              <ShoppingBag className="mr-1.5 h-4 w-4" aria-hidden />
-              Buyer
-            </Link>
-          </Button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+        {accountLabel ? (
+          <p className="mt-4 truncate rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-sm font-medium">
+            {accountLabel}
+          </p>
+        ) : null}
+
+        <Button
+          type="button"
+          className="mt-5 h-11 w-full rounded-xl"
+          disabled={checking || !userId}
+          onClick={() => void fetchStatus(userId)}
+        >
+          <RefreshCw className={cn('mr-2 h-4 w-4', checking && 'animate-spin')} aria-hidden />
+          {checking ? 'Checking…' : 'Check status'}
+        </Button>
+
+        {message ? (
+          <p
+            className={cn(
+              'mt-3 text-center text-sm',
+              message.startsWith('Approved') ? 'font-medium text-primary' : 'text-muted-foreground',
+            )}
+            aria-live="polite"
+          >
+            {message}
+          </p>
+        ) : null}
+
+        <div className="mt-5 flex items-center justify-center gap-3 text-xs text-muted-foreground">
           <Link href="/contact-us" className="font-medium text-primary hover:underline">
             Support
           </Link>
