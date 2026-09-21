@@ -89,7 +89,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
 
       <aside
         className={cn(
-          'relative z-50 flex h-screen w-[16.5rem] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+          'no-print relative z-50 flex h-screen w-[16.5rem] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
           'transition-transform duration-200 ease-out md:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
           'fixed inset-y-0 left-0 md:static',

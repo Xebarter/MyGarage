@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import type { AdminComprehensiveAnalytics } from '@/lib/admin-comprehensive-analytics';
+import { buildAdminAnalyticsCsv } from '@/lib/admin-analytics-export';
+import { AdminAnalyticsPrintReport } from '@/components/admin/admin-analytics-print-report';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -105,7 +107,6 @@ import {
 } from 'lucide-react';
 
 const COLORS = ANALYTICS_CHART_COLORS;
-const NO_SALES_BAR = 'oklch(0.59 0.18 28)';
 
 function formatUgx(n: number) {
   return `UGX ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -444,7 +445,7 @@ function NoSalesListingsExplorer({
                     onClick={() => setCategoryFilter(active ? '__all__' : cat)}
                     className={cn(
                       'flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors',
-                      active ? 'bg-primary/8 font-medium text-foreground' : 'hover:bg-muted/40',
+                      active ? 'bg-primary/10 font-medium text-foreground' : 'hover:bg-muted/40',
                     )}
                     aria-pressed={active}
                   >
@@ -1725,69 +1726,7 @@ function MarketingAnalyticsSection({ marketing }: { marketing: AdminComprehensiv
 }
 
 function downloadAnalyticsCsv(data: AdminComprehensiveAnalytics) {
-  const lines: string[][] = [
-    ['MyGarage admin analytics export'],
-    ['Generated', data.meta.generatedAt],
-    ['From', data.meta.from],
-    ['To', data.meta.to],
-    [],
-    ['Overview'],
-    ['Total revenue', String(data.overview.revenueTotal)],
-    ['Product order revenue', String(data.overview.productOrderRevenue)],
-    ['Service revenue', String(data.overview.serviceRevenue)],
-    ['Product orders', String(data.overview.productOrdersCount)],
-    ['Service payments', String(data.overview.servicePaymentsCount)],
-    ['Gross profit (est.)', String(data.overview.grossProfitEstimate)],
-    ['Net profit (est.)', String(data.overview.netProfitEstimate)],
-    ['Platform commission (est.)', String(data.overview.platformCommissionEstimate)],
-    ['AOV', String(data.overview.averageOrderValue)],
-    ['Active buyers', String(data.overview.activeBuyers)],
-    ['Active vendors', String(data.overview.activeVendors)],
-    [],
-    ['Sales by category', 'Revenue'],
-    ...data.sales.revenueByCategory.map((r) => [r.name, String(r.revenue)]),
-    [],
-    ['Top products', 'Units', 'Revenue'],
-    ...data.sales.topProducts.map((p) => [p.name, String(p.units), String(p.revenue)]),
-    [],
-    ['Service cancellations'],
-    ['Total cancelled', String(data.services.cancellations.total)],
-    ['Searching', String(data.services.cancellations.searching)],
-    ['After match (en route)', String(data.services.cancellations.enRoute)],
-    ['With reason', String(data.services.cancellations.withReason)],
-    ['No reason given', String(data.services.cancellations.unspecified)],
-    ['Buyer initiated', String(data.services.cancellations.buyerInitiated)],
-    ['Provider initiated', String(data.services.cancellations.providerInitiated)],
-    ['Admin initiated', String(data.services.cancellations.adminInitiated)],
-    ['System initiated', String(data.services.cancellations.systemInitiated)],
-    ['Safety-related', String(data.services.cancellations.safetyCount)],
-    [],
-    ['Cancel reason', 'Count', 'Searching', 'After match', 'Share %'],
-    ...data.services.cancellations.byReason.map((r) => [
-      r.label,
-      String(r.count),
-      String(r.searching),
-      String(r.enRoute),
-      (r.sharePct * 100).toFixed(1),
-    ]),
-    [],
-    ['Cancellations by category', 'Cancelled', 'Bookings', 'Rate %'],
-    ...data.services.cancellations.byCategory.map((r) => [
-      r.category,
-      String(r.cancelled),
-      String(r.total),
-      (r.rate * 100).toFixed(1),
-    ]),
-    [],
-    ['Cancellations by service', 'Cancelled', 'Bookings', 'Rate %'],
-    ...data.services.cancellations.byService.map((r) => [
-      r.service,
-      String(r.cancelled),
-      String(r.total),
-      (r.rate * 100).toFixed(1),
-    ]),
-  ];
-  const csv = lines.map((row) => row.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+  const csv = buildAdminAnalyticsCsv(data);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1795,7 +1734,7 @@ function downloadAnalyticsCsv(data: AdminComprehensiveAnalytics) {
   a.download = `mygarage-analytics-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toast.success('CSV export downloaded');
+  toast.success('Full analytics CSV downloaded');
 }
 
 function KpiCard(props: Parameters<typeof AnalyticsMetricCard>[0]) {
@@ -2377,7 +2316,7 @@ export function AdminAnalyticsClient() {
               </Button>
               <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" />
-                Print
+                Print / PDF
               </Button>
             </div>
           </div>
@@ -2550,7 +2489,7 @@ export function AdminAnalyticsClient() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="overview" className="gap-7">
+      <Tabs defaultValue="overview" className="gap-7 print:hidden">
         <div className="no-print sticky top-14 z-[9] -mx-1 overflow-x-auto bg-background/70 pb-3 pt-1 backdrop-blur-md [scrollbar-width:thin] md:static md:top-0 md:bg-transparent md:backdrop-blur-none">
           <TabsList
             aria-label="Analytics sections"
@@ -3101,129 +3040,120 @@ export function AdminAnalyticsClient() {
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-8 focus-visible:outline-none">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className={cn(analyticsIntroClass, "sm:max-w-[min(100%,42rem)]")}>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch lg:justify-between">
+            <div className={analyticsIntroClass}>
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-inner"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary"
                 aria-hidden
               >
                 <Package className="h-5 w-5" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Stock & velocity note
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">{data.inventory.stockNote}</p>
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Inventory intelligence
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
+                    Unit velocity, idle published listings, and shelf pricing for the selected window — merchandising
+                    signals derived from order lines.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {inventoryAggregates.topFastName ? (
+                    <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                      <TrendingUp className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                      <span className="truncate">
+                        Lead SKU · {inventoryAggregates.topFastName} (
+                        {inventoryAggregates.topFastUnits.toLocaleString()} units)
+                      </span>
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary" className="max-w-full gap-1 font-normal">
+                    <AlertTriangle className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                    <span className="truncate">
+                      Idle · {inventoryAggregates.idleCount.toLocaleString()} published with no sales
+                    </span>
+                  </Badge>
+                </div>
               </div>
             </div>
-            <Button type="button" variant="outline" size="sm" className="no-print shrink-0 gap-2 shadow-sm" asChild>
+            <Button type="button" variant="outline" size="sm" className="no-print h-10 shrink-0 rounded-full" asChild>
               <Link href="/admin/products">
                 <Package className="h-3.5 w-3.5" />
-                Manage catalog
+                Open catalog
               </Link>
             </Button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className={analyticsStatTileClass}>
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                <TrendingUp className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Fast movers</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.inventory.fastMovers.length}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">SKUs with strongest unit velocity</p>
-            </div>
-            <div className={analyticsStatTileClass}>
-              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
-                <TrendingDown className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Slow movers</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.inventory.slowMovers.length}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Candidates for promos or delisting</p>
-            </div>
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 shadow-sm dark:bg-rose-500/10">
-              <div className="flex items-center gap-2 text-rose-800 dark:text-rose-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">No sales (period)</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.inventory.deadStockCandidates.length}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Published listings without orders</p>
-            </div>
-            <div className="rounded-xl border border-violet-500/20 bg-violet-500/6 p-4 shadow-sm dark:bg-violet-500/10">
-              <div className="flex items-center gap-2 text-violet-800 dark:text-violet-300">
-                <Percent className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Pricing signals</span>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-                {data.inventory.pricingInsights.length}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Rows with compare-at / discount data</p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AnalyticsMetricCard
+              label="Fast-mover units"
+              value={inventoryAggregates.fastUnits.toLocaleString()}
+              sub={`${data.inventory.fastMovers.length} SKUs · ${formatUgx(inventoryAggregates.fastRevenue)}`}
+              icon={TrendingUp}
+              accent="emerald"
+            />
+            <AnalyticsMetricCard
+              label="Slow-mover units"
+              value={inventoryAggregates.slowUnits.toLocaleString()}
+              sub={`${data.inventory.slowMovers.length} SKUs · ${formatUgx(inventoryAggregates.slowRevenue)}`}
+              icon={TrendingDown}
+              accent="amber"
+            />
+            <AnalyticsMetricCard
+              label="Idle listings"
+              value={inventoryAggregates.idleCount.toLocaleString()}
+              sub="Published SKUs with zero units in period"
+              icon={AlertTriangle}
+            />
+            <AnalyticsMetricCard
+              label="Avg. discount"
+              value={
+                inventoryAggregates.avgDiscountPct != null
+                  ? `${inventoryAggregates.avgDiscountPct.toFixed(0)}%`
+                  : '—'
+              }
+              sub={
+                inventoryAggregates.discountedCount > 0
+                  ? `${inventoryAggregates.discountedCount} of ${inventoryAggregates.pricingCount} priced SKUs on promo`
+                  : `${inventoryAggregates.pricingCount} pricing rows in sample`
+              }
+              icon={Percent}
+              accent="amber"
+            />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <SectionCard
               title="Fast movers"
-              description="Highest unit sales in the selected window — relative bars compare SKUs in this list only."
+              description="Highest unit velocity in this window. Mix bars are relative to the top SKU in the list."
               contentClassName="p-0"
             >
-              {data.inventory.fastMovers.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-                  No fast movers for these filters. Widen the date range or check product category.
-                </p>
-              ) : (
-                <ul className="max-h-[min(24rem,55vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain px-5 text-sm [scrollbar-width:thin]">
-                  {data.inventory.fastMovers.map((p, i) => (
-                    <InventoryVelocityRow
-                      key={p.id}
-                      rank={i + 1}
-                      name={p.name}
-                      units={p.units}
-                      revenue={p.revenue}
-                      maxUnits={invFastMaxUnits}
-                      barClassName="bg-emerald-500/85 dark:bg-emerald-400/80"
-                    />
-                  ))}
-                </ul>
-              )}
+              <InventorySkuTable
+                rows={data.inventory.fastMovers}
+                maxUnits={invFastMaxUnits}
+                empty="No fast movers for these filters. Widen the date range or product category."
+                barClassName="bg-primary"
+              />
             </SectionCard>
             <SectionCard
               title="Slow movers"
-              description="Lowest throughput among SKUs with some sales — tune placement, price, or inventory."
+              description="Lowest throughput among SKUs that still sold. Review placement, price, or bundling."
               contentClassName="p-0"
             >
-              {data.inventory.slowMovers.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-                  No slow movers surfaced. Try another period or vendor scope.
-                </p>
-              ) : (
-                <ul className="max-h-[min(24rem,55vh)] divide-y divide-border/60 overflow-y-auto overscroll-contain px-5 text-sm [scrollbar-width:thin]">
-                  {data.inventory.slowMovers.map((p, i) => (
-                    <InventoryVelocityRow
-                      key={p.id}
-                      rank={i + 1}
-                      name={p.name}
-                      units={p.units}
-                      revenue={p.revenue}
-                      maxUnits={invSlowMaxUnits}
-                      barClassName="bg-amber-500/80 dark:bg-amber-400/75"
-                    />
-                  ))}
-                </ul>
-              )}
+              <InventorySkuTable
+                rows={data.inventory.slowMovers}
+                maxUnits={invSlowMaxUnits}
+                empty="No slow movers surfaced. Try another period or vendor scope."
+                barClassName="bg-accent"
+              />
             </SectionCard>
           </div>
 
           <SectionCard
-            title="Published listings with no sales"
-            description="Explore idle SKUs: category mix, search, and quick actions — pricing details appear when the product is also in the pricing sample below."
-            contentClassName="p-4 sm:p-5"
+            title="Idle published listings"
+            description="Live catalog SKUs with zero unit sales in the selected window. Filter by category, then copy IDs for merchandising follow-up."
+            contentClassName="p-5"
           >
             <NoSalesListingsExplorer
               items={data.inventory.deadStockCandidates}
@@ -3231,39 +3161,57 @@ export function AdminAnalyticsClient() {
             />
           </SectionCard>
 
-          <SectionCard title="Pricing & promotions" description="Shelf price, compare-at, and effective discount where available.">
+          <SectionCard
+            title="Shelf pricing"
+            description="List price, compare-at, and effective discount where the catalog sample includes those fields."
+            contentClassName={data.inventory.pricingInsights.length === 0 ? undefined : 'p-0'}
+          >
             {data.inventory.pricingInsights.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No pricing insight rows for the current filter set.
+                No pricing rows for the current filter set.
               </p>
             ) : (
-              <div className="-mx-1 overflow-x-auto px-1">
+              <div className="overflow-x-auto [scrollbar-width:thin]">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="min-w-40">Product</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Compare at</TableHead>
-                      <TableHead className="text-right">Discount</TableHead>
+                    <TableRow className="border-b border-border/80 hover:bg-transparent">
+                      <TableHead className="min-w-44 bg-muted/20 pl-5">Product</TableHead>
+                      <TableHead className="bg-muted/20 text-right tabular-nums">Shelf</TableHead>
+                      <TableHead className="hidden bg-muted/20 text-right tabular-nums md:table-cell">
+                        Compare at
+                      </TableHead>
+                      <TableHead className="bg-muted/20 pr-5 text-right">Discount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.inventory.pricingInsights.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="max-w-[18rem] font-medium">
+                      <TableRow key={p.id} className="border-border/50 hover:bg-muted/25">
+                        <TableCell className="max-w-[20rem] pl-5 font-medium">
                           <span className="line-clamp-2">{p.name}</span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatUgx(p.price)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right text-sm font-semibold tabular-nums">
+                          {formatUgx(p.price)}
+                        </TableCell>
+                        <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
                           {p.compareAt != null ? formatUgx(p.compareAt) : '—'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="pr-5 text-right">
                           {p.discountPct != null && p.discountPct > 0 ? (
-                            <Badge className="tabular-nums">{p.discountPct}% off</Badge>
+                            <div className="ml-auto flex max-w-[8rem] flex-col items-end gap-1">
+                              <span className="text-xs font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                                {p.discountPct}% off
+                              </span>
+                              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-accent"
+                                  style={{ width: `${Math.min(100, Math.max(8, p.discountPct))}%` }}
+                                />
+                              </div>
+                            </div>
                           ) : p.discountPct === 0 ? (
                             <span className="text-xs text-muted-foreground">List</span>
                           ) : (
-                            '—'
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -3273,6 +3221,8 @@ export function AdminAnalyticsClient() {
               </div>
             )}
           </SectionCard>
+
+          <p className="text-xs leading-relaxed text-muted-foreground">{data.inventory.stockNote}</p>
         </TabsContent>
 
         <TabsContent value="services" className="space-y-8 focus-visible:outline-none">
@@ -5042,9 +4992,10 @@ export function AdminAnalyticsClient() {
                     Reports &amp; exports
                   </p>
                   <p className="mt-1.5 text-sm leading-relaxed text-foreground/95">
-                    Download a snapshot of the current analytics dataset. The CSV mirrors the filters in{' '}
-                    <span className="font-medium text-foreground">Filters &amp; scope</span> — dates, vendor, and
-                    categories all flow through to the file.
+                    Export a full briefing of the current analytics dataset — every domain on this page, not a
+                    cropped tab. CSV and print both inherit{' '}
+                    <span className="font-medium text-foreground">Scope</span> filters: dates, vendor, and
+                    categories.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -5076,9 +5027,10 @@ export function AdminAnalyticsClient() {
                     <Download className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <h2 className="text-base font-semibold tracking-tight text-foreground">CSV export</h2>
+                    <h2 className="text-base font-semibold tracking-tight text-foreground">Full briefing pack</h2>
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      UTF-8 comma-separated values. Opens cleanly in Excel, Google Sheets, and Numbers.
+                      UTF-8 CSV for spreadsheets, plus a print/PDF briefing that covers the entire platform
+                      dataset for this window.
                     </p>
                   </div>
                 </div>
@@ -5113,10 +5065,18 @@ export function AdminAnalyticsClient() {
                   </p>
                   <ul className="mt-2 grid gap-2 sm:grid-cols-2">
                     {[
-                      'Overview KPIs (revenue, orders, profit estimates)',
-                      'Revenue by category',
-                      'Top products (units & revenue)',
-                      'Export metadata (generated time, window)',
+                      'Overview KPIs, MoM/YoY, conversion',
+                      'Sales mix, vendors, products, services, payments, regions',
+                      'Inventory velocity, idle listings, shelf pricing',
+                      'Service bookings, ratings, cancellations & reasons',
+                      'Customers, funnel, CLV, retention',
+                      'Vendor leaderboard & fulfillment',
+                      'Orders, status mix, payment success',
+                      'Marketing campaigns & proxy views',
+                      'Finance, payouts, category margins',
+                      'Operations, tickets, failed transactions',
+                      'Predictive insights, alerts, weekday heatmap',
+                      'Catalog appendix and data assumptions',
                     ].map((line) => (
                       <li
                         key={line}
@@ -5140,7 +5100,7 @@ export function AdminAnalyticsClient() {
                   </Button>
                   <Button type="button" variant="outline" className="gap-2 border-border/80" onClick={() => window.print()}>
                     <Printer className="h-4 w-4" />
-                    Print summary
+                    Print / save PDF
                   </Button>
                 </div>
               </div>
@@ -5572,13 +5532,163 @@ export function AdminAnalyticsClient() {
         </TabsContent>
       </Tabs>
 
+      <AdminAnalyticsPrintReport data={data} />
+
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 12mm 12mm 14mm;
+          }
+          html,
+          body {
+            height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+            color: #111 !important;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
           .no-print {
             display: none !important;
           }
           #admin-analytics-root {
-            padding: 0;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #fff !important;
+          }
+          main[data-page-scroll] {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            padding-top: 0 !important;
+          }
+          .flex.h-screen {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+          }
+          .admin-analytics-print {
+            display: block !important;
+            color: #111;
+            font-size: 10.5px;
+            line-height: 1.4;
+          }
+          .admin-analytics-print h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+            letter-spacing: -0.03em;
+          }
+          .admin-analytics-print h2 {
+            margin: 0 0 8px;
+            padding-bottom: 4px;
+            border-bottom: 1.5px solid #111;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            break-after: avoid;
+          }
+          .admin-analytics-print h3 {
+            margin: 10px 0 4px;
+            font-size: 11px;
+            break-after: avoid;
+          }
+          .print-cover {
+            margin-bottom: 16px;
+          }
+          .print-brand {
+            margin: 0 0 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #0f6b4d;
+          }
+          .print-lede {
+            margin: 0 0 12px;
+            max-width: 42rem;
+            color: #444;
+          }
+          .print-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 16px;
+            margin: 0;
+          }
+          .print-meta dt {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #666;
+          }
+          .print-meta dd {
+            margin: 0 0 4px;
+            font-weight: 600;
+          }
+          .print-section {
+            margin: 0 0 14px;
+          }
+          .print-section > h2,
+          .print-block h3,
+          .print-kpis {
+            break-inside: avoid;
+            break-after: avoid;
+          }
+          .print-kpis {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px 10px;
+            margin: 0 0 8px;
+          }
+          .print-kpis dt {
+            font-size: 8.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #666;
+          }
+          .print-kpis dd {
+            margin: 0;
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+          }
+          .print-block {
+            margin: 8px 0;
+            break-inside: auto;
+          }
+          .print-block table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          .print-block th,
+          .print-block td {
+            border-bottom: 0.5px solid #d6d6d6;
+            padding: 3px 5px;
+            text-align: left;
+            vertical-align: top;
+          }
+          .print-block th {
+            font-size: 8.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #555;
+          }
+          .print-empty,
+          .print-note {
+            margin: 0 0 8px;
+            color: #555;
+          }
+          .print-notes {
+            margin: 0;
+            padding-left: 16px;
+          }
+          .print-footer {
+            margin-top: 18px;
+            padding-top: 8px;
+            border-top: 0.5px solid #ccc;
+            font-size: 9px;
+            color: #666;
           }
         }
       `}</style>

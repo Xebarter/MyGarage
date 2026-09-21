@@ -41,8 +41,8 @@ export function AdminDashboardShell({ children }: { children: React.ReactNode })
   }, [mobileNavOpen, closeMobile]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-b from-background via-background to-muted/25">
-      <header className="fixed top-0 left-0 right-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-b from-background via-background to-muted/25 print:block print:h-auto print:overflow-visible print:bg-white">
+      <header className="no-print fixed top-0 left-0 right-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
@@ -64,10 +64,12 @@ export function AdminDashboardShell({ children }: { children: React.ReactNode })
 
       <AdminSidebar mobileOpen={mobileNavOpen} onMobileClose={closeMobile} />
 
-      <main data-page-scroll className="min-h-0 flex-1 overflow-y-auto pt-14 md:pt-0">
+      <main data-page-scroll className="min-h-0 flex-1 overflow-y-auto pt-14 md:pt-0 print:h-auto print:overflow-visible print:pt-0">
         {children}
-        <AdminPushAlerts />
-        <Toaster position="top-center" richColors closeButton />
+        <div className="no-print">
+          <AdminPushAlerts />
+          <Toaster position="top-center" richColors closeButton />
+        </div>
       </main>
     </div>
   );
