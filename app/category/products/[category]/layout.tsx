@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
     title: `${categoryName} Car Parts`,
     description: `Shop ${categoryName} parts and accessories for your vehicle. Compare prices, brands, and availability on MyGarage Uganda.`,
     path: `/category/products/${encodeURIComponent(categoryName)}`,
-    keywords: [categoryName, 'car parts', 'auto parts Uganda', 'MyGarage'],
+    keywords: [categoryName, `${categoryName} Uganda`, 'car spare parts Kampala', 'auto parts Uganda', 'MyGarage'],
   });
 }
 

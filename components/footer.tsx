@@ -40,17 +40,27 @@ const trustHighlights = [
 
 const shopLinks = [
   { href: '/', label: 'Browse Products' },
+  { href: '/spare-parts', label: 'Car spare parts' },
   { href: '/buyer/services', label: 'Book Services' },
   { href: '/cart', label: 'View Cart' },
-  { href: '/checkout', label: 'Secure Checkout' },
   { href: '/auth?role=vendor&next=/vendor', label: 'Sell on MyGarage' },
+];
+
+const serviceLinks = [
+  { href: '/explore', label: 'All services & guides' },
+  { href: '/car-repair', label: 'Car repair' },
+  { href: '/mechanics', label: 'Find a mechanic' },
+  { href: '/garages', label: 'Garages' },
+  { href: '/roadside-assistance', label: 'Roadside assistance' },
+  { href: '/academy', label: 'Academy guides' },
 ];
 
 const customerCareLinks = [
   { href: '/contact-us', label: 'Contact Us' },
   { href: '/faq', label: 'Help Center' },
+  { href: '/brands', label: 'Car brands' },
+  { href: '/locations', label: 'Locations' },
   { href: '/refund-policy', label: 'Returns & Refunds' },
-  { href: '/order-confirmation', label: 'Order Confirmation' },
 ];
 
 const accountLinks = [
@@ -178,8 +188,8 @@ export function Footer() {
               <span className="text-xl font-bold tracking-tight">MyGarage</span>
             </Link>
             <p className="mt-5 max-w-sm text-sm leading-7 text-white/60">
-              Uganda&apos;s marketplace for quality automotive parts and trusted workshop
-              services — fitment-focused support, secure checkout, and dependable delivery.
+              MyGarage Uganda — car spare parts, mechanics, garages, servicing, and
+              roadside assistance. Fitment help, secure checkout, and delivery across Uganda.
             </p>
 
             <ul className="mt-7 space-y-3.5">
@@ -244,8 +254,9 @@ export function Footer() {
             </ul>
           </div>
 
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 lg:col-span-8 lg:grid-cols-4 lg:gap-8">
+          <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 lg:col-span-8 lg:grid-cols-5 lg:gap-6">
             <FooterLinkColumn title="Shop" links={shopLinks} />
+            <FooterLinkColumn title="Services" links={serviceLinks} />
             <FooterLinkColumn title="Customer Care" links={customerCareLinks} />
             <FooterLinkColumn title="Account" links={accountLinks} />
             <FooterLinkColumn title="Legal" links={legalLinks} />

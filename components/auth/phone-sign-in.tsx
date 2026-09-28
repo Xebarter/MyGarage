@@ -132,6 +132,7 @@ export function PhoneSignIn({
   nextPath,
   channel = '',
   embedded = false,
+  compact = false,
   onPhaseChange,
 }: {
   initialPhone: string;
@@ -142,6 +143,8 @@ export function PhoneSignIn({
   channel?: string;
   /** When true, parent owns surrounding chrome; still shows step titles. */
   embedded?: boolean;
+  /** Nested under another sign-in form: fields only, no page title. */
+  compact?: boolean;
   onPhaseChange?: (phase: 'phone' | 'code' | 'done') => void;
 }) {
   const router = useRouter();
@@ -173,10 +176,11 @@ export function PhoneSignIn({
   }, []);
 
   useEffect(() => {
+    if (compact) return;
     if (redirectLocalhostToLoopback(nativeWebView)) {
       setRedirectingHost(true);
     }
-  }, [nativeWebView]);
+  }, [compact, nativeWebView]);
 
   const ensureVerifier = useCallback(async () => {
     const auth = await getFirebaseAuth({ waitForRecaptchaEnterprise: false });
@@ -348,17 +352,25 @@ export function PhoneSignIn({
 
   return (
     <>
-      <AuthFormHeader
-        badge={roleMeta.badge}
-        title={sent ? 'Enter the code' : embedded ? 'Welcome back' : 'Sign in with phone'}
-        description={
-          sent
-            ? `Sent to ${formatE164Display(phone)}.`
-            : embedded
-              ? 'Sign in with your phone number. We’ll text a 6-digit code.'
-              : 'We’ll text a 6-digit code. Uganda numbers can start with 07.'
-        }
-      />
+      {compact ? (
+        sent ? (
+          <p className="text-center text-sm text-muted-foreground">
+            Enter the code sent to {formatE164Display(phone)}.
+          </p>
+        ) : null
+      ) : (
+        <AuthFormHeader
+          badge={roleMeta.badge}
+          title={sent ? 'Enter the code' : embedded ? 'Welcome back' : 'Sign in with phone'}
+          description={
+            sent
+              ? `Sent to ${formatE164Display(phone)}.`
+              : embedded
+                ? 'Sign in with your phone number. We’ll text a 6-digit code.'
+                : 'We’ll text a 6-digit code. Uganda numbers can start with 07.'
+          }
+        />
+      )}
 
       {!sent ? (
         <div className="space-y-3">
@@ -370,7 +382,7 @@ export function PhoneSignIn({
             type="tel"
             autoComplete="tel"
             inputMode="tel"
-            autoFocus={embedded}
+            autoFocus={embedded || compact}
             value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value)}
             onKeyDown={(e) => {

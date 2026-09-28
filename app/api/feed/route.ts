@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const feed = await getHomeFeed(resolvedCustomerId || undefined, limit, { forceRefresh });
     return NextResponse.json(feed);
   } catch (error) {
-    console.error("GET /api/feed:", error);
-    return NextResponse.json({ error: "Failed to fetch home feed" }, { status: 500 });
+    console.warn("GET /api/feed:", error);
+    return NextResponse.json([]);
   }
 }

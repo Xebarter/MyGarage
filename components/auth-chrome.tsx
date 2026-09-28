@@ -130,25 +130,25 @@ export function getAuthRoleMeta(role: string): { title: string; description: str
       return {
         badge: 'Admin',
         title: 'Admin sign in',
-        description: 'Approved admin accounts only. Google or email.',
+        description: 'Approved admin accounts only. Continue with Google, or use email.',
       };
     case 'vendor':
       return {
         badge: 'Vendor',
         title: 'Welcome back',
-        description: 'Sign in with your phone number for products, orders, and payouts.',
+        description: 'Continue with Google, or sign in with email for products, orders, and payouts.',
       };
     case 'services':
       return {
         badge: 'Services',
         title: 'Welcome back',
-        description: 'Sign in with your phone number for jobs, customers, and funds.',
+        description: 'Continue with Google, or sign in with email for jobs, customers, and funds.',
       };
     default:
       return {
         badge: 'Buyer',
         title: 'Welcome back',
-        description: 'Sign in with your phone number to shop and book services.',
+        description: 'Continue with Google, or sign in with email to shop and book services.',
       };
   }
 }

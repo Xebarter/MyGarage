@@ -152,13 +152,15 @@ export function HomePageClient({
   }, [refreshWishlist]);
 
   useEffect(() => {
-    void fetchProducts();
-  }, []);
+    const customerEmail = (localStorage.getItem('currentBuyerEmail') || '').trim();
+    if (!customerEmail && initialProducts.length > 0) return;
 
-  useEffect(() => {
-    void fetchProducts();
+    const controller = new AbortController();
+    void fetchProducts(controller.signal);
+    return () => controller.abort();
+    // Search filters the catalog already loaded; it does not need another /api/feed call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, []);
 
   useEffect(() => {
     const cat = searchParams.get('category');
@@ -169,14 +171,14 @@ export function HomePageClient({
     setSearchQuery(q !== null ? q : '');
   }, [searchParams]);
 
-  async function fetchProducts() {
+  async function fetchProducts(signal?: AbortSignal) {
     try {
       const customerEmail =
         typeof window !== 'undefined' ? (localStorage.getItem('currentBuyerEmail') || '').trim() : '';
       const query = customerEmail
         ? `?customerEmail=${encodeURIComponent(customerEmail)}&limit=300`
         : '?limit=300';
-      const response = await fetch(`/api/feed${query}`);
+      const response = await fetch(`/api/feed${query}`, { signal });
       const contentType = response.headers.get('content-type') ?? '';
       if (!response.ok || !contentType.includes('application/json')) {
         throw new Error('Failed to fetch products');
@@ -187,9 +189,12 @@ export function HomePageClient({
       setProducts(safeProducts);
       setCategories(getRecommendedCategories(safeProducts));
     } catch (error) {
+      if (signal?.aborted) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (error instanceof TypeError) return;
       console.error('Failed to fetch products:', error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }
 

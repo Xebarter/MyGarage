@@ -17,7 +17,13 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
     title: `${categoryTitle} — Automotive Services`,
     description: `Book ${categoryTitle} services from verified providers in Uganda. Fast requests, transparent pricing, and reliable support through MyGarage.`,
     path: `/category/services/${encodeURIComponent(categoryTitle)}`,
-    keywords: [categoryTitle, 'automotive services Uganda', 'MyGarage services'],
+    keywords: [
+      categoryTitle,
+      `${categoryTitle} Kampala`,
+      'automotive services Uganda',
+      'book a mechanic',
+      'MyGarage services',
+    ],
   });
 }
 

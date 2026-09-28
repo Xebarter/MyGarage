@@ -101,9 +101,9 @@ export function buildPageMetadata(input: PageSeoInput): Metadata {
     keywords: input.keywords ?? [...SITE_KEYWORDS],
     alternates: { canonical },
     robots: index ? INDEX_ROBOTS : NOINDEX_ROBOTS,
-    openGraph: buildOpenGraph({ ...input, title, description }),
+    openGraph: buildOpenGraph({ ...input, title: resolveTitleString(title, input.title), description }),
     twitter: buildTwitter({
-      title,
+      title: resolveTitleString(title, input.title),
       description,
       image: input.image ?? undefined,
       fallbackTitle: input.title,
@@ -176,6 +176,8 @@ export function buildRootMetadata(): Metadata {
     manifest: '/manifest.webmanifest',
     other: {
       'apple-mobile-web-app-title': SITE_NAME,
+      'geo.region': 'UG',
+      'geo.placename': 'Kampala',
     },
     ...(Object.keys(verification).length > 0 ? { verification } : {}),
   };
@@ -215,7 +217,7 @@ export function buildProductMetadata(product: Product): Metadata {
 
 export const STATIC_PAGE_SEO: Record<string, PageSeoInput> = {
   '/': {
-    title: 'Car Parts, Accessories & Services in Uganda',
+    title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
     path: '/',
     keywords: [...SITE_KEYWORDS],
@@ -253,15 +255,17 @@ export const STATIC_PAGE_SEO: Record<string, PageSeoInput> = {
     keywords: ['returns', 'refund policy', 'car parts returns Uganda'],
   },
   '/buyer/services': {
-    title: 'Book Automotive Services',
+    title: 'Book a Mechanic, Garage or Roadside Assistance',
     description:
-      'Request towing, mobile mechanics, car wash, tyres, AC repair, and more from verified providers across Uganda.',
+      'Book car repair, servicing, towing, jump-starts, tyre help, fuel delivery, lockouts, and inspections from verified providers in Kampala and Uganda.',
     path: '/buyer/services',
     keywords: [
-      'roadside assistance Uganda',
+      'book a mechanic',
+      'online mechanic booking',
+      'roadside assistance Kampala',
+      'car towing Kampala',
+      'book car service',
       'mobile mechanic Kampala',
-      'car towing',
-      'automotive services booking',
     ],
   },
   '/vendor-login': {

@@ -25,7 +25,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _password = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
-  bool _showEmail = false;
+  bool _showPhone = false;
   bool _otpSent = false;
   String _intent = 'phone';
   int _resendIn = 0;
@@ -65,7 +65,6 @@ class _SignInScreenState extends State<SignInScreen> {
     if (!mounted || !needsCode) return;
     setState(() {
       _otpSent = true;
-      _showEmail = false;
       _otp.clear();
     });
     _startResendCooldown();
@@ -135,7 +134,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     Text(
                       _otpSent
                           ? 'Sent to ${formatE164Display(_phone.text)}'
-                          : 'Sign in with your phone number to manage products, orders, and payouts',
+                          : 'Continue with Google, or sign in with email to manage products, orders, and payouts',
                       textAlign: TextAlign.center,
                       style: AppTheme.host(
                         fontSize: 15,
@@ -145,38 +144,10 @@ class _SignInScreenState extends State<SignInScreen> {
                     ),
                     const SizedBox(height: 40),
                     if (!_otpSent) ...[
-                      TextFormField(
-                        controller: _phone,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.telephoneNumber],
-                        onFieldSubmitted: (_) => auth.busy ? null : _sendCode(),
-                        decoration: const InputDecoration(
-                          labelText: 'Phone number',
-                          hintText: '0700 123 456',
-                        ),
-                        validator: (v) {
-                          if (_intent != 'phone') return null;
-                          if (normalizeToE164(v ?? '') == null) {
-                            return 'Enter a valid phone number';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 18),
-                      ElevatedButton(
-                        onPressed: auth.busy ? null : _sendCode,
-                        child: auth.busy
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Continue with phone'),
-                      ),
+                      _GoogleSignInButton(
+                        busy: auth.busy,
+                        onPressed: () => context.read<AuthController>().signInWithGoogle(),
+                      ).animate().fadeIn(delay: 120.ms, duration: 400.ms),
                       const SizedBox(height: 28),
                       Row(
                         children: [
@@ -196,90 +167,95 @@ class _SignInScreenState extends State<SignInScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      _GoogleSignInButton(
-                        busy: auth.busy,
-                        onPressed: () => context.read<AuthController>().signInWithGoogle(),
-                      ).animate().fadeIn(delay: 120.ms, duration: 400.ms),
-                      AnimatedSize(
-                        duration: 280.ms,
-                        curve: Curves.easeOutCubic,
-                        child: _showEmail
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const SizedBox(height: 28),
-                                  Row(
-                                    children: [
-                                      const Expanded(child: Divider()),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                                        child: Text(
-                                          'or email',
-                                          style: AppTheme.host(
-                                            fontSize: 12,
-                                            color: AppColors.textMuted,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      const Expanded(child: Divider()),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  TextFormField(
-                                    controller: _email,
-                                    keyboardType: TextInputType.emailAddress,
-                                    decoration: const InputDecoration(labelText: 'Email'),
-                                    validator: (v) {
-                                      if (_intent != 'email') return null;
-                                      if (v == null || v.trim().isEmpty) return 'Enter your email';
-                                      if (!v.contains('@')) return 'Enter a valid email';
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: _password,
-                                    obscureText: _obscure,
-                                    decoration: InputDecoration(
-                                      labelText: 'Password',
-                                      suffixIcon: IconButton(
-                                        onPressed: () => setState(() => _obscure = !_obscure),
-                                        icon: Icon(
-                                          _obscure
-                                              ? Icons.visibility_outlined
-                                              : Icons.visibility_off_outlined,
-                                          size: 22,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                    validator: (v) {
-                                      if (_intent != 'email') return null;
-                                      return (v == null || v.isEmpty) ? 'Enter your password' : null;
-                                    },
-                                    onFieldSubmitted: (_) => _submitEmail(),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  ElevatedButton(
-                                    onPressed: auth.busy ? null : _submitEmail,
-                                    child: const Text('Sign in with email'),
-                                  ),
-                                ],
-                              )
-                            : const SizedBox.shrink(),
+                      TextFormField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: (v) {
+                          if (_intent != 'email') return null;
+                          if (v == null || v.trim().isEmpty) return 'Enter your email';
+                          if (!v.contains('@')) return 'Enter a valid email';
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _password,
+                        obscureText: _obscure,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                            icon: Icon(
+                              _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              size: 22,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (_intent != 'email') return null;
+                          return (v == null || v.isEmpty) ? 'Enter your password' : null;
+                        },
+                        onFieldSubmitted: (_) => _submitEmail(),
+                      ),
+                      const SizedBox(height: 18),
+                      ElevatedButton(
+                        onPressed: auth.busy ? null : _submitEmail,
+                        child: const Text('Sign in with email'),
+                      ),
+                      const SizedBox(height: 8),
                       TextButton(
-                        onPressed: () => setState(() => _showEmail = !_showEmail),
+                        onPressed: () => setState(() => _showPhone = !_showPhone),
                         child: Text(
-                          _showEmail ? 'Hide email sign in' : 'Use email instead',
+                          _showPhone ? 'Hide phone sign in' : 'Use a phone number',
                           style: AppTheme.host(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textSecondary,
                           ),
                         ),
+                      ),
+                      AnimatedSize(
+                        duration: 280.ms,
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: _showPhone
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextFormField(
+                                    controller: _phone,
+                                    keyboardType: TextInputType.phone,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: const [AutofillHints.telephoneNumber],
+                                    onFieldSubmitted: (_) => auth.busy ? null : _sendCode(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Phone number',
+                                      hintText: '0700 123 456',
+                                    ),
+                                    validator: (v) {
+                                      if (_intent != 'phone') return null;
+                                      if (normalizeToE164(v ?? '') == null) {
+                                        return 'Enter a valid phone number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 18),
+                                  OutlinedButton(
+                                    onPressed: auth.busy ? null : _sendCode,
+                                    child: auth.busy
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Text('Continue with phone'),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ] else ...[
                       TextFormField(

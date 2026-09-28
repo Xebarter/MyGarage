@@ -1,5 +1,6 @@
 import type { Product } from '@/lib/db';
 import { userServiceCategories } from '@/lib/services-catalog';
+import type { SeoLandingPage } from '@/lib/seo/landing/types';
 
 import { SITE_NAME, absoluteUrl, getSiteUrl } from '@/lib/seo/site';
 
@@ -17,7 +18,7 @@ export function organizationJsonLd(): JsonLd {
     url: getSiteUrl(),
     logo: absoluteUrl('/web-app-manifest-512x512.png'),
     description:
-      'Online marketplace for car parts, accessories, and automotive services in Uganda and East Africa.',
+      'MyGarage Uganda — marketplace for car spare parts, mechanics, garages, servicing, and roadside assistance in Kampala and East Africa.',
     contactPoint: [
       {
         '@type': 'ContactPoint',
@@ -41,6 +42,17 @@ export function organizationJsonLd(): JsonLd {
       addressCountry: 'UG',
     },
     sameAs: [],
+    areaServed: [
+      { '@type': 'Country', name: 'Uganda' },
+      { '@type': 'City', name: 'Kampala' },
+    ],
+    knowsAbout: [
+      'Car spare parts',
+      'Auto repair',
+      'Roadside assistance',
+      'Vehicle maintenance',
+      'OEM part numbers',
+    ],
   };
 }
 
@@ -224,8 +236,85 @@ export function localBusinessJsonLd(): JsonLd {
       },
     ],
     priceRange: '$$',
-    areaServed: 'UG',
+    areaServed: [
+      { '@type': 'Country', name: 'Uganda' },
+      { '@type': 'City', name: 'Kampala' },
+      { '@type': 'City', name: 'Entebbe' },
+      { '@type': 'City', name: 'Jinja' },
+      { '@type': 'City', name: 'Mbarara' },
+    ],
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: 0.3476,
+      longitude: 32.5825,
+    },
+    hasOfferCatalog: {
+      '@type': 'OfferCatalog',
+      name: 'Automotive parts and services',
+      itemListElement: [
+        { '@type': 'OfferCatalog', name: 'Car spare parts' },
+        { '@type': 'OfferCatalog', name: 'Roadside assistance' },
+        { '@type': 'OfferCatalog', name: 'Car repair and servicing' },
+      ],
+    },
   };
+}
+
+export function landingPageJsonLd(page: SeoLandingPage): JsonLd[] {
+  const url = absoluteUrl(page.path);
+  const crumbs = breadcrumbJsonLd(
+    page.breadcrumbs.map((item) => ({ name: item.label, path: item.href })),
+  );
+
+  const faq =
+    page.faqs.length > 0
+      ? faqPageJsonLd([{ title: page.h1, faqs: page.faqs }])
+      : null;
+
+  const main: JsonLd =
+    page.kind === 'academy'
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: page.h1,
+          description: page.description,
+          url,
+          author: { '@id': ORG_ID },
+          publisher: { '@id': ORG_ID },
+          inLanguage: 'en-UG',
+          mainEntityOfPage: url,
+        }
+      : page.kind === 'hub'
+        ? {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: page.h1,
+            description: page.description,
+            url,
+            isPartOf: { '@id': WEBSITE_ID },
+            mainEntity: {
+              '@type': 'ItemList',
+              itemListElement: page.related.map((item, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                name: item.label,
+                url: absoluteUrl(item.href),
+              })),
+            },
+          }
+        : {
+            '@context': 'https://schema.org',
+            '@type': 'Service',
+            name: page.h1,
+            description: page.description,
+            url,
+            provider: { '@id': ORG_ID },
+            areaServed: { '@type': 'Country', name: 'Uganda' },
+            serviceType: 'Automotive',
+            brand: { '@id': ORG_ID },
+          };
+
+  return faq ? [main, crumbs, faq] : [main, crumbs];
 }
 
 export function globalSiteJsonLd(): JsonLd[] {

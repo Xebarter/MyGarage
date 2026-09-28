@@ -29,6 +29,12 @@ export default function NotFound() {
             Back to shop
           </Link>
           <Link
+            href="/explore"
+            className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+          >
+            Browse services
+          </Link>
+          <Link
             href="/contact-us"
             className="inline-flex rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
           >

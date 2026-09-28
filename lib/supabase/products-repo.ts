@@ -3,7 +3,7 @@ import { PRODUCT_SEED_ROWS } from "@/lib/data/product-seed";
 import { parseProductVariantsRow, parseVariantOptions } from "@/lib/product-variants";
 import { deleteAdApplicationsByProductId } from "@/lib/supabase/ad-applications-repo";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatFetchError, isTransientFetchError } from "@/lib/supabase/fetch-errors";
+import { formatFetchError, formatSupabaseError, isTransientFetchError } from "@/lib/supabase/fetch-errors";
 import { removeListingImagesForProductFields } from "@/lib/supabase/listing-image-storage";
 import { deletePromoCarouselItemsByProductId } from "@/lib/supabase/promotions-repo";
 
@@ -118,39 +118,52 @@ function insertPayload(product: ProductInsert, id: string) {
   };
 }
 
+/** Skip a count round-trip after the catalog is known to have rows. */
+let productsSeedEnsured = false;
+
 async function ensureSeedIfEmpty(): Promise<void> {
+  if (productsSeedEnsured) return;
+
   const supabase = createAdminClient();
   let count: number | null = null;
-  let countError: { message: string } | null = null;
 
   try {
-    const result = await supabase.from("products").select("*", { count: "exact", head: true });
+    // Prefer GET over HEAD: some proxies return an empty PostgREST error on HEAD counts.
+    const result = await supabase.from("products").select("id", { count: "exact" }).limit(1);
     count = result.count;
-    countError = result.error;
+    if (result.error) {
+      if (isTransientFetchError(result.error)) {
+        console.warn(`Supabase products count skipped (network): ${formatSupabaseError(result.error)}`);
+        return;
+      }
+      // Seeding is optional; do not block listing the live catalog.
+      console.warn(`Supabase products count skipped: ${formatSupabaseError(result.error)}`);
+      return;
+    }
   } catch (error) {
     if (isTransientFetchError(error)) {
       console.warn(`Supabase products count skipped (network): ${formatFetchError(error)}`);
       return;
     }
-    throw error;
+    console.warn(`Supabase products count skipped: ${formatSupabaseError(error)}`);
+    return;
   }
 
-  if (countError) {
-    if (isTransientFetchError(countError)) {
-      console.warn(`Supabase products count skipped (network): ${countError.message}`);
-      return;
-    }
-    throw new Error(`Supabase products count failed: ${countError.message}`);
+  if (count !== null && count > 0) {
+    productsSeedEnsured = true;
+    return;
   }
-
-  if (count !== null && count > 0) return;
 
   const { error } = await supabase.from("products").insert(PRODUCT_SEED_ROWS);
   if (error) {
     // Race: another request may have inserted first
-    if (error.code === "23505") return;
-    throw new Error(`Supabase seed products failed: ${error.message}`);
+    if (error.code === "23505") {
+      productsSeedEnsured = true;
+      return;
+    }
+    throw new Error(`Supabase seed products failed: ${formatSupabaseError(error)}`);
   }
+  productsSeedEnsured = true;
 }
 
 async function queryProducts() {
@@ -166,10 +179,10 @@ export async function listProducts(): Promise<Product[]> {
 
     if (error) {
       if (isTransientFetchError(error)) {
-        console.warn(`Supabase list products skipped (network): ${error.message}`);
+        console.warn(`Supabase list products skipped (network): ${formatSupabaseError(error)}`);
         return [];
       }
-      throw new Error(`Supabase list products failed: ${error.message}`);
+      throw new Error(`Supabase list products failed: ${formatSupabaseError(error)}`);
     }
 
     return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];

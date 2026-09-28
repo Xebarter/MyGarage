@@ -1,6 +1,7 @@
 import { listProducts } from '@/lib/supabase/products-repo';
 import { userServiceCategories } from '@/lib/services-catalog';
 
+import { getAllLandingPages } from '@/lib/seo/landing';
 import { STATIC_PAGE_SEO } from '@/lib/seo/metadata';
 import { getSiteUrl } from '@/lib/seo/site';
 
@@ -71,6 +72,19 @@ export async function collectSitemapEntries(): Promise<SitemapEntry[]> {
       url: `${base}/category/services/${encodeURIComponent(serviceCategory.title)}`,
       changeFrequency: 'weekly',
       priority: 0.7,
+      lastModified: new Date(),
+    });
+  }
+
+  const landingSeen = new Set(entries.map((entry) => entry.url));
+  for (const page of getAllLandingPages()) {
+    const url = `${base}${page.path}`;
+    if (landingSeen.has(url)) continue;
+    landingSeen.add(url);
+    entries.push({
+      url,
+      changeFrequency: page.kind === 'academy' ? 'monthly' : 'weekly',
+      priority: page.priority,
       lastModified: new Date(),
     });
   }

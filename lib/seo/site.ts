@@ -2,12 +2,12 @@
 
 export const SITE_NAME = 'MyGarage';
 
-export const SITE_TAGLINE = 'Car parts & automotive services in Uganda';
+export const SITE_TAGLINE = 'Car parts, mechanics, garages & roadside assistance in Uganda';
 
-export const DEFAULT_TITLE = `${SITE_NAME} — Car Parts, Accessories & Services in Uganda`;
+export const DEFAULT_TITLE = `${SITE_NAME} Uganda — Car Parts, Mechanics, Garages & Roadside Assistance`;
 
 export const DEFAULT_DESCRIPTION =
-  'Shop genuine and aftermarket car parts, fluids, and accessories with fitment support. Book roadside help, repairs, and maintenance services across Uganda. Secure checkout and reliable delivery.';
+  'MyGarage Uganda is the automotive platform for car spare parts, mechanics, garages, car servicing, and roadside assistance in Kampala and across Uganda. Shop OEM and aftermarket parts, book repair or a mobile mechanic, and keep digital service history.';
 
 export const SITE_LOCALE = 'en_UG';
 
@@ -15,15 +15,16 @@ export const DEFAULT_OG_IMAGE_PATH = '/web-app-manifest-512x512.png';
 
 /** Primary keywords for default metadata (avoid stuffing on every page). */
 export const SITE_KEYWORDS = [
-  'car parts Uganda',
+  'MyGarage Uganda',
+  'car spare parts Uganda',
+  'car repair Uganda',
+  'mechanic Kampala',
+  'car garage Kampala',
+  'car servicing Uganda',
+  'roadside assistance Kampala',
   'auto parts Kampala',
-  'automotive accessories',
-  'car spares Uganda',
-  'vehicle parts online',
-  'roadside assistance Uganda',
+  'OEM part number',
   'mobile mechanic Kampala',
-  'car service booking',
-  'MyGarage',
 ] as const;
 
 export function getSiteUrl(): string {

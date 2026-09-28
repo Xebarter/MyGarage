@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 
 import { AuthGoogleButton } from "@/components/auth-google-button";
+import { PhoneSignIn } from "@/components/auth/phone-sign-in";
 import {
   AuthBrandBanner,
   AuthCardFooter,
@@ -17,7 +18,6 @@ import {
   authPrimaryButtonClassName,
   getAuthRoleMeta,
 } from "@/components/auth-chrome";
-import { PhoneSignIn } from "@/components/auth/phone-sign-in";
 import { Card } from "@/components/ui/card";
 import { redirectToGoogleSignIn } from "@/lib/auth/google-oauth";
 import { initFirebaseAnalytics } from "@/lib/firebase/client";
@@ -121,8 +121,7 @@ function AuthForm() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [showEmailAuth, setShowEmailAuth] = useState(false);
-  const [phonePhase, setPhonePhase] = useState<"phone" | "code" | "done">("phone");
+  const [showPhone, setShowPhone] = useState(false);
 
   const roleMeta = useMemo(() => getAuthRoleMeta(role), [role]);
 
@@ -139,9 +138,8 @@ function AuthForm() {
   useEffect(() => {
     setPhone("");
     setBuyerFlowStep("signin");
-    setShowEmailAuth(false);
-    setPhonePhase("phone");
     setMode("signin");
+    setShowPhone(false);
   }, [role]);
 
   useEffect(() => {
@@ -853,202 +851,95 @@ function AuthForm() {
           </>
         ) : (
           <>
-            {isAdminRole ? (
-              <>
-                <AuthFormHeader
-                  badge={roleMeta.badge}
-                  title={roleMeta.title}
-                  description={roleMeta.description}
-                />
+            <AuthFormHeader
+              badge={roleMeta.badge}
+              title={roleMeta.title}
+              description={roleMeta.description}
+            />
 
-                <div className="space-y-3">
-                  <AuthGoogleButton
-                    loading={googleLoading}
-                    disabled={loading}
-                    onClick={() => void handleGoogleSignIn()}
+            {mode === "signin" ? (
+              <AuthGoogleButton
+                loading={googleLoading}
+                disabled={loading}
+                onClick={() => void handleGoogleSignIn()}
+              />
+            ) : null}
+
+            {mode === "signin" ? <AuthDivider /> : null}
+
+            {mode === "signin" ? (
+              <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email"
+                  className={authFieldClassName}
+                />
+                <div className="relative">
+                  <input
+                    required
+                    minLength={6}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Password (6+ characters)"
+                    className={`${authFieldClassName} pr-12`}
                   />
-                  <AuthDivider />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                  </button>
                 </div>
-
-                {mode === "signin" ? (
-                  <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
-                    <input
-                      required
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="Email"
-                      className={authFieldClassName}
-                    />
-                    <div className="relative">
-                      <input
-                        required
-                        minLength={6}
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        placeholder="Password (6+ characters)"
-                        className={`${authFieldClassName} pr-12`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        aria-pressed={showPassword}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                      </button>
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className={authPrimaryButtonClassName}
-                    >
-                      {loading ? "Please wait…" : "Continue"}
-                    </button>
-                  </form>
-                ) : (
-                  <form className="space-y-3" onSubmit={handleForgotPassword}>
-                    <input
-                      required
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="Email"
-                      className={authFieldClassName}
-                    />
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className={authPrimaryButtonClassName}
-                    >
-                      {loading ? "Sending…" : "Send reset link"}
-                    </button>
-                  </form>
-                )}
-              </>
+                <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
+                  {loading ? "Please wait…" : "Sign in with email"}
+                </button>
+              </form>
             ) : (
-              <>
-                <PhoneSignIn
-                  embedded
-                  initialPhone=""
-                  openerOrigin=""
-                  role={role}
-                  nextPath={nextPath}
-                  onPhaseChange={setPhonePhase}
+              <form className="space-y-3" onSubmit={handleForgotPassword}>
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email"
+                  className={authFieldClassName}
                 />
-
-                {phonePhase === "phone" ? (
-                  <div className="space-y-3">
-                    <AuthDivider />
-                    <AuthGoogleButton
-                      loading={googleLoading}
-                      disabled={loading}
-                      onClick={() => void handleGoogleSignIn()}
-                    />
-
-                    {!showEmailAuth ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowEmailAuth(true);
-                          setMode("signin");
-                          setError(null);
-                          setSuccess(null);
-                        }}
-                        className="w-full text-sm font-semibold text-muted-foreground transition hover:text-foreground"
-                      >
-                        Use email instead
-                      </button>
-                    ) : (
-                      <>
-                        <AuthDivider label="Email" />
-                        {mode === "signin" ? (
-                          <form className="space-y-3" onSubmit={handleSignInOrSignUp}>
-                            <input
-                              required
-                              type="email"
-                              autoComplete="email"
-                              value={email}
-                              onChange={(event) => setEmail(event.target.value)}
-                              placeholder="Email"
-                              className={authFieldClassName}
-                            />
-                            <div className="relative">
-                              <input
-                                required
-                                minLength={6}
-                                type={showPassword ? "text" : "password"}
-                                autoComplete="current-password"
-                                value={password}
-                                onChange={(event) => setPassword(event.target.value)}
-                                placeholder="Password (6+ characters)"
-                                className={`${authFieldClassName} pr-12`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowPassword((v) => !v)}
-                                aria-label={showPassword ? "Hide password" : "Show password"}
-                                aria-pressed={showPassword}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-                              >
-                                {showPassword ? (
-                                  <EyeOff className="h-4 w-4" aria-hidden />
-                                ) : (
-                                  <Eye className="h-4 w-4" aria-hidden />
-                                )}
-                              </button>
-                            </div>
-                            <button
-                              type="submit"
-                              disabled={loading}
-                              className={authPrimaryButtonClassName}
-                            >
-                              {loading ? "Please wait…" : "Continue with email"}
-                            </button>
-                          </form>
-                        ) : (
-                          <form className="space-y-3" onSubmit={handleForgotPassword}>
-                            <input
-                              required
-                              type="email"
-                              autoComplete="email"
-                              value={email}
-                              onChange={(event) => setEmail(event.target.value)}
-                              placeholder="Email"
-                              className={authFieldClassName}
-                            />
-                            <button
-                              type="submit"
-                              disabled={loading}
-                              className={authPrimaryButtonClassName}
-                            >
-                              {loading ? "Sending…" : "Send reset link"}
-                            </button>
-                          </form>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowEmailAuth(false);
-                            setMode("signin");
-                            setError(null);
-                            setSuccess(null);
-                          }}
-                          className="w-full text-xs font-medium text-muted-foreground hover:text-foreground"
-                        >
-                          Hide email sign-in
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ) : null}
-              </>
+                <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
+                  {loading ? "Sending…" : "Send reset link"}
+                </button>
+              </form>
             )}
+
+            {mode === "signin" ? (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPhone((open) => !open)}
+                  className="w-full text-center text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                >
+                  {showPhone ? "Hide phone sign in" : "Use a phone number"}
+                </button>
+                {showPhone ? (
+                  <PhoneSignIn
+                    initialPhone=""
+                    openerOrigin=""
+                    role={role}
+                    nextPath={nextPath}
+                    compact
+                  />
+                ) : null}
+              </div>
+            ) : null}
 
             {authError === "admin_required" ? (
               <AuthMessage variant="error">This account is not an admin.</AuthMessage>
@@ -1057,22 +948,17 @@ function AuthForm() {
             {success ? <AuthMessage variant="success">{success}</AuthMessage> : null}
 
             <AuthCardFooter>
-              {(isAdminRole || showEmailAuth) && phonePhase === "phone" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setSuccess(null);
-                    setMode(mode === "signin" ? "forgot" : "signin");
-                    if (!isAdminRole) setShowEmailAuth(true);
-                  }}
-                  className="font-medium text-primary hover:underline"
-                >
-                  {mode === "signin" ? "Forgot password?" : "Back to sign in"}
-                </button>
-              ) : (
-                <span />
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setSuccess(null);
+                  setMode(mode === "signin" ? "forgot" : "signin");
+                }}
+                className="font-medium text-primary hover:underline"
+              >
+                {mode === "signin" ? "Forgot password?" : "Back to sign in"}
+              </button>
               <Link href="/" className="text-muted-foreground hover:text-foreground">
                 Shop
               </Link>
