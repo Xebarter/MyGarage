@@ -10,24 +10,44 @@ try {
   /* restricted runtimes */
 }
 
-const FETCH_RETRIES = 5;
-const FETCH_RETRY_BASE_MS = 400;
-const FETCH_TIMEOUT_MS = 30_000;
-const GATEWAY_COOLDOWN_MS = 20_000;
+const FETCH_RETRIES = 2;
+const FETCH_RETRY_BASE_MS = 250;
+const FETCH_TIMEOUT_MS = 6_000;
+const GATEWAY_COOLDOWN_MS = 45_000;
 
-/** After a Cloudflare/gateway failure, skip further Supabase calls briefly so pages don't hang. */
-let gatewayDownUntil = 0;
+/**
+ * Shared across Next.js server chunks. A module-level flag is duplicated per bundle,
+ * so the page and `/api/feed` would each wait out a dead gateway on their own.
+ */
+type GatewayGlobal = typeof globalThis & { __mygarageGatewayDownUntil?: number };
+const gatewayGlobal = globalThis as GatewayGlobal;
+
+function readGatewayDownUntil(): number {
+  return gatewayGlobal.__mygarageGatewayDownUntil ?? 0;
+}
+
+function markGatewayDown(): void {
+  gatewayGlobal.__mygarageGatewayDownUntil = Date.now() + GATEWAY_COOLDOWN_MS;
+}
 
 function gatewayFailure(status: string): Error & { code: string } {
-  gatewayDownUntil = Date.now() + GATEWAY_COOLDOWN_MS;
+  markGatewayDown();
   const err = new Error(`Cloudflare ${status} from Supabase`) as Error & { code: string };
   err.code = `CF_${status}`;
   return err;
 }
 
+function isTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = "name" in error ? String((error as { name?: unknown }).name ?? "") : "";
+  if (name === "TimeoutError") return true;
+  const code = "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  return code === "UND_ERR_CONNECT_TIMEOUT" || code === "ETIMEDOUT";
+}
+
 /** Short retries for transient TLS / connection resets from Node fetch to Supabase. */
 async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (Date.now() < gatewayDownUntil) {
+  if (Date.now() < readGatewayDownUntil()) {
     const err = new Error("Supabase gateway recently unavailable") as Error & { code: string };
     err.code = "CF_522";
     throw err;
@@ -55,13 +75,19 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
         throw gatewayFailure(String(res.status));
       }
       if (contentType.includes("text/html") && !contentType.includes("json")) {
-        gatewayDownUntil = Date.now() + GATEWAY_COOLDOWN_MS;
+        markGatewayDown();
         const err = new Error("Supabase returned HTML instead of JSON") as Error & { code: string };
         err.code = "NON_JSON";
         throw err;
       }
       return res;
     } catch (e) {
+      if (isTimeoutError(e)) {
+        markGatewayDown();
+        const err = new Error("Supabase request timed out") as Error & { code: string };
+        err.code = "ETIMEDOUT";
+        throw err;
+      }
       lastErr = e;
       const code =
         e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code ?? "") : "";

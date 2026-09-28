@@ -1,4 +1,4 @@
-import { getHomeFeed, getProduct, getPromoCarouselItems } from "@/lib/db";
+import { getHomeFeed, getProductsByIds, getPromoCarouselItems } from "@/lib/db";
 import type { Product } from "@/lib/db";
 import { buildCategoryFeedPage, pickFeaturedProducts } from "@/lib/home-category-feed";
 
@@ -16,20 +16,21 @@ export async function loadHomePromoBanners(): Promise<HomePromoBanner[]> {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     const limit = active.slice(0, 8);
 
-    const resolved = await Promise.all(
-      limit.map(async (item) => {
-        const product = (await getProduct(item.productId)) as Product | undefined;
-        return product
-          ? {
+    const products = await getProductsByIds(limit.map((item) => item.productId));
+    const byId = new Map(products.map((product) => [product.id, product]));
+
+    return limit.flatMap((item) => {
+      const product = byId.get(item.productId);
+      return product
+        ? [
+            {
               id: item.id,
               product,
               bannerUrl: item.bannerUrl,
-            }
-          : null;
-      }),
-    );
-
-    return resolved.filter((x): x is HomePromoBanner => x != null);
+            },
+          ]
+        : [];
+    });
   } catch (error) {
     console.warn("loadHomePromoBanners skipped:", error);
     return [];

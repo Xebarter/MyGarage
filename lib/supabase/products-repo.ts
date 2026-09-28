@@ -171,6 +171,39 @@ async function queryProducts() {
   return supabase.from("products").select("*").order("created_at", { ascending: true });
 }
 
+/** Published rows for the storefront feed, capped so the home page does not download the whole catalog. */
+export async function listPublishedProductsLimited(limit: number): Promise<Product[]> {
+  await ensureSeedIfEmpty();
+  const capped = Math.min(Math.max(Math.trunc(limit) || 80, 1), 400);
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("published", true)
+      .order("featured", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(capped);
+
+    if (error) {
+      if (isTransientFetchError(error)) {
+        console.warn(`Supabase list published products skipped (network): ${formatSupabaseError(error)}`);
+        return [];
+      }
+      throw new Error(`Supabase list published products failed: ${formatSupabaseError(error)}`);
+    }
+
+    return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase list published products skipped (network): ${formatFetchError(error)}`);
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function listProducts(): Promise<Product[]> {
   await ensureSeedIfEmpty();
 
@@ -231,6 +264,33 @@ function pickUsableListingImage(image: string | null | undefined, images: unknow
 }
 
 /** Batch-resolve listing images for wishlist and similar UIs (one round-trip). */
+export async function getProductsByIds(ids: string[]): Promise<Product[]> {
+  const unique = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  await ensureSeedIfEmpty();
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.from("products").select("*").in("id", unique);
+
+    if (error) {
+      if (isTransientFetchError(error)) {
+        console.warn(`Supabase get products by id skipped (network): ${formatSupabaseError(error)}`);
+        return [];
+      }
+      throw new Error(`Supabase get products by id failed: ${formatSupabaseError(error)}`);
+    }
+
+    return (data as ProductRow[] | null)?.map(rowToProduct) ?? [];
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase get products by id skipped (network): ${formatFetchError(error)}`);
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function getProductImagesByIds(ids: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
   if (unique.length === 0) return new Map();

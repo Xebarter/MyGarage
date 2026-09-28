@@ -1,6 +1,6 @@
 import type { Product } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listProducts, rowToProduct } from "@/lib/supabase/products-repo";
+import { listPublishedProductsLimited, rowToProduct } from "@/lib/supabase/products-repo";
 
 type RecommendedProductRow = {
   id: string;
@@ -71,7 +71,7 @@ async function listPublishedProductsFeed(
   limit: number,
   scoreBreakdown: Record<string, unknown>,
 ): Promise<RecommendedProduct[]> {
-  const fallback = await listProducts();
+  const fallback = await listPublishedProductsLimited(limit);
   return fallback
     .filter((product) => product.published)
     .sort((a, b) => Number(b.featured) - Number(a.featured) || b.createdAt.getTime() - a.createdAt.getTime())
@@ -85,7 +85,7 @@ async function listPublishedProductsFeed(
 }
 
 async function listCreativeAnonymousFeed(limit: number): Promise<RecommendedProduct[]> {
-  const fallback = await listProducts();
+  const fallback = await listPublishedProductsLimited(limit);
   const published = fallback.filter((product) => product.published);
   const featured = published.filter((p) => p.featured);
   const rest = published.filter((p) => !p.featured);

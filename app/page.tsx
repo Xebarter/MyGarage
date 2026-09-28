@@ -11,30 +11,35 @@ export const revalidate = 120;
 
 export const metadata = buildPageMetadata(STATIC_PAGE_SEO['/']);
 
-export default async function Home() {
+function HomeShellFallback() {
+  return (
+    <>
+      <Header />
+      <main className="flex min-h-[45vh] flex-col items-center justify-center gap-3 bg-[#F2F4F8] px-3 text-center sm:px-4 md:bg-muted/30 md:px-5">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+        <p className="text-sm font-medium text-foreground">Loading storefront…</p>
+        <p className="text-xs text-muted-foreground">Preparing products and recommendations.</p>
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+async function HomeContent() {
   const [initialProducts, initialPromoBanners] = await Promise.all([
     loadHomeInitialProducts(300),
     loadHomePromoBanners(),
   ]);
 
   return (
-    <Suspense
-      fallback={
-        <>
-          <Header />
-          <main className="flex min-h-[45vh] flex-col items-center justify-center gap-3 bg-[#F2F4F8] px-3 sm:px-4 md:bg-muted/30 md:px-5 text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
-            <p className="text-sm font-medium text-foreground">Loading storefront…</p>
-            <p className="text-xs text-muted-foreground">Preparing products and recommendations.</p>
-          </main>
-          <Footer />
-        </>
-      }
-    >
-      <HomePageClient
-        initialProducts={initialProducts}
-        initialPromoBanners={initialPromoBanners}
-      />
+    <HomePageClient initialProducts={initialProducts} initialPromoBanners={initialPromoBanners} />
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeShellFallback />}>
+      <HomeContent />
     </Suspense>
   );
 }

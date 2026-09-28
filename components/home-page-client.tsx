@@ -175,10 +175,12 @@ export function HomePageClient({
     try {
       const customerEmail =
         typeof window !== 'undefined' ? (localStorage.getItem('currentBuyerEmail') || '').trim() : '';
-      const query = customerEmail
-        ? `?customerEmail=${encodeURIComponent(customerEmail)}&limit=300`
-        : '?limit=300';
-      const response = await fetch(`/api/feed${query}`, { signal });
+      const storedCustomerId =
+        typeof window !== 'undefined' ? (localStorage.getItem('currentBuyerId') || '').trim() : '';
+      const params = new URLSearchParams({ limit: '300' });
+      if (storedCustomerId) params.set('customerId', storedCustomerId);
+      else if (customerEmail) params.set('customerEmail', customerEmail);
+      const response = await fetch(`/api/feed?${params.toString()}`, { signal });
       const contentType = response.headers.get('content-type') ?? '';
       if (!response.ok || !contentType.includes('application/json')) {
         throw new Error('Failed to fetch products');
@@ -186,8 +188,10 @@ export function HomePageClient({
       const data: unknown = await response.json();
 
       const safeProducts = Array.isArray(data) ? (data as Product[]) : [];
-      setProducts(safeProducts);
-      setCategories(getRecommendedCategories(safeProducts));
+      if (safeProducts.length > 0 || initialProducts.length === 0) {
+        setProducts(safeProducts);
+        setCategories(getRecommendedCategories(safeProducts));
+      }
     } catch (error) {
       if (signal?.aborted) return;
       if (error instanceof DOMException && error.name === 'AbortError') return;

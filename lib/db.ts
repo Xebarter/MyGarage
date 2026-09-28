@@ -432,6 +432,7 @@ export const getProduct = async (id: string) => {
   const product = await productsRepo.getProductById(id);
   return product;
 };
+export const getProductsByIds = async (ids: string[]) => productsRepo.getProductsByIds(ids);
 
 export const createProduct = async (product: ProductInsert) => {
   return productsRepo.insertProduct({

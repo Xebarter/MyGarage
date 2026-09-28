@@ -2,6 +2,7 @@ import type { Customer } from "@/lib/db";
 import { CUSTOMER_SEED_ROWS } from "@/lib/data/customer-seed";
 import { phoneLookupVariants } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatFetchError, isTransientFetchError } from "@/lib/supabase/fetch-errors";
 
 type CustomerRow = {
   id: string;
@@ -42,12 +43,23 @@ async function ensureSeedIfEmpty(): Promise<void> {
   if (customersSeedEnsured) return;
 
   const supabase = createAdminClient();
-  const { count, error: countError } = await supabase
-    .from("customers")
-    .select("*", { count: "exact", head: true });
-
-  if (countError) {
-    throw new Error(`Supabase customers count failed: ${countError.message}`);
+  let count: number | null = null;
+  try {
+    const result = await supabase.from("customers").select("*", { count: "exact", head: true });
+    count = result.count;
+    if (result.error) {
+      if (isTransientFetchError(result.error)) {
+        console.warn(`Supabase customers count skipped (network): ${formatFetchError(result.error)}`);
+        return;
+      }
+      throw new Error(`Supabase customers count failed: ${result.error.message}`);
+    }
+  } catch (error) {
+    if (isTransientFetchError(error)) {
+      console.warn(`Supabase customers count skipped (network): ${formatFetchError(error)}`);
+      return;
+    }
+    throw error;
   }
 
   if (count !== null && count > 0) {
