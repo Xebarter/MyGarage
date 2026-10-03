@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Phone,
   ShieldCheck,
+  Smartphone,
   Truck,
 } from 'lucide-react';
 
@@ -192,16 +193,32 @@ export function Footer() {
               roadside assistance. Fitment help, secure checkout, and delivery across Uganda.
             </p>
 
+            <Link
+              href="/download"
+              className="mt-6 inline-flex max-w-sm items-center gap-3 rounded-2xl bg-primary px-4 py-3.5 text-primary-foreground shadow-lg shadow-primary/30 transition hover:bg-primary/90"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black/10">
+                <Smartphone className="h-5 w-5" aria-hidden />
+              </span>
+              <span className="min-w-0 text-left">
+                <span className="block text-base font-bold tracking-tight">Get the app</span>
+                <span className="block text-xs font-medium text-primary-foreground/80">
+                  Download the Android app
+                </span>
+              </span>
+              <ArrowRight className="ml-1 h-4 w-4 shrink-0" aria-hidden />
+            </Link>
+
             <ul className="mt-7 space-y-3.5">
               <li>
                 <a
-                  href="tel:+256787118634"
+                  href="tel:+256726931908"
                   className="inline-flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
                 >
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-primary">
                     <Phone className="h-3.5 w-3.5" aria-hidden />
                   </span>
-                  +256 787 118 634
+                  +256 726 931 908
                 </a>
               </li>
               <li>
@@ -217,7 +234,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://wa.me/256787118634"
+                  href="https://wa.me/256726931908"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"

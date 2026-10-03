@@ -172,3 +172,20 @@ export async function getCustomerConciergeContext(customerId: string) {
     primary: primary ? await buildVehicleConciergeContext(primary) : null,
   };
 }
+
+/** Vehicle list only. Used for parts search so chat does not wait on service history. */
+export async function getCustomerConciergeContextLight(customerId: string) {
+  const vehicles = await getBuyerVehicles(customerId);
+  const primary = vehicles.find((vehicle) => vehicle.isPrimary) ?? vehicles[0] ?? null;
+  return {
+    vehicles: vehicles.map(serializeVehicleSummary),
+    primary: primary ? { vehicle: serializeVehicleSummary(primary) } : null,
+  };
+}
+
+export async function getVehicleConciergeSummary(vehicleId: string, customerId: string) {
+  const vehicle = await getBuyerVehicle(vehicleId);
+  if (!vehicle) return { error: "not_found" as const };
+  if (vehicle.customerId !== customerId) return { error: "forbidden" as const };
+  return { error: null, context: { vehicle: serializeVehicleSummary(vehicle) } };
+}

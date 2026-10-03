@@ -222,6 +222,13 @@ export const STATIC_PAGE_SEO: Record<string, PageSeoInput> = {
     path: '/',
     keywords: [...SITE_KEYWORDS],
   },
+  '/download': {
+    title: 'Download the MyGarage Android App',
+    description:
+      'Download the MyGarage Android app to shop car parts, track orders, and book mechanics and roadside help in Uganda.',
+    path: '/download',
+    keywords: ['MyGarage app', 'download MyGarage', 'Android car parts app Uganda'],
+  },
   '/faq': {
     title: 'Help Center & FAQs',
     description:

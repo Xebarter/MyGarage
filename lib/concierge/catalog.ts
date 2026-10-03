@@ -46,7 +46,7 @@ export type ConciergeProductSearchInput = {
 };
 
 const PRODUCT_SELECT =
-  "id,name,price,compare_at_price,image,images,category,subcategory,brand,vendor_id,description,featured,published";
+  "id,name,price,compare_at_price,image,images,category,subcategory,brand,vendor_id,featured,published";
 
 function parseOptionalPrice(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -127,16 +127,13 @@ function vehicleTokensFromHint(hint: string): string[] {
 }
 
 function buildOrFilter(tokens: string[]): string {
-  const fields = ["name", "description", "category", "brand"];
   const parts: string[] = [];
-  for (const token of tokens.slice(0, 5)) {
+  for (const token of tokens.slice(0, 4)) {
     const safe = sanitizeIlikeToken(token).slice(0, 40);
     if (safe.length < 2) continue;
-    for (const field of fields) {
-      parts.push(`${field}.ilike.%${safe}%`);
-    }
+    parts.push(`name.ilike.%${safe}%`);
   }
-  return parts.slice(0, 20).join(",");
+  return parts.join(",");
 }
 
 export function listConciergeShopDepartments() {
@@ -197,7 +194,7 @@ export async function searchConciergeProducts(
   let request = supabase.from("products").select(PRODUCT_SELECT).eq("published", true);
 
   if (categoryTitles?.length) {
-    request = request.in("category", categoryTitles.slice(0, 80));
+    request = request.in("category", categoryTitles.slice(0, 24));
   } else if (categoryQuery) {
     const token = sanitizeIlikeToken(categoryQuery).slice(0, 48);
     if (token.length >= 2) request = request.ilike("category", `%${token}%`);
@@ -214,7 +211,7 @@ export async function searchConciergeProducts(
     request = request.order('featured', { ascending: false }).order('created_at', { ascending: false });
   }
 
-  const fetchCount = Math.min(120, Math.max(32, offset + limit * 4));
+  const fetchCount = Math.min(40, Math.max(16, offset + limit * 3));
   const { data, error } = await request.limit(fetchCount);
 
   if (error) {

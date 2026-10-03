@@ -18,8 +18,8 @@ const contactItems = [
   },
   {
     title: 'Phone / WhatsApp',
-    value: '+256 787 118 634',
-    href: 'tel:+256787118634',
+    value: '+256 726 931 908',
+    href: 'tel:+256726931908',
     secondary: { value: '+256 752 405 877', href: 'tel:+256752405877' },
     note: 'Available for quick updates and delivery coordination.',
   },

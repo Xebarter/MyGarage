@@ -32,8 +32,8 @@ import {
   optionalImageUrl,
 } from "@/lib/concierge/guides";
 
-const MAX_HISTORY = 12;
-const MAX_TOOL_ROUNDS = 6;
+const MAX_HISTORY = 8;
+const MAX_TOOL_ROUNDS = 3;
 const FALLBACK_REPLY =
   "I can set up your account, add a car, find parts, place an order, track deliveries, or book a mechanic. What should we do first?";
 
@@ -46,6 +46,39 @@ type ConciergeRunResult = {
   orderBrowse: ConciergeOrderCard[] | null;
   bookingBrowse: ConciergeBookingCard[] | null;
 };
+
+function formatUgx(amount: number): string {
+  return `UGX ${Math.round(amount).toLocaleString("en-UG")}`;
+}
+
+/** Buyers asking to purchase still need a second model turn so it can propose a quote. */
+function messageWantsCheckout(message: string): boolean {
+  return /\b(buy|order|purchase|checkout|add to cart|quote|i(?:'ll| will) take)\b/i.test(message);
+}
+
+/** Local reply after a lookup so search does not wait on another model round. */
+function replyFromSession(session: ToolSession): string | null {
+  if (session.pendingAction) {
+    return "If that looks right, confirm and I will take care of it.";
+  }
+  const detail = session.productDetail;
+  if (detail) {
+    return `${detail.name} is ${formatUgx(detail.price)}. Related parts are on the cards below.`;
+  }
+  const products = session.productBrowse?.products ?? [];
+  if (products.length > 0) {
+    if (products.length === 1) {
+      return `${products[0].name} is ${formatUgx(products[0].price)}. It is on the card below.`;
+    }
+    const title = session.productBrowse?.title?.trim() ?? "";
+    const lead = title && !/^shop/i.test(title) ? ` for ${title}` : "";
+    return `I found ${products.length} parts${lead}. They are on the cards below. Tell me which one to add.`;
+  }
+  if (session.orderBrowse?.length) return "Your recent orders are on the cards below.";
+  if (session.bookingBrowse?.length) return "Your service bookings are on the cards below.";
+  if (session.shopCategories?.length) return "Those are the shop departments. Tell me which group you want.";
+  return null;
+}
 
 function sessionResult(session: ToolSession, reply: string): ConciergeRunResult {
   return {
@@ -919,6 +952,7 @@ async function runXaiChat(
       input,
       tools: XAI_TOOLS,
       store: false,
+      reasoning: { effort: "low" },
     })) as GrokResponsesResult;
     const calls = functionCalls(response);
     if (calls.length === 0) {
@@ -933,6 +967,10 @@ async function runXaiChat(
         call_id: call.call_id || call.id || "",
         output: JSON.stringify(result),
       });
+    }
+    if (session.pendingAction || !messageWantsCheckout(message)) {
+      const quick = replyFromSession(session);
+      if (quick) return sessionResult(session, quick);
     }
   }
   return sessionResult(
@@ -993,6 +1031,10 @@ async function runGroqChat(
         tool_call_id: call.id,
         content: JSON.stringify(result),
       });
+    }
+    if (session.pendingAction || !messageWantsCheckout(message)) {
+      const quick = replyFromSession(session);
+      if (quick) return sessionResult(session, quick);
     }
   }
   return sessionResult(

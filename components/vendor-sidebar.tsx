@@ -16,6 +16,7 @@ import {
   Store,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { MobileAppSidebarDownload } from '@/components/mobile-app-download-prompt';
 import { useVendorPortalChrome } from '@/components/vendor-portal-chrome';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -142,6 +143,7 @@ function VendorSidebarNav({
           );
         })}
       </ul>
+      <MobileAppSidebarDownload audience="vendor" onNavigate={onNavigate} />
     </nav>
   );
 }

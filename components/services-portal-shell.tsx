@@ -1,6 +1,7 @@
 'use client';
 
 import { Header } from '@/components/header';
+import { MobileAppDownloadPrompt } from '@/components/mobile-app-download-prompt';
 import { ServiceProviderSidebar } from '@/components/service-provider-sidebar';
 import { ServicesPortalChromeProvider } from '@/components/services-portal-chrome';
 
@@ -13,6 +14,7 @@ export function ServicesPortalShell({ children }: { children: React.ReactNode })
           <ServiceProviderSidebar />
           <main data-page-scroll className="min-h-0 flex-1 overflow-auto">{children}</main>
         </div>
+        <MobileAppDownloadPrompt audience="services" />
       </div>
     </ServicesPortalChromeProvider>
   );

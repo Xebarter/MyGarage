@@ -19,6 +19,7 @@ export async function collectSitemapEntries(): Promise<SitemapEntry[]> {
   const staticPaths: { path: string; priority: number; changeFrequency: SitemapEntry['changeFrequency'] }[] = [
     { path: '/', priority: 1, changeFrequency: 'daily' },
     { path: '/faq', priority: 0.7, changeFrequency: 'monthly' },
+    { path: '/download', priority: 0.6, changeFrequency: 'weekly' },
     { path: '/contact-us', priority: 0.7, changeFrequency: 'monthly' },
     { path: '/buyer/services', priority: 0.9, changeFrequency: 'weekly' },
     { path: '/terms-and-conditions', priority: 0.4, changeFrequency: 'yearly' },

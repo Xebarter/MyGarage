@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBuyerAddresses, getCustomer } from "@/lib/db";
-import { getCustomerConciergeContext, getVehicleConciergeContext } from "@/lib/concierge-context";
+import {
+  getCustomerConciergeContext,
+  getCustomerConciergeContextLight,
+  getVehicleConciergeContext,
+  getVehicleConciergeSummary,
+} from "@/lib/concierge-context";
 import { classifyGrokError, isGrokConfigured, runConciergeChat } from "@/lib/concierge/grok";
 import type { ConciergeChatTurn } from "@/lib/concierge/types";
+
+function needsGarageDetail(message: string): boolean {
+  return /\b(service history|last service|documents?|insurance|logbook|inspection|next service|recommendations?|mileage|expiry|expired)\b/i.test(
+    message,
+  );
+}
 
 function parseHistory(value: unknown): ConciergeChatTurn[] {
   if (!Array.isArray(value)) return [];
@@ -55,18 +66,26 @@ export async function POST(req: NextRequest) {
     }> = [];
 
     if (customerId) {
-      const customer = await getCustomer(customerId);
-      if (!customer) {
-        return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-      }
-      canBook = true;
-      signedIn = true;
-      const addresses = await getBuyerAddresses(customerId);
-      const defaultAddress = addresses.find((row) => row.isDefault) ?? addresses[0];
-      defaultLocation = defaultAddress?.fullAddress?.trim() || customer.address?.trim() || "";
+      const deep = needsGarageDetail(message);
+      const customerPromise = getCustomer(customerId);
+      const addressesPromise = getBuyerAddresses(customerId);
 
       if (vehicleId) {
-        const scoped = await getVehicleConciergeContext(vehicleId, customerId);
+        const scopedPromise = deep
+          ? getVehicleConciergeContext(vehicleId, customerId)
+          : getVehicleConciergeSummary(vehicleId, customerId);
+        const [customer, addresses, scoped] = await Promise.all([
+          customerPromise,
+          addressesPromise,
+          scopedPromise,
+        ]);
+        if (!customer) {
+          return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+        }
+        canBook = true;
+        signedIn = true;
+        const defaultAddress = addresses.find((row) => row.isDefault) ?? addresses[0];
+        defaultLocation = defaultAddress?.fullAddress?.trim() || customer.address?.trim() || "";
         if (scoped.error === "not_found") {
           return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
         }
@@ -87,7 +106,17 @@ export async function POST(req: NextRequest) {
         vehicles = [v];
         vehicleHint = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
       } else {
-        const ctx = await getCustomerConciergeContext(customerId);
+        const ctxPromise = deep
+          ? getCustomerConciergeContext(customerId)
+          : getCustomerConciergeContextLight(customerId);
+        const [customer, addresses, ctx] = await Promise.all([customerPromise, addressesPromise, ctxPromise]);
+        if (!customer) {
+          return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+        }
+        canBook = true;
+        signedIn = true;
+        const defaultAddress = addresses.find((row) => row.isDefault) ?? addresses[0];
+        defaultLocation = defaultAddress?.fullAddress?.trim() || customer.address?.trim() || "";
         contextJson = JSON.stringify({
           signedIn: true,
           customer: { name: customer.name, phoneSet: Boolean(customer.phone), addressSet: Boolean(customer.address) },

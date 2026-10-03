@@ -310,7 +310,7 @@ function telHref(phone: string) {
 export function LegalContactStrip({
   primaryEmail = 'support@mygarage.ug',
   privacyEmail = 'dpo@mygarage.ug',
-  phones = ['+256 787 118 634', '+256 752 405 877'],
+  phones = ['+256 726 931 908', '+256 752 405 877'],
   extra,
 }: {
   primaryEmail?: string;

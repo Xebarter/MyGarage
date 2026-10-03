@@ -99,6 +99,7 @@ function canSkipAuthMiddleware(pathname: string, hasOAuthCode: boolean): boolean
     "/checkout",
     "/order-confirmation",
     "/contact-us",
+    "/download",
     "/faq",
     "/privacy-policy",
     "/refund-policy",

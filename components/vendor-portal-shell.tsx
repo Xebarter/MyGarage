@@ -1,6 +1,7 @@
 'use client';
 
 import { Header } from '@/components/header';
+import { MobileAppDownloadPrompt } from '@/components/mobile-app-download-prompt';
 import { VendorSidebar } from '@/components/vendor-sidebar';
 import { VendorPortalChromeProvider } from '@/components/vendor-portal-chrome';
 
@@ -13,6 +14,7 @@ export function VendorPortalShell({ children }: { children: React.ReactNode }) {
           <VendorSidebar />
           <main data-page-scroll className="min-h-0 flex-1 overflow-auto">{children}</main>
         </div>
+        <MobileAppDownloadPrompt audience="vendor" />
       </div>
     </VendorPortalChromeProvider>
   );

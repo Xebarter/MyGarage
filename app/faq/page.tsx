@@ -156,7 +156,7 @@ const faqSections = [
       {
         question: 'How do I contact support quickly?',
         answer:
-          'Reach us at support@mygarage.ug or call +256 787 118 634 or +256 752 405 877. Include your order number (if available) for faster assistance.',
+          'Reach us at support@mygarage.ug or call +256 726 931 908 or +256 752 405 877. Include your order number (if available) for faster assistance.',
       },
     ],
   },
@@ -228,8 +228,8 @@ export default function FaqPage() {
                 support@mygarage.ug
               </a>{' '}
               or call{' '}
-              <a href="tel:+256787118634" className="text-primary hover:underline">
-                +256 787 118 634
+              <a href="tel:+256726931908" className="text-primary hover:underline">
+                +256 726 931 908
               </a>
               {' '}or{' '}
               <a href="tel:+256752405877" className="text-primary hover:underline">

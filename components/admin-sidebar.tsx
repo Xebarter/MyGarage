@@ -17,6 +17,7 @@ import {
   LogOut,
   Banknote,
   MessageSquare,
+  Smartphone,
   Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,7 @@ const NAV_GROUPS = [
       { href: '/admin/clients', label: 'Clients', icon: Users },
       { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
       { href: '/admin/vendors', label: 'Vendors & providers', icon: Truck },
+      { href: '/admin/uploads', label: 'App uploads', icon: Smartphone },
       { href: '/admin/payments', label: 'Payments', icon: Wallet },
     ],
   },

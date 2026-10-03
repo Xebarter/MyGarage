@@ -18,6 +18,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { MobileAppSidebarDownload } from '@/components/mobile-app-download-prompt';
 import { useServicesPortalChrome } from '@/components/services-portal-chrome';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -156,6 +157,7 @@ function ServicesSidebarNav({
           );
         })}
       </ul>
+      <MobileAppSidebarDownload audience="services" onNavigate={onNavigate} />
     </nav>
   );
 }
