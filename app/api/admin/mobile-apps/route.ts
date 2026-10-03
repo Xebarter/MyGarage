@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import {
   MOBILE_APP_AUDIENCES,
+  MOBILE_APP_PLATFORMS,
   type MobileAppAudience,
+  type MobileAppPlatform,
   type MobileAppRelease,
 } from "@/lib/mobile-apps";
 import { createMobileAppDownloadUrl, listMobileAppReleases } from "@/lib/supabase/mobile-apps-repo";
@@ -18,6 +20,7 @@ async function withDownloadUrl(release: MobileAppRelease) {
   }
   return {
     audience: release.audience,
+    platform: release.platform,
     fileName: release.fileName,
     fileSize: release.fileSize,
     versionLabel: release.versionLabel,
@@ -35,21 +38,23 @@ export async function GET() {
     }
 
     const releases = await listMobileAppReleases();
-    const byAudience = new Map(releases.map((release) => [release.audience, release]));
-    const items = await Promise.all(
+    const byKey = new Map(releases.map((release) => [`${release.audience}:${release.platform}`, release]));
+    const payload = {} as Record<MobileAppAudience, Record<MobileAppPlatform, Awaited<ReturnType<typeof withDownloadUrl>> | null>>;
+
+    await Promise.all(
       MOBILE_APP_AUDIENCES.map(async (audience: MobileAppAudience) => {
-        const release = byAudience.get(audience);
-        return release ? withDownloadUrl(release) : null;
+        const slots = {} as Record<MobileAppPlatform, Awaited<ReturnType<typeof withDownloadUrl>> | null>;
+        await Promise.all(
+          MOBILE_APP_PLATFORMS.map(async (platform) => {
+            const release = byKey.get(`${audience}:${platform}`);
+            slots[platform] = release ? await withDownloadUrl(release) : null;
+          }),
+        );
+        payload[audience] = slots;
       }),
     );
 
-    return NextResponse.json({
-      releases: {
-        public: items[0],
-        vendor: items[1],
-        services: items[2],
-      },
-    });
+    return NextResponse.json({ releases: payload });
   } catch (error) {
     return mobileAppErrorResponse(error, "Could not load app uploads.");
   }

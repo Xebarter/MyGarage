@@ -22,13 +22,9 @@ export default function DownloadPage() {
       <main className="bg-background">
         <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6 md:py-14 lg:px-8">
           <div className="mb-8">
-            <p className="mb-4 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              Android app
-            </p>
-            <h1 className="mb-3 text-3xl font-bold text-foreground md:text-4xl">Get the MyGarage app</h1>
+            <h1 className="mb-3 text-3xl font-bold text-foreground md:text-4xl">Get the app</h1>
             <p className="max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">
-              Download the public MyGarage app for Android. Supplier and service provider apps are shared inside those
-              dashboards after an account is verified.
+              Android or iOS. Supplier and provider apps stay inside those dashboards.
             </p>
           </div>
           <PublicAppDownload />

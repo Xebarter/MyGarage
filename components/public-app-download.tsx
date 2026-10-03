@@ -1,37 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, Loader2, Smartphone } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { AppPlatformChoices } from '@/components/app-platform-choices';
 import {
-  MOBILE_APP_COPY,
   fetchMobileAppDownload,
-  formatFileSize,
-  startApkDownload,
-  type MobileAppDownloadInfo,
+  startAppDownload,
+  type MobileAppCatalog,
+  type MobileAppPlatform,
+  type MobileAppPlatformDownload,
 } from '@/lib/mobile-apps';
 
+const EMPTY: MobileAppCatalog = { audience: 'public', android: null, ios: null };
+
 export function PublicAppDownload() {
-  const [info, setInfo] = useState<MobileAppDownloadInfo | null>(null);
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading');
+  const [catalog, setCatalog] = useState<MobileAppCatalog>(EMPTY);
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<MobileAppPlatform | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void fetchMobileAppDownload('public').then((result) => {
       if (cancelled) return;
-      if (result.status === 'ready') {
-        setInfo(result.info);
+      if (result.status === 'ready' || result.status === 'empty') {
+        setCatalog(result.catalog);
         setPhase('ready');
         return;
       }
-      if (result.status === 'empty') {
-        setPhase('empty');
-        return;
-      }
-      setMessage(result.status === 'error' ? result.message : 'Could not load the app download.');
+      setMessage(result.status === 'error' ? result.message : 'Could not load the app.');
       setPhase('error');
     });
     return () => {
@@ -39,66 +36,35 @@ export function PublicAppDownload() {
     };
   }, []);
 
-  async function download() {
-    setDownloading(true);
+  async function download(_platform: MobileAppPlatform, info: MobileAppPlatformDownload) {
+    setDownloading(info.platform);
     setMessage('');
     const result = await fetchMobileAppDownload('public');
-    setDownloading(false);
-    if (result.status !== 'ready') {
-      setMessage(result.status === 'empty' ? 'The Android app is not available yet.' : 'Could not start the download.');
-      if (result.status === 'empty') setPhase('empty');
+    setDownloading(null);
+    if (result.status !== 'ready' && result.status !== 'empty') {
+      setMessage('Could not start the download.');
       return;
     }
-    setInfo(result.info);
-    startApkDownload(result.info.downloadUrl);
+    setCatalog(result.catalog);
+    const next = info.platform === 'ios' ? result.catalog.ios : result.catalog.android;
+    if (!next) return;
+    startAppDownload(next.downloadUrl);
   }
 
-  const copy = MOBILE_APP_COPY.public;
-
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
-      <div className="flex items-start gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Smartphone className="h-6 w-6" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">{copy.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground md:text-base">{copy.description}</p>
-        </div>
-      </div>
-
-      {phase === 'loading' ? (
-        <p className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Checking for the latest app…
-        </p>
-      ) : null}
-
-      {phase === 'empty' ? (
-        <p className="mt-6 text-sm leading-6 text-muted-foreground">
-          The Android app is not available for download yet. Check back soon.
-        </p>
-      ) : null}
-
-      {phase === 'error' ? <p className="mt-6 text-sm text-destructive">{message}</p> : null}
-
-      {phase === 'ready' && info ? (
-        <div className="mt-6 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {info.versionLabel ? `Version ${info.versionLabel} · ` : ''}
-            {formatFileSize(info.fileSize)} · Android APK
-          </p>
-          {info.notes ? <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{info.notes}</p> : null}
-          <p className="text-sm leading-6 text-muted-foreground">
-            After the file downloads, open it on your Android phone. If Android asks, allow installation from your
-            browser.
-          </p>
-          {message ? <p className="text-sm text-destructive">{message}</p> : null}
-          <Button type="button" size="lg" onClick={() => void download()} disabled={downloading}>
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download the app
-          </Button>
-        </div>
+    <section className="rounded-3xl border border-border/70 bg-card p-6 shadow-[0_16px_40px_rgba(24,40,28,0.06)] ring-1 ring-black/[0.03] md:p-8">
+      {phase === 'loading' ? <div className="h-36 animate-pulse rounded-2xl bg-muted/60" /> : null}
+      {phase === 'error' ? <p className="text-sm text-destructive">{message}</p> : null}
+      {phase === 'ready' ? (
+        <>
+          <AppPlatformChoices
+            android={catalog.android}
+            ios={catalog.ios}
+            downloading={downloading}
+            onDownload={(platform, info) => void download(platform, info)}
+          />
+          {message ? <p className="mt-3 text-sm text-destructive">{message}</p> : null}
+        </>
       ) : null}
     </section>
   );

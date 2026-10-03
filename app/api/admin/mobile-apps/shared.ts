@@ -18,7 +18,7 @@ export function mobileAppErrorResponse(error: unknown, fallback: string) {
   const missingBucket = /bucket not found/i.test(message);
   if (missingTable || missingBucket) {
     return NextResponse.json(
-      { error: "Apply migration 056_mobile_app_releases.sql in Supabase, then try again." },
+      { error: "Apply migrations 056 and 058 in Supabase, then try again." },
       { status: 503 },
     );
   }

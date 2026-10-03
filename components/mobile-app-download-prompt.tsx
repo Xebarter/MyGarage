@@ -2,25 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Download, Loader2, Smartphone } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { AppPlatformChoices } from '@/components/app-platform-choices';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
   MOBILE_APP_COPY,
   appDownloadDismissKey,
+  catalogStamp,
   fetchMobileAppDownload,
-  formatFileSize,
-  startApkDownload,
+  startAppDownload,
   type MobileAppAudience,
-  type MobileAppDownloadInfo,
+  type MobileAppCatalog,
+  type MobileAppPlatform,
+  type MobileAppPlatformDownload,
 } from '@/lib/mobile-apps';
 import { cn } from '@/lib/utils';
 
@@ -33,29 +33,29 @@ function isPendingPath(audience: 'vendor' | 'services', pathname: string) {
 export function MobileAppDownloadPrompt({ audience }: { audience: 'vendor' | 'services' }) {
   const pathname = usePathname();
   const pending = isPendingPath(audience, pathname);
-  const [info, setInfo] = useState<MobileAppDownloadInfo | null>(null);
+  const [catalog, setCatalog] = useState<MobileAppCatalog | null>(null);
   const [open, setOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<MobileAppPlatform | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (pending) {
-      setInfo(null);
+      setCatalog(null);
       setOpen(false);
       return;
     }
 
     let cancelled = false;
     void fetchMobileAppDownload(audience).then((result) => {
-      if (cancelled) return;
-      if (result.status !== 'ready') {
-        setInfo(null);
+      if (cancelled || result.status === 'forbidden' || result.status === 'error') return;
+      if (result.status === 'empty') {
+        setCatalog(result.catalog);
         setOpen(false);
         return;
       }
       const seen = window.localStorage.getItem(appDownloadDismissKey(audience));
-      setInfo(result.info);
-      setOpen(seen !== result.info.updatedAt);
+      setCatalog(result.catalog);
+      setOpen(seen !== catalogStamp(result.catalog));
     });
 
     return () => {
@@ -64,28 +64,32 @@ export function MobileAppDownloadPrompt({ audience }: { audience: 'vendor' | 'se
   }, [audience, pending]);
 
   function rememberSeen() {
-    if (!info) return;
-    window.localStorage.setItem(appDownloadDismissKey(audience), info.updatedAt);
+    if (!catalog) return;
+    window.localStorage.setItem(appDownloadDismissKey(audience), catalogStamp(catalog));
     setOpen(false);
   }
 
-  async function download() {
-    if (!info) return;
-    setDownloading(true);
+  async function download(platform: MobileAppPlatform, info: MobileAppPlatformDownload) {
+    setDownloading(platform);
     setError('');
     const fresh = await fetchMobileAppDownload(audience);
-    setDownloading(false);
+    setDownloading(null);
     if (fresh.status !== 'ready') {
-      setError(fresh.status === 'empty' ? 'This app is not available yet.' : 'Could not start the download.');
+      setError('Could not start the download.');
       return;
     }
-    setInfo(fresh.info);
-    startApkDownload(fresh.info.downloadUrl);
-    window.localStorage.setItem(appDownloadDismissKey(audience), fresh.info.updatedAt);
+    const next = platform === 'ios' ? fresh.catalog.ios : fresh.catalog.android;
+    if (!next) {
+      setCatalog(fresh.catalog);
+      return;
+    }
+    setCatalog(fresh.catalog);
+    startAppDownload(next.downloadUrl || info.downloadUrl);
+    window.localStorage.setItem(appDownloadDismissKey(audience), catalogStamp(fresh.catalog));
     setOpen(false);
   }
 
-  if (!info) return null;
+  if (!catalog || (!catalog.android && !catalog.ios)) return null;
 
   const copy = MOBILE_APP_COPY[audience];
 
@@ -97,31 +101,28 @@ export function MobileAppDownloadPrompt({ audience }: { audience: 'vendor' | 'se
         else setOpen(true);
       }}
     >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Download the {copy.title.toLowerCase()}</DialogTitle>
-          <DialogDescription>
-            Your account is verified. Install the Android app to keep working from your phone.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p>{copy.description}</p>
-          <p>
-            {info.versionLabel ? `Version ${info.versionLabel} · ` : ''}
-            {formatFileSize(info.fileSize)}
-          </p>
-          {info.notes ? <p className="whitespace-pre-wrap text-foreground">{info.notes}</p> : null}
-          {error ? <p className="text-destructive">{error}</p> : null}
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <div className="bg-gradient-to-b from-primary/10 to-transparent px-6 pt-6 pb-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">MyGarage</p>
+          <DialogTitle className="mt-2 text-2xl tracking-tight">{copy.title}</DialogTitle>
+          <DialogDescription className="mt-1">Choose your phone.</DialogDescription>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={rememberSeen}>
+        <div className="px-6 pb-6">
+          <AppPlatformChoices
+            android={catalog.android}
+            ios={catalog.ios}
+            downloading={downloading}
+            onDownload={(platform, info) => void download(platform, info)}
+          />
+          {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+          <button
+            type="button"
+            onClick={rememberSeen}
+            className="mt-4 w-full text-center text-sm text-muted-foreground transition hover:text-foreground"
+          >
             Not now
-          </Button>
-          <Button type="button" onClick={() => void download()} disabled={downloading}>
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download
-          </Button>
-        </DialogFooter>
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -136,52 +137,83 @@ export function MobileAppSidebarDownload({
 }) {
   const pathname = usePathname();
   const pending = isPendingPath(audience, pathname);
-  const [info, setInfo] = useState<MobileAppDownloadInfo | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [catalog, setCatalog] = useState<MobileAppCatalog | null>(null);
+  const [downloading, setDownloading] = useState<MobileAppPlatform | null>(null);
 
   useEffect(() => {
     if (pending) {
-      setInfo(null);
+      setCatalog(null);
       return;
     }
     let cancelled = false;
     void fetchMobileAppDownload(audience).then((result) => {
-      if (cancelled) return;
-      setInfo(result.status === 'ready' ? result.info : null);
+      if (cancelled || result.status === 'forbidden' || result.status === 'error') return;
+      setCatalog(result.catalog);
     });
     return () => {
       cancelled = true;
     };
   }, [audience, pending]);
 
-  if (!info) return null;
+  if (!catalog || (!catalog.android && !catalog.ios)) return null;
 
-  const copy = MOBILE_APP_COPY[audience];
+  function start(platform: MobileAppPlatform) {
+    const current = platform === 'ios' ? catalog?.ios : catalog?.android;
+    if (!current) return;
+    onNavigate?.();
+    setDownloading(platform);
+    void fetchMobileAppDownload(audience).then((result) => {
+      setDownloading(null);
+      if (result.status !== 'ready') return;
+      const next = platform === 'ios' ? result.catalog.ios : result.catalog.android;
+      if (next) startAppDownload(next.downloadUrl);
+    });
+  }
 
   return (
     <div className="mt-4">
       <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">App</p>
-      <button
-        type="button"
-        disabled={downloading}
-        onClick={() => {
-          onNavigate?.();
-          setDownloading(true);
-          void fetchMobileAppDownload(audience).then((result) => {
-            setDownloading(false);
-            if (result.status === 'ready') startApkDownload(result.info.downloadUrl);
-          });
-        }}
-        className={cn(
-          'group flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-sm font-medium text-foreground/90 transition-colors hover:bg-accent/80 hover:text-foreground',
-          'disabled:opacity-60',
-        )}
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/80 text-muted-foreground group-hover:bg-background group-hover:text-foreground">
-          {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Smartphone className="h-4 w-4" aria-hidden />}
-        </span>
-        <span className="truncate">{copy.sidebarLabel}</span>
-      </button>
+      <SidebarPlatform
+        label="Android"
+        ready={Boolean(catalog.android)}
+        busy={downloading === 'android'}
+        onClick={() => start('android')}
+      />
+      <SidebarPlatform
+        label="iOS"
+        ready={Boolean(catalog.ios)}
+        busy={downloading === 'ios'}
+        onClick={() => start('ios')}
+      />
     </div>
+  );
+}
+
+function SidebarPlatform({
+  label,
+  ready,
+  busy,
+  onClick,
+}: {
+  label: string;
+  ready: boolean;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={!ready || busy}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm',
+        ready ? 'text-foreground/90 hover:bg-accent/80' : 'cursor-default text-muted-foreground',
+      )}
+    >
+      <span className="font-medium">{label}</span>
+      <span className="text-[11px] uppercase tracking-wide">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : ready ? 'Download' : 'Coming soon'}
+      </span>
+    </button>
   );
 }

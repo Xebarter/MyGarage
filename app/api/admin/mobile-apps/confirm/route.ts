@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  cleanApkFileName,
+  cleanAppFileName,
   cleanReleaseNotes,
   cleanVersionLabel,
   isMobileAppAudience,
+  isMobileAppPlatform,
   isOwnedStoragePath,
-  validateApkUpload,
+  validateAppUpload,
 } from "@/lib/mobile-apps";
 import {
   createMobileAppDownloadUrl,
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => null)) as {
       audience?: string;
+      platform?: string;
       storagePath?: string;
       fileName?: string;
       fileSize?: number;
@@ -35,30 +37,35 @@ export async function POST(req: NextRequest) {
     } | null;
 
     const audience = String(body?.audience ?? "");
+    const platform = String(body?.platform ?? "android");
     if (!isMobileAppAudience(audience)) {
       return NextResponse.json({ error: "Choose a public, supplier, or service provider app." }, { status: 400 });
     }
+    if (!isMobileAppPlatform(platform)) {
+      return NextResponse.json({ error: "Choose Android or iOS." }, { status: 400 });
+    }
 
     const storagePath = String(body?.storagePath ?? "");
-    if (!isOwnedStoragePath(audience, storagePath)) {
+    if (!isOwnedStoragePath(audience, platform, storagePath)) {
       return NextResponse.json({ error: "That upload is not valid for this app." }, { status: 400 });
     }
 
-    const fileName = cleanApkFileName(String(body?.fileName ?? ""));
+    const fileName = cleanAppFileName(String(body?.fileName ?? ""), platform);
     const fileSize = Number(body?.fileSize);
-    const invalid = validateApkUpload(fileName, "application/vnd.android.package-archive", fileSize);
+    const invalid = validateAppUpload(platform, fileName, "", fileSize);
     if (invalid) {
       return NextResponse.json({ error: invalid }, { status: 400 });
     }
 
     const uploaded = await mobileAppObjectExists(storagePath);
     if (!uploaded) {
-      return NextResponse.json({ error: "The APK did not finish uploading. Try again." }, { status: 400 });
+      return NextResponse.json({ error: "The file did not finish uploading. Try again." }, { status: 400 });
     }
 
-    const previous = await getMobileAppRelease(audience);
+    const previous = await getMobileAppRelease(audience, platform);
     const release = await upsertMobileAppRelease({
       audience,
+      platform,
       storagePath,
       fileName,
       fileSize,
@@ -71,7 +78,7 @@ export async function POST(req: NextRequest) {
       try {
         await removeMobileAppObject(previous.storagePath);
       } catch (error) {
-        console.error("Could not remove the previous APK", error);
+        console.error("Could not remove the previous app file", error);
       }
     }
 
@@ -79,6 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       release: {
         audience: release.audience,
+        platform: release.platform,
         fileName: release.fileName,
         fileSize: release.fileSize,
         versionLabel: release.versionLabel,

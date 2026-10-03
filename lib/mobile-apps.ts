@@ -5,7 +5,11 @@ export const MOBILE_APP_MIME_TYPES = [
   "application/octet-stream",
   "application/zip",
   "application/java-archive",
+  "application/x-itunes-ipa",
 ] as const;
+
+export const MOBILE_APP_PLATFORMS = ["android", "ios"] as const;
+export type MobileAppPlatform = (typeof MOBILE_APP_PLATFORMS)[number];
 export const MOBILE_APP_SIGNED_URL_SECONDS = 10 * 60;
 
 export const MOBILE_APP_AUDIENCES = ["public", "vendor", "services"] as const;
@@ -40,14 +44,15 @@ const ALLOWED_MIME = new Set([
   "application/octet-stream",
   "application/zip",
   "application/java-archive",
+  "application/x-itunes-ipa",
   "",
 ]);
 
-const STORAGE_PATH =
-  /^(public|vendor|services)\/\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.apk$/;
+const FILE_ID = String.raw`\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`;
 
 export type MobileAppRelease = {
   audience: MobileAppAudience;
+  platform: MobileAppPlatform;
   storagePath: string;
   fileName: string;
   fileSize: number;
@@ -56,8 +61,8 @@ export type MobileAppRelease = {
   updatedAt: string;
 };
 
-export type MobileAppDownloadInfo = {
-  audience: MobileAppAudience;
+export type MobileAppPlatformDownload = {
+  platform: MobileAppPlatform;
   fileName: string;
   fileSize: number;
   versionLabel: string;
@@ -66,37 +71,76 @@ export type MobileAppDownloadInfo = {
   downloadUrl: string;
 };
 
+export type MobileAppCatalog = {
+  audience: MobileAppAudience;
+  android: MobileAppPlatformDownload | null;
+  ios: MobileAppPlatformDownload | null;
+};
+
 export function isMobileAppAudience(value: string): value is MobileAppAudience {
   return (MOBILE_APP_AUDIENCES as readonly string[]).includes(value);
 }
 
-export function apkContentType(contentType: string): string {
+export function isMobileAppPlatform(value: string): value is MobileAppPlatform {
+  return (MOBILE_APP_PLATFORMS as readonly string[]).includes(value);
+}
+
+export function appFileExtension(platform: MobileAppPlatform): "apk" | "ipa" {
+  return platform === "ios" ? "ipa" : "apk";
+}
+
+export function appContentType(platform: MobileAppPlatform, contentType: string): string {
   const mime = contentType.trim().toLowerCase();
+  if (platform === "ios") {
+    if (mime === "application/zip" || mime === "application/x-itunes-ipa") return mime;
+    return "application/octet-stream";
+  }
   if (mime === "application/octet-stream" || mime === "application/zip" || mime === "application/java-archive") {
     return mime;
   }
   return "application/vnd.android.package-archive";
 }
 
-export function validateApkUpload(fileName: string, contentType: string, fileSize: number): string | null {
+export function validateAppUpload(
+  platform: MobileAppPlatform,
+  fileName: string,
+  contentType: string,
+  fileSize: number,
+): string | null {
   const name = fileName.trim();
-  if (!name.toLowerCase().endsWith(".apk")) return "Upload an Android APK file.";
-  if (!ALLOWED_MIME.has(contentType.trim().toLowerCase())) return "That file type is not an APK.";
-  if (!Number.isFinite(fileSize) || fileSize <= 0) return "Choose an APK file.";
-  if (fileSize > MOBILE_APP_MAX_BYTES) return "APK must be 75 MB or smaller.";
+  const extension = appFileExtension(platform);
+  if (!name.toLowerCase().endsWith(`.${extension}`)) {
+    return platform === "ios" ? "Upload an iOS IPA file." : "Upload an Android APK file.";
+  }
+  if (!ALLOWED_MIME.has(contentType.trim().toLowerCase())) {
+    return platform === "ios" ? "That file type is not an IPA." : "That file type is not an APK.";
+  }
+  if (!Number.isFinite(fileSize) || fileSize <= 0) return "Choose an app file.";
+  if (fileSize > MOBILE_APP_MAX_BYTES) return "The file must be 75 MB or smaller.";
   return null;
 }
 
-export function cleanApkFileName(fileName: string): string {
-  const base = (fileName.split(/[/\\]/).pop() ?? "app.apk").trim();
-  const cleaned = base.replace(/[^\w.\- ()]/g, "_").replace(/\s+/g, " ").trim() || "app.apk";
-  const withExt = cleaned.toLowerCase().endsWith(".apk") ? cleaned : `${cleaned}.apk`;
+export function cleanAppFileName(fileName: string, platform: MobileAppPlatform): string {
+  const extension = appFileExtension(platform);
+  const fallback = `app.${extension}`;
+  const base = (fileName.split(/[/\\]/).pop() ?? fallback).trim();
+  const cleaned = base.replace(/[^\w.\- ()]/g, "_").replace(/\s+/g, " ").trim() || fallback;
+  const withExt = cleaned.toLowerCase().endsWith(`.${extension}`) ? cleaned : `${cleaned}.${extension}`;
   if (withExt.length <= 180) return withExt;
-  return `${withExt.slice(0, 176)}.apk`;
+  return `${withExt.slice(0, 176)}.${extension}`;
 }
 
-export function isOwnedStoragePath(audience: MobileAppAudience, storagePath: string): boolean {
-  return STORAGE_PATH.test(storagePath) && storagePath.startsWith(`${audience}/`);
+export function isOwnedStoragePath(
+  audience: MobileAppAudience,
+  platform: MobileAppPlatform,
+  storagePath: string,
+): boolean {
+  const extension = appFileExtension(platform);
+  const modern = new RegExp(`^${audience}/${platform}/${FILE_ID}\\.${extension}$`);
+  if (modern.test(storagePath)) return true;
+  if (platform !== "android") return false;
+  const legacy = new RegExp(`^${audience}/${FILE_ID}\\.apk$`);
+  return legacy.test(storagePath);
 }
 
 export function cleanVersionLabel(value: unknown): string {
@@ -118,7 +162,7 @@ export function appDownloadDismissKey(audience: MobileAppAudience): string {
   return `mygarage-app-download-dismissed:${audience}`;
 }
 
-export function startApkDownload(url: string) {
+export function startAppDownload(url: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.target = "_blank";
@@ -128,33 +172,55 @@ export function startApkDownload(url: string) {
   anchor.remove();
 }
 
+export function catalogStamp(catalog: MobileAppCatalog): string {
+  return [catalog.android?.updatedAt ?? "", catalog.ios?.updatedAt ?? ""].join("|");
+}
+
+function readPlatform(
+  platform: MobileAppPlatform,
+  value: unknown,
+): MobileAppPlatformDownload | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<MobileAppPlatformDownload>;
+  if (!row.downloadUrl || !row.updatedAt || !row.fileName) return null;
+  return {
+    platform,
+    fileName: row.fileName,
+    fileSize: Number(row.fileSize) || 0,
+    versionLabel: row.versionLabel ?? "",
+    notes: row.notes ?? "",
+    updatedAt: row.updatedAt,
+    downloadUrl: row.downloadUrl,
+  };
+}
+
 export type MobileAppFetchResult =
-  | { status: "ready"; info: MobileAppDownloadInfo }
-  | { status: "empty" }
+  | { status: "ready"; catalog: MobileAppCatalog }
+  | { status: "empty"; catalog: MobileAppCatalog }
   | { status: "forbidden" }
   | { status: "error"; message: string };
 
 export async function fetchMobileAppDownload(audience: MobileAppAudience): Promise<MobileAppFetchResult> {
+  const empty: MobileAppCatalog = { audience, android: null, ios: null };
   try {
     const res = await fetch(`/api/mobile-apps/${audience}`, { cache: "no-store" });
-    if (res.status === 404) return { status: "empty" };
     if (res.status === 401 || res.status === 403) return { status: "forbidden" };
-    const body = (await res.json().catch(() => null)) as { error?: string } & Partial<MobileAppDownloadInfo> | null;
-    if (!res.ok || !body?.downloadUrl || !body.updatedAt || !body.fileName) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      android?: unknown;
+      ios?: unknown;
+    } | null;
+    if (!res.ok) {
+      if (res.status === 404) return { status: "empty", catalog: empty };
       return { status: "error", message: body?.error || "Could not load the app download." };
     }
-    return {
-      status: "ready",
-      info: {
-        audience,
-        fileName: body.fileName,
-        fileSize: Number(body.fileSize) || 0,
-        versionLabel: body.versionLabel ?? "",
-        notes: body.notes ?? "",
-        updatedAt: body.updatedAt,
-        downloadUrl: body.downloadUrl,
-      },
+    const catalog: MobileAppCatalog = {
+      audience,
+      android: readPlatform("android", body?.android),
+      ios: readPlatform("ios", body?.ios),
     };
+    if (!catalog.android && !catalog.ios) return { status: "empty", catalog };
+    return { status: "ready", catalog };
   } catch {
     return { status: "error", message: "Could not load the app download." };
   }

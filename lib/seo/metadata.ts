@@ -223,11 +223,11 @@ export const STATIC_PAGE_SEO: Record<string, PageSeoInput> = {
     keywords: [...SITE_KEYWORDS],
   },
   '/download': {
-    title: 'Download the MyGarage Android App',
+    title: 'Get the MyGarage App',
     description:
-      'Download the MyGarage Android app to shop car parts, track orders, and book mechanics and roadside help in Uganda.',
+      'Download MyGarage for Android or iOS to shop car parts, track orders, and book mechanics and roadside help in Uganda.',
     path: '/download',
-    keywords: ['MyGarage app', 'download MyGarage', 'Android car parts app Uganda'],
+    keywords: ['MyGarage app', 'download MyGarage', 'Android car parts app Uganda', 'iOS car parts app Uganda'],
   },
   '/faq': {
     title: 'Help Center & FAQs',

@@ -25,17 +25,21 @@ import {
   MOBILE_APP_BUCKET,
   MOBILE_APP_COPY,
   MOBILE_APP_MAX_BYTES,
-  apkContentType,
+  MOBILE_APP_PLATFORMS,
+  appContentType,
+  appFileExtension,
   formatFileSize,
-  startApkDownload,
-  validateApkUpload,
+  startAppDownload,
+  validateAppUpload,
   type MobileAppAudience,
+  type MobileAppPlatform,
 } from '@/lib/mobile-apps';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 type AdminRelease = {
   audience: MobileAppAudience;
+  platform: MobileAppPlatform;
   fileName: string;
   fileSize: number;
   versionLabel: string;
@@ -44,12 +48,14 @@ type AdminRelease = {
   downloadUrl: string | null;
 };
 
-type ReleaseMap = Record<MobileAppAudience, AdminRelease | null>;
+type AudienceSlots = Record<MobileAppPlatform, AdminRelease | null>;
+type ReleaseMap = Record<MobileAppAudience, AudienceSlots>;
 
+const EMPTY_SLOTS: AudienceSlots = { android: null, ios: null };
 const EMPTY_RELEASES: ReleaseMap = {
-  public: null,
-  vendor: null,
-  services: null,
+  public: { ...EMPTY_SLOTS },
+  vendor: { ...EMPTY_SLOTS },
+  services: { ...EMPTY_SLOTS },
 };
 
 const AUDIENCE_PRESENTATION: Record<
@@ -113,9 +119,9 @@ export default function AdminUploadsPage() {
         throw new Error(body?.error || 'Could not load app uploads.');
       }
       setReleases({
-        public: body.releases.public ?? null,
-        vendor: body.releases.vendor ?? null,
-        services: body.releases.services ?? null,
+        public: { android: body.releases.public?.android ?? null, ios: body.releases.public?.ios ?? null },
+        vendor: { android: body.releases.vendor?.android ?? null, ios: body.releases.vendor?.ios ?? null },
+        services: { android: body.releases.services?.android ?? null, ios: body.releases.services?.ios ?? null },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load app uploads.';
@@ -131,13 +137,17 @@ export default function AdminUploadsPage() {
   }, [load]);
 
   const published = useMemo(
-    () => MOBILE_APP_AUDIENCES.filter((audience) => releases[audience]).length,
+    () =>
+      MOBILE_APP_AUDIENCES.reduce(
+        (count, audience) => count + MOBILE_APP_PLATFORMS.filter((platform) => releases[audience][platform]).length,
+        0,
+      ),
     [releases],
   );
   const latest = useMemo(() => {
-    const stamps = MOBILE_APP_AUDIENCES.map((audience) => releases[audience]?.updatedAt).filter(
-      (value): value is string => Boolean(value),
-    );
+    const stamps = MOBILE_APP_AUDIENCES.flatMap((audience) =>
+      MOBILE_APP_PLATFORMS.map((platform) => releases[audience][platform]?.updatedAt),
+    ).filter((value): value is string => Boolean(value));
     if (!stamps.length) return '';
     return stamps.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? '';
   }, [releases]);
@@ -150,8 +160,7 @@ export default function AdminUploadsPage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Distribution</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">App uploads</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Publish the Android build for buyers, suppliers, and service providers. Replacing a file prompts that
-              dashboard to offer the new download.
+              Publish Android and iOS builds for buyers, suppliers, and service providers. A missing build shows as coming soon.
             </p>
           </div>
           <Button type="button" variant="outline" className="self-start lg:self-auto" onClick={() => void load(true)} disabled={loading}>
@@ -161,13 +170,13 @@ export default function AdminUploadsPage() {
         </header>
 
         <section className="grid gap-3 sm:grid-cols-3">
-          <SummaryTile label="Published" value={loading ? '—' : `${published} of 3`} hint="Live Android builds" />
+          <SummaryTile label="Published" value={loading ? '—' : `${published} of 6`} hint="Android and iOS builds" />
           <SummaryTile
             label="Last release"
             value={latest ? formatRelative(latest) : loading ? '—' : 'None yet'}
             hint={latest ? formatUpdated(latest) : 'No files uploaded'}
           />
-          <SummaryTile label="File limit" value="75 MB" hint="APK only · signed download links" />
+          <SummaryTile label="File limit" value="75 MB" hint="APK or IPA · signed download links" />
         </section>
 
         {loadError ? (
@@ -184,7 +193,7 @@ export default function AdminUploadsPage() {
             <AppReleaseCard
               key={audience}
               audience={audience}
-              release={releases[audience]}
+              slots={releases[audience]}
               loading={loading}
               onChanged={() => void load(true)}
             />
@@ -207,12 +216,12 @@ function SummaryTile({ label, value, hint }: { label: string; value: string; hin
 
 function AppReleaseCard({
   audience,
-  release,
+  slots,
   loading,
   onChanged,
 }: {
   audience: MobileAppAudience;
-  release: AdminRelease | null;
+  slots: AudienceSlots;
   loading: boolean;
   onChanged: () => void;
 }) {
@@ -220,6 +229,10 @@ function AppReleaseCard({
   const presentation = AUDIENCE_PRESENTATION[audience];
   const Icon = presentation.Icon;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [platform, setPlatform] = useState<MobileAppPlatform>('android');
+  const release = slots[platform];
+  const platformLabel = platform === 'ios' ? 'iOS' : 'Android';
+  const fileInputRefKey = `${audience}-${platform}`;
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -231,7 +244,11 @@ function AppReleaseCard({
   useEffect(() => {
     setVersionLabel(release?.versionLabel ?? '');
     setNotes(release?.notes ?? '');
-  }, [release?.updatedAt, release?.versionLabel, release?.notes]);
+    setFile(null);
+    setFileError('');
+    setConfirmRemove(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [platform, release?.updatedAt, release?.versionLabel, release?.notes]);
 
   function chooseFile(next: File | null) {
     setConfirmRemove(false);
@@ -240,17 +257,17 @@ function AppReleaseCard({
       setFileError('');
       return;
     }
-    const invalid = validateApkUpload(next.name, next.type, next.size);
+    const invalid = validateAppUpload(platform, next.name, next.type, next.size);
     setFile(next);
     setFileError(invalid ?? '');
   }
 
   async function upload() {
     if (!file) {
-      toast.error('Choose an APK file.');
+      toast.error(platform === 'ios' ? 'Choose an IPA file.' : 'Choose an APK file.');
       return;
     }
-    const invalid = validateApkUpload(file.name, file.type, file.size);
+    const invalid = validateAppUpload(platform, file.name, file.type, file.size);
     if (invalid) {
       setFileError(invalid);
       toast.error(invalid);
@@ -259,12 +276,13 @@ function AppReleaseCard({
 
     setBusy('prepare');
     try {
-      const contentType = apkContentType(file.type);
+      const contentType = appContentType(platform, file.type);
       const prepRes = await fetch('/api/admin/mobile-apps/upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audience,
+          platform,
           fileName: file.name,
           fileSize: file.size,
           contentType,
@@ -293,7 +311,7 @@ function AppReleaseCard({
         const detail = uploadError.message || 'Upload failed.';
         if (/maximum allowed size|payload too large|entity too large/i.test(detail)) {
           throw new Error(
-            'This APK is over the storage size cap. In Supabase, open Storage settings and set the global file size limit to 75 MB, then try again.',
+            'This file is over the storage size cap. In Supabase, open Storage settings and set the global file size limit to 75 MB, then try again.',
           );
         }
         throw new Error(detail);
@@ -305,6 +323,7 @@ function AppReleaseCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audience,
+          platform,
           storagePath: prep.path,
           fileName: file.name,
           fileSize: file.size,
@@ -320,7 +339,7 @@ function AppReleaseCard({
       setFile(null);
       setFileError('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      toast.success(`${copy.adminTitle} updated.`);
+      toast.success(`${copy.adminTitle} ${platformLabel} updated.`);
       onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Upload failed.');
@@ -333,13 +352,13 @@ function AppReleaseCard({
     if (!release) return;
     setBusy('remove');
     try {
-      const res = await fetch(`/api/admin/mobile-apps/${audience}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/mobile-apps/${audience}?platform=${platform}`, { method: 'DELETE' });
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(body?.error || 'Could not remove the app.');
       setFile(null);
       setFileError('');
       setConfirmRemove(false);
-      toast.success(`${copy.adminTitle} removed.`);
+      toast.success(`${copy.adminTitle} ${platformLabel} removed.`);
       onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not remove the app.');
@@ -349,7 +368,7 @@ function AppReleaseCard({
   }
 
   const busyLabel =
-    busy === 'prepare' ? 'Preparing upload…' : busy === 'upload' ? 'Uploading APK…' : busy === 'confirm' ? 'Publishing release…' : '';
+    busy === 'prepare' ? 'Preparing upload…' : busy === 'upload' ? `Uploading ${platformLabel}…` : busy === 'confirm' ? 'Publishing release…' : '';
 
   return (
     <section className="relative flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_12px_32px_rgba(24,40,28,0.05)] ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
@@ -366,7 +385,30 @@ function AppReleaseCard({
         </div>
       </div>
 
-      <div className="mx-5 mt-5">
+      <div className="mx-5 mt-4 grid grid-cols-2 gap-2">
+        {MOBILE_APP_PLATFORMS.map((item) => {
+          const live = Boolean(slots[item]);
+          const selected = platform === item;
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setPlatform(item)}
+              className={cn(
+                'rounded-xl border px-3 py-2 text-left transition-colors',
+                selected ? 'border-primary bg-primary/5' : 'border-border/70 bg-background hover:bg-muted/40',
+              )}
+            >
+              <span className="block text-sm font-semibold text-foreground">{item === 'ios' ? 'iOS' : 'Android'}</span>
+              <span className={cn('mt-0.5 block text-[11px] font-medium', live ? 'text-primary' : 'text-muted-foreground')}>
+                {live ? 'Live' : 'Not published'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mx-5 mt-4">
         {loading && !release ? (
           <div className="animate-pulse space-y-3 rounded-xl border border-border/70 bg-muted/30 px-4 py-4">
             <div className="h-3 w-16 rounded-full bg-muted" />
@@ -402,7 +444,7 @@ function AppReleaseCard({
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => startApkDownload(release.downloadUrl!)}
+                onClick={() => startAppDownload(release.downloadUrl!)}
               >
                 <Download className="h-4 w-4" />
                 Download build
@@ -413,7 +455,7 @@ function AppReleaseCard({
           <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4">
             <p className="text-sm font-medium text-foreground">No build published</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              This audience will not see a download until you upload an APK.
+              {platformLabel} will show as coming soon until you publish a file.
             </p>
           </div>
         )}
@@ -421,7 +463,7 @@ function AppReleaseCard({
 
       <div className="mt-5 flex flex-1 flex-col gap-4 border-t border-border/60 px-5 py-5">
         <div className="space-y-2">
-          <Label htmlFor={`${audience}-apk`}>New APK</Label>
+          <Label htmlFor={fileInputRefKey}>New {platformLabel} file</Label>
           <div
             onDragEnter={(event) => {
               event.preventDefault();
@@ -455,10 +497,10 @@ function AppReleaseCard({
               className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
             >
               <span className="block truncate text-sm font-medium text-foreground">
-                {file ? file.name : 'Drop an APK here, or browse'}
+                {file ? file.name : `Drop a ${platform === 'ios' ? 'IPA' : 'APK'} here, or browse`}
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                {file ? formatFileSize(file.size) : `Android package · up to ${formatFileSize(MOBILE_APP_MAX_BYTES)}`}
+                {file ? formatFileSize(file.size) : `${appFileExtension(platform).toUpperCase()} · up to ${formatFileSize(MOBILE_APP_MAX_BYTES)}`}
               </span>
             </button>
             {file ? (
@@ -478,9 +520,10 @@ function AppReleaseCard({
           </div>
           <input
             ref={fileInputRef}
-            id={`${audience}-apk`}
+            id={fileInputRefKey}
+            key={fileInputRefKey}
             type="file"
-            accept=".apk,application/vnd.android.package-archive"
+            accept={platform === 'ios' ? '.ipa,application/octet-stream' : '.apk,application/vnd.android.package-archive'}
             className="sr-only"
             disabled={busy !== null}
             onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
@@ -526,7 +569,7 @@ function AppReleaseCard({
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
           <Button type="button" onClick={() => void upload()} disabled={busy !== null || !file || Boolean(fileError)}>
             {busy && busy !== 'remove' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {release ? 'Replace build' : 'Publish build'}
+            {release ? `Replace ${platformLabel}` : `Publish ${platformLabel}`}
           </Button>
           {release && !confirmRemove ? (
             <Button type="button" variant="ghost" onClick={() => setConfirmRemove(true)} disabled={busy !== null}>

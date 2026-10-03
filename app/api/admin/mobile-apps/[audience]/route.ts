@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isMobileAppAudience } from "@/lib/mobile-apps";
+import { isMobileAppAudience, isMobileAppPlatform } from "@/lib/mobile-apps";
 import { deleteMobileAppRelease, removeMobileAppObject } from "@/lib/supabase/mobile-apps-repo";
 
 import { mobileAppErrorResponse, requireAdmin } from "../shared";
@@ -14,11 +14,15 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ audi
 
     const { audience: rawAudience } = await params;
     const audience = String(rawAudience ?? "");
+    const platform = new URL(_req.url).searchParams.get("platform") ?? "android";
     if (!isMobileAppAudience(audience)) {
       return NextResponse.json({ error: "Unknown app." }, { status: 400 });
     }
+    if (!isMobileAppPlatform(platform)) {
+      return NextResponse.json({ error: "Choose Android or iOS." }, { status: 400 });
+    }
 
-    const removed = await deleteMobileAppRelease(audience);
+    const removed = await deleteMobileAppRelease(audience, platform);
     if (!removed) {
       return NextResponse.json({ ok: true });
     }
@@ -26,7 +30,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ audi
     try {
       await removeMobileAppObject(removed.storagePath);
     } catch (error) {
-      console.error("Could not remove the APK file", error);
+      console.error("Could not remove the app file", error);
     }
 
     return NextResponse.json({ ok: true });

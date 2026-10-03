@@ -5,13 +5,16 @@ import {
   MOBILE_APP_MAX_BYTES,
   MOBILE_APP_MIME_TYPES,
   MOBILE_APP_SIGNED_URL_SECONDS,
+  appFileExtension,
   type MobileAppAudience,
+  type MobileAppPlatform,
   type MobileAppRelease,
 } from "@/lib/mobile-apps";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type MobileAppReleaseRow = {
   audience: MobileAppAudience;
+  platform: MobileAppPlatform | null;
   storage_path: string;
   file_name: string;
   file_size: number | string;
@@ -23,6 +26,7 @@ type MobileAppReleaseRow = {
 function mapRow(row: MobileAppReleaseRow): MobileAppRelease {
   return {
     audience: row.audience,
+    platform: row.platform === "ios" ? "ios" : "android",
     storagePath: row.storage_path,
     fileName: row.file_name,
     fileSize: Number(row.file_size) || 0,
@@ -32,8 +36,8 @@ function mapRow(row: MobileAppReleaseRow): MobileAppRelease {
   };
 }
 
-export function buildMobileAppStoragePath(audience: MobileAppAudience): string {
-  return `${audience}/${Date.now()}-${randomUUID()}.apk`;
+export function buildMobileAppStoragePath(audience: MobileAppAudience, platform: MobileAppPlatform): string {
+  return `${audience}/${platform}/${Date.now()}-${randomUUID()}.${appFileExtension(platform)}`;
 }
 
 export async function listMobileAppReleases(): Promise<MobileAppRelease[]> {
@@ -43,15 +47,26 @@ export async function listMobileAppReleases(): Promise<MobileAppRelease[]> {
   return (data ?? []).map((row) => mapRow(row as MobileAppReleaseRow));
 }
 
-export async function getMobileAppRelease(audience: MobileAppAudience): Promise<MobileAppRelease | null> {
+export async function getMobileAppRelease(
+  audience: MobileAppAudience,
+  platform: MobileAppPlatform,
+): Promise<MobileAppRelease | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("mobile_app_releases")
     .select("*")
     .eq("audience", audience)
+    .eq("platform", platform)
     .maybeSingle();
   if (error) throw error;
   return data ? mapRow(data as MobileAppReleaseRow) : null;
+}
+
+export async function listAudienceMobileAppReleases(audience: MobileAppAudience): Promise<MobileAppRelease[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("mobile_app_releases").select("*").eq("audience", audience);
+  if (error) throw error;
+  return (data ?? []).map((row) => mapRow(row as MobileAppReleaseRow));
 }
 
 export async function ensureMobileAppBucketLimit(): Promise<void> {
@@ -110,6 +125,7 @@ export async function removeMobileAppObject(storagePath: string): Promise<void> 
 
 export async function upsertMobileAppRelease(input: {
   audience: MobileAppAudience;
+  platform: MobileAppPlatform;
   storagePath: string;
   fileName: string;
   fileSize: number;
@@ -123,6 +139,7 @@ export async function upsertMobileAppRelease(input: {
     .upsert(
       {
         audience: input.audience,
+        platform: input.platform,
         storage_path: input.storagePath,
         file_name: input.fileName,
         file_size: input.fileSize,
@@ -130,7 +147,7 @@ export async function upsertMobileAppRelease(input: {
         notes: input.notes,
         updated_by: input.updatedBy,
       },
-      { onConflict: "audience" },
+      { onConflict: "audience,platform" },
     )
     .select("*")
     .single();
@@ -138,11 +155,18 @@ export async function upsertMobileAppRelease(input: {
   return mapRow(data as MobileAppReleaseRow);
 }
 
-export async function deleteMobileAppRelease(audience: MobileAppAudience): Promise<MobileAppRelease | null> {
-  const existing = await getMobileAppRelease(audience);
+export async function deleteMobileAppRelease(
+  audience: MobileAppAudience,
+  platform: MobileAppPlatform,
+): Promise<MobileAppRelease | null> {
+  const existing = await getMobileAppRelease(audience, platform);
   if (!existing) return null;
   const supabase = createAdminClient();
-  const { error } = await supabase.from("mobile_app_releases").delete().eq("audience", audience);
+  const { error } = await supabase
+    .from("mobile_app_releases")
+    .delete()
+    .eq("audience", audience)
+    .eq("platform", platform);
   if (error) throw error;
   return existing;
 }

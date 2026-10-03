@@ -203,7 +203,7 @@ export function Footer() {
               <span className="min-w-0 text-left">
                 <span className="block text-base font-bold tracking-tight">Get the app</span>
                 <span className="block text-xs font-medium text-primary-foreground/80">
-                  Download the Android app
+                  Android and iOS
                 </span>
               </span>
               <ArrowRight className="ml-1 h-4 w-4 shrink-0" aria-hidden />

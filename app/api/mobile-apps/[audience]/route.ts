@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { isMobileAppAudience, type MobileAppAudience } from "@/lib/mobile-apps";
+import { isMobileAppAudience, MOBILE_APP_PLATFORMS, type MobileAppAudience, type MobileAppPlatform } from "@/lib/mobile-apps";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createMobileAppDownloadUrl, getMobileAppRelease } from "@/lib/supabase/mobile-apps-repo";
+import { createMobileAppDownloadUrl, listAudienceMobileAppReleases } from "@/lib/supabase/mobile-apps-repo";
 import { createClient } from "@/lib/supabase/server";
 
 async function requireVerifiedAudience(audience: Exclude<MobileAppAudience, "public">) {
@@ -42,20 +42,33 @@ export async function GET(_req: Request, { params }: { params: Promise<{ audienc
       if (denied) return denied;
     }
 
-    const release = await getMobileAppRelease(audience);
-    if (!release) {
-      return NextResponse.json({ error: "No app uploaded" }, { status: 404 });
-    }
+    const releases = await listAudienceMobileAppReleases(audience);
+    const byPlatform = new Map(releases.map((release) => [release.platform, release]));
+    const platforms = {} as Record<MobileAppPlatform, Record<string, unknown> | null>;
+    await Promise.all(
+      MOBILE_APP_PLATFORMS.map(async (platform) => {
+        const release = byPlatform.get(platform);
+        if (!release) {
+          platforms[platform] = null;
+          return;
+        }
+        const downloadUrl = await createMobileAppDownloadUrl(release.storagePath, release.fileName);
+        platforms[platform] = {
+          platform,
+          fileName: release.fileName,
+          fileSize: release.fileSize,
+          versionLabel: release.versionLabel,
+          notes: release.notes,
+          updatedAt: release.updatedAt,
+          downloadUrl,
+        };
+      }),
+    );
 
-    const downloadUrl = await createMobileAppDownloadUrl(release.storagePath, release.fileName);
     return NextResponse.json({
-      audience: release.audience,
-      fileName: release.fileName,
-      fileSize: release.fileSize,
-      versionLabel: release.versionLabel,
-      notes: release.notes,
-      updatedAt: release.updatedAt,
-      downloadUrl,
+      audience,
+      android: platforms.android,
+      ios: platforms.ios,
     });
   } catch (error) {
     const message =
