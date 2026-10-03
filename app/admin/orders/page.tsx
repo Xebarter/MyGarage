@@ -4,11 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Order } from '@/lib/db';
 import type { AdminUnifiedCommerceItem, CommercePipelineStage } from '@/lib/admin-commerce-feed';
 import { productOrderStatusLabel } from '@/lib/product-order-status';
-import { Eye, Search, Package, CheckCircle2, Clock3, ShoppingCart, RefreshCw, MapPin, Calendar, Wrench, X } from 'lucide-react';
+import { Eye, Search, Package, CheckCircle2, Clock3, ShoppingCart, RefreshCw, MapPin, Calendar, Wrench, X, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { downloadOrdersCsv, type OrdersExportScope } from '@/lib/admin-orders-export';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -171,6 +178,15 @@ function serviceStatusBadge(status: string): { className: string; label: string 
         className: 'border-rose-500/35 bg-rose-500/10 text-rose-950 dark:text-rose-100',
       };
   }
+}
+
+function exportOrders(rows: AdminUnifiedCommerceItem[], scope: OrdersExportScope) {
+  const count = downloadOrdersCsv(rows, scope);
+  if (!count) {
+    toast.error('Nothing to download');
+    return;
+  }
+  toast.success(count === 1 ? 'Order downloaded' : `Downloaded ${count} orders`);
 }
 
 function OrdersLoadingSkeleton() {
@@ -363,17 +379,51 @@ export default function OrdersPage() {
               Product checkouts and field bookings on one timeline. Select a row to inspect, fulfill, or update status.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 border-border/80 bg-background/85"
-            disabled={refreshing}
-            onClick={() => void loadFeed('refresh')}
-          >
-            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden />
-            Refresh
-          </Button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border/80 bg-background/85"
+                  disabled={items.length === 0}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Download
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={() => exportOrders(items, 'all')}>
+                  All orders
+                  <span className="ml-auto tabular-nums text-muted-foreground">{items.length}</span>
+                </DropdownMenuItem>
+                {filteredItems.length !== items.length ? (
+                  <DropdownMenuItem
+                    disabled={filteredItems.length === 0}
+                    onSelect={() => exportOrders(filteredItems, 'view')}
+                  >
+                    This view
+                    <span className="ml-auto tabular-nums text-muted-foreground">{filteredItems.length}</span>
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem disabled={!selected} onSelect={() => selected && exportOrders([selected], 'order')}>
+                  Selected order
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-border/80 bg-background/85"
+              disabled={refreshing}
+              onClick={() => void loadFeed('refresh')}
+            >
+              <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden />
+              Refresh
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -604,14 +654,29 @@ export default function OrdersPage() {
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="pr-4 align-middle">
-                            <Badge
-                              variant="outline"
-                              title={pipelineLabel(row.pipeline)}
-                              className={cn('w-fit text-[10px] font-semibold', st.className)}
-                            >
-                              {st.label}
-                            </Badge>
+                          <TableCell className="pr-3 align-middle">
+                            <div className="flex items-center justify-between gap-1">
+                              <Badge
+                                variant="outline"
+                                title={pipelineLabel(row.pipeline)}
+                                className={cn('w-fit text-[10px] font-semibold', st.className)}
+                              >
+                                {st.label}
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                                aria-label={`Download ${row.customerName}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  exportOrders([row], 'order');
+                                }}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -641,6 +706,7 @@ export default function OrdersPage() {
             <ProductDetailPanel
               order={selected.productOrder}
               onClose={() => setSelected(null)}
+              onDownload={() => exportOrders([selected], 'order')}
               onStatusChange={(s) => void updateProductOrderStatus(selected.id, s)}
             />
           ) : selected.kind === 'service' && selected.service ? (
@@ -648,6 +714,7 @@ export default function OrdersPage() {
               request={selected.service.request}
               payments={selected.service.payments}
               onClose={() => setSelected(null)}
+              onDownload={() => exportOrders([selected], 'order')}
               onStatusChange={(s) => void updateServiceRequestStatus(selected.id, s)}
             />
           ) : (
@@ -662,10 +729,12 @@ export default function OrdersPage() {
 function ProductDetailPanel({
   order,
   onClose,
+  onDownload,
   onStatusChange,
 }: {
   order: Order;
   onClose: () => void;
+  onDownload: () => void;
   onStatusChange: (s: Order['status']) => void;
 }) {
   const st = productStatusBadge(order.status);
@@ -699,6 +768,10 @@ function ProductDetailPanel({
             <Badge variant="outline" className={cn('shrink-0 text-[10px] font-semibold', st.className)}>
               {st.label}
             </Badge>
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={onDownload}>
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              Download
+            </Button>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close detail">
               <X className="h-4 w-4" />
             </Button>
@@ -795,11 +868,13 @@ function ServiceDetailPanel({
   request,
   payments,
   onClose,
+  onDownload,
   onStatusChange,
 }: {
   request: import('@/lib/supabase/buyer-services-repo').BuyerServiceRequest;
   payments: import('@/lib/admin-commerce-feed').ServicePaymentSummary[];
   onClose: () => void;
+  onDownload: () => void;
   onStatusChange: (s: (typeof SERVICE_STATUSES)[number]) => void;
 }) {
   const st = serviceStatusBadge(request.status);
@@ -825,6 +900,10 @@ function ServiceDetailPanel({
             <Badge variant="outline" className={cn('shrink-0 text-[10px] font-semibold', st.className)}>
               {st.label}
             </Badge>
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={onDownload}>
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              Download
+            </Button>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close detail">
               <X className="h-4 w-4" />
             </Button>
