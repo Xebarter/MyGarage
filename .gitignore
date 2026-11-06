@@ -16,6 +16,9 @@ next.user-config.*
 # Common ignores
 node_modules
 .next/
+.open-next/
+.dev.vars
+.wrangler/
 .DS_Store
 
 # Flutter / Android (Services Mobile App and similar)
