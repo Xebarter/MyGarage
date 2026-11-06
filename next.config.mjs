@@ -1,18 +1,11 @@
 /** @type {import('next').NextConfig} */
-const remotePatterns = [];
-try {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (supabaseUrl) {
-    const host = new URL(supabaseUrl).hostname;
-    remotePatterns.push({
-      protocol: "https",
-      hostname: host,
-      pathname: "/storage/v1/object/public/**",
-    });
-  }
-} catch {
-  /* env may be unset at build time */
-}
+const remotePatterns = [
+  {
+    protocol: "https",
+    hostname: "*.supabase.co",
+    pathname: "/storage/v1/object/public/**",
+  },
+];
 
 const nextConfig = {
   allowedDevOrigins: ['127.0.0.1'],

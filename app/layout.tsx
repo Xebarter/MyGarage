@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { Analytics } from '@vercel/analytics/next';
 import { Nunito } from 'next/font/google';
 import Script from 'next/script';
 import { Suspense } from 'react';
@@ -59,7 +58,6 @@ export default function RootLayout({
           <CollectDisplayNameHost />
           <ConciergeChatHost />
           <MobileAppFooterHost />
-          <Analytics />
         </ThemeProvider>
       </body>
     </html>
