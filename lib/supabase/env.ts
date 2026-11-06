@@ -1,6 +1,9 @@
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function readEnv(name: string): string | undefined {
+  const value = process.env[name];
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
 function requireEnvVar(name: string, value: string | undefined): string {
   if (!value) {
@@ -26,12 +29,16 @@ function normalizeSupabaseUrl(raw: string): string {
   }
 }
 
+export function hasSupabasePublicEnv(): boolean {
+  return Boolean(readEnv("NEXT_PUBLIC_SUPABASE_URL") && readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"));
+}
+
 export function getSupabasePublicEnv() {
-  const url = normalizeSupabaseUrl(requireEnvVar("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl));
-  const anonKey = requireEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey).trim();
+  const url = normalizeSupabaseUrl(requireEnvVar("NEXT_PUBLIC_SUPABASE_URL", readEnv("NEXT_PUBLIC_SUPABASE_URL")));
+  const anonKey = requireEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"));
   return { url, anonKey };
 }
 
 export function getSupabaseServiceRoleKey() {
-  return requireEnvVar("SUPABASE_SERVICE_ROLE_KEY", supabaseServiceRoleKey).trim();
+  return requireEnvVar("SUPABASE_SERVICE_ROLE_KEY", readEnv("SUPABASE_SERVICE_ROLE_KEY"));
 }
